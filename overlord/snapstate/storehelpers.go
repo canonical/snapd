@@ -118,7 +118,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, user, opts)
+	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -164,7 +164,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
+	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts)
 	st.Lock()
 
 	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -255,7 +255,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
+	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, opts)
 	st.Lock()
 
 	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
@@ -427,7 +427,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	updates := make([]*snap.Info, 0, nCands)
 	for u, actions := range actionsForUser {
 		st.Unlock()
-		sarsForUser, err := theStore.SnapAction(ctx, curSnaps, actions, u, opts)
+		sarsForUser, _, err := theStore.SnapAction(ctx, curSnaps, actions, nil, u, opts)
 		st.Lock()
 		if err != nil {
 			saErr, ok := err.(*store.SnapActionError)
@@ -471,5 +471,6 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 	theStore := Store(st, nil)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	defer st.Lock()
-	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)
+	results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+	return results, err
 }

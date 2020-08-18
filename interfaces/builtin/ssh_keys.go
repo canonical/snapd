@@ -35,6 +35,7 @@ const sshKeysConnectedPlugAppArmor = `
 
 /usr/bin/ssh ixr,
 /etc/ssh/ssh_config r,
+/etc/ssh/ssh_config.d/{,**} r,
 owner @{HOME}/.ssh/{,**} r,
 `
 

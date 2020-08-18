@@ -12,19 +12,16 @@ prepare: |
     install_local test-snapd-tools
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "We can try to discard a namespace before snap runs"
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-tools
 
     echo "We can try to discard a namespace before the .mnt file exits"
     mkdir -p /run/snapd/ns/
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-tools
 
     echo "We can try to discard a namespace before the .mnt file is mounted"
     touch /run/snapd/ns/test-snapd-tools.mnt
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-tools
 
     echo "We can discard the namespace after a snap runs"
     test-snapd-tools.success
@@ -39,7 +36,7 @@ execute: |
     # proc is there because on older kernels /proc/*/ns/mnt is not on nsfs but still on procfs.
     stat -f -c %T /run/snapd/ns/test-snapd-tools.mnt | MATCH 'proc|nsfs|0x6e736673'
     stat -f -c %T /run/snapd/ns/test-snapd-tools.1000.mnt | MATCH 'proc|nsfs|0x6e736673'
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-tools
     test ! -e /run/snapd/ns/test-snapd-tools.mnt
     test ! -e /run/snapd/ns/test-snapd-tools.1000.mnt
     test ! -e /run/snapd/ns/snap.test-snapd-tools.info
@@ -48,6 +45,6 @@ execute: |
     test-snapd-tools.success
     touch /run/snapd/ns/snap.test-snapd-tools.fstab
     touch /run/snapd/ns/snap.test-snapd-tools.1000.user-fstab
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-tools
     test ! -e /run/snapd/ns/snap.test-snapd-tools.fstab
     test ! -e /run/snapd/ns/snap.test-snapd-tools.1000.user-fstab

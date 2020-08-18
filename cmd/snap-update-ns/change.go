@@ -361,6 +361,26 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
 				}
 				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+				if err == syscall.EINVAL {
+					// We attempted to unmount but got an EINVAL, one of the
+					// possibilities and the only one unless we provided wrong
+					// flags, is that the mount no longer exists.
+					//
+					// We can verify that now by scanning mountinfo:
+					entries, _ := osutil.LoadMountInfo()
+					for _, entry := range entries {
+						if entry.MountDir == c.Entry.Dir {
+							// Mount point still exists, EINVAL was unexpected.
+							return err
+						}
+					}
+					// We didn't find a mount point at the location we tried to
+					// unmount. The EINVAL we observed indicates that the mount
+					// profile no longer agrees with reality. The mount point
+					// no longer exists. As such, consume the error and carry on.
+					logger.Debugf("ignoring EINVAL from unmount, %q is not mounted", c.Entry.Dir)
+					err = nil
+				}
 				if err != nil {
 					return err
 				}
@@ -373,6 +393,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			path := c.Entry.Dir
 			var fd int
 			fd, err = OpenPath(path)
+			// If the place does not exist anymore, we are done.
+			if os.IsNotExist(err) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -447,7 +471,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				//
 				// In an ideal world we would model this better and could do
 				// without this edge case.
-				if kind == "" && err == syscall.EBUSY {
+				if (kind == "" || kind == "file") && err == syscall.EBUSY {
 					logger.Debugf("cannot remove busy mount point %q", path)
 					return nil
 				}

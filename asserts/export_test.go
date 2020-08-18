@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@ package asserts
 import (
 	"io"
 	"time"
+
+	"github.com/snapcore/snapd/asserts/internal"
 )
 
 // expose test-only things here
@@ -112,6 +114,90 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 
 var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
 
+// TestOnlyDecl is a test-only assertion that mimics snap-declaration
+// relations with other assertions.
+type TestOnlyDecl struct {
+	assertionBase
+}
+
+func (dcl *TestOnlyDecl) ID() string {
+	return dcl.HeaderString("id")
+}
+
+func (dcl *TestOnlyDecl) DevID() string {
+	return dcl.HeaderString("dev-id")
+}
+
+func (dcl *TestOnlyDecl) Prerequisites() []*Ref {
+	return []*Ref{
+		{Type: AccountType, PrimaryKey: []string{dcl.DevID()}},
+	}
+}
+
+func assembleTestOnlyDecl(assert assertionBase) (Assertion, error) {
+	return &TestOnlyDecl{assert}, nil
+}
+
+var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, assembleTestOnlyDecl, 0}
+
+// TestOnlyRev is a test-only assertion that mimics snap-revision
+// relations with other assertions.
+type TestOnlyRev struct {
+	assertionBase
+}
+
+func (rev *TestOnlyRev) H() string {
+	return rev.HeaderString("h")
+}
+
+func (rev *TestOnlyRev) ID() string {
+	return rev.HeaderString("id")
+}
+
+func (rev *TestOnlyRev) DevID() string {
+	return rev.HeaderString("dev-id")
+}
+
+func (rev *TestOnlyRev) Prerequisites() []*Ref {
+	return []*Ref{
+		{Type: TestOnlyDeclType, PrimaryKey: []string{rev.ID()}},
+		{Type: AccountType, PrimaryKey: []string{rev.DevID()}},
+	}
+}
+
+func assembleTestOnlyRev(assert assertionBase) (Assertion, error) {
+	return &TestOnlyRev{assert}, nil
+}
+
+var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, assembleTestOnlyRev, 0}
+
+// TestOnlySeq is a test-only assertion that is sequence-forming.
+type TestOnlySeq struct {
+	assertionBase
+	seq int
+}
+
+func (seq *TestOnlyRev) N() string {
+	return seq.HeaderString("n")
+}
+
+func (seq *TestOnlySeq) Sequence() int {
+	return seq.seq
+}
+
+func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
+	seq, err := checkSequence(assert.headers, "sequence")
+	if err != nil {
+		return nil, err
+	}
+	return &TestOnlySeq{
+		assertionBase: assert,
+		seq:           seq,
+	}, nil
+}
+
+var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, assembleTestOnlySeq, sequenceForming}
+
 type TestOnlyNoAuthority struct {
 	assertionBase
 }
@@ -147,6 +233,10 @@ func init() {
 		}
 		return 0, nil
 	}
+	typeRegistry[TestOnlyDeclType.Name] = TestOnlyDeclType
+	typeRegistry[TestOnlyRevType.Name] = TestOnlyRevType
+	typeRegistry[TestOnlySeqType.Name] = TestOnlySeqType
+	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
@@ -195,4 +285,10 @@ func RuleFeature(rule featureExposer, flabel string) bool {
 
 func (b *Batch) DoPrecheck(db *Database) error {
 	return b.precheck(db)
+}
+
+// pool tests
+
+func MakePoolGrouping(elems ...uint16) Grouping {
+	return Grouping(internal.Serialize(elems))
 }

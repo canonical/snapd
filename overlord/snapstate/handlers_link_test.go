@@ -376,6 +376,109 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(ok, Equals, true)
 }
 
+func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// foo has a vitality-hint
+	cfg := json.RawMessage(`{"resilience":{"vitality-hint":"bar,foo,baz"}}`)
+	err := config.SetSnapConfig(s.state, "core", &cfg)
+	c.Assert(err, IsNil)
+
+	si1 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Active:   true,
+	})
+	t := s.state.NewTask("unlink-current-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	expected := fakeOps{
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
+		},
+		{
+			op:           "link-snap",
+			path:         filepath.Join(dirs.SnapMountDir, "foo/11"),
+			vitalityRank: 2,
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// a hook might have set some config
+	cfg := json.RawMessage(`{"resilience":{"vitality-hint":"bar,foo,baz"}}`)
+	err := config.SetSnapConfig(s.state, "core", &cfg)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:           "link-snap",
+			path:         filepath.Join(dirs.SnapMountDir, "foo/33"),
+			vitalityRank: 2,
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1222,12 +1325,10 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	mockPidsCgroupDir := c.MkDir()
-	restore = snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
-	defer restore()
 
-	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
@@ -1235,6 +1336,14 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 		}
 		return info, nil
 	})
+	// mock that "some-snap" has an app and that this app has pids running
+	restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.some-app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	si1 := &snap.SideInfo{
 		RealName: "some-snap",

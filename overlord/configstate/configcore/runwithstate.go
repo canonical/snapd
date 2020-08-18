@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nomanagers
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -21,6 +22,7 @@ package configcore
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/release"
@@ -38,6 +40,14 @@ func init() {
 
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
+
+	// resilience.vitality-hint
+	addWithStateHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
+
+	// XXX: this should become a FSOnlyHandler. We need to
+	// add/implement Changes() to the ConfGetter interface
+	// store-certs.*
+	addWithStateHandler(validateCertSettings, handleCertConfiguration, nil)
 
 	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
@@ -94,7 +104,12 @@ func addWithStateHandler(validate func(config.Conf) error, handle func(config.Co
 func Run(cfg config.Conf) error {
 	// check if the changes
 	for _, k := range cfg.Changes() {
-		if !supportedConfigurations[k] {
+		switch {
+		case strings.HasPrefix(k, "core.store-certs."):
+			if !validCertOption(k) {
+				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
+			}
+		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}
 	}

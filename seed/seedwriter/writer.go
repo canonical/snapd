@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -551,6 +551,28 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	return nil
 }
 
+// SetRedirectChannel sets the redirect channel for the SeedSnap
+// for the in case there is a default track for it.
+func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error {
+	if sn.local {
+		return fmt.Errorf("internal error: cannot set redirect channel for local snap %q", sn.Path)
+	}
+	if sn.Info == nil {
+		return fmt.Errorf("internal error: before using seedwriter.Writer.SetRedirectChannel snap %q Info should have been set", sn.SnapName())
+	}
+	if redirectChannel == "" {
+		// nothing to do
+		return nil
+	}
+	_, err := channel.ParseVerbatim(redirectChannel, "-")
+	if err != nil {
+		return fmt.Errorf("invalid redirect channel for snap %q: %v", sn.SnapName(), err)
+	}
+	sn.Channel = redirectChannel
+	return nil
+
+}
+
 // snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute
 type snapsToDownloadSet int
 
@@ -623,7 +645,11 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 }
 
 func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
-	modSnaps := w.model.AllSnaps()
+	// model snaps are accumulated/processed in the order
+	//  * system snap if implicit
+	//  * essential snaps (in Model.EssentialSnaps order)
+	//  * not essential snaps
+	modSnaps := append([]*asserts.ModelSnap{}, w.model.EssentialSnaps()...)
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
 		for _, modSnap := range modSnaps {
@@ -646,6 +672,7 @@ func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
+	modSnaps = append(modSnaps, w.model.SnapsWithoutEssential()...)
 	return modSnaps, nil
 }
 
@@ -791,7 +818,7 @@ func (w *Writer) checkBase(info *snap.Info) error {
 	// Sanity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
-	if info.GetType() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
+	if info.Type() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
 		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, w.model.Base())
 	}
 
@@ -936,7 +963,7 @@ func (w *Writer) checkPublisher(sn *SeedSnap) error {
 	}
 	info := sn.Info
 	var kind string
-	switch info.GetType() {
+	switch info.Type() {
 	case snap.TypeKernel:
 		kind = "kernel"
 	case snap.TypeGadget:
@@ -1067,7 +1094,7 @@ func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
 	var bootSnaps []*SeedSnap
 	for _, sn := range w.snapsFromModel {
 		bootSnaps = append(bootSnaps, sn)
-		if sn.Info.GetType() == snap.TypeGadget {
+		if sn.Info.Type() == snap.TypeGadget {
 			break
 
 		}

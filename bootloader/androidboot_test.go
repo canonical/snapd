@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -42,11 +43,6 @@ func (s *androidBootTestSuite) SetUpTest(c *C) {
 
 	// the file needs to exist for androidboot object to be created
 	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
-}
-
-func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	a := bootloader.NewAndroidBoot("/something/not/there")
-	c.Assert(a, IsNil)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
@@ -80,7 +76,7 @@ func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)

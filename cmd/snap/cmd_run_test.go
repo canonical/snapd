@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -46,6 +47,9 @@ version: 1.0
 apps:
  app:
   command: run-app
+ svc:
+  command: run-svc
+  daemon: simple
 hooks:
  configure:
 `)
@@ -80,6 +84,9 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
+	}))
+	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string) error {
+		return nil
 	}))
 }
 
@@ -559,6 +566,9 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
@@ -580,6 +590,15 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 		},
 		{
 			filepath.Join("/usr/bin/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		{
+			filepath.Join("/home/foo/ws/snapd/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		// unexpected case
+		{
+			filepath.Join(dirs.SnapMountDir, "snapd2/current/bin/snap"),
 			filepath.Join(dirs.DistroLibExecDir, tool),
 		},
 	} {
@@ -1011,6 +1030,9 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -1196,4 +1218,290 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	c.Check(isEnabledCalls, check.Equals, 3)
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)
+}
+
+// systemctl is-system-running returns "running" in normal situations.
+func (s *RunSuite) TestIsStoppingRunning(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "running"
+		exit 0
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running returns "stopping" when the system is
+// shutting down or rebooting. At the same time it returns a non-zero
+// exit status.
+func (s *RunSuite) TestIsStoppingStopping(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "stopping"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, true)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running can often return "degraded"
+// Let's make sure that is not confusing us.
+func (s *RunSuite) TestIsStoppingDegraded(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "degraded"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	created := false
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		created = true
+		return nil
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("apps need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// and run it!
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(created, check.Equals, true)
+}
+
+func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	created := false
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.hook.configure")
+		created = true
+		return nil
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("hooks need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// and run it!
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook", "configure", "-r", "x2", "snapname"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.hook.configure",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--hook=configure", "snapname"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(created, check.Equals, true)
+}
+
+func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+		panic("services rely on systemd tracking, should not have created a transient scope")
+	})
+	defer restore()
+
+	confirmed := false
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		confirmed = true
+		c.Assert(securityTag, check.Equals, "snap.snapname.svc")
+		return nil
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// and run it!
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.svc",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.svc", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(confirmed, check.Equals, true)
+}
+
+func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	created := false
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		created = true
+		// Pretend that the tracking system was unable to track this application.
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("apps need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// Capture the debug log that is printed by this test.
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// and run it!
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(created, check.Equals, true)
+
+	// Ensure that the debug message is printed.
+	c.Assert(logbuf.String(), testutil.Contains, "snapd cannot track the started application\n")
 }

@@ -239,18 +239,12 @@ func (client *Client) serviceControlCall(ctx context.Context, action string, ser
 		return nil, nil, err
 	}
 	for _, resp := range responses {
-		if resp.err == nil {
-			continue
-		}
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
 			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
-				failures, err1 := decodeServiceErrors(resp.uid, errorValue, "start-errors")
+				failures, _ := decodeServiceErrors(resp.uid, errorValue, "start-errors")
 				startFailures = append(startFailures, failures...)
-				failures, err2 := decodeServiceErrors(resp.uid, errorValue, "stop-errors")
+				failures, _ = decodeServiceErrors(resp.uid, errorValue, "stop-errors")
 				stopFailures = append(stopFailures, failures...)
-				if err1 == nil && err2 == nil {
-					continue
-				}
 			}
 		}
 		if resp.err != nil && err == nil {

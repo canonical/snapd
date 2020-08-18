@@ -38,12 +38,14 @@ type systemUserSuite struct {
 	since     time.Time
 	sinceLine string
 
+	formatLine string
 	modelsLine string
 
 	systemUserStr string
 }
 
 const systemUserExample = "type: system-user\n" +
+	"FORMATLINE\n" +
 	"authority-id: canonical\n" +
 	"brand-id: canonical\n" +
 	"email: foo@example.com\n" +
@@ -68,9 +70,11 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 	s.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
 	s.modelsLine = "models:\n  - frobinator\n"
+	s.formatLine = "format: 0\n"
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "MODELSLINE\n", s.modelsLine, 1)
+	s.systemUserStr = strings.Replace(s.systemUserStr, "FORMATLINE\n", s.formatLine, 1)
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
@@ -183,6 +187,9 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.untilLine, "until: \n", `"until" header should not be empty`},
 		{s.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
+		{s.modelsLine, s.modelsLine + "serials: \n", `"serials" header must be a list of strings`},
+		{s.modelsLine, s.modelsLine + "serials: something\n", `"serials" header must be a list of strings`},
+		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only supported for format 1 or greater`},
 	}
 
 	for _, test := range invalidTests {
@@ -211,4 +218,52 @@ func (s *systemUserSuite) TestUntilWithModels(c *C) {
 	su := strings.Replace(s.systemUserStr, s.untilLine, fmt.Sprintf("until: %s\n", oneYearPlusOne.Format(time.RFC3339)), -1)
 	_, err := asserts.Decode([]byte(su))
 	c.Check(err, IsNil)
+}
+
+// The following tests deal with "format: 1" which adds support for
+// tying system-user assertions to device serials.
+
+var serialsLine = "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n"
+
+func (s *systemUserSuite) TestDecodeInvalidFormat1Serials(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 1\n", 1)
+	serialWithMultipleModels := "models:\n  - m1\n  - m2\n" + serialsLine
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{s.modelsLine, serialWithMultipleModels, `in the presence of the "serials" header "models" must specify exactly one model`},
+	}
+	for _, test := range invalidTests {
+		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *systemUserSuite) TestDecodeOKFormat1Serials(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 1\n", 1)
+
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.modelsLine, s.modelsLine+serialsLine, 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	systemUser := a.(*asserts.SystemUser)
+	// just for sanity, already covered by "format: 0" tests
+	c.Check(systemUser.BrandID(), Equals, "canonical")
+	// new in "format: 1"
+	c.Check(systemUser.Serials(), DeepEquals, []string{"7c7f435d-ed28-4281-bd77-e271e0846904"})
+
+}
+
+func (s *systemUserSuite) TestSuggestedFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.SystemUserType, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+
+	headers := map[string]interface{}{
+		"serials": []interface{}{"serialserial"},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
+
 }

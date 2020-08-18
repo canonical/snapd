@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 var trusted = sysdb.Trusted()
@@ -94,7 +95,7 @@ func readAsserts(batch *asserts.Batch, fn string) ([]*asserts.Ref, error) {
 }
 
 func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}

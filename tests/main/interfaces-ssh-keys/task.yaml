@@ -7,6 +7,7 @@ details: |
 environment:
     KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "$HOME/.ssh/testkey"
+    CONFDIR: "/etc/ssh/ssh_config.d/"
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
@@ -21,10 +22,21 @@ prepare: |
     echo "testkey" > "$TESTKEY"
     echo "testkey.pub" > "$TESTKEY".pub
 
+    if [ ! -d "$CONFDIR" ]; then
+        mkdir -p "$CONFDIR"
+        touch "$CONFDIR/.spread-created"
+    fi
+    touch "$CONFDIR/test.conf"
+
 restore: |
     rm -rf "$KEYSDIR"
     if [ -d "$KEYSDIR".old ]; then
         mv "$KEYSDIR".old "$KEYSDIR"
+    fi
+
+    rm -f "$CONFDIR/test.conf"
+    if [ -f "$CONFDIR/.spread-created" ]; then
+        rm -rf "$CONFDIR"
     fi
 
 execute: |
@@ -41,6 +53,7 @@ execute: |
     test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY"
     test-snapd-sh.with-ssh-keys-plug -c "cat $TESTKEY.pub"
     test-snapd-sh.with-ssh-keys-plug -c "cat /etc/ssh/ssh_config"
+    test-snapd-sh.with-ssh-keys-plug -c "cat /etc/ssh/ssh_config.d/test.conf"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

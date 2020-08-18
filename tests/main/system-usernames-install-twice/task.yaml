@@ -14,7 +14,7 @@ restore: |
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
-    user-tool remove-with-group snap_daemon
+    "$TESTSTOOLS"/user-state remove-with-group snap_daemon
 
 execute: |
     echo "When the snap is removed"

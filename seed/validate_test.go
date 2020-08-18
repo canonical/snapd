@@ -198,7 +198,7 @@ snaps:
  - cannot use snap "some-snap": required snap "core" missing`)
 }
 
-func (s *validateSuite) TestValidateFromYamlSnapMissingSnapdAndCore(c *C) {
+func (s *validateSuite) TestValidateFromYamlSnapMissingSnapdOrCore(c *C) {
 	s.makeSnapInSeed(c, packageCore18)
 	s.makeSnapInSeed(c, `name: some-snap
 version: 1.0
@@ -213,7 +213,31 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
- - essential snap "core" required by the model is missing in the seed`)
+ - essential snap core or snapd must be part of the seed`)
+}
+
+func (s *validateSuite) TestValidateFromYamlSnapMissingSnapd(c *C) {
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"required-snaps": []interface{}{"snapd"},
+	})
+	s.WriteAssertions("model.asserts", modelChain...)
+
+	s.makeSnapInSeed(c, packageCore18)
+	s.makeSnapInSeed(c, `name: some-snap
+version: 1.0
+base: core18`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: some-snap
+   file: some-snap_1.snap
+ - name: core18
+   file: core18_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - essential snap "snapd" required by the model is missing in the seed`)
 }
 
 func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) {

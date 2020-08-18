@@ -1,7 +1,7 @@
 summary: Verify directories from the base snap are not mounted over symlinks in /etc
 
 description: |
-  The host's /etc is made avaialable inside the snap's mount namespace. During
+  The host's /etc is made available inside the snap's mount namespace. During
   setup, snap-confine attempts to preserve some entries from the base snap to
   present a uniform environment for the snaps. When the entries in host
   namespace are symlinks, they are followed when mounting and the mount, with
@@ -19,9 +19,6 @@ restore: |
     rm -f ./in-snap ./on-host
 
 execute: |
-    # on Fedora, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
-    test -L /etc/nsswitch.conf
-
     # the following mount entries are visible on a broken system:
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
     # /var/lib/snapd/snaps/core_6818.snap on /var/lib/snapd/snap/core/6818/etc/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
@@ -29,7 +26,7 @@ execute: |
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
     # /var/lib/snapd/snaps/core_6818.snap on /etc/ssl-backup type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
 
-    # since we cannot look at /etc/nsswitch.conf, make /etc/ssl a symlink
+    # make /etc/ssl a symlink
     mv /etc/ssl /etc/ssl-backup
     ln -s /etc/ssl-backup /etc/ssl
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -433,9 +433,9 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-// GetType returns the type of the snap, including additional snap ID check
+// Type returns the type of the snap, including additional snap ID check
 // for the legacy snapd snap definitions.
-func (s *Info) GetType() Type {
+func (s *Info) Type() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
 	}
@@ -838,6 +838,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
+	DaemonScope     DaemonScope
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -853,7 +854,8 @@ type AppInfo struct {
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
-	BusName string
+	BusName     string
+	ActivatesOn []*SlotInfo
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo
@@ -928,12 +930,12 @@ type SystemUsernameInfo struct {
 
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+	return filepath.Join(socket.App.serviceDir(), socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+	return filepath.Join(timer.App.serviceDir(), timer.App.SecurityTag()+".timer")
 }
 
 func (app *AppInfo) String() string {
@@ -1006,9 +1008,20 @@ func (app *AppInfo) ServiceName() string {
 	return app.SecurityTag() + ".service"
 }
 
+func (app *AppInfo) serviceDir() string {
+	switch app.DaemonScope {
+	case SystemDaemon:
+		return dirs.SnapServicesDir
+	case UserDaemon:
+		return dirs.SnapUserServicesDir
+	default:
+		panic("unknown daemon scope")
+	}
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
+	return filepath.Join(app.serviceDir(), app.ServiceName())
 }
 
 // IsService returns whether app represents a daemon/service.
@@ -1271,7 +1284,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].GetType().SortsBefore(r[j].GetType())
+	return r[i].Type().SortsBefore(r[j].Type())
 }
 
 // SortServices sorts the apps based on their Before and After specs, such that
@@ -1341,4 +1354,19 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 		return nil, fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
 	}
 	return sorted, nil
+}
+
+// AppInfoBySnapApp supports sorting the given slice of app infos by
+// (instance name, app name).
+type AppInfoBySnapApp []*AppInfo
+
+func (a AppInfoBySnapApp) Len() int      { return len(a) }
+func (a AppInfoBySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a AppInfoBySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
 }

@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -49,6 +50,8 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// TODO:UC20 consider different/better names for flags that follow
 
 	// NoSlashBoot indicates to use the run mode bootloader but
 	// under the native layout and not the /boot mount.
@@ -93,6 +96,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -139,6 +143,38 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ManagedAssetsBootloader has its boot assets (typically boot config) managed
+// by snapd.
+type ManagedAssetsBootloader interface {
+	Bootloader
+
+	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
+	IsCurrentlyManaged() (bool, error)
+	// ManagedAssets returns a list of boot assets managed by the bootloader
+	// in the boot filesystem.
+	ManagedAssets() []string
+	// UpdateBootConfig updates the boot config assets used by the bootloader.
+	UpdateBootConfig(*Options) error
+	// CommandLine returns the kernel command line composed of mode and
+	// system arguments, built-in bootloader specific static arguments
+	// corresponding to the on-disk boot asset edition, followed by any
+	// extra arguments. The command line may be different when using a
+	// recovery bootloader.
+	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	// CandidateCommandLine is similar to CommandLine, but uses the current
+	// edition of managed built-in boot assets as reference.
+	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
+}
+
+// TrustedAssetsBootloader has boot assets that take part in secure boot
+// process.
+type TrustedAssetsBootloader interface {
+	// TrustedAssets returns the list of relative paths to assets inside
+	// the bootloader's rootdir that are measured in the boot process in the
+	// order of loading during the boot.
+	TrustedAssets() ([]string, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
@@ -149,9 +185,45 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
+func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
+}
+
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
+	if err != nil && err != errNoEdition {
+		return err
+	}
+	if err == errNoEdition {
+		return nil
+	}
+	newBootConfig := assets.Internal(assetName)
+	if len(newBootConfig) == 0 {
+		return fmt.Errorf("no boot config asset with name %q", assetName)
+	}
+	bc, err := configAssetFrom(newBootConfig)
+	if err != nil {
+		return err
+	}
+	if bc.Edition() <= currentBootConfigEdition {
+		// edition of the candidate boot config is lower than or equal
+		// to one currently installed
+		return nil
+	}
+	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
+	// TODO:UC20 use ForGadget() to obtain the right bootloader
 	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
 		bl.setRootDir(rootDir)
 		ok, err := bl.InstallBootConfig(gadgetDir, opts)
@@ -162,6 +234,19 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
+
+type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
+
+var (
+	//  bootloaders list all possible bootloaders by their constructor
+	//  function.
+	bootloaders = []bootloaderNewFunc{
+		newUboot,
+		newGrub,
+		newAndroidBoot,
+		newLk,
+	}
+)
 
 var (
 	forcedBootloader Bootloader
@@ -186,26 +271,12 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 		opts = &Options{}
 	}
 
-	// try uboot
-	if uboot := newUboot(rootdir); uboot != nil {
-		return uboot, nil
+	for _, blNew := range bootloaders {
+		bl := blNew(rootdir, opts)
+		if osutil.FileExists(bl.ConfigFile()) {
+			return bl, nil
+		}
 	}
-
-	// no, try grub
-	if grub := newGrub(rootdir, opts); grub != nil {
-		return grub, nil
-	}
-
-	// no, try androidboot
-	if androidboot := newAndroidBoot(rootdir); androidboot != nil {
-		return androidboot, nil
-	}
-
-	// no, try lk
-	if lk := newLk(rootdir, opts); lk != nil {
-		return lk, nil
-	}
-
 	// no, weeeee
 	return nil, ErrBootloader
 }
@@ -224,7 +295,7 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -255,4 +326,20 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	}
 
 	return nil
+}
+
+// ForGadget returns a bootloader matching a given gadget by inspecting the
+// contents of gadget directory or an error if no matching bootloader is found.
+func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
+	if forcedBootloader != nil || forcedError != nil {
+		return forcedBootloader, forcedError
+	}
+	for _, blNew := range bootloaders {
+		bl := blNew(rootDir, opts)
+		// do we have a marker file?
+		if osutil.FileExists(filepath.Join(gadgetDir, bl.Name()+".conf")) {
+			return bl, nil
+		}
+	}
+	return nil, ErrBootloader
 }

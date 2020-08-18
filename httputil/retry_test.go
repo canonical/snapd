@@ -406,7 +406,10 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	url = mockPermanentlyBrokenServer.URL
 	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `.*Client.Timeout.*`)
+	// context deadline detection when the response body was not received
+	// yet is racy and context.DeadlineExceeded errors are not necessarily
+	// correctly wrapped as client timeouts
+	c.Assert(err, ErrorMatches, `.*(Client.Timeout|context deadline).*`)
 	// check that we exhausted all retries (as defined by mocked retry strategy)
 	c.Assert(permanentlyBrokenSrvCalls.Count(), Equals, 5)
 	c.Check(failure, Equals, false)

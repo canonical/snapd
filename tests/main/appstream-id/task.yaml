@@ -5,15 +5,13 @@ summary: Verify AppStream ID integration
 systems: [-ubuntu-14.04-*, -ubuntu-core*]
 
 prepare: |
-    snap install jq
+    snap install --edge jq
 
 restore: |
     rm -f response
 
 debug: |
-    if [ -e response ]; then
-        grep -n '' response
-    fi
+    test -e response && cat response
 
 execute: |
     echo "Verify that search results contain common-ids"

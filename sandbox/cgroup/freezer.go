@@ -26,9 +26,19 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
-var freezerCgroupDir = "/sys/fs/cgroup/freezer"
+const defaultFreezerCgroupDir = "/sys/fs/cgroup/freezer"
+
+var FreezerCgroupDir = defaultFreezerCgroupDir
+
+func init() {
+	dirs.AddRootDirCallback(func(root string) {
+		FreezerCgroupDir = filepath.Join(root, defaultFreezerCgroupDir)
+	})
+}
 
 // FreezeSnapProcessesImpl suspends execution of all the processes belonging to
 // a given snap. Processes remain frozen until ThawSnapProcesses is called,
@@ -51,7 +61,7 @@ var ThawSnapProcesses = thawSnapProcessesImpl
 // Processes are frozen regardless of which particular snap application they
 // originate from.
 func freezeSnapProcessesImpl(snapName string) error {
-	fname := filepath.Join(freezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
+	fname := filepath.Join(FreezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
 	if err := ioutil.WriteFile(fname, []byte("FROZEN"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to freeze anything.
 		// This can happen when no process belonging to a given snap has been
@@ -78,7 +88,7 @@ func freezeSnapProcessesImpl(snapName string) error {
 }
 
 func thawSnapProcessesImpl(snapName string) error {
-	fname := filepath.Join(freezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
+	fname := filepath.Join(FreezerCgroupDir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
 	if err := ioutil.WriteFile(fname, []byte("THAWED"), 0644); err != nil && os.IsNotExist(err) {
 		// When there's no freezer cgroup we don't have to thaw anything.
 		// This can happen when no process belonging to a given snap has been

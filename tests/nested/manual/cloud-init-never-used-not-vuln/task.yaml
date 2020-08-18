@@ -1,0 +1,146 @@
+summary: |
+    Test that cloud-init is no longer vulnerable on Ubuntu Core with the fix for
+    CVE-2020-11933 in place.
+
+systems: [ubuntu-18.04-64, ubuntu-16.04-64]
+
+environment:
+    # this test ensures that existing images without the fix are no longer
+    # vulnerable after refreshing to a version of snapd with the fix
+    BUILD_FROM_CURRENT/refresh: false
+    BUILD_FROM_CURRENT/firstboot: true
+    USE_CLOUD_INIT: false
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    create_nested_core_vm
+    start_nested_core_vm
+
+    # build the cloud-init NoCloud cdrom drive
+    cd seed
+    genisoimage -output ../seed1.iso -volid cidata -joliet -rock user-data meta-data
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+    cleanup_nested_env
+
+debug: |
+    if [ -f snapd-before-reboot.logs ]; then
+        echo "logs before reboot"
+        cat snapd-before-reboot.logs
+    fi
+    echo "logs from current nested VM boot snapd"
+    execute_remote "sudo journalctl -e --no-pager -u snapd" || true
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+
+    # the VM here will not ever had used cloud-init so snapd should disable 
+    # cloud-init when it is installed
+
+
+    # wait for done seeding
+    execute_remote "sudo snap wait system seed.loaded"
+
+    # if we are not building from current, then we need to prep the snapd snap
+    # to install with the fix, this simulates/verifies that devices in the field
+    # without the fix will actually be fixed after they refresh
+    if [ "$BUILD_FROM_CURRENT" = "false" ]; then
+        if is_core_16_nested_system; then
+            # build the core snap for this run
+            repack_snapd_deb_into_core_snap "$PWD"
+            copy_remote "$PWD/core-from-snapd-deb.snap"
+
+            # install the core snap
+            execute_remote "sudo snap install core-from-snapd-deb.snap --dangerous"
+
+            # now we wait for the reboot for the new core snap
+            wait_for_no_ssh
+            wait_for_ssh
+            
+        else
+            # build the snapd snap for this run
+            repack_snapd_deb_into_snapd_snap "$PWD"
+            copy_remote "$PWD/snapd-from-deb.snap"
+
+            # install the snapd snap
+            execute_remote "sudo snap install snapd-from-deb.snap --dangerous"
+        fi
+    fi
+
+    # Note: there is a race here after we have installed the fix (or we have 
+    # booted a fresh image with the fix). 
+    # Namely, snapd will begin checking on cloud-init status after it has 
+    # ensured that the boot was okay in the device manager, but this will not
+    # happen immediately in zero time, and moreover, snapd will not do anything
+    # substantial or measurable until cloud-init has reached a steady state or
+    # otherwise times out. 
+    # As such, in this test, we first wait for cloud-init to settle down, and 
+    # then wait a bit longer to give snapd a chance to run again and take 
+    # action that we can test for. Since in this test, cloud-init was never 
+    # used, the status command should not take much time at all, since it will 
+    # not have been triggered. 
+
+    echo "Waiting for cloud-init..."
+    execute_remote "cloud-init status --wait"
+
+    # TODO: is there a better thing we can wait for here instead? maybe the log
+    # message from snapd directly via journalctl ?
+    echo "Waiting for snapd to react to cloud-init"
+    sleep 60
+
+    # ensure that snapd disabled cloud-init with the cloud-init.disabled file
+    echo "Ensuring that snapd restricted cloud-init"
+    execute_remote "cloud-init status" | MATCH "status: disabled"
+    execute_remote "test -f /etc/cloud/cloud-init.disabled"
+    execute_remote "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+
+    # save snapd logs before continuing as the logs are not persistent
+    execute_remote "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+
+    # gracefully shutdown so that we don't have file corruption
+    echo "Gracefully shutting down the nested VM to prepare a simulated attack"
+    execute_remote "sudo shutdown -h now" || true
+    wait_for_no_ssh
+
+    # now if we reboot and add a cloud-init drive, it will not be imported onto
+    # the system
+    force_stop_nested_vm
+
+    # add the cloud-init drive as a CD-ROM drive
+    PARAM_CD="-cdrom $(pwd)/seed1.iso"
+
+    # start the unit so that it re-uses the existing drive and doesn't re-setup
+    # ssh
+    # TODO: this interaction is a bit awkward because we want to change the 
+    # args to qemu, but those are put into a systemd unit file in /run, which
+    # is awkward to modify programmatically, so instead this will just re-create
+    # the same systemd unit with different args
+    echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
+    start_nested_core_vm_unit "$(get_current_image)"
+
+    # cloud-init should not actually run, since it was disabled, but in case the
+    # test fails, for a better error, we will wait for cloud-init to report that
+    # it is "done" or at least steady before ensuring that the attacker-user was
+    # not created.
+    echo "Waiting for cloud-init..."
+    execute_remote "cloud-init status --wait"
+
+    # the attacker-user should not have been created
+    echo "The cloud-init user was not created"
+    execute_remote "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+
+    # cloud-init should still be disabled
+    echo "cloud-init is still disabled"
+    execute_remote "cloud-init status" | MATCH "status: disabled"
+    execute_remote "test -f /etc/cloud/cloud-init.disabled"
+    execute_remote "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

@@ -1,7 +1,13 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-secboot-20.04-64]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
 
 debug: |
     cat /proc/partitions
@@ -10,6 +16,7 @@ restore: |
     if [[ -d ./mnt ]]; then
         umount ./mnt || true
     fi
+    umount /run/mnt/ubuntu-seed || true
     umount /dev/mapper/ubuntu-data || true
     umount /dev/mapper/test-udata || true
 
@@ -19,7 +26,9 @@ restore: |
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
     fi
-    apt remove -y cryptsetup
+    apt autoremove -y cryptsetup
+
+    rm -Rf /run/mnt
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
@@ -28,8 +37,15 @@ prepare: |
     apt install -y cryptsetup
 
     echo "Setup the image as a block device"
+    # use a script here as this code needs to be run on the next boot
+    cat > losetup.sh <<'EOF'
+    #!/bin/sh -e
+    echo "Setting up loop"
     losetup -fP fake.img
     losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    EOF
+    chmod +x ./losetup.sh
+    ./losetup.sh
     LOOP="$(cat loop.txt)"
 
     echo "Create a partition that looks like a uc20 image"
@@ -39,6 +55,7 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    retry -n 3 --wait 1 test -e "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
@@ -51,15 +68,43 @@ prepare: |
     unsquashfs -d gadget-dir pc_*.snap
 
 execute: |
+    # this test simulates a reinstall, to clear the TPM this requires
+    # a reboot so the losetup has to be redone
+    if [ "$SPREAD_REBOOT" = 1 ]; then
+        ./losetup.sh
+    fi
     LOOP="$(cat loop.txt)"
+
+    echo "Setup simulated ubuntu-seed mount"
+    mkdir -p /run/mnt/ubuntu-seed
+    mount "${LOOP}"p2 /run/mnt/ubuntu-seed
+
+    echo "Install EFI binaries"
+    bootdir=/run/mnt/ubuntu-boot/EFI/boot
+    seedbootdir=/run/mnt/ubuntu-seed/EFI/boot
+    mkdir -p "$bootdir" "$seedbootdir"
+    cp /usr/lib/shim/shimx64.efi.signed "$seedbootdir"/bootx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$seedbootdir"/grubx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
+
+    sbverify --list "$seedbootdir"/bootx64.efi
+    sbverify --list "$seedbootdir"/grubx64.efi
+    sbverify --list "$bootdir"/grubx64.efi
+
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions --mount \
-        --encrypt --key-file keyfile \
-        --recovery-key-file /run/mnt/ubuntu-data/system-data/recovery-key \
+    go get ../../lib/uc20-create-partitions
+    uc20-create-partitions \
+        --encrypt --key-file /run/mnt/ubuntu-seed/keyfile \
+        --recovery-key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/recovery-key \
+        --policy-update-data-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/policy-update-data \
+        --tpm-lockout-auth /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/tpm-lockout-auth \
+        --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
+    # keep for later
+    cp -a /run/mnt/ubuntu-seed/keyfile "/run/mnt/ubuntu-seed/keyfile.$SPREAD_REBOOT"
 
     echo "Check that the key file was created"
-    test "$(stat --printf="%s" ./keyfile)" = 32
+    test "$(stat --printf=%s /run/mnt/ubuntu-seed/keyfile)" -ge 1000
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
@@ -73,35 +118,33 @@ execute: |
     cryptsetup isLuks "${LOOP}p4"
 
     cryptsetup luksDump "${LOOP}p4" | MATCH 'Label:\s*ubuntu-data-enc'
-
-    # we used "lsblk --fs" here but it was unreliable
-    df -T "${LOOP}p3" | MATCH ext4
-    file -s "${LOOP}p3" | MATCH 'volume name "ubuntu-boot"'
-
-    df -T /dev/mapper/ubuntu-data | MATCH ext4
     POSIXLY_CORRECT=1 file -s /dev/mapper/ubuntu-data | MATCH 'volume name "ubuntu-data"'
 
-    echo "Check that the filesystem content was deployed"
-    ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
-    ls /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
-    ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
-
-    umount /run/mnt/ubuntu-boot
-    umount /run/mnt/ubuntu-data
     cryptsetup close /dev/mapper/ubuntu-data
 
-    echo "Ensure that we can open the encrypted device using the key"
-    mkdir -p ./mnt
-    cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
-    mount /dev/mapper/test-udata ./mnt
-    echo "Check that the recovery key was stored"
-    test "$(stat --printf="%s" ./mnt/system-data/recovery-key)" = 16
-    cp ./mnt/system-data/recovery-key .
-    umount ./mnt
-    cryptsetup close /dev/mapper/test-udata
+    echo "Check the policy update data and TPM lockout authorization files"
+    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/policy-update-data
+    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/tpm-lockout-auth
 
+    # Test the recovery key
+
+    # Can't test the keyfile because it's now sealed to the TPM
+    mkdir -p ./mnt
     echo "Ensure that we can open the encrypted device using the recovery key"
-    cryptsetup open --key-file recovery-key "${LOOP}p4" test-recovery
+    cryptsetup open --key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/recovery-key "${LOOP}p4" test-recovery
     mount /dev/mapper/test-recovery ./mnt
     umount ./mnt
     cryptsetup close /dev/mapper/test-recovery
+
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # clear tpm for the reinstall test
+        echo 5 > /sys/class/tpm/tpm0/ppi/request
+        REBOOT
+    fi
+
+    echo "Ensure the keys are different"
+    if [ "$SPREAD_REBOOT" = 1 ]; then
+        test -e /run/mnt/ubuntu-seed/keyfile.0
+        test -e /run/mnt/ubuntu-seed/keyfile.1
+        not cmp /run/mnt/ubuntu-seed/keyfile.0 /run/mnt/ubuntu-seed/keyfile.1
+    fi

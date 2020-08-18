@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/journalctl.sh
-. "$TESTSLIB/journalctl.sh"
-
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -55,6 +52,12 @@ create_test_user(){
                 echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
                 exit 1
         esac
+
+        # Allow the test user to access systemd journal.
+        if getent group systemd-journal >/dev/null; then
+            usermod -G systemd-journal -a test
+            id test | MATCH systemd-journal
+        fi
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -183,7 +186,9 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
+    # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
+    # the package file name extension, keep it simple and try a glob instead
+    cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -217,7 +222,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        lxd-tool undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
@@ -371,15 +376,97 @@ prepare_project() {
                 systemctl stop "$(basename "$f")" || true
                 rm -f "$f"
             done
+            # double check that purge really worked
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                journalctl -b | tail -100 || true
+                cat /var/lib/snapd/state.json || true
+                exit 1
+            fi
             ;;
         *)
             # snapd state directory must not exist when the package is not
             # installed
-            test ! -d /var/lib/snapd
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                exit 1
+            fi
             ;;
     esac
 
-    install_pkg_dependencies
+    restart_logind=
+    restart_networkd=
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+        restart_logind=maybe
+        restart_networkd=maybe
+    fi
+
+
+    # Try installing package dependencies. Because we pull in some systemd
+    # development packages we can easily pull in a whole systemd upgrade. Most
+    # of the time that's okay but, well, not always.
+    if ! install_pkg_dependencies; then
+        # If this failed, maybe systemd-networkd got busted during the 245-246
+        # upgrade? If so we can just restart it and try again.
+        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
+        if [ "$restart_networkd" = maybe ]; then
+            systemctl reset-failed systemd-networkd.service
+            systemctl try-restart systemd-networkd.service
+            install_pkg_dependencies
+        fi
+    fi
+
+    if [ "$restart_logind" = maybe ]; then
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+            restart_logind=yes
+        else
+            restart_logind=
+        fi
+    fi
+
+    # Work around systemd / Debian bug interaction. We are installing
+    # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
+    # behind systemd-logind.service from the old version. This is tracked as
+    # Debian bug https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=919509 and
+    # it really affects Desktop systems where Wayland/X don't like logind from
+    # ever being restarted.
+    #
+    # As a workaround we tried to restart logind ourselves but this caused
+    # another issue.  Restarted logind, as of systemd v245, forgets about the
+    # root session and subsequent loginctl enable-linger root, loginctl
+    # disable-linger stops the running systemd --user for the root session,
+    # along with other services like session bus.
+    #
+    # In consequence all the code that restarts logind for one reason or
+    # another is coalesced below and ends with REBOOT. This ensures that after
+    # rebooting, we have an up-to-date, working logind and that the initial
+    # session used by spread is tracked.
+    if ! loginctl enable-linger test; then
+        if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+            mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+            mkdir -p /var/lib/systemd/linger
+            test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+            restart_logind=yes
+        fi
+    fi
+    loginctl disable-linger test || true
+
+    # FIXME: In an ideal world we'd just do this:
+    #   systemctl daemon-reload
+    #   systemctl restart systemd-logind.service
+    # But due to this issue, restarting systemd-logind is unsafe.
+    # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
+    if [ "$restart_logind" = yes ]; then
+        echo "logind upgraded, reboot required"
+        REBOOT
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -494,6 +581,8 @@ install_snap_profiler(){
 }
 
 prepare_suite_each() {
+    local variant="$1"
+
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
 
@@ -504,35 +593,48 @@ prepare_suite_each() {
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --reuse-core
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
     # Restart journal log and reset systemd journal cursor.
+    systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
-    start_new_journalctl_log
+    "$TESTSTOOLS"/journal-state start-new-log
 
-    echo "Install the snaps profiler snap"
-    install_snap_profiler
+    if [[ "$variant" = full ]]; then
+        echo "Install the snaps profiler snap"
+        install_snap_profiler
 
-    # shellcheck source=tests/lib/prepare.sh
-    . "$TESTSLIB"/prepare.sh
-    if is_classic_system; then
-        prepare_each_classic
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        if is_classic_system; then
+            prepare_each_classic
+        fi
     fi
     # Check if journalctl is ready to run the test
-    check_journalctl_ready
+    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
             ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite_each() {
+    local variant="$1"
+
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
     # restore test directory saved during prepare
@@ -542,7 +644,7 @@ restore_suite_each() {
         rm -rf "${PWD}.tar"
     fi
 
-    if [ "$PROFILE_SNAPS" = 1 ]; then
+    if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
         echo "Save snaps profiler log"
         local logs_id logs_dir logs_file
         logs_dir="$RUNTIME_STATE_PATH/logs"
@@ -555,7 +657,7 @@ restore_suite_each() {
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
             cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
-        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user
@@ -564,15 +666,17 @@ restore_suite_each() {
     # random failures in the mount leak detector. Give it a moment but don't
     # clean it up ourselves, this should report actual test errors, if any.
     for i in $(seq 10); do
-        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+        if not mountinfo.query /run/user/12345 .fs_type=tmpfs; then
             break
         fi
         sleep 1
     done
 
-    # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
-    # to prevent hitting the system restart rate-limit for these services
-    systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+    if [[ "$variant" = full ]]; then
+        # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+        # to prevent hitting the system restart rate-limit for these services
+        systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+    fi
 }
 
 restore_suite() {
@@ -590,8 +694,15 @@ restore_suite() {
 }
 
 restore_project_each() {
+    "$TESTSTOOLS"/cleanup-state pre-invariant
+    # Check for invariants early, in order not to mask bugs in tests.
+    tests.invariant check
+    "$TESTSTOOLS"/cleanup-state post-invariant
+
+    # TODO: move this to tests.cleanup.
     restore_dev_random
 
+    # TODO: move this to tests.invariant.
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
@@ -601,6 +712,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Check if the OOM killer got invoked - if that is the case our tests
     # will most likely not function correctly anymore. It looks like this
     # happens with: https://forum.snapcraft.io/t/4101 and is a source of
@@ -614,6 +726,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # check if there is a shutdown pending, no test should trigger this
     # and it leads to very confusing test failures
     if [ -e /run/systemd/shutdown/scheduled ]; then
@@ -622,6 +735,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Check for kernel oops during the tests
     if dmesg|grep "Oops: "; then
         echo "A kernel oops happened during the tests, test results will be unreliable"
@@ -630,6 +744,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     if getent passwd snap_daemon; then
         echo "Test left the snap_daemon user behind, this should not happen"
         exit 1
@@ -639,13 +754,16 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
 
+    # TODO: move this to tests.invariant.
     if journalctl -u snapd.service | grep -F "signal: terminated"; then
         exit 1;
     fi
 
+    # TODO: move this to tests.invariant.
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
             # Make sure that we are not leaving behind incorrectly labeled snap
@@ -686,10 +804,16 @@ case "$1" in
         prepare_suite
         ;;
     --prepare-suite-each)
-        prepare_suite_each
+        prepare_suite_each full
+        ;;
+    --prepare-suite-each-minimal-no-snaps)
+        prepare_suite_each minimal-no-snaps
         ;;
     --restore-suite-each)
-        restore_suite_each
+        restore_suite_each full
+        ;;
+    --restore-suite-each-minimal-no-snaps)
+        restore_suite_each minimal-no-snaps
         ;;
     --restore-suite)
         restore_suite
@@ -702,7 +826,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each} or --{prepare,restore}-suite-each-minimal-no-snaps"
         exit 1
         ;;
 esac

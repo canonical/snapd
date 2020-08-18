@@ -37,7 +37,7 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 	}{{
 		// Errors from parsing mountinfo are propagated.
 		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
+		errorPattern: "cannot parse mountinfo:.*, .*",
 	}, {
 		// overlay mounted on / are recognized
 		// casper mount source /cow

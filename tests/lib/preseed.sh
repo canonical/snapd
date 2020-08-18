@@ -3,8 +3,8 @@
 # mount ubuntu cloud image through qemu-nbd and mount
 # critical virtual filesystems (such as proc) under
 # the root of mounted image.
-# XXX: cannot be used in prepare: section of the tests
-# as the test gets stuck around qemu-nbd on 20.04.
+# The path of the image needs to be absolute as a systemd service
+# gets created for qemu-nbd.
 mount_ubuntu_image() {
     local CLOUD_IMAGE=$1
     local IMAGE_MOUNTPOINT=$2
@@ -13,9 +13,12 @@ mount_ubuntu_image() {
         modprobe nbd
     fi
 
-    qemu-nbd -c /dev/nbd0 "$CLOUD_IMAGE"
+    # Run qemu-nbd as a service, so that it does not interact with ssh
+    # stdin/stdout it would otherwise inherit from the spread session.
+    systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
     # nbd0p1 may take a short while to become available
-    retry-tool -n 5 --wait 1 mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
+    retry -n 5 --wait 1 test -e /dev/nbd0p1
+    mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
     mount -t proc /proc "$IMAGE_MOUNTPOINT/proc"
     mount -t sysfs sysfs "$IMAGE_MOUNTPOINT/sys"
     mount -t devtmpfs udev "$IMAGE_MOUNTPOINT/dev"
@@ -33,26 +36,57 @@ umount_ubuntu_image() {
 
     # qemu-nbd -d may sporadically fail when removing the device,
     # reporting it's still in use.
-    retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
+    retry -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 }
 
-# XXX inject new snapd into the core image in seed/snaps of the cloud image
-# and make core unasserted.
-# this will go away once snapd on the core is new enough to support
-# pre-seeding.
-setup_preseeding() {
+# inject_snap_info_seed adds a snap to the seed.yaml, and works for snaps not
+# already in the seed. It requires base snaps, default-providers, etc. to all be
+# worked out and manually added with additional invocations
+# the first argument is the mountpoint of the image, the second argument is the 
+# name of the snap, the snap file must be the same as the name with .snap as the
+# file extension in the current working directory
+# example:
+#   $ snap download --edge --basename=test-snapd-sh test-snapd-sh
+#   $ inject_snap_into_seeds "$IMAGE_MOUNTPOINT" test-snapd-sh
+inject_snap_into_seed() {
     local IMAGE_MOUNTPOINT=$1
-    local CORE_IMAGE
+    local SNAP_NAME=$2
+    local SNAP_FILE="$SNAP_NAME.snap"
+    local SEED_YAML="$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml"
+    local SEED_SNAPS_DIR="$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps"
 
-    CORE_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "core_*.snap")
-    unsquashfs "$CORE_IMAGE"
-    cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
-    # XXX to satisfy version check; this will go away once preseeding
-    # is available in 2.44
-    echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
-    rm "$CORE_IMAGE"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    mksnap_fast squashfs-root "$CORE_IMAGE"
-    sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)name: core/\1name: core\n\1unasserted: true/'
+    # need remarshal for going from json to yaml and back for seed manipulation
+    if ! command -v json2yaml || ! command -v yaml2json; then
+        snap install remarshal
+    fi
+
+    # XXX: this is very simplistic and will break easily, refactor to use the 
+    #      iterative seed modification prepare-image args when those exist
+
+    snapsWithName=$(yaml2json < "$SEED_YAML" | jq -r --arg NAME "$SNAP_NAME" '[.snaps[] | select(.name == $NAME)] | length')
+    if [ "$snapsWithName" != "0" ]; then
+        # get the snap file name so we can delete it from the seed
+        old_name=$(yaml2json < "$SEED_YAML" | \
+            jq -r --arg NAME "$SNAP_NAME" '.snaps[] | select(.name == $NAME) | .file')
+        rm "$SEED_SNAPS_DIR/$old_name"
+
+        # now drop the entry from the seed.yaml so we can add the new one easily
+        yaml2json < "$SEED_YAML" | \
+            jq --arg NAME "$SNAP_NAME" 'del(.snaps[] | select(.name == $NAME))' | \
+                json2yaml > "$SEED_YAML.tmp"
+        mv "$SEED_YAML.tmp" "$SEED_YAML"
+    fi
+
+    # now add the desired snap as an unasserted snap with some jq magic™
+    yaml2json < "$SEED_YAML"| \
+        jq --arg FILE "$SNAP_FILE" --arg NAME "$SNAP_NAME" \
+            '.snaps[.snaps| length] |= .  + {"channel":"stable","unasserted":true,"name":$NAME,"file":$FILE}' | \
+                json2yaml > "$SEED_YAML.tmp"
+    mv "$SEED_YAML.tmp" "$SEED_YAML"
+
+    # and remember to copy the new snap file to the seed
+    cp "$SNAP_FILE" "$SEED_SNAPS_DIR"
+
+    # check that we didn't break things too badly
+    snap debug validate-seed "$SEED_YAML"
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -50,19 +50,62 @@ func (s *settingsSuite) SetUpTest(c *C) {
 
 	s.settings = &userd.Settings{}
 	s.mockXdgSettings = testutil.MockCommand(c, "xdg-settings", `
-if [ "$1" = "get" ] && [ "$2" = "default-web-browser" ];  then
-  echo "some-snap_foo.desktop"
-elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ] && [ "$3" = "some-snap_foo.desktop" ];  then
-  echo yes
-elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ];  then
-  echo no
-elif [ "$1" = "set" ] && [ "$2" = "default-web-browser" ]; then
-  # nothing to do
-  exit 0
-else
-  echo "mock called with unsupported arguments $*"
-  exit 1
-fi
+case "$1" in
+    get)
+        case "$2" in
+            default-web-browser)
+                echo "some-snap_foo.desktop"
+                ;;
+            default-url-scheme-handler)
+                echo "some-snap_ircclient.desktop"
+                ;;
+            *)
+                echo "mock called with unsupported arguments: $*"
+                exit 1
+                ;;
+        esac
+        ;;
+    set)
+        case "$2" in
+            default-web-browser)
+                # nothing to do
+                ;;
+            default-url-scheme-handler)
+                if [ "$3" = "irc2" ]; then
+                    echo "fail"
+                    exit 1
+                fi
+                # nothing to do
+                ;;
+            *)
+                echo "mock called with unsupported arguments: $*"
+                exit 1
+                ;;
+        esac
+        ;;
+    check)
+        case "$2" in
+            default-web-browser)
+                if [ "$3" = "some-snap_foo.desktop" ]; then
+                    echo "yes"
+                else
+                    echo "no"
+                fi
+                ;;
+            default-url-scheme-handler)
+                if [ "$3" = "irc" ] && [ "$4" = "some-snap_ircclient.desktop" ]; then
+                    echo "yes"
+                else
+                    echo "no"
+                fi
+                ;;
+        esac
+        ;;
+    *)
+        echo "mock called with unsupported argument: $1"
+        exit 1
+        ;;
+esac
 `)
 }
 
@@ -86,9 +129,9 @@ func (s *settingsSuite) TestGetUnhappy(c *C) {
 		setting    string
 		errMatcher string
 	}{
-		{"random-setting", `cannot use setting "random-setting": not allowed`},
-		{"invälid", `cannot use setting "invälid": not allowed`},
-		{"", `cannot use setting "": not allowed`},
+		{"random-setting", `invalid setting "random-setting"`},
+		{"invälid", `invalid setting "invälid"`},
+		{"", `invalid setting ""`},
 	} {
 		_, err := s.settings.Get(t.setting, ":some-dbus-sender")
 		c.Assert(err, ErrorMatches, t.errMatcher)
@@ -107,7 +150,7 @@ func (s *settingsSuite) TestGetHappy(c *C) {
 
 func (s *settingsSuite) TestCheckInvalidSetting(c *C) {
 	_, err := s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
@@ -120,6 +163,15 @@ func (s *settingsSuite) TestCheckIsDefault(c *C) {
 	})
 }
 
+func (s *settingsSuite) TestCheckIsDefaultUrlScheme(c *C) {
+	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(isDefault, Equals, "yes")
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
+	})
+}
+
 func (s *settingsSuite) TestCheckNoDefault(c *C) {
 	isDefault, err := s.settings.Check("default-web-browser", "bar.desktop", ":some-dbus-sender")
 	c.Assert(err, IsNil)
@@ -129,9 +181,69 @@ func (s *settingsSuite) TestCheckNoDefault(c *C) {
 	})
 }
 
+func (s *settingsSuite) TestCheckNoDefaultUrlScheme(c *C) {
+	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(isDefault, Equals, "no")
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_bar.desktop"},
+	})
+}
+
+func (s *settingsSuite) TestNotThisSnap(c *C) {
+	mockXdgSettings := testutil.MockCommand(c, "xdg-settings", `
+if [ "$1" = "get" ] && [ "$2" = "default-web-browser" ]; then
+    echo "other-snap_foo.desktop"
+    exit 0
+fi
+if [ "$1" = "get" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ]; then
+    echo "other-snap_foo-irc.desktop"
+    exit 0
+fi
+
+echo "mock called with unsupported argument: $1"
+exit 1
+`)
+	defer mockXdgSettings.Restore()
+
+	defaultBrowser, err := s.settings.Get("default-web-browser", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(defaultBrowser, Equals, "NOT-THIS-SNAP.desktop")
+	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "get", "default-web-browser"},
+	})
+
+	mockXdgSettings.ForgetCalls()
+
+	defaultSchemeHandler, err := s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(defaultSchemeHandler, Equals, "NOT-THIS-SNAP.desktop")
+	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "get", "default-url-scheme-handler", "irc"},
+	})
+}
+
 func (s *settingsSuite) TestSetInvalidSetting(c *C) {
 	err := s.settings.Set("random-setting", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
+func (s *settingsSuite) TestSetInvalidValue(c *C) {
+	err := s.settings.Set("default-web-browser", "foo", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set "default-web-browser" setting to invalid value "foo"`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
+func (s *settingsSuite) TestSetSubInvalidSetting(c *C) {
+	err := s.settings.SetSub("random-setting", "subprop", "foo.desktop", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
+func (s *settingsSuite) TestSetSubInvalidValue(c *C) {
+	err := s.settings.SetSub("default-url-scheme-handler", "irc", "foo", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "foo"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
@@ -197,6 +309,20 @@ func (s *settingsSuite) testSetUserAccepts(c *C) {
 	*/
 }
 
+func (s *settingsSuite) testSetUserAcceptsURLScheme(c *C) {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "set", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
+	})
+}
+
 func (s *settingsSuite) TestSetUserAcceptsZenity(c *C) {
 	// force kdialog exec missing
 	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
@@ -209,6 +335,18 @@ func (s *settingsSuite) TestSetUserAcceptsZenity(c *C) {
 	s.testSetUserAccepts(c)
 }
 
+func (s *settingsSuite) TestSetUserAcceptsZenityUrlScheme(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	s.testSetUserAcceptsURLScheme(c)
+}
+
 func (s *settingsSuite) TestSetUserAcceptsKDialog(c *C) {
 	// force zenity exec missing
 	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
@@ -219,4 +357,38 @@ func (s *settingsSuite) TestSetUserAcceptsKDialog(c *C) {
 	}()
 
 	s.testSetUserAccepts(c)
+}
+
+func (s *settingsSuite) TestSetUserAcceptsKDialogUrlScheme(c *C) {
+	// force zenity exec missing
+	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreZenity()
+		restoreCmds()
+	}()
+
+	s.testSetUserAcceptsURLScheme(c)
+}
+
+func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc2" setting: fail`)
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "set", "default-url-scheme-handler", "irc2", "some-snap_ircclient.desktop"},
+	})
 }

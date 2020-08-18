@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -912,6 +913,9 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	sb := &stateBackend{}
 	st := state.New(sb)
 	r := state.NewTaskRunner(st)
@@ -926,8 +930,8 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 	}, nil)
 
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t1 := st.NewTask("foo", "...")
+	chg := st.NewChange("install", "change summary")
+	t1 := st.NewTask("foo", "task summary")
 	chg.AddTask(t1)
 	st.Unlock()
 
@@ -941,6 +945,8 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 	c.Check(t1.Status(), Equals, state.ErrorStatus)
 	c.Check(strings.Join(t1.Log(), ""), Matches, `.*handler error for "foo"`)
 	c.Check(called, Equals, true)
+
+	c.Check(logbuf.String(), Matches, `(?m).*: \[change 1 "task summary" task\] failed: handler error for "foo".*`)
 }
 
 func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {

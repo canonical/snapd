@@ -4,74 +4,76 @@ details: |
     This test makes sure that a snap using the timeserver-control interface
     can access timeserver information and update it.
 
-# Debian sid is skipped because "timedatectl set-ntp" fails with the error:
-# "Failed to set ntp: Message recipient disconnected from message bus without replying"
-# A workaround is to make "systemctl enable --now systemd-timesyncd.service" instead
-systems: [-debian-sid-*]
-
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
+    tests.cleanup prepare
+
+    # This test requires busctl but on 14.04 we don't have one.
+    # Let's pick the one from the core snap in such case.
+    if [ -z "$(command -v busctl 2>/dev/null)" ]; then
+        ln -s /snap/core/current/usr/bin/busctl /usr/local/bin/busctl
+        hash -r
+        tests.cleanup defer rm -f /usr/local/bin/busctl
+    fi
+
+    # Technically the interface may be implemented by many things but in
+    # practice systemd implementation has a working SetNTP while others do not.
+    # On such systems, install systemd-timesyncd to get the implementation we
+    # can test. On other systems remember the current setting of the NTP
+    # property and restore it later.
+    case "$SPREAD_SYSTEM" in
+        debian-sid-*)
+            apt-get remove -y ntp
+            tests.cleanup defer apt-get install -y ntp
+            ;;
+        ubuntu-19.10-*)
+            apt-get remove -y chrony
+            tests.cleanup defer apt-get install -y chrony
+            ;;
+        *)
+            case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
+                "b true")
+                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false
+                    ;;
+                "b false")
+                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb false false
+                    ;;
+                *)
+                    echo "Unexpected value of NTP property"
+                    exit 1
+                    ;;
+            esac
+            ;;
+    esac
 
     # Install a snap declaring a plug on timeserver-control
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     install_local test-snapd-timedate-control-consumer
-
-    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
-        # ensure chrony is not installed as it interferes with
-        # the systemd-timesyncd.service
-        apt remove -y chrony
-        systemctl restart systemd-timesyncd.service
-    fi
+    tests.cleanup defer snap remove --purge test-snapd-timedate-control-consumer
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
-        # bring it back
-        apt install -y chrony
-        systemctl restart systemd-timesyncd.service
-    fi
-
-    # Restore the initial timeserver
-    if [ -s timeserver.txt ]; then
-        timedatectl set-ntp "$(cat timeserver.txt)"
-    fi
+    tests.cleanup restore
 
 execute: |
+    # If we cannot use network time protocol then the test is meaningless.
+    if [ "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 CanNTP)" != "b true" ]; then
+        echo "This system cannot use NTP, test precondition failed"
+        exit 1
+    fi
+
     echo "The interface is disconnected by default"
     snap interfaces -i timeserver-control | MATCH -- '- +test-snapd-timedate-control-consumer:timeserver-control'
 
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timeserver-control
 
-    # Save the default timeserver to be restored at the end
-    test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP '(Network time on|systemd-timesyncd.service active): \K(.*)' > timeserver.txt
-
-    get_ntp_status() {
-        test-snapd-timedate-control-consumer.timedatectl-timeserver status | \
-            grep -oP '(Network time on|System clock synchronized): \K(.*)'
-    }
-
-    # NOTE: with systemd >= 239, switching the ntp setting it takes a while for
-    # it to become visible
-
-    # Set the ntp value and check the status
-    test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
-    for _ in $(seq 10); do
-        if [ "$(get_ntp_status)" = "yes" ] ; then
-            break
-        fi
-        sleep 1
+    # Set NTP and check that the setting was propagated.
+    for value in true false true; do
+        test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp "$value"
+        # Starting or stopping NTP takes non-zero time so give it some time to take effect.
+        # shellcheck disable=SC2016
+        retry --wait 5 sh -c 'test "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" = "b '"$value"'"'
     done
-    [ "$(get_ntp_status)" = "yes" ]
-
-    # Set the ntp value and check the status
-    test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp no
-    for _ in $(seq 10); do
-        if [ "$(get_ntp_status)" = "no" ]; then
-            break
-        fi
-        sleep 1
-    done
-    [ "$(get_ntp_status)" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

@@ -20,6 +20,8 @@
 package systemd
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -129,6 +131,43 @@ func Available() error {
 	return err
 }
 
+// Version returns systemd version.
+func Version() (int, error) {
+	out, err := systemctlCmd("--version")
+	if err != nil {
+		return 0, err
+	}
+
+	// systemd version outpus is two lines - actual version and a list
+	// of features, e.g:
+	// systemd 229
+	// +PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP ...
+	//
+	// The version string may have extra data (a case on newer ubuntu), e.g:
+	// systemd 245 (245.4-4ubuntu3)
+	r := bufio.NewScanner(bytes.NewReader(out))
+	r.Split(bufio.ScanWords)
+	var verstr string
+	for i := 0; i < 2; i++ {
+		if !r.Scan() {
+			return 0, fmt.Errorf("cannot read systemd version: %v", r.Err())
+		}
+		s := r.Text()
+		if i == 0 && s != "systemd" {
+			return 0, fmt.Errorf("cannot parse systemd version: expected \"systemd\", got %q", s)
+		}
+		if i == 1 {
+			verstr = strings.TrimSpace(s)
+		}
+	}
+
+	ver, err := strconv.Atoi(verstr)
+	if err != nil {
+		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
+	}
+	return ver, nil
+}
+
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
@@ -165,6 +204,10 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonRexec reexecutes systemd's system manager, should be
+	// only necessary to apply manager's configuration like
+	// watchdog.
+	DaemonReexec() error
 	// Enable the given service.
 	Enable(service string) error
 	// Disable the given service.
@@ -179,6 +222,10 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(service string, timeout time.Duration) error
+	// Reload or restart the service via 'systemctl reload-or-restart'
+	ReloadOrRestart(service string) error
+	// RestartAll restarts the given service using systemctl restart --all
+	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -214,6 +261,9 @@ const (
 
 	// the default target for systemd timer units that we generate
 	TimersTarget = "timers.target"
+
+	// the target for systemd user session units that we generate
+	UserServicesTarget = "default.target"
 )
 
 type reporter interface {
@@ -288,6 +338,17 @@ func (s *systemd) daemonReloadNoLock() error {
 	daemonReloadLock.Taken("cannot use daemon-reload without lock")
 
 	_, err := s.systemctl("daemon-reload")
+	return err
+}
+
+func (s *systemd) DaemonReexec() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reexec with GlobalUserMode")
+	}
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	_, err := s.systemctl("daemon-reexec")
 	return err
 }
 
@@ -483,9 +544,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	if s.mode == GlobalUserMode {
-		panic("cannot call is-enabled with GlobalUserMode")
-	}
 	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil
@@ -584,6 +642,14 @@ func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	return s.Start(serviceName)
 }
 
+func (s *systemd) RestartAll(serviceName string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
+	_, err := s.systemctl("restart", serviceName, "--all")
+	return err
+}
+
 type systemctlError interface {
 	Msg() []byte
 	ExitCode() int
@@ -679,28 +745,7 @@ func MountUnitPath(baseDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string) (mountUnitName, actualFsType string, options []string, err error) {
-	options = []string{"nodev"}
-	actualFsType = fstype
-	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfsFsType()
-		if err != nil {
-			return "", "", nil, err
-		}
-		options = append(options, newOptions...)
-		actualFsType = newFsType
-		if selinux.ProbedLevel() != selinux.Unsupported {
-			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
-				options = append(options, "context="+mountCtx)
-			}
-		}
-	}
-	if osutil.IsDirectory(what) {
-		options = append(options, "bind")
-		actualFsType = "none"
-	}
-
-	c := fmt.Sprintf(`[Unit]
+var mountUnitTemplate = `[Unit]
 Description=Mount unit for %s, revision %s
 Before=snapd.service
 
@@ -713,25 +758,58 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
-`, snapName, revision, what, where, actualFsType, strings.Join(options, ","))
+`
 
+func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
+	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
 	mu := MountUnitPath(where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
-		return "", "", nil, err
+		return "", err
 	}
+	return mountUnitName, nil
+}
 
-	return mountUnitName, actualFsType, options, err
+func fsMountOptions(fstype string) []string {
+	options := []string{"nodev"}
+	if fstype == "squashfs" {
+		if selinux.ProbedLevel() != selinux.Unsupported {
+			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
+				options = append(options, "context="+mountCtx)
+			}
+		}
+	}
+	return options
+}
+
+// hostFsTypeAndMountOptions returns filesystem type and options to actually
+// mount the given fstype at runtime, i.e. it determines if fuse should be used
+// for squashfs.
+func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []string) {
+	options = fsMountOptions(fstype)
+	hostFsType = fstype
+	if fstype == "squashfs" {
+		newFsType, newOptions := squashfsFsType()
+		options = append(options, newOptions...)
+		hostFsType = newFsType
+	}
+	return hostFsType, options
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, _, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	hostFsType, options := hostFsTypeAndMountOptions(fstype)
+	if osutil.IsDirectory(what) {
+		options = append(options, "bind")
+		hostFsType = "none"
+	}
+	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
 	if err != nil {
 		return "", err
 	}
+
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -787,4 +865,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func (s *systemd) ReloadOrRestart(serviceName string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
+	_, err := s.systemctl("reload-or-restart", serviceName)
+	return err
 }

@@ -54,8 +54,8 @@ model assertion.
 	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
-	// off, sorted in lexographical order with meta headers and primary key
-	// headers removed, and big nasty keys such as device-key-sha3-384 and
+	// off, sorted in lexical order with meta headers and primary key headers
+	// removed, and big nasty keys such as device-key-sha3-384 and
 	// device-key at the bottom
 	// it also contains both serial and model assertion headers, but we
 	// follow the same code path for both assertion types and some of the
@@ -68,6 +68,8 @@ model assertion.
 		"gadget",
 		"kernel",
 		"revision",
+		"store",
+		"system-user-authority",
 		"timestamp",
 		"required-snaps",
 		"device-key-sha3-384",
@@ -241,7 +243,7 @@ func (x *cmdModel) Execute(args []string) error {
 			// switch on which header it is to handle some special cases
 			switch headerName {
 			// list of scalars
-			case "required-snaps":
+			case "required-snaps", "system-user-authority":
 				headerIfaceList, ok := headerValue.([]interface{})
 				if !ok {
 					return invalidTypeErr

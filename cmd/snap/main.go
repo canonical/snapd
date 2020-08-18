@@ -35,7 +35,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -43,11 +42,12 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap")
+	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
 
 	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		// in tests or when debugging, enforce the "tidy" lint checks
@@ -425,7 +425,7 @@ func resolveApp(snapApp string) (string, error) {
 }
 
 func main() {
-	cmd.ExecInSnapdOrCoreSnap()
+	snapdtool.ExecInSnapdOrCoreSnap()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f

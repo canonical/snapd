@@ -26,7 +26,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -34,6 +33,7 @@ import (
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -160,16 +160,16 @@ var assumesTests = []struct {
 }}
 
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
-	restore := cmd.MockVersion("2.15")
+	restore := snapdtool.MockVersion("2.15")
 	defer restore()
 
 	restore = release.MockOnClassic(false)
 	defer restore()
 
 	for _, test := range assumesTests {
-		cmd.Version = test.version
-		if cmd.Version == "" {
-			cmd.Version = "2.15"
+		snapdtool.Version = test.version
+		if snapdtool.Version == "" {
+			snapdtool.Version = "2.15"
 		}
 		release.OnClassic = test.classic
 
@@ -1133,6 +1133,12 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 }
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
+	// FIXME: this test fails on machines where the user was already
+	// created by the system snapd
+	_, err := osutil.FindUid("snapd-range-524288-root")
+	if err == nil {
+		c.Skip("FIXME")
+	}
 	falsePath := osutil.LookPathDefault("false", "/bin/false")
 	for _, classic := range []bool{false, true} {
 		restore := release.MockOnClassic(classic)

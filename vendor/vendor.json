@@ -7,10 +7,16 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "9knAF4MuJlL6JI1jM3i/AS4ACbY=",
-			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "e6887e32e4a513099aedbc8fc313d369a889131e",
-			"revisionTime": "2020-03-06T09:45:16Z"
+			"checksumSHA1": "s0Ow9uk/0H2Pmfq4JAGpzy5x6T0=",
+			"path": "github.com/canonical/go-tpm2",
+			"revision": "aaf158ed20ca23c48b446f78fb0bbaf4055e7123",
+			"revisionTime": "2020-05-14T15:04:06Z"
+		},
+		{
+			"checksumSHA1": "bT/rC7K8St3lNRXf/XJGpB4wNJU=",
+			"path": "github.com/canonical/go-tpm2/internal",
+			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
+			"revisionTime": "2020-04-16T00:17:14Z"
 		},
 		{
 			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
@@ -23,13 +29,6 @@
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
 			"revisionTime": "2018-05-11T13:34:05Z"
-		},
-		{
-			"checksumSHA1": "geYdDku3kun0ydzoz9mO4S14kYg=",
-			"origin": "github.com/chrisccoulson/pkcs7",
-			"path": "github.com/fullsailor/pkcs7",
-			"revision": "d7302db945fa6ea264fb79d8e13e931ea514a602",
-			"revisionTime": "2019-01-30T07:39:14Z"
 		},
 		{
 			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
@@ -68,10 +67,10 @@
 			"revisionTime": "2017-10-26T09:04:26Z"
 		},
 		{
-			"checksumSHA1": "3ohk4dFYrERZ6WTdKkIwnTA0HSI=",
+			"checksumSHA1": "uSYSOqWHns5IziQOPrgKq+ianZ8=",
 			"path": "github.com/kr/pretty",
-			"revision": "73f6ac0b30a98e433b289500d779f50c1a6f0712",
-			"revisionTime": "2018-05-06T08:33:45Z"
+			"revision": "814ac30b4b181fedaa28ed1b6763ee87f0096826",
+			"revisionTime": "2020-08-10T07:44:40Z"
 		},
 		{
 			"checksumSHA1": "SbguDK5lY8uhaHNrmJmNbiWIGM0=",
@@ -80,10 +79,10 @@
 			"revisionTime": "2018-05-06T08:24:08Z"
 		},
 		{
-			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
+			"checksumSHA1": "IttM8us+Q4MCsRvzLCUstr4ry9w=",
 			"path": "github.com/mvo5/goconfigparser",
-			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
-			"revisionTime": "2015-02-12T09:37:50Z"
+			"revision": "72e476556adb39b13f78b99ba01ca387503a075d",
+			"revisionTime": "2020-08-03T08:53:09Z"
 		},
 		{
 			"checksumSHA1": "uSjL89zodhV0X/LvyZ67FlKYKvg=",
@@ -92,11 +91,11 @@
 			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
-			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"checksumSHA1": "fFe39jZ9Y2DPUuNvx2Bzs6N/yYs=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
-			"revision": "9eca199504ee1299394669820724322b5bfc070a",
-			"revisionTime": "2018-01-18T17:01:45Z"
+			"revision": "e23dabaa2861760fc674e679fad48343c06c0afc",
+			"revisionTime": "2020-06-03T12:59:28Z"
 		},
 		{
 			"checksumSHA1": "CSPV27Mm4+WBlyGFT/lKz1la/VI=",
@@ -111,10 +110,34 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "dJIqi7bVE6Lwzib0oGkCEQeEcxY=",
+			"checksumSHA1": "UHhUJNcYbKn3xxZDuPh9GX6BWrM=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "49613a072d9413ec09a5e98f6791a6f93e2571b9",
-			"revisionTime": "2020-03-30T08:14:49Z"
+			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
+			"revisionTime": "2020-08-13T11:40:20Z"
+		},
+		{
+			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
+			"path": "github.com/snapcore/secboot/internal/pe1.14",
+			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
+			"revisionTime": "2020-08-13T11:40:20Z"
+		},
+		{
+			"checksumSHA1": "kDay47kq9OgDplpkrYw0/a8Z+YY=",
+			"path": "github.com/snapcore/secboot/internal/tcg",
+			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
+			"revisionTime": "2020-08-13T11:40:20Z"
+		},
+		{
+			"checksumSHA1": "PRS8ACUu14shrvAgb747Izc25ns=",
+			"path": "github.com/snapcore/secboot/internal/tcti",
+			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
+			"revisionTime": "2020-08-13T11:40:20Z"
+		},
+		{
+			"checksumSHA1": "TnfofdyojXYWOwdWCKMY5RCeI7s=",
+			"path": "github.com/snapcore/secboot/internal/truststore",
+			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
+			"revisionTime": "2020-08-13T11:40:20Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
@@ -122,6 +145,12 @@
 			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
 			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
+		},
+		{
+			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
+			"path": "go.mozilla.org/pkcs7",
+			"revision": "432b2356ecb18209c1cec25680b8a23632794f21",
+			"revisionTime": "2020-01-28T12:03:23Z"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",

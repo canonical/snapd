@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -341,6 +341,27 @@ const (
 
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
+// gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
+// * lower 16 bits are reserved
+// * in the higher bits use the sequence 1, 8, 16 to have some space
+//   to possibly add new grades in between
+var gradeToCode = map[ModelGrade]uint32{
+	ModelGradeUnset: 0,
+	ModelDangerous:  0x10000,
+	ModelSigned:     0x80000,
+	ModelSecured:    0x100000,
+}
+
+// Code returns a bit representation of the grade, for example for
+// measuring it in a full disk encryption implementation.
+func (mg ModelGrade) Code() uint32 {
+	code, ok := gradeToCode[mg]
+	if !ok {
+		panic(fmt.Sprintf("unknown model grade: %s", mg))
+	}
+	return code
+}
+
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
@@ -465,19 +486,29 @@ func (mod *Model) Store() string {
 	return mod.HeaderString("store")
 }
 
-// RequiredNoEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the essential snaps (gadget, kernel, boot base).
+// RequiredNoEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the essential snaps (gadget, kernel, boot base, snapd).
 func (mod *Model) RequiredNoEssentialSnaps() []naming.SnapRef {
 	return mod.requiredWithEssentialSnaps[mod.numEssentialSnaps:]
 }
 
-// RequiredWithEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including the essential snaps (gadget, kernel, boot base).
+// RequiredWithEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including any essential snaps (gadget, kernel, boot base, snapd).
 func (mod *Model) RequiredWithEssentialSnaps() []naming.SnapRef {
 	return mod.requiredWithEssentialSnaps
 }
 
-// AllSnaps returns all the snap listed by the model.
-func (mod *Model) AllSnaps() []*ModelSnap {
-	return mod.allSnaps
+// EssentialSnaps returns all essential snaps explicitly mentioned by
+// the model.
+// They are always returned according to this order with some skipped
+// if not mentioned: snapd, kernel, boot base, gadget.
+func (mod *Model) EssentialSnaps() []*ModelSnap {
+	return mod.allSnaps[:mod.numEssentialSnaps]
+}
+
+// SnapsWithoutEssential returns all the snaps listed by the model
+// without any of the essential snaps (as returned by EssentialSnaps).
+// They are returned in the order of mention by the model.
+func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
+	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
 // SerialAuthority returns the authority ids that are accepted as

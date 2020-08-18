@@ -45,16 +45,13 @@ restore: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     mv -f "$SRC".orig "$SRC"
-    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
     if [ -f "$AAP".orig ]; then
         mv -f "$AAP".orig "$AAP"
         apparmor_parser -r "$AAP"
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     # other tests ensure seccomp is available so we can skip any systems that
     # don't have it
     if ! snap debug sandbox-features --required seccomp:bpf-argument-filtering ; then
@@ -63,7 +60,7 @@ execute: |
 
     echo "Remove any setpriority rules from the filter"
     sed 's/^\(setpriority.*\)/#SPREAD: \1/g' "$SRC".orig > "$SRC"
-    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
     echo "and check that positive nice fails"
     test-snapd-setpriority 10  | MATCH 'Operation not permitted \(EPERM\)'
     echo "and check that negative nice fails"
@@ -71,7 +68,7 @@ execute: |
 
     echo "Use bare setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority/g' "$SRC".orig > "$SRC"
-    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
     test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice succeeds"
@@ -79,7 +76,7 @@ execute: |
 
     echo "Use arg filtered setpriority rule"
     sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority PRIO_PROCESS 0 <=19/g' "$SRC".orig > "$SRC"
-    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
     echo "and check that positive nice succeeds"
     test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that negative nice fails"

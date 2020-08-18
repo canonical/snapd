@@ -1,5 +1,5 @@
 summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1813365
-systems: [ubuntu-*, ubuntu-core-*, debian-*]
+systems: [ubuntu-1*, ubuntu-2*, ubuntu-core-*, debian-*]
 prepare: |
     mount --bind logger "$(command -v adduser)"
     mount --bind logger "$(command -v passwd)"

@@ -22,7 +22,6 @@ package progress_test
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -31,9 +30,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 )
 
-type ansiSuite struct {
-	stdout *os.File
-}
+type ansiSuite struct{}
 
 var _ = check.Suite(ansiSuite{})
 
@@ -108,7 +105,7 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 	msg := "0123456789"
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
-	p.Start(msg, 1E300)
+	p.Start(msg, 1e300)
 	for i := 1; i <= 80; i++ {
 		desc := check.Commentf("width %d", i)
 		width = i
@@ -129,6 +126,31 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 		default:
 			c.Check(out, check.Matches, fmt.Sprintf("\r%*s   0%%  [ 0-9]{4}B/s ages!", -(i-20), msg), desc)
 		}
+	}
+}
+
+func (ansiSuite) TestSetLayoutMultibyte(c *check.C) {
+	var buf bytes.Buffer
+	var duration string
+	var msg = "0123456789"
+	defer progress.MockStdout(&buf)()
+	defer progress.MockEmptyEscapes()()
+	defer progress.MockTermWidth(func() int { return 80 })()
+	defer progress.MockFormatDuration(func(_ float64) string {
+		return duration
+	})()
+
+	for _, dstr := range []string{"м", "語"} {
+		duration = dstr
+		buf.Reset()
+
+		p := &progress.ANSIMeter{}
+		p.Start(msg, 1e300)
+		p.Set(0.99 * 1e300)
+		out := buf.String()
+		c.Check([]rune(out), check.HasLen, 80+1, check.Commentf("unexpected length: %v", len(out)))
+		c.Check(out, check.Matches,
+			fmt.Sprintf("\r0123456789 \\s+  99%% +[0-9]+(\\.[0-9]+)?[kMGTPEZY]?B/s %s", dstr))
 	}
 }
 
@@ -198,7 +220,7 @@ func (ansiSuite) TestNotify(c *check.C) {
 	defer progress.MockTermWidth(func() int { return width })()
 
 	p := &progress.ANSIMeter{}
-	p.Start("working", 1E300)
+	p.Start("working", 1e300)
 
 	width = 10
 	p.Set(0)

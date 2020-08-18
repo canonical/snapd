@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
@@ -395,14 +396,14 @@ epoch: 1*
 confinement: devmode`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
@@ -417,14 +418,14 @@ type: app
 confinement: classic`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Confinement, Equals, snap.ClassicConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
@@ -437,14 +438,14 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
@@ -457,7 +458,7 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
@@ -467,7 +468,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
 }
 
@@ -477,7 +478,7 @@ version: 1.0
 type: app`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -490,7 +491,7 @@ version: 1.0
 type: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -503,7 +504,7 @@ version: 1.0
 confinement: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -651,7 +652,7 @@ hooks:
   123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -663,7 +664,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 version: 1.0`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -681,7 +682,7 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml strin
 
 	// Now check snap file
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks(hooks...))
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Check(err, IsNil)
@@ -1124,7 +1125,7 @@ plugs:
 func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnapYaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -1199,6 +1200,9 @@ apps:
     daemon: potato
   svc2:
     daemon: no
+  svc3:
+    daemon: simple
+    daemon-scope: user
   app1:
   app2:
 `))
@@ -1206,10 +1210,16 @@ apps:
 
 	svc := info.Apps["svc1"]
 	c.Check(svc.IsService(), Equals, true)
+	c.Check(svc.DaemonScope, Equals, snap.SystemDaemon)
 	c.Check(svc.ServiceName(), Equals, "snap.pans.svc1.service")
 	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.service")
 
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
+	userSvc := info.Apps["svc3"]
+	c.Check(userSvc.IsService(), Equals, true)
+	c.Check(userSvc.DaemonScope, Equals, snap.UserDaemon)
+	c.Check(userSvc.ServiceName(), Equals, "snap.pans.svc3.service")
+	c.Check(userSvc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/user/snap.pans.svc3.service")
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 
@@ -1217,6 +1227,8 @@ apps:
 	info.InstanceKey = "instance"
 	c.Check(svc.ServiceName(), Equals, "snap.pans_instance.svc1.service")
 	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.svc1.service")
+	c.Check(userSvc.ServiceName(), Equals, "snap.pans_instance.svc3.service")
+	c.Check(userSvc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/user/snap.pans_instance.svc3.service")
 }
 
 func (s *infoSuite) TestAppInfoStringer(c *C) {
@@ -1554,14 +1566,14 @@ func (s *infoSuite) TestIsActive(c *C) {
 	c.Check(info2.IsActive(), Equals, false)
 }
 
-func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
+func (s *infoSuite) TestInfoTypeSnapdBackwardCompatibility(c *C) {
 	const snapdYaml = `
 name: snapd
 type: app
 version: 1
 `
 	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
-	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
+	c.Check(snapInfo.Type(), Equals, snap.TypeSnapd)
 }
 
 func (s *infoSuite) TestDirAndFileHelpers(c *C) {
@@ -1727,4 +1739,23 @@ func (s *infoSuite) TestSortApps(c *C) {
 			c.Assert(sortedNames, DeepEquals, tc.sorted)
 		}
 	}
+}
+
+func (s *infoSuite) TestSortAppInfoBySnapApp(c *C) {
+	snap1 := &snap.Info{SuggestedName: "snapa"}
+	snap2 := &snap.Info{SuggestedName: "snapb"}
+	infos := []*snap.AppInfo{
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "b"},
+		{Snap: snap1, Name: "a"},
+		{Snap: snap2, Name: "a"},
+	}
+	sort.Stable(snap.AppInfoBySnapApp(infos))
+
+	c.Check(infos, DeepEquals, []*snap.AppInfo{
+		{Snap: snap1, Name: "a"},
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "a"},
+		{Snap: snap2, Name: "b"},
+	})
 }

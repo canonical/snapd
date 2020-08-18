@@ -792,31 +792,13 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
-// queryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
+// queryDisabledServices uses wrappers.QueryDisabledServices()
+//
 // Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
 func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	// save the list of services that are in the disabled state before unlinking
-	// and thus removing the snap services
-	snapSvcStates, err := m.backend.ServicesEnableState(info, pb)
-	if err != nil {
-		return nil, err
-	}
-
-	disabledSnapSvcs := []string{}
-	// add all disabled services to the list
-	for svc, isEnabled := range snapSvcStates {
-		if !isEnabled {
-			disabledSnapSvcs = append(disabledSnapSvcs, svc)
-		}
-	}
-
-	// sort for easier testing
-	sort.Strings(disabledSnapSvcs)
-
-	return disabledSnapSvcs, nil
+	return m.backend.QueryDisabledServices(info, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -913,9 +895,14 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
 	linkCtx := backend.LinkContext{
 		PrevDisabledServices: svcsToDisable,
 		FirstInstall:         false,
+		VitalityRank:         vitalityRank,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1103,6 +1090,22 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 	return missingSvcs, foundSvcs, nil
 }
 
+func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
+	tr := config.NewTransaction(st)
+
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return 0, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			return i + 1, nil
+		}
+	}
+	return 0, nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1189,9 +1192,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// record type
-	snapst.SetType(newInfo.GetType())
+	snapst.SetType(newInfo.Type())
 
 	pb := NewTaskProgressAdapterLocked(t)
+
+	// Check for D-Bus service conflicts a second time to detect
+	// conflicts within a transaction.
+	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
+		return err
+	}
 
 	// get the services which LinkSnap should disable when generating wrappers,
 	// as well as the services which are not present in this revision, but were
@@ -1202,9 +1211,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:         oldCurrent.Unset(),
 		PrevDisabledServices: svcsToDisable,
+		VitalityRank:         vitalityRank,
 	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
@@ -1297,7 +1311,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
-	if newInfo.GetType() != snap.TypeOS {
+	if newInfo.Type() != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
 			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
@@ -1347,7 +1361,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 		return
 	}
 
-	typ := info.GetType()
+	typ := info.Type()
 
 	// if bp is non-trivial then either we're not on classic, or the snap is
 	// snapd. So daemonRestartReason will always return "" which is what we
@@ -1439,7 +1453,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
-	bp := boot.Participant(info, info.GetType(), groundDeviceCtx)
+	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
 	reboot, err := bp.SetNextBoot()
 	if err != nil {
 		return err
@@ -1626,7 +1640,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// the cleanup is performed by snapd from core;
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
-	if linkCtx.FirstInstall && newInfo.GetType() == snap.TypeSnapd {
+	if linkCtx.FirstInstall && newInfo.Type() == snap.TypeSnapd {
 		// only way to get
 		deviceCtx, err := DeviceCtx(st, t, nil)
 		if err != nil {
@@ -1650,7 +1664,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// snap. We need to undo that restart here. Instead of in
 	// doUnlinkCurrentSnap() like we usually do when going from
 	// core snap -> next core snap
-	if release.OnClassic && newInfo.GetType() == snap.TypeOS && oldCurrent.Unset() {
+	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
 		st.RequestRestart(state.RestartDaemon)
 	}

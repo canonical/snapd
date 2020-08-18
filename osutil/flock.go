@@ -32,10 +32,10 @@ type FileLock struct {
 
 var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
 
-// NewFileLock creates and opens the lock file given by "path"
-func NewFileLock(path string) (*FileLock, error) {
-	mode := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
-	file, err := os.OpenFile(path, mode, os.FileMode(0600))
+// NewFileLockWithMode creates and opens the lock file given by "path" with the given mode.
+func NewFileLockWithMode(path string, mode os.FileMode) (*FileLock, error) {
+	flag := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
+	file, err := os.OpenFile(path, flag, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -43,9 +43,19 @@ func NewFileLock(path string) (*FileLock, error) {
 	return l, nil
 }
 
+// NewFileLock creates and opens the lock file given by "path" with mode 0600.
+func NewFileLock(path string) (*FileLock, error) {
+	return NewFileLockWithMode(path, 0600)
+}
+
 // Path returns the path of the lock file.
 func (l *FileLock) Path() string {
 	return l.file.Name()
+}
+
+// File returns the underlying file.
+func (l *FileLock) File() *os.File {
+	return l.file
 }
 
 // Close closes the lock, unlocking it automatically if needed.
@@ -54,8 +64,19 @@ func (l *FileLock) Close() error {
 }
 
 // Lock acquires an exclusive lock and blocks until the lock is free.
+//
+// Only one process can acquire an exclusive lock at a given time, preventing
+// shared or exclusive locks from being acquired.
 func (l *FileLock) Lock() error {
 	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
+}
+
+// Lock acquires an shared lock and blocks until the lock is free.
+//
+// Multiple processes can acquire a shared lock at the same time, unless an
+// exclusive lock is held.
+func (l *FileLock) ReadLock() error {
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_SH)
 }
 
 // TryLock acquires an exclusive lock and errors if the lock cannot be acquired.

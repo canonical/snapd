@@ -195,3 +195,10 @@ func MockRatelimitReader(f func(r io.Reader, bucket *ratelimit.Bucket) io.Reader
 		ratelimitReader = oldRatelimitReader
 	}
 }
+
+type (
+	ErrorListEntryJSON   = errorListEntry
+	SnapActionResultJSON = snapActionResult
+)
+
+var ReportFetchAssertionsError = reportFetchAssertionsError

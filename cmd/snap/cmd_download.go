@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,7 +71,7 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func fetchSnapAssertionsDirect(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -113,6 +113,43 @@ func printInstallHint(assertPath, snapPath string) {
 `), assertPath, snapPath)
 }
 
+// for testing
+var downloadDirect = downloadDirectImpl
+
+func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+	tsto, err := image.NewToolingStore()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
+	snapPath, snapInfo, _, err := tsto.DownloadSnap(snapName, dlOpts)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
+	assertPath, err := fetchSnapAssertionsDirect(tsto, snapPath, snapInfo)
+	if err != nil {
+		return err
+	}
+	printInstallHint(assertPath, snapPath)
+	return nil
+}
+
+func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision) error {
+	dlOpts := image.DownloadOptions{
+		TargetDir: x.TargetDir,
+		Basename:  x.Basename,
+		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  revision,
+		// if something goes wrong, don't force it to start over again
+		LeavePartialOnError: true,
+	}
+	return downloadDirect(snapName, revision, dlOpts)
+}
+
 func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
 		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
@@ -143,33 +180,5 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-
-	tsto, err := image.NewToolingStore()
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	dlOpts := image.DownloadOptions{
-		TargetDir: x.TargetDir,
-		Basename:  x.Basename,
-		Channel:   x.Channel,
-		CohortKey: x.CohortKey,
-		Revision:  revision,
-		// if something goes wrong, don't force it to start over again
-		LeavePartialOnError: true,
-	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
-	if err != nil {
-		return err
-	}
-	printInstallHint(assertPath, snapPath)
-
-	return nil
+	return x.downloadFromStore(snapName, revision)
 }

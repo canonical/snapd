@@ -3,7 +3,7 @@ description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   can be undone with --reset flag.
 
-systems: [ubuntu-19.10-*,ubuntu-20.04-*]
+systems: [ubuntu-19.10-*, ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -16,30 +16,39 @@ prepare: |
   wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
+
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+
 restore: |
   rm -f before-preseeding.txt
   rm -f after-reset.txt
 
-  # any of the restore commands can fail depending on where execute part stopped,
-  # account for that with ||true.
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
 execute: |
   find_files() {
-    find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
+    # ubuntu-19.10 doesn't have new snapd deb yet, so exclude applications dir for now
+    # TODO: remove after 2.44 is there.
+    if [[ "$SPREAD_SYSTEM" = ubuntu-19.10-64 ]]; then
+      find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/" | grep -v "/var/lib/snapd/desktop/applications"
+    else
+      find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
+    fi
   }
-
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
-  setup_preseeding "$IMAGE_MOUNTPOINT"
 
   find_files > before-preseeding.txt
 
-  echo "Running pre-seeeding"
+  echo "Running pre-seeding"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  echo "Running preseeeding again should fail"
+  echo "Running preseeding again should fail"
   if OUT=$(/usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" 2>&1); then
     echo "Expected snap-preseed to fail"
     exit 1
@@ -58,9 +67,10 @@ execute: |
     exit 1
   fi
 
-  echo "Running preseeeding again should succeed"
+  echo "Running preseeding again should succeed"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
+  echo "And running snap-preseed with a relative path works"
+  cd /mnt
+  /usr/lib/snapd/snap-preseed --reset cloudimg
+  /usr/lib/snapd/snap-preseed cloudimg

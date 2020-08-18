@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -116,16 +116,17 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 
 	s.setupSnaps(c, map[string]string{
 		"core": "canonical",
-	})
+	}, "")
 
 	dlDir := c.MkDir()
 	opts := image.DownloadOptions{
 		TargetDir: dlDir,
 	}
-	fn, info, err := s.tsto.DownloadSnap("core", opts)
+	fn, info, redirectChannel, err := s.tsto.DownloadSnap("core", opts)
 	c.Assert(err, check.IsNil)
 	c.Check(fn, check.Matches, filepath.Join(dlDir, `core_\d+.snap`))
 	c.Check(info.SnapName(), check.Equals, "core")
+	c.Check(redirectChannel, check.Equals, "")
 
 	c.Check(logbuf.String(), check.Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
 }

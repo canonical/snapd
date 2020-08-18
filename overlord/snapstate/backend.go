@@ -41,7 +41,7 @@ type StoreService interface {
 	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 
-	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error)
+	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
 
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
@@ -50,6 +50,7 @@ type StoreService interface {
 	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (r io.ReadCloser, status int, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+	DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error
 
 	SuggestedCurrency() string
 	Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error)
@@ -69,6 +70,7 @@ type managerBackend interface {
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
+	QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error

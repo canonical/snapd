@@ -230,3 +230,56 @@ func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(res.StatusCode, check.Equals, 200)
 }
+
+func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
+	// create a server that uses our certs
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `all good`)
+	}))
+	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	c.Assert(err, check.IsNil)
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MaxVersion:   tls.VersionTLS11,
+	}
+	srv.StartTLS()
+	s.AddCleanup(srv.Close)
+
+	// Server running only TLS1.1 doesn't work
+	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+
+	_, err = cli.Get(srv.URL)
+	// The protocol check is done prior to the certificate check
+	// - golang < 1.12: tls: server selected unsupported protocol version 302
+	// - golang >= 1.12: tls: protocol version not supported
+	c.Assert(err, check.ErrorMatches, ".* tls: (server selected unsupported protocol version 302|protocol version not supported)")
+}
+
+func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
+	// create a server that uses our certs
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `all good`)
+	}))
+	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	c.Assert(err, check.IsNil)
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MaxVersion:   tls.VersionTLS12,
+	}
+	srv.StartTLS()
+	s.AddCleanup(srv.Close)
+
+	// Server running our current minimum of TLS1.2. This test will notice
+	// if our expected minimum default (TLS1.2) changes.
+	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+
+	_, err = cli.Get(srv.URL)
+	// The protocol check is done prior to the certificate check and since
+	// this is testing the protocol, the self-signed certificate error is
+	// fine and expected.
+	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
+}

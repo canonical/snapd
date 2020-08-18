@@ -19,6 +19,10 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/osutil"
+)
+
 const networkControlSummary = `allows configuring networking and network namespaces`
 
 const networkControlBaseDeclarationSlots = `
@@ -280,6 +284,53 @@ var networkControlConnectedPlugUDev = []string{
 	`KERNEL=="tun"`,
 }
 
+var networkControlConnectedPlugMount = []osutil.MountEntry{{
+	Name:    "/var/lib/snapd/hostfs/var/lib/dhcp",
+	Dir:     "/var/lib/dhcp",
+	Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+}}
+
+// TODO: Add a layer that derives this sort of data from mount entry, like the
+// one above, into a set of apparmor rules for snap-update-ns, like the ones
+// below.
+//
+// When setting up a mount entry, we also need corresponding
+// snap-updates-ns rules. Eg, if have:
+// []osutil.MountEntry{{
+//	Name:    "/foo/bar",
+//	Dir:     "/bar",
+//	Options: []string{"rw", "bind"},
+// }}
+// Then you can expect to need:
+// /foo/ r,
+// /foo/bar/ r,
+// mount options=(rw bind) /foo/bar/ -> /bar/,
+// umount /bar/,
+// ...
+// You'll need 'r' rules for all the directories that need to be traversed,
+// starting from the root directory all the way down to the directory being
+// mounted. This is required by the safe bind mounting trick employed by
+// snap-update-ns.
+//
+// You'll need 'rw' rules to support cases when snap-update-ns is expected to
+// create the missing directory, before performing the bind mount. Note that
+// there are two sides, one side is the host visible through
+// /var/lib/snapd/hostfs and the other side is everything else. To support
+// writes to the host side you need to coordinate with the trespassing rules
+// implemented in snap-update-ns/system.go.
+var networkControlConnectedPlugUpdateNSAppArmor = `
+/var/ r,
+/var/lib/ r,
+/var/lib/snapd/ r,
+/var/lib/snapd/hostfs/ r,
+/var/lib/snapd/hostfs/var/ r,
+/var/lib/snapd/hostfs/var/lib/ r,
+/var/lib/snapd/hostfs/var/lib/dhcp/ r,
+/var/lib/dhcp/ r,
+mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
+umount /var/lib/dhcp/,
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
@@ -290,7 +341,11 @@ func init() {
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		connectedPlugUDev:     networkControlConnectedPlugUDev,
-		suppressPtraceTrace:   true,
+
+		connectedPlugMount:            networkControlConnectedPlugMount,
+		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
+
+		suppressPtraceTrace: true,
 	})
 
 }

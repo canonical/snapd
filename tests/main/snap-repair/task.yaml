@@ -5,12 +5,9 @@ summary: Ensure that snap-repair is available
 systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*, -ubuntu-core-20-*]
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     if ! grep -q "ID=ubuntu-core" /etc/os-release; then
         echo "Ensure snap-repair is disabled on classic"
-        "${LIBEXECDIR}"/snapd/snap-repair 2>&1 | MATCH "cannot use snap-repair on a classic system"
+        snapd.tool exec snap-repair 2>&1 | MATCH "cannot use snap-repair on a classic system"
         exit 0
     fi
 
@@ -20,6 +17,4 @@ execute: |
     systemctl list-timers | MATCH snapd.snap-repair.timer
 
     echo "Check that snap-repair can be run"
-    "${LIBEXECDIR}"/snapd/snap-repair run
-
-    
+    snapd.tool exec snap-repair run

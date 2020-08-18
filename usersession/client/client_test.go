@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
+var (
+	timeout = testutil.HostScaledTimeout(80 * time.Millisecond)
+)
+
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
@@ -120,7 +124,7 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
 }`))
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	si, err := s.cli.SessionInfo(ctx)
 
@@ -252,7 +256,7 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
 }`))
 	})
 	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "failed to start services")
 	c.Check(startFailures, HasLen, 2)
 	c.Check(stopFailures, HasLen, 0)
 
@@ -299,7 +303,7 @@ func (s *clientSuite) TestServicesStartOneAgentFailure(c *C) {
 }`))
 	})
 	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "failed to start services")
 	c.Check(startFailures, DeepEquals, []client.ServiceFailure{
 		{
 			Uid:     42,
@@ -343,7 +347,7 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
 	// Error value is a map, but missing start-errors/stop-errors keys
 	errorValue = "{}"
 	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
 
@@ -424,7 +428,7 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 }`))
 	})
 	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "failed to stop services")
 	c.Check(failures, HasLen, 2)
 	failure0 := failures[0]
 	failure1 := failures[1]

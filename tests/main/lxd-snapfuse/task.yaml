@@ -4,7 +4,9 @@ summary: Check snapfuse works
 systems: [ubuntu-18.04-64]
 
 restore: |
-    lxd-tool undo-lxd-mount-changes
+    lxc delete --force my-ubuntu
+    snap remove ---purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
     echo "Ensure we use the snap"
@@ -14,7 +16,7 @@ execute: |
     apt autoremove -y squashfuse
 
     echo "Install lxd"
-    snap install --candidate lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
     echo "Create a trivial container using the lxd snap"
     snap set lxd waitready.timeout=240

@@ -13,4 +13,4 @@ execute: |
     execute_remote "snap known model" | MATCH "series: 16"
 
     echo "Make sure core has an actual revision"
-    execute_remote "snap list --unicode=never" | MATCH "^core +[0-9]+\\-[0-9.]+ +[0-9]+ +$CORE_CHANNEL +canonical\\* +core"
+    execute_remote "snap list --unicode=never" | MATCH "^core +[0-9]+\\-[0-9.]+ +[0-9]+ +latest/$CORE_CHANNEL +canonical\\* +core"

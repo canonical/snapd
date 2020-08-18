@@ -100,6 +100,11 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if len(contentWithHeader) < headerSize {
+		return nil, fmt.Errorf("cannot open %q: smaller than expected header", fname)
+	}
+
 	crc := readUint32(contentWithHeader)
 
 	payload := contentWithHeader[headerSize:]

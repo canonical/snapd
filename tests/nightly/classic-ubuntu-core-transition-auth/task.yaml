@@ -20,9 +20,17 @@ debug: |
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
+restore: |
+    "$TESTSTOOLS"/fs-state restore-file /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-state restore-dir /root/.snap
+
+    "$TESTSTOOLS"/fs-state restore-file /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-state restore-dir /home/test/.snap
+
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
     distro_install_build_snapd
@@ -34,9 +42,12 @@ execute: |
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
-    mkdir -p /root/.snap/
+    "$TESTSTOOLS"/fs-state mock-dir /root/.snap
+    "$TESTSTOOLS"/fs-state mock-file /root/.snap/auth.json
     echo '{}' > /root/.snap/auth.json
-    mkdir -p /home/test/.snap/
+
+    "$TESTSTOOLS"/fs-state mock-dir /home/test/.snap
+    "$TESTSTOOLS"/fs-state mock-file /home/test/.snap/auth.json
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"

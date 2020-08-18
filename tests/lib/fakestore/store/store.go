@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 )
@@ -177,7 +178,7 @@ type essentialInfo struct {
 var errInfo = errors.New("cannot get info")
 
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
-	snapFile, err := snap.Open(fn)
+	f, err := snapfile.Open(fn)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
 		return nil, errInfo
@@ -186,7 +187,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+	info, err := snap.ReadInfoFromSnapFile(f, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
@@ -228,7 +229,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		Digest:      snapDigest,
 		Size:        size,
 		Confinement: string(info.Confinement),
-		Type:        string(info.GetType()),
+		Type:        string(info.Type()),
 	}, nil
 }
 
@@ -324,11 +325,11 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 	defer restoreSanitize()
 
 	for _, fn := range snapFns {
-		snapFile, err := snap.Open(fn)
+		f, err := snapfile.Open(fn)
 		if err != nil {
 			return nil, err
 		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		if err != nil {
 			return nil, err
 		}

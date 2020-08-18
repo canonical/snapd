@@ -55,8 +55,6 @@ check-unit-tests:
 endif
 
 new_format = \
-	 libsnap-confine-private/cgroup-pids-support.c \
-	 libsnap-confine-private/cgroup-pids-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/infofile-test.c \
@@ -72,7 +70,9 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
-	 snap-discard-ns/snap-discard-ns.c
+	 snap-discard-ns/snap-discard-ns.c \
+	 snap-gdb-shim/snap-gdb-shim.c \
+	 snap-gdb-shim/snap-gdbserver-shim.c
 
 # NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
@@ -112,8 +112,6 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
-	libsnap-confine-private/cgroup-pids-support.c \
-	libsnap-confine-private/cgroup-pids-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
 	libsnap-confine-private/classic.c \
@@ -489,6 +487,17 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+
+##
+## snap-gdbserver-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdbserver-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdbserver-shim.c
+
+snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
 
 ##
 ## snapd-generator

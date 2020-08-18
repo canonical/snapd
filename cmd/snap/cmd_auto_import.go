@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -187,8 +188,10 @@ func autoImportFromAllMounts(cli *client.Client) (int, error) {
 	return added, nil
 }
 
+var ioutilTempDir = ioutil.TempDir
+
 func tryMount(deviceName string) (string, error) {
-	tmpMountTarget, err := ioutil.TempDir("", "snapd-auto-import-mount-")
+	tmpMountTarget, err := ioutilTempDir("", "snapd-auto-import-mount-")
 	if err != nil {
 		err = fmt.Errorf("cannot create temporary mount point: %v", err)
 		logger.Noticef("error: %v", err)
@@ -210,8 +213,10 @@ func tryMount(deviceName string) (string, error) {
 	return tmpMountTarget, nil
 }
 
+var syscallUnmount = syscall.Unmount
+
 func doUmount(mp string) error {
-	if err := syscall.Unmount(mp, 0); err != nil {
+	if err := syscallUnmount(mp, 0); err != nil {
 		return err
 	}
 	return os.Remove(mp)
@@ -263,7 +268,45 @@ func (x *cmdAutoImport) autoAddUsers() error {
 	return cmd.Execute(nil)
 }
 
-var procCmdline = "/proc/cmdline"
+func removableBlockDevices() (removableDevices []string) {
+	// eg. /sys/block/sda/removable
+	removable, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable"))
+	if err != nil {
+		return nil
+	}
+	for _, removableAttr := range removable {
+		val, err := ioutil.ReadFile(removableAttr)
+		if err != nil || string(val) != "1\n" {
+			// non removable
+			continue
+		}
+		// let's see if it has partitions
+		dev := filepath.Base(filepath.Dir(removableAttr))
+
+		pattern := fmt.Sprintf(filepath.Join(dirs.GlobalRootDir, "/sys/block/%s/%s*/partition"), dev, dev)
+		// eg. /sys/block/sda/sda1/partition
+		partitionAttrs, _ := filepath.Glob(pattern)
+
+		if len(partitionAttrs) == 0 {
+			// not partitioned? try to use the main device
+			removableDevices = append(removableDevices, fmt.Sprintf("/dev/%s", dev))
+			continue
+		}
+
+		for _, partAttr := range partitionAttrs {
+			val, err := ioutil.ReadFile(partAttr)
+			if err != nil || string(val) != "1\n" {
+				// non partition?
+				continue
+			}
+			pdev := filepath.Base(filepath.Dir(partAttr))
+			removableDevices = append(removableDevices, fmt.Sprintf("/dev/%s", pdev))
+			// hasPartitions = true
+		}
+	}
+	sort.Strings(removableDevices)
+	return removableDevices
+}
 
 // inInstallmode returns true if it's UC20 system in install mode
 func inInstallMode() bool {
@@ -289,7 +332,13 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return nil
 	}
 
-	for _, path := range x.Mount {
+	devices := x.Mount
+	if len(devices) == 0 {
+		// coldplug scenario, try all removable devices
+		devices = removableBlockDevices()
+	}
+
+	for _, path := range devices {
 		// udev adds new /dev/loopX devices on the fly when a
 		// loop mount happens and there is no loop device left.
 		//

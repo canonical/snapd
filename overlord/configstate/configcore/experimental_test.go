@@ -85,7 +85,7 @@ func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
 		"experimental.refresh-app-awareness": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
 }
 
@@ -94,5 +94,5 @@ func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 		"experimental.refresh-app-awareness": 1,
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
 }

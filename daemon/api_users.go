@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -115,7 +116,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: "please use a valid email address.",
-				Kind:    errorKindInvalidAuthData,
+				Kind:    client.ErrorKindInvalidAuthData,
 				Value:   map[string][]string{"email": {"invalid"}},
 			},
 			Status: 400,
@@ -131,7 +132,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
-				Kind:    errorKindTwoFactorRequired,
+				Kind:    client.ErrorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
 			Status: 401,
@@ -140,7 +141,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
-				Kind:    errorKindTwoFactorFailed,
+				Kind:    client.ErrorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
 			Status: 401,
@@ -152,7 +153,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: err.Error(),
-					Kind:    errorKindInvalidAuthData,
+					Kind:    client.ErrorKindInvalidAuthData,
 					Value:   err,
 				},
 				Status: 400,
@@ -162,7 +163,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: err.Error(),
-					Kind:    errorKindPasswordPolicy,
+					Kind:    client.ErrorKindPasswordPolicy,
 					Value:   err,
 				},
 				Status: 401,
@@ -221,7 +222,7 @@ const noUserAdmin = "system user administration via snapd is not allowed on this
 
 func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	if !hasUserAdmin {
-		return MethodNotAllowed(noUserAdmin, r.Method)
+		return MethodNotAllowed(noUserAdmin)
 	}
 
 	var postData postUserData
@@ -323,6 +324,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	}
 
 	var model *asserts.Model
+	var serial *asserts.Serial
 	createKnown := createData.Known
 	if createKnown {
 		var err error
@@ -332,12 +334,18 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		if err != nil {
 			return InternalError("cannot create user: cannot get model assertion: %v", err)
 		}
+		st.Lock()
+		serial, err = c.d.overlord.DeviceManager().Serial()
+		st.Unlock()
+		if err != nil && err != state.ErrNoState {
+			return InternalError("cannot create user: cannot get serial: %v", err)
+		}
 	}
 
 	// special case: the user requested the creation of all known
 	// system-users
 	if createData.Email == "" && createKnown {
-		return createAllKnownSystemUsers(st, model, &createData)
+		return createAllKnownSystemUsers(st, model, serial, &createData)
 	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
@@ -346,7 +354,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	var username string
 	var opts *osutil.AddUserOptions
 	if createKnown {
-		username, opts, err = getUserDetailsFromAssertion(st, model, createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, model, serial, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
@@ -396,7 +404,7 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createData *postUserCreateData) Response {
+func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, createData *postUserCreateData) Response {
 	var createdUsers []userResponseData
 	headers := map[string]string{
 		"brand-id": modelAs.BrandID(),
@@ -414,7 +422,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createDa
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(st, modelAs, email)
+		username, opts, err := getUserDetailsFromAssertion(st, modelAs, serialAs, email)
 		if err != nil {
 			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
@@ -443,7 +451,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createDa
 	return SyncResponse(createdUsers, nil)
 }
 
-func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email string) (string, *osutil.AddUserOptions, error) {
+func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
 	st.Lock()
@@ -477,6 +485,16 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email 
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
+	if len(su.Serials()) > 0 {
+		if serialAs == nil {
+			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but device not yet registered")
+		}
+		serial := serialAs.Serial()
+		if !strutil.ListContains(su.Serials(), serial) {
+			return "", nil, fmt.Errorf(errorPrefix+"%q not in serials %q", serial, su.Serials())
+		}
+	}
+
 	if !su.ValidAt(time.Now()) {
 		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
 	}

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -109,6 +110,9 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	if len(snapChannels) != 0 {
 		opts.SnapChannels = snapChannels
 	}
+
+	// store-wide cohort key via env, see image/options.go
+	opts.WideCohortKey = os.Getenv("UBUNTU_STORE_COHORT_KEY")
 
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic

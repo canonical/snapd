@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,7 +34,8 @@ import (
 type typeFlags int
 
 const (
-	noAuthority typeFlags = iota + 1
+	noAuthority typeFlags = 1 << iota
+	sequenceForming
 )
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
@@ -65,11 +66,21 @@ func (at *AssertionType) MaxSupportedFormat() int {
 	return maxSupportedFormat[at.Name]
 }
 
+// SequencingForming returns true if the assertion type has a positive
+// integer >= 1 as the last component (preferably called "sequence")
+// of its primary key over which the assertions of the type form
+// sequences, usually without gaps, one sequence per sequence key (the
+// primary key prefix omitting the sequence number).
+// See SequenceMember.
+func (at *AssertionType) SequenceForming() bool {
+	return at.flags&sequenceForming != 0
+}
+
 // Understood assertion types.
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, 0}
+	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
 	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
@@ -79,6 +90,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
 	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
@@ -103,6 +115,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeveloperType.Name:   SnapDeveloperType,
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
+	ValidationSetType.Name:   ValidationSetType,
 	RepairType.Name:          RepairType,
 	StoreType.Name:           StoreType,
 	// no authority
@@ -138,6 +151,9 @@ func init() {
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
 	maxSupportedFormat[SnapDeclarationType.Name] = 4
+
+	// 1: support to limit to device serials
+	maxSupportedFormat[SystemUserType.Name] = 1
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -150,6 +166,25 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
+	SystemUserType:      systemUserFormatAnalyze,
+}
+
+// MaxSupportedFormats returns a mapping between assertion type names
+// and corresponding max supported format if it is >= min. Typical
+// usage passes 1 or 0 for min.
+func MaxSupportedFormats(min int) (maxFormats map[string]int) {
+	if min == 0 {
+		maxFormats = make(map[string]int, len(typeRegistry))
+	} else {
+		maxFormats = make(map[string]int)
+	}
+	for name := range typeRegistry {
+		m := maxSupportedFormat[name]
+		if m >= min {
+			maxFormats[name] = m
+		}
+	}
+	return maxFormats
 }
 
 // SuggestFormat returns a minimum format that supports the features that would be used by an assertion with the given components.
@@ -188,15 +223,19 @@ func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (head
 // corresponding to a primary key under the assertion type, it errors
 // if there are missing primary key headers.
 func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
-	primaryKey = make([]string, len(assertType.PrimaryKey))
-	for i, k := range assertType.PrimaryKey {
+	return keysFromHeaders(assertType.PrimaryKey, headers)
+}
+
+func keysFromHeaders(keys []string, headers map[string]string) (keyValues []string, err error) {
+	keyValues = make([]string, len(keys))
+	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = keyVal
+		keyValues[i] = keyVal
 	}
-	return primaryKey, nil
+	return keyValues, nil
 }
 
 // Ref expresses a reference to an assertion.
@@ -237,6 +276,23 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 	return find(ref.Type, headers)
 }
 
+const RevisionNotKnown = -1
+
+// AtRevision represents an assertion at a given revision, possibly
+// not known (RevisionNotKnown).
+type AtRevision struct {
+	Ref
+	Revision int
+}
+
+func (at *AtRevision) String() string {
+	s := at.Ref.String()
+	if at.Revision == RevisionNotKnown {
+		return s
+	}
+	return fmt.Sprintf("%s at revision %d", s, at.Revision)
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
@@ -275,6 +331,17 @@ type Assertion interface {
 
 	// Ref returns a reference representing this assertion.
 	Ref() *Ref
+
+	// At returns an AtRevision referencing this assertion at its revision.
+	At() *AtRevision
+}
+
+// SequenceMember is implemented by assertions of sequence forming types.
+type SequenceMember interface {
+	Assertion
+
+	// Sequence returns the sequence number of this assertion.
+	Sequence() int
 }
 
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
@@ -378,6 +445,11 @@ func (ab *assertionBase) Ref() *Ref {
 		Type:       assertType,
 		PrimaryKey: primKey,
 	}
+}
+
+// At returns an AtRevision referencing this assertion at its revision.
+func (ab *assertionBase) At() *AtRevision {
+	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
 // sanity check

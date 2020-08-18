@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 
 	snapd "github.com/snapcore/snapd/cmd/snapd"
@@ -44,6 +45,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type snapdSuite struct {
 	tmpdir string
+	testutil.BaseTest
 }
 
 var _ = Suite(&snapdSuite{})
@@ -55,6 +57,9 @@ func (s *snapdSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 	}
 	dirs.SetRootDir(s.tmpdir)
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
 }
 
 func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {

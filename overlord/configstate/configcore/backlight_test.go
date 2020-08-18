@@ -39,15 +39,8 @@ var _ = Suite(&backlightSuite{})
 func (s *backlightSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	s.systemctlArgs = nil
-
-	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
-}
-
-func (s *backlightSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
@@ -85,14 +78,11 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 }
 
 func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"system.disable-backlight-service": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "systemd-backlight@.service"},

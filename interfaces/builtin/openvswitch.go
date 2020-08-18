@@ -19,7 +19,7 @@
 
 package builtin
 
-const openvswitchSummary = `allows access to the openvswitch socket`
+const openvswitchSummary = `allows access to openvswitch management sockets`
 
 const openvswitchBaseDeclarationSlots = `
   openvswitch:
@@ -30,12 +30,15 @@ const openvswitchBaseDeclarationSlots = `
 `
 
 // List of sockets we want to allow access to. This list currently includes
-// sockets needed by ovs-vsctl and ovs-ofctl commands. The latter requires
-// access to per-bridge sockets e.g. for bridge br-data you would need access
-// to /run/openvswitch/br-data.mgmt.
+// sockets needed by ovs-vsctl, ovs-ofctl and ovs-appctl commands. ovs-ofctl
+// requires access to per-bridge sockets e.g. for bridge br-data you would need
+// access to /run/openvswitch/br-data.mgmt.
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 /run/openvswitch/*.mgmt rw,
+# ovs-appctl allows sending commands to Open vSwitch daemons at runtime
+/run/openvswitch/ovs-vswitchd.*.ctl rw,
+/run/openvswitch/ovs-vswitchd.pid rw,
 `
 
 func init() {

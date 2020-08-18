@@ -60,10 +60,16 @@ export GOMAXPROCS=2
 endif
 
 # build with "tpm" support on ubuntu by default
-TAGS=withsecboot
+# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap and
+# snap-bootstrap build only.
+TAGS=
+SNAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
-	TAGS+= withtestkeys
+	TAGS=-tags withtestkeys
+	SNAP_TAGS=-tags "nomanagers withtestkeys"
+else
+	SNAP_TAGS=-tags nomanagers
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -162,9 +168,13 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
+	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
 	# this is the main go build
-	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
@@ -201,7 +211,7 @@ endif
 	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
-	dh_auto_test -- $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -237,6 +247,10 @@ override_dh_install:
 	fi
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# bootloader assets generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
@@ -251,10 +265,6 @@ override_dh_install:
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-
-	# On Ubuntu and Debian we don't need to install the apparmor helper service.
-	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
-	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 

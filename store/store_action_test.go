@@ -154,7 +154,7 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, aresults, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -169,8 +169,9 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 			InstanceName: "hello-world",
 			CohortKey:    helloCohortKey,
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
+	c.Assert(aresults, HasLen, 0)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
@@ -263,7 +264,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -278,7 +279,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -336,7 +337,7 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -344,12 +345,12 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
 	// local no-op
-	results, err = sto.SnapAction(s.ctx, nil, nil, nil, nil)
+	results, _, err = sto.SnapAction(s.ctx, nil, nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 
@@ -400,14 +401,14 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "beta",
 			Revision:        snap.R(1),
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 }
@@ -476,7 +477,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -492,7 +493,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -565,7 +566,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -580,7 +581,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -641,7 +642,7 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -655,7 +656,7 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
@@ -728,7 +729,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:     "hello-world",
 			SnapID:           helloWorldSnapID,
@@ -745,7 +746,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 			Channel:      "stable",
 			Flags:        store.SnapActionEnforceValidation,
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -795,7 +796,7 @@ func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -809,7 +810,7 @@ func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, &store.RefreshOptions{IsAutoRefresh: true})
+	}, nil, nil, &store.RefreshOptions{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 }
@@ -877,7 +878,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:  "hello-world",
 			SnapID:        helloWorldSnapID,
@@ -890,7 +891,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -973,7 +974,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -987,7 +988,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1066,7 +1067,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1080,7 +1081,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1153,7 +1154,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1168,7 +1169,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 			InstanceName: "hello-world",
 			Channel:      "stable",
 		},
-	}, nil, &store.RefreshOptions{RefreshManaged: true})
+	}, nil, nil, &store.RefreshOptions{RefreshManaged: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1270,7 +1271,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, nil,
+	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       action,
@@ -1278,7 +1279,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 				Channel:      "beta",
 				CohortKey:    cohort,
 			},
-		}, nil, nil)
+		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1364,7 +1365,7 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, nil,
+	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "install",
@@ -1372,7 +1373,7 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 				Channel:      "beta",
 				Epoch:        snap.E("1*"),
 			},
-		}, nil, nil)
+		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1418,7 +1419,7 @@ func (s *storeActionSuite) TestSnapActionWithClientUserAgent(c *C) {
 	c.Assert(err, IsNil)
 	ctx := store.WithClientUserAgent(s.ctx, r)
 
-	results, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil)
+	results, _, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil, nil)
 	c.Check(serverCalls, Equals, 1)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
@@ -1443,14 +1444,14 @@ func (s *storeActionSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	_, err := sto.SnapAction(s.ctx, nil,
+	_, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "download",
 				InstanceName: "hello-world_foo",
 				Channel:      "beta",
 			},
-		}, nil, nil)
+		}, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `internal error: unsupported download with instance name "hello-world_foo"`)
 }
 
@@ -1533,14 +1534,14 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, nil,
+	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       action,
 				InstanceName: "hello-world",
 				Revision:     snap.R(28),
 			},
-		}, nil, nil)
+		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -1668,7 +1669,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1702,7 +1703,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			InstanceName: "bar",
 			Revision:     snap.R(42),
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -1820,7 +1821,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -1843,7 +1844,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 			InstanceName: "bar",
 			Revision:     snap.R(42),
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -1908,13 +1909,13 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
 		{
 			Action:       "install",
 			InstanceName: "foo",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Other: []error{
@@ -1942,13 +1943,13 @@ func (s *storeActionSuite) TestSnapActionUnknownAction(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, nil,
+	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
 				Action:       "something unexpected",
 				InstanceName: "hello-world",
 			},
-		}, nil, nil)
+		}, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* unsupported action .*`)
 	c.Assert(results, IsNil)
 }
@@ -2249,7 +2250,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2263,7 +2264,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			SnapID:       helloWorldSnapID,
 			InstanceName: "hello-world",
 		},
-	}, s.user, nil)
+	}, nil, s.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
@@ -2344,7 +2345,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2365,7 +2366,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world_foo",
 		},
-	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -2473,7 +2474,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 			InstanceName: "hello-world_foo",
 		},
 	}
-	results, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, opts)
+	results, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].SnapName(), Equals, "hello-world")
@@ -2481,7 +2482,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
 	// another request with the same seed, gives same result
-	resultsAgain, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, opts)
+	resultsAgain, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(resultsAgain, DeepEquals, results)
 }
@@ -2581,7 +2582,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2610,7 +2611,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 			InstanceName: "other_foo",
 			Channel:      "stable",
 		},
-	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &store.SnapActionError{
 		Refresh: map[string]error{
@@ -2697,7 +2698,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2711,7 +2712,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 			InstanceName: "hello-world_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
@@ -2728,7 +2729,7 @@ func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&store.Config{}, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2741,7 +2742,7 @@ func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
 			Action:  "install",
 			Channel: "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "internal error: action without instance name")
 	c.Assert(results, IsNil)
 }
@@ -2811,7 +2812,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2825,7 +2826,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 			InstanceName: "hello-world_foo",
 			Channel:      "stable",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected instance-key "foo-2"`)
 	c.Assert(results, IsNil)
 }
@@ -2894,7 +2895,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -2909,7 +2910,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 			Channel:      "stable",
 			InstanceName: "hello-world",
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
 	c.Assert(results, IsNil)
 }
@@ -2996,7 +2997,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
 		{
 			InstanceName:    "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -3015,7 +3016,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 			Action:       "install",
 			InstanceName: "foo-2",
 		},
-	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, DeepEquals, &store.SnapActionError{
 		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
 	})

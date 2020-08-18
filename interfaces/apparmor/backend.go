@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -357,7 +357,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// Deal with the "snapd" snap - we do the setup slightly differently
 	// here because this will run both on classic and on Ubuntu Core 18
 	// systems but /etc/apparmor.d is not writable on core18 systems
-	if snapInfo.GetType() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+	if snapInfo.Type() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
 			return nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -368,7 +368,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	//
-	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && !release.OnClassic {
+	if (snapInfo.Type() == snap.TypeOS || snapInfo.Type() == snap.TypeSnapd) && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(apparmor_sandbox.SystemCacheDir, "*")); err == nil {
 			for _, p := range li {
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
@@ -550,7 +550,8 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
+	templatePattern    = regexp.MustCompile("(###[A-Z_]+###)")
+	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
 const (
@@ -628,8 +629,17 @@ func downgradeConfinement() bool {
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
-	// Normally we use a specific apparmor template for all snap programs.
-	policy := defaultTemplate
+	// If base is specified and it doesn't match the core snaps (not
+	// specifying a base should use the default core policy since in this
+	// case, the 'core' snap is used for the runtime), use the base
+	// apparmor template, otherwise use the default template.
+	var policy string
+	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
+		policy = defaultOtherBaseTemplate
+	} else {
+		policy = defaultCoreRuntimeTemplate
+	}
+
 	ignoreSnippets := false
 	// Classic confinement (unless overridden by JailMode) has a dedicated
 	// permissive template that applies a strict, but very open, policy.

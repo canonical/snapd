@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -55,6 +56,13 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
+}
+
+type AssertionQuery interface {
+	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, error)
+
+	AddError(e error, ref *asserts.Ref) error
+	AddGroupingError(e error, grouping asserts.Grouping) error
 }
 
 type currentSnapV2JSON struct {
@@ -96,8 +104,9 @@ func isValidAction(action string) bool {
 }
 
 type snapActionJSON struct {
-	Action           string `json:"action"`
-	InstanceKey      string `json:"instance-key"`
+	Action string `json:"action"`
+	// For snap
+	InstanceKey      string `json:"instance-key,omitempty"`
 	Name             string `json:"name,omitempty"`
 	SnapID           string `json:"snap-id,omitempty"`
 	Channel          string `json:"channel,omitempty"`
@@ -112,6 +121,15 @@ type snapActionJSON struct {
 	// and then setting it to a (possibly nil) epoch for install and download. As a
 	// nil epoch is not an empty interface{}, you'll get the null in the json.
 	Epoch interface{} `json:"epoch,omitempty"`
+	// For assertions
+	Key        string         `json:"key,omitempty"`
+	Assertions []assertAtJSON `json:"assertions,omitempty"`
+}
+
+type assertAtJSON struct {
+	Type        string   `json:"type"`
+	PrimaryKey  []string `json:"primary-key"`
+	IfNewerThan *int     `json:"if-newer-than,omitempty"`
 }
 
 type snapRelease struct {
@@ -119,8 +137,17 @@ type snapRelease struct {
 	Channel      string `json:"channel"`
 }
 
+type errorListEntry struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	// for assertions
+	Type       string   `json:"type"`
+	PrimaryKey []string `json:"primary-key"`
+}
+
 type snapActionResult struct {
-	Result           string    `json:"result"`
+	Result string `json:"result"`
+	// For snap
 	InstanceKey      string    `json:"instance-key"`
 	SnapID           string    `json:"snap-id,omitempy"`
 	Name             string    `json:"name,omitempty"`
@@ -134,20 +161,22 @@ type snapActionResult struct {
 			Releases []snapRelease `json:"releases"`
 		} `json:"extra"`
 	} `json:"error"`
+	// For assertions
+	Key                 string           `json:"key"`
+	AssertionStreamURLs []string         `json:"assertion-stream-urls"`
+	ErrorList           []errorListEntry `json:"error-list"`
 }
 
 type snapActionRequest struct {
-	Context []*currentSnapV2JSON `json:"context"`
-	Actions []*snapActionJSON    `json:"actions"`
-	Fields  []string             `json:"fields"`
+	Context             []*currentSnapV2JSON `json:"context"`
+	Actions             []*snapActionJSON    `json:"actions"`
+	Fields              []string             `json:"fields"`
+	AssertionMaxFormats map[string]int       `json:"assertion-max-formats,omitempty"`
 }
 
 type snapActionResultList struct {
 	Results   []*snapActionResult `json:"results"`
-	ErrorList []struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error-list"`
+	ErrorList []errorListEntry    `json:"error-list"`
 }
 
 var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
@@ -157,19 +186,32 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
-func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
+// Orthogonally and at the same time it can be used to fetch or update
+// assertions by passing an AssertionQuery whose ToResolve specifies
+// the assertions and revisions to consider. Assertion related errors
+// are reported via the AssertionQuery Add*Error methods.
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
 
-	if len(currentSnaps) == 0 && len(actions) == 0 {
+	var toResolve map[asserts.Grouping][]*asserts.AtRevision
+	if assertQuery != nil {
+		var err error
+		toResolve, err = assertQuery.ToResolve()
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if len(currentSnaps) == 0 && len(actions) == 0 && len(toResolve) == 0 {
 		// nothing to do
-		return nil, &SnapActionError{NoResults: true}
+		return nil, nil, &SnapActionError{NoResults: true}
 	}
 
 	authRefreshes := 0
 	for {
-		sars, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, user, opts)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -197,7 +239,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
-		return sars, err
+		return sars, ars, err
 	}
 }
 
@@ -229,12 +271,14 @@ type SnapActionResult struct {
 	RedirectChannel string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
+// AssertionResult encapsulates the non-error result for one assertion
+// grouping fetch action.
+type AssertionResult struct {
+	Grouping   asserts.Grouping
+	StreamURLs []string
+}
 
-	// TODO: the store already requires instance-key but doesn't
-	// yet support repeating in context or sending actions for the
-	// same snap-id, for now we keep instance-key handling internal
-
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -244,11 +288,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	instanceNameToKey := make(map[string]string, len(currentSnaps))
 	for i, curSnap := range currentSnaps {
 		if curSnap.SnapID == "" || curSnap.InstanceName == "" || curSnap.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: invalid current snap information")
+			return nil, nil, fmt.Errorf("internal error: invalid current snap information")
 		}
 		instanceKey, err := genInstanceKey(curSnap, requestSalt)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		curSnaps[instanceKey] = curSnap
 		instanceNameToKey[curSnap.InstanceName] = instanceKey
@@ -273,18 +317,20 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
+	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve))
+
+	// snaps
 	downloadNum := 0
 	installNum := 0
 	installs := make(map[string]*SnapAction, len(actions))
 	downloads := make(map[string]*SnapAction, len(actions))
 	refreshes := make(map[string]*SnapAction, len(actions))
-	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
 		if !isValidAction(a.Action) {
-			return nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
+			return nil, nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
 		}
 		if a.InstanceName == "" {
-			return nil, fmt.Errorf("internal error: action without instance name")
+			return nil, nil, fmt.Errorf("internal error: action without instance name")
 		}
 		var ignoreValidation *bool
 		if a.Flags&SnapActionIgnoreValidation != 0 {
@@ -317,7 +363,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)
 			downloads[instanceKey] = a
 			if _, key := snap.SplitInstanceName(a.InstanceName); key != "" {
-				return nil, fmt.Errorf("internal error: unsupported download with instance name %q", a.InstanceName)
+				return nil, nil, fmt.Errorf("internal error: unsupported download with instance name %q", a.InstanceName)
 			}
 		} else {
 			instanceKey = instanceNameToKey[a.InstanceName]
@@ -342,14 +388,39 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		actionJSONs[i] = aJSON
 	}
 
+	// assertions
+	var assertMaxFormats map[string]int
+	if len(toResolve) > 0 {
+		i := len(actionJSONs) - len(toResolve)
+		for grp, ats := range toResolve {
+			aJSON := &snapActionJSON{
+				Action: "fetch-assertions",
+				Key:    string(grp),
+			}
+			aJSON.Assertions = make([]assertAtJSON, len(ats))
+			for j, at := range ats {
+				aJSON.Assertions[j].Type = at.Type.Name
+				aJSON.Assertions[j].PrimaryKey = at.PrimaryKey
+				rev := at.Revision
+				if rev != asserts.RevisionNotKnown {
+					aJSON.Assertions[j].IfNewerThan = &rev
+				}
+			}
+			actionJSONs[i] = aJSON
+			i++
+		}
+		assertMaxFormats = asserts.MaxSupportedFormats(1)
+	}
+
 	// build input for the install/refresh endpoint
 	jsonData, err := json.Marshal(snapActionRequest{
-		Context: curSnapJSONs,
-		Actions: actionJSONs,
-		Fields:  snapActionFields,
+		Context:             curSnapJSONs,
+		Actions:             actionJSONs,
+		Fields:              snapActionFields,
+		AssertionMaxFormats: assertMaxFormats,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	reqOptions := &requestOptions{
@@ -377,11 +448,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var results snapActionResultList
 	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "query the store for updates")
+		return nil, nil, respToError(resp, "query the store for updates")
 	}
 
 	s.extractSuggestedCurrency(resp)
@@ -392,7 +463,21 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var otherErrors []error
 
 	var sars []SnapActionResult
+	var ars []AssertionResult
 	for _, res := range results.Results {
+		if res.Result == "fetch-assertions" {
+			if len(res.ErrorList) != 0 {
+				if err := reportFetchAssertionsError(res, assertQuery); err != nil {
+					return nil, nil, fmt.Errorf("internal error: %v", err)
+				}
+				continue
+			}
+			ars = append(ars, AssertionResult{
+				Grouping:   asserts.Grouping(res.Key),
+				StreamURLs: res.AssertionStreamURLs,
+			})
+			continue
+		}
 		if res.Result == "error" {
 			if a := installs[res.InstanceKey]; a != nil {
 				if res.Name != "" {
@@ -426,7 +511,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
 		if err != nil {
-			return nil, fmt.Errorf("unexpected invalid install/refresh API result: %v", err)
+			return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: %v", err)
 		}
 
 		snapInfo.Channel = res.EffectiveChannel
@@ -435,7 +520,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if res.Result == "refresh" {
 			cur := curSnaps[res.InstanceKey]
 			if cur == nil {
-				return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected refresh")
+				return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected refresh")
 			}
 			rrev := snap.R(res.Snap.Revision)
 			if rrev == cur.Revision || findRev(rrev, cur.Block) {
@@ -450,7 +535,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 
 		if res.Result != "download" && instanceName == "" {
-			return nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected instance-key %q", res.InstanceKey)
+			return nil, nil, fmt.Errorf("unexpected invalid install/refresh API result: unexpected instance-key %q", res.InstanceKey)
 		}
 
 		_, instanceKey := snap.SplitInstanceName(instanceName)
@@ -474,7 +559,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(downloadErrors) == 0 {
 			downloadErrors = nil
 		}
-		return sars, &SnapActionError{
+		return sars, ars, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
@@ -483,7 +568,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	return sars, nil
+	return sars, ars, nil
 }
 
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
@@ -493,4 +578,57 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 		}
 	}
 	return false
+}
+
+func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) error {
+	// prefer to report the most unexpected error:
+	// * errors not referring to an assertion (no valid type/primary-key)
+	// are more unexpected than
+	// * errors referring to a precise assertion that are not not-found
+	// themselves more unexpected than
+	// * not-found errors
+	errIdx := -1
+	errl := res.ErrorList
+	carryingRef := func(ent *errorListEntry) bool {
+		aType := asserts.Type(ent.Type)
+		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
+	}
+	prio := func(ent *errorListEntry) int {
+		if !carryingRef(ent) {
+			return 2
+		}
+		if ent.Code != "not-found" {
+			return 1
+		}
+		return 0
+	}
+	for i, ent := range errl {
+		if errIdx == -1 {
+			errIdx = i
+			continue
+		}
+		prioOther := prio(&errl[errIdx])
+		prioThis := prio(&ent)
+		if prioThis > prioOther {
+			errIdx = i
+		}
+	}
+	rep := errl[errIdx]
+	if carryingRef(&rep) {
+		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
+		var err error
+		if rep.Code == "not-found" {
+			headers, _ := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+			err = &asserts.NotFoundError{
+				Type:    ref.Type,
+				Headers: headers,
+			}
+
+		} else {
+			err = fmt.Errorf("%s", rep.Message)
+		}
+		return assertq.AddError(err, ref)
+	}
+
+	return assertq.AddGroupingError(fmt.Errorf("%s", rep.Message), asserts.Grouping(res.Key))
 }

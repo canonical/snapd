@@ -26,22 +26,40 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 func resetPreseededChroot(preseedChroot string) error {
+	exists, isDir, err := osutil.DirExists(preseedChroot)
+	if err != nil {
+		return fmt.Errorf("cannot reset %q: %v", preseedChroot, err)
+	}
+	if !exists {
+		return fmt.Errorf("cannot reset non-existing directory %q", preseedChroot)
+	}
+	if !isDir {
+		return fmt.Errorf("cannot reset %q, it is not a directory", preseedChroot)
+	}
+
 	// globs that yield individual files
 	globs := []string{
 		dirs.SnapStateFile,
 		dirs.SnapSystemKeyFile,
 		filepath.Join(dirs.SnapBlobDir, "*.snap"),
 		filepath.Join(dirs.SnapUdevRulesDir, "*-snap.*.rules"),
-		filepath.Join(dirs.SnapBusPolicyDir, "snap.*.*.conf"),
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.*.*.conf"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.timer"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),
 		filepath.Join(dirs.SnapServicesDir, "snap-*.mount"),
 		filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-*.mount"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.service"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.socket"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.timer"),
+		filepath.Join(dirs.SnapUserServicesDir, "default.target.wants", "snap.*.service"),
+		filepath.Join(dirs.SnapUserServicesDir, "sockets.target.wants", "snap.*.socket"),
+		filepath.Join(dirs.SnapUserServicesDir, "timers.target.wants", "snap.*.timer"),
 	}
 
 	for _, gl := range globs {
@@ -63,6 +81,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapDataDir, "*"),
 		filepath.Join(dirs.SnapCacheDir, "*"),
 		filepath.Join(apparmor_sandbox.CacheDir, "*"),
+		filepath.Join(dirs.SnapDesktopFilesDir, "*"),
 	}
 
 	for _, gl := range globs {
@@ -82,7 +101,6 @@ func resetPreseededChroot(preseedChroot string) error {
 	paths := []string{
 		dirs.SnapAssertsDBDir,
 		dirs.FeaturesDir,
-		dirs.SnapDesktopFilesDir,
 		dirs.SnapDesktopIconsDir,
 		dirs.SnapDeviceDir,
 		dirs.SnapCookieDir,

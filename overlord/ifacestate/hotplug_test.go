@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -137,6 +138,9 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()

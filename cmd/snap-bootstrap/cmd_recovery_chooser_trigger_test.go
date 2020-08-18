@@ -143,3 +143,23 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
 }
+
+func (s *cmdSuite) TestRecoveryChooserTriggerNoInputDevsNoError(c *C) {
+	n := 0
+	marker := filepath.Join(c.MkDir(), "marker")
+
+	restore := main.MockDefaultMarkerFile(marker)
+	defer restore()
+	restore = main.MockTriggerwatchWait(func(_ time.Duration) error {
+		n++
+		// no input devices
+		return triggerwatch.ErrNoMatchingInputDevices
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
+	// does not trigger an error
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(marker, testutil.FileAbsent)
+}

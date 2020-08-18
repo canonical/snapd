@@ -8,7 +8,7 @@ prepare: |
     test "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l)" -ne 0
 
     # Install LXD snap and set it up.
-    snap install lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
     snap set lxd waitready.timeout=240
     lxd waitready
     lxd init --auto
@@ -57,7 +57,7 @@ restore: |
     lxc delete --force xenial || true
 
     snap remove --purge lxd
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log

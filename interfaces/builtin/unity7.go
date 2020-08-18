@@ -120,7 +120,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
-    member={Check,Get,Set}
+    member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
 # input methods (ibus)
@@ -378,6 +378,13 @@ dbus (receive)
     path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/dbusmenu
+    interface=org.freedesktop.DBus.Properties
+    member=Get*
     peer=(label=unconfined),
 
 # app-indicators

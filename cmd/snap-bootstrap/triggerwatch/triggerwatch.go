@@ -44,7 +44,8 @@ var (
 	// wait for '1' to be pressed
 	triggerFilter = triggerEventFilter{Key: "KEY_1"}
 
-	ErrTriggerNotDetected = errors.New("trigger not detected")
+	ErrTriggerNotDetected     = errors.New("trigger not detected")
+	ErrNoMatchingInputDevices = errors.New("no matching input devices")
 )
 
 // Wait waits for a trigger on the available trigger devices for a given amount
@@ -60,14 +61,12 @@ func Wait(timeout time.Duration) error {
 		return fmt.Errorf("cannot list trigger devices: %v", err)
 	}
 	if devices == nil {
-		return fmt.Errorf("cannot find matching devices")
+		return ErrNoMatchingInputDevices
 	}
 
 	logger.Noticef("waiting for trigger key: %v", triggerFilter.Key)
 
-	// wait for a couple of second for the key
 	detectKeyCh := make(chan keyEvent, len(devices))
-
 	for _, dev := range devices {
 		go dev.WaitForTrigger(detectKeyCh)
 		defer dev.Close()

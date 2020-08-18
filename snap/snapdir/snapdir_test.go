@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 
 	. "gopkg.in/check.v1"
@@ -41,14 +43,30 @@ type SnapdirTestSuite struct {
 
 var _ = Suite(&SnapdirTestSuite{})
 
+func (s *SnapdirTestSuite) TestIsSnapDir(c *C) {
+	d := c.MkDir()
+	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	c.Check(snapdir.IsSnapDir(d), Equals, true)
+}
+
+func (s *SnapdirTestSuite) TestNotIsSnapDir(c *C) {
+	c.Check(snapdir.IsSnapDir("/not-existent"), Equals, false)
+	c.Check(snapdir.IsSnapDir("/dev/null"), Equals, false)
+	c.Check(snapdir.IsSnapDir(c.MkDir()), Equals, false)
+}
+
 func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
 	err := ioutil.WriteFile(filepath.Join(d, "foo"), needle, 0644)
 	c.Assert(err, IsNil)
 
-	snap := snapdir.New(d)
-	content, err := snap.ReadFile("foo")
+	sn := snapdir.New(d)
+	content, err := sn.ReadFile("foo")
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, needle)
 }
@@ -59,8 +77,8 @@ func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	err := ioutil.WriteFile(filepath.Join(d, "foo"), needle, 0644)
 	c.Assert(err, IsNil)
 
-	snap := snapdir.New(d)
-	r, err := snap.RandomAccessFile("foo")
+	sn := snapdir.New(d)
+	r, err := sn.RandomAccessFile("foo")
 	c.Assert(err, IsNil)
 	defer r.Close()
 
@@ -81,8 +99,8 @@ func (s *SnapdirTestSuite) TestListDir(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	snap := snapdir.New(d)
-	fileNames, err := snap.ListDir("test")
+	sn := snapdir.New(d)
+	fileNames, err := sn.ListDir("test")
 	c.Assert(err, IsNil)
 	c.Assert(fileNames, HasLen, 2)
 	c.Check(fileNames[0], Equals, "test1")
@@ -91,16 +109,30 @@ func (s *SnapdirTestSuite) TestListDir(c *C) {
 
 func (s *SnapdirTestSuite) TestInstall(c *C) {
 	tryBaseDir := c.MkDir()
-	snap := snapdir.New(tryBaseDir)
+	sn := snapdir.New(tryBaseDir)
 
 	varLibSnapd := c.MkDir()
 	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
-	didNothing, err := snap.Install(targetPath, "unused-mount-dir")
+	didNothing, err := sn.Install(targetPath, "unused-mount-dir", nil)
 	c.Assert(err, IsNil)
 	c.Check(didNothing, Equals, false)
 	symlinkTarget, err := filepath.EvalSymlinks(targetPath)
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, tryBaseDir)
+}
+
+func (s *SnapdirTestSuite) TestInstallMustNotCrossDevices(c *C) {
+	tryBaseDir := c.MkDir()
+	sn := snapdir.New(tryBaseDir)
+
+	varLibSnapd := c.MkDir()
+	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
+	didNothing, err := sn.Install(targetPath, "unused-mount-dir", &snap.InstallOptions{MustNotCrossDevices: true})
+	c.Assert(err, IsNil)
+	c.Check(didNothing, Equals, false)
+	// TODO:UC20: fix this test when snapdir Install() understands/does
+	//            something with opts.MustNotCrossDevices
+	c.Check(osutil.IsSymlink(targetPath), Equals, true)
 }
 
 func walkEqual(tryBaseDir, sub string, c *C) {
@@ -118,8 +150,8 @@ func walkEqual(tryBaseDir, sub string, c *C) {
 	})
 
 	sdw := map[string]os.FileInfo{}
-	snap := snapdir.New(tryBaseDir)
-	snap.Walk(sub, func(path string, info os.FileInfo, err error) error {
+	sn := snapdir.New(tryBaseDir)
+	sn.Walk(sub, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

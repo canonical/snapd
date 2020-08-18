@@ -50,8 +50,10 @@ func createSampleApp() *AppInfo {
 				Revision: R(20),
 			},
 		},
-		Name:  "foo",
-		Plugs: map[string]*PlugInfo{"network-bind": {}},
+		Name:        "foo",
+		Daemon:      "simple",
+		DaemonScope: SystemDaemon,
+		Plugs:       map[string]*PlugInfo{"network-bind": {}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -244,12 +246,15 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
 		"/var/snap/mysnap/20/my.socket", // path is correct but has hardcoded prefix
+		// Variables only valid for user mode services
+		"$SNAP_USER_DATA/my.socket",
+		"$SNAP_USER_COMMON/my.socket",
 	}
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of .*`)
 	}
 }
 
@@ -274,7 +279,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
+			`invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
 	}
 }
 
@@ -297,6 +302,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	app := createSampleApp()
+	app.Daemon = "simple"
+	app.DaemonScope = SystemDaemon
 	invalidListenAddresses := []string{
 		"10.0.1.1:8080",
 		"[fafa::baba]:8080",
@@ -328,6 +335,90 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 		socket.ListenStream = invalidPort
 		err := ValidateApp(app)
 		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	validListenAddresses := []string{
+		// socket paths using variables as prefix
+		"$SNAP_USER_DATA/my.socket",
+		"$SNAP_USER_COMMON/my.socket",
+		"$XDG_RUNTIME_DIR/my.socket",
+		// abstract sockets
+		"@snap.mysnap.my.socket",
+		// addresses and ports
+		"1",
+		"1023",
+		"1024",
+		"65535",
+		"127.0.0.1:8080",
+		"[::]:8080",
+		"[::1]:8080",
+	}
+	socket := app.Sockets["sock"]
+	for _, validAddress := range validListenAddresses {
+		socket.ListenStream = validAddress
+		err := ValidateApp(app)
+		c.Check(err, IsNil, Commentf(validAddress))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	invalidListenAddresses := []string{
+		// socket paths out of the snap dirs
+		"/some/path/my.socket",
+		// Variables only valid for system mode services
+		"$SNAP_DATA/my.socket",
+		"$SNAP_COMMON/my.socket",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": user daemon sockets must have a prefix of .*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamAbstractSocket(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	invalidListenAddresses := []string{
+		"@snap.mysnap",
+		"@snap.mysnap\000.foo",
+		"@snap.notmysnap.my.socket",
+		"@some.other.name",
+		"@snap.myappiswrong.foo",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPort(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	invalidListenAddresses := []string{
+		"0",
+		"66536",
+		"-8080",
+		"12312345345",
+		"[::]:-123",
+		"[::1]:3452345234",
+		"invalid",
+		"[::]:invalid",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number .*`)
 	}
 }
 
@@ -370,10 +461,44 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
+		var daemonScope DaemonScope
+		if t.daemon != "" {
+			daemonScope = SystemDaemon
+		}
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+		}
+	}
+}
+
+func (s *ValidateSuite) TestAppDaemonScopeValue(c *C) {
+	for _, t := range []struct {
+		daemon      string
+		daemonScope DaemonScope
+		ok          bool
+	}{
+		// good
+		{"", "", true},
+		{"simple", SystemDaemon, true},
+		{"simple", UserDaemon, true},
+		// bad
+		{"simple", "", false},
+		{"", SystemDaemon, false},
+		{"", UserDaemon, false},
+		{"simple", "invalid-mode", false},
+	} {
+		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: t.daemonScope}
+		err := ValidateApp(app)
+		if t.ok {
+			c.Check(err, IsNil)
+		} else if t.daemon == "" {
+			c.Check(err, ErrorMatches, `"daemon-scope" can only be set for daemons`)
+		} else if t.daemonScope == "" {
+			c.Check(err, ErrorMatches, `"daemon-scope" must be set for daemons`)
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`invalid "daemon-scope": %q`, t.daemonScope))
 		}
 	}
 }
@@ -398,9 +523,9 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
@@ -422,10 +547,11 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, RefreshMode: t.refreshMode})
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+			c.Check(err, IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+			c.Check(err, ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
 		}
 	}
 
@@ -438,6 +564,104 @@ func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:$-]*$')`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOn(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+apps:
+  server:
+    daemon: simple
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnNotDaemon(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+apps:
+  server:
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `activates-on is only applicable to services`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnSlotNotDbus(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+  server:
+    daemon: simple
+    slots: [network-bind]
+    activates-on: [network-bind]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "network-bind": slot does not use dbus interface`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnDaemonScopeMismatch(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: session
+apps:
+  server:
+    daemon: simple
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "session" does not match daemon-scope "system"`)
+
+	info, err = InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+apps:
+  server:
+    daemon: simple
+    daemon-scope: user
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app = info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "system" does not match daemon-scope "user"`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnDuplicateApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+apps:
+  server:
+    daemon: simple
+    activates-on: [dbus-slot]
+  dup:
+    daemon: simple
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": slot is also activatable on app "dup"`)
 }
 
 // Validate
@@ -986,7 +1210,7 @@ layout:
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 
-	// Layout replacing files in another snap's mount p oit
+	// Layout replacing files in another snap's mount point
 	const yaml12 = `
 name: this-snap
 layout:
@@ -1000,6 +1224,47 @@ layout:
 	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/snap/that-snap/current/stuff" defines a layout in space belonging to another snap`)
+
+	const yaml13 = `
+name: this-snap
+layout:
+  $SNAP/relative:
+    symlink: $SNAP/existent-dir
+`
+
+	// Layout using $SNAP/... as source
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml13), &SideInfo{Revision: R(42)}, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+
+	var yaml14Pattern = `
+name: this-snap
+layout:
+  %s:
+    symlink: $SNAP/existent-dir
+`
+
+	for _, testCase := range []struct {
+		str         string
+		topLevelDir string
+	}{
+		{"/nonexistent-dir", "/nonexistent-dir"},
+		{"/nonexistent-dir/subdir", "/nonexistent-dir"},
+		{"///////unclean-absolute-dir", "/unclean-absolute-dir"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
+	}
+
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
@@ -1114,6 +1379,15 @@ apps:
    daemon: dbus
    after: [foo, bar, baz]
 `)
+	mixedSystemUserDaemons := []byte(`
+apps:
+ foo:
+   daemon: simple
+ bar:
+   daemon: simple
+   daemon-scope: user
+   after: [foo]
+`)
 
 	tcs := []struct {
 		name string
@@ -1156,8 +1430,12 @@ apps:
 	}, {
 		name: "self cycle",
 		desc: fooSelfCycle,
-		err:  `applications are part of a before/after cycle: foo`},
-	}
+		err:  `applications are part of a before/after cycle: foo`,
+	}, {
+		name: "user daemon wants system daemon",
+		desc: mixedSystemUserDaemons,
+		err:  `invalid definition of application "bar": before/after references service with different daemon-scope "foo"`,
+	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))

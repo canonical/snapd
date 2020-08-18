@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,12 +36,12 @@ type freezerSuite struct{}
 var _ = Suite(&freezerSuite{})
 
 func (s *freezerSuite) TestFreezeSnapProcesses(c *C) {
-	restore := cgroup.MockFreezerCgroupDir(c)
-	defer restore()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 
-	n := "foo"                                                               // snap name
-	p := filepath.Join(cgroup.FreezerCgroupDir(), fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
-	f := filepath.Join(p, "freezer.state")                                   // freezer.state file of the cgroup
+	n := "foo"                                                             // snap name
+	p := filepath.Join(cgroup.FreezerCgroupDir, fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
+	f := filepath.Join(p, "freezer.state")                                 // freezer.state file of the cgroup
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
 	c.Assert(cgroup.FreezeSnapProcesses(n), IsNil)
@@ -49,7 +50,7 @@ func (s *freezerSuite) TestFreezeSnapProcesses(c *C) {
 
 	// When the freezer cgroup filesystem exists but the particular cgroup
 	// doesn't exist we don nothing at all.
-	c.Assert(os.MkdirAll(cgroup.FreezerCgroupDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(cgroup.FreezerCgroupDir, 0755), IsNil)
 	c.Assert(cgroup.FreezeSnapProcesses(n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(os.IsNotExist(err), Equals, true)
@@ -63,12 +64,12 @@ func (s *freezerSuite) TestFreezeSnapProcesses(c *C) {
 }
 
 func (s *freezerSuite) TestThawSnapProcesses(c *C) {
-	restore := cgroup.MockFreezerCgroupDir(c)
-	defer restore()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 
-	n := "foo"                                                               // snap name
-	p := filepath.Join(cgroup.FreezerCgroupDir(), fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
-	f := filepath.Join(p, "freezer.state")                                   // freezer.state file of the cgroup
+	n := "foo"                                                             // snap name
+	p := filepath.Join(cgroup.FreezerCgroupDir, fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
+	f := filepath.Join(p, "freezer.state")                                 // freezer.state file of the cgroup
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
 	c.Assert(cgroup.ThawSnapProcesses(n), IsNil)
@@ -77,7 +78,7 @@ func (s *freezerSuite) TestThawSnapProcesses(c *C) {
 
 	// When the freezer cgroup filesystem exists but the particular cgroup
 	// doesn't exist we don nothing at all.
-	c.Assert(os.MkdirAll(cgroup.FreezerCgroupDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(cgroup.FreezerCgroupDir, 0755), IsNil)
 	c.Assert(cgroup.ThawSnapProcesses(n), IsNil)
 	_, err = os.Stat(f)
 	c.Assert(os.IsNotExist(err), Equals, true)

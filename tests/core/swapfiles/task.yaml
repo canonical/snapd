@@ -27,4 +27,4 @@ execute: |
   . /etc/default/swapfile
 
   echo "Check that the swap file exists"
-  retry-tool -n 60 --wait 1 bash -c "cat /proc/swaps | MATCH '$FILE\s+file\s+204796'"
+  retry -n 60 --wait 1 bash -c "cat /proc/swaps | MATCH '$FILE\s+file\s+204796'"

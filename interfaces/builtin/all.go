@@ -114,6 +114,14 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		delete(snapInfo.Slots, slotName)
 		for _, app := range snapInfo.Apps {
 			delete(app.Slots, slotName)
+
+			var activatesOn []*snap.SlotInfo
+			for _, slot := range app.ActivatesOn {
+				if slot.Name != slotName {
+					activatesOn = append(activatesOn, slot)
+				}
+			}
+			app.ActivatesOn = activatesOn
 		}
 		for _, hook := range snapInfo.Hooks {
 			delete(hook.Slots, slotName)

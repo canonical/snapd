@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -89,7 +89,7 @@ func (pol *policy16) extraSnapDefaultChannel() string {
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {
-		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
+		if info.Type() == snap.TypeGadget || info.Type() == snap.TypeApp {
 			// remember to make sure we have core installed
 			pol.needsCore = append(pol.needsCore, info.SnapName())
 		}
@@ -224,8 +224,6 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
-		// TODO: with default tracks this might be
-		// redirected by the store during the download
 		channel := sn.Channel
 		unasserted := info.SnapID == ""
 		if unasserted {

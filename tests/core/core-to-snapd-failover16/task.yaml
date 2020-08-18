@@ -6,12 +6,17 @@ systems: [ubuntu-core-16-*]
 prepare: |
   # shellcheck source=tests/lib/snaps.sh
   . "$TESTSLIB/snaps.sh"
-  repack_core_snap_into_snapd_snap
+  repack_installed_core_snap_into_snapd_snap
+
+restore: |
+  rm -f /etc/systemd/user/snapd.session-agent.service
+  rm -f /etc/systemd/user/snapd.session-agent.socket
+  rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+  systemctl --user daemon-reload
+  rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+  rm -f /etc/dbus-1/system.d/snapd.system-services.conf
 
 execute: |
-  # shellcheck source=tests/lib/journalctl.sh
-  . "$TESTSLIB/journalctl.sh"
-
   echo "Re-pack snapd with broken snapd"
   unsquashfs -d ./snapd-broken snapd-from-core.snap
   echo "" > ./snapd-broken/usr/lib/snapd/snapd
@@ -25,7 +30,7 @@ execute: |
   for _ in $(seq 1 2); do
     # get the number of times that snapd.failure was started before we do 
     # anything
-    started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+    started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
     echo "Now install the broken snapd"
     if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -37,7 +42,7 @@ execute: |
     #shellcheck disable=SC2165
     for _ in $(seq 60); do
         # get the number of times that snapd.failure was started
-        started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
         if [ "$started_after" -gt "$started_before" ] ; then
             break
         fi

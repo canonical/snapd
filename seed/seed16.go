@@ -161,6 +161,14 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Mea
 	return seedSnap, nil
 }
 
+type essentialSnapMissingError struct {
+	SnapName string
+}
+
+func (e *essentialSnapMissingError) Error() string {
+	return fmt.Sprintf("essential snap %q required by the model is missing in the seed", e.SnapName)
+}
+
 func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	model, err := s.Model()
 	if err != nil {
@@ -185,7 +193,9 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	}
 	added := make(map[string]bool, 3)
 	classic := model.Classic()
-	_, s.usesSnapdSnap = seeding["snapd"]
+	_, usesSnapdSnap := seeding["snapd"]
+	usesSnapdSnap = usesSnapdSnap || required.Contains(naming.Snap("snapd"))
+	s.usesSnapdSnap = usesSnapdSnap
 
 	baseSnap := "core"
 	classicWithSnapd := false
@@ -207,7 +217,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
-			return nil, fmt.Errorf("essential snap %q required by the model is missing in the seed", snapName)
+			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
 		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, tm)

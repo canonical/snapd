@@ -112,6 +112,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-ifr.so*",
 	"libnvidia-ml.so*",
 	"libnvidia-opencl.so*",
+	"libnvidia-opticalflow.so*",
 	"libnvidia-ptxjitcompiler.so*",
 	"libnvidia-rtcore.so*",
 	"libnvidia-tls.so*",

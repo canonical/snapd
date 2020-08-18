@@ -14,15 +14,15 @@
     # any abstractions
     /etc/ld.so.cache r,
     /etc/ld.so.preload r,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
     # libc, you are funny
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre{,2}{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
@@ -31,7 +31,7 @@
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libdl{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
@@ -67,13 +67,6 @@
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
-
-    # cgroup: pids
-    # allow creating per snap-security-tag hierarchy and adding snap command (task)
-    # invocations to the controller.
-    /sys/fs/cgroup/pids/ r,
-    /sys/fs/cgroup/pids/snap.*/ w,
-    /sys/fs/cgroup/pids/snap.*/cgroup.procs w,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -441,15 +434,15 @@
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions
         /etc/ld.so.cache r,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
         # libc, you are funny
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
@@ -458,7 +451,7 @@
         # normal libs in order
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdl{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libdl{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,

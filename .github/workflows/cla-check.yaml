@@ -6,17 +6,21 @@ on:
 
 jobs:
   cla-check:
-    runs-on: ubuntu-16.04
+    runs-on: self-hosted
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install python-launchpadlib
+          # sudo apt-get update
+          # sudo apt-get install python-launchpadlib
+          # TODO: make this conditional on self-hosted or not
+          echo "dependencies are baked into unprivileged test containers"
       - name: Checkout code
         uses: actions/checkout@v2
         with:
           # The cla_check script reads git commit history, so can't
           # use a shallow checkout.
           fetch-depth: 0
+      - name: Fetching base ref ${{ github.base_ref }}
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
       - name: CLA check
-        run: ./tests/lib/cla_check.py
+        run: ./tests/lib/cla_check.py "${{ github.base_ref }}..HEAD"

@@ -1,0 +1,33 @@
+summary: Run a smoke test on UC20 with encryption enabled
+
+description: |
+    This test checks basic snapd commands on UC20 with secure boot and encryption enabled
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    # wait for the system to be seeded first
+    execute_remote "sudo snap wait system seed.loaded"
+
+    echo "Ensure 'snap install' works"
+    # The install command could cause a ssh break, so || true is used
+    # and then we check the installation was completed successfully
+    execute_remote "sudo snap install test-snapd-sh" || true
+
+    echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
+    execute_remote "snap list" | MATCH test-snapd-sh
+
+    echo "Ensure 'snap find' works"
+    execute_remote "snap find test-snapd-sh" | MATCH ^test-snapd-sh
+
+    echo "Ensure 'snap info' works"
+    execute_remote "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
+
+    echo "Ensure 'snap remove' works"
+    # The install command could cause a ssh break, so || true is used
+    # and then we check the removal was completed successfully
+    execute_remote "sudo snap remove test-snapd-sh" || true
+
+    echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
+    not execute_remote "snap list test-snapd-sh"

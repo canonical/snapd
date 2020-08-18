@@ -28,10 +28,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	procSelfMountInfo = osutil.ProcSelfMountInfo
-)
-
 // IsEnabled checks whether SELinux is enabled
 func IsEnabled() (bool, error) {
 	mnt, err := getSELinuxMount()
@@ -66,7 +62,7 @@ func IsEnforcing() (bool, error) {
 }
 
 func getSELinuxMount() (string, error) {
-	mountinfo, err := osutil.LoadMountInfo(procSelfMountInfo)
+	mountinfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", err
 	}

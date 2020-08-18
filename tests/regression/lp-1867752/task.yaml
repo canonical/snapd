@@ -1,7 +1,7 @@
 summary: certain layout configuration prevents snapd from removing a snap
 systems: [ubuntu-18.04-64] # tight coupling with container guest
 prepare: |
-    snap install --candidate lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
     snap set lxd waitready.timeout=240
     lxd waitready
     lxd init --auto
@@ -21,6 +21,6 @@ restore: |
     lxc stop --force bionic
     lxc delete bionic
     snap remove --purge lxd
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 debug: |
     lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas"

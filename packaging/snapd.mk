@@ -57,8 +57,9 @@ go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 .PHONY: all
 all: $(go_binaries) 
 
+snap: GO_TAGS += nomanagers
 snap snap-seccomp:
-	go build -buildmode=pie $(import_path)/cmd/$@
+	go build $(if $(GO_TAGS),-tags $(GO_TAGS)) -buildmode=pie $(import_path)/cmd/$@
 
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
@@ -104,9 +105,12 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/assertions
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cache
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cookie
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/services
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/system-services
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/inhibit
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl32
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/glvnd

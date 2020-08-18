@@ -19,35 +19,7 @@
 
 package selinux
 
-import (
-	"io/ioutil"
-
-	"gopkg.in/check.v1"
-)
-
 var (
 	GetSELinuxMount = getSELinuxMount
 	ProbeSELinux    = probeSELinux
 )
-
-func MockMountInfo(c *check.C, text string) (where string, restore func()) {
-	old := procSelfMountInfo
-	dir := c.MkDir()
-	f, err := ioutil.TempFile(dir, "mountinfo")
-	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(f.Name(), []byte(text), 0644)
-	c.Assert(err, check.IsNil)
-	procSelfMountInfo = f.Name()
-	restore = func() {
-		procSelfMountInfo = old
-	}
-	return procSelfMountInfo, restore
-}
-
-func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
-	old := selinuxIsEnforcing
-	selinuxIsEnforcing = isEnforcing
-	return func() {
-		selinuxIsEnforcing = old
-	}
-}

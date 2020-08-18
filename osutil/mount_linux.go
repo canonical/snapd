@@ -21,7 +21,7 @@ package osutil
 
 // IsMounted checks if a given directory is a mount point.
 func IsMounted(baseDir string) (bool, error) {
-	entries, err := LoadMountInfo(procSelfMountInfo)
+	entries, err := LoadMountInfo()
 	if err != nil {
 		return false, err
 	}

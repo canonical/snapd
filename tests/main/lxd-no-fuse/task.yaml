@@ -8,7 +8,7 @@ execute: |
     apt autoremove -y lxd
 
     echo "Install lxd"
-    snap install --candidate lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
     echo "Create a trivial container using the lxd snap"
     snap set lxd waitready.timeout=240
@@ -51,4 +51,6 @@ execute: |
     MATCH 'The "fuse" filesystem is required' < err.txt
 
 restore: |
-    lxd-tool undo-lxd-mount-changes
+    lxc delete --force my-ubuntu
+    snap remove ---purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes

@@ -68,6 +68,14 @@ func MockSyscallKill(f func(int, syscall.Signal) error) func() {
 	}
 }
 
+func MockSyscallStatfs(f func(string, *syscall.Statfs_t) error) func() {
+	oldSyscallStatfs := syscallStatfs
+	syscallStatfs = f
+	return func() {
+		syscallStatfs = oldSyscallStatfs
+	}
+}
+
 func MockSyscallGetpgid(f func(int) (int, error)) func() {
 	oldSyscallGetpgid := syscallGetpgid
 	syscallGetpgid = f
@@ -119,23 +127,6 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	osReadlink = f
 
 	return func() { osReadlink = realOsReadlink }
-}
-
-//MockMountInfo mocks content of /proc/self/mountinfo read by IsHomeUsingNFS
-func MockMountInfo(text string) (restore func()) {
-	old := procSelfMountInfo
-	f, err := ioutil.TempFile("", "mountinfo")
-	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
-	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
-		panic(fmt.Errorf("cannot write mock mountinfo file: %s", err))
-	}
-	procSelfMountInfo = f.Name()
-	return func() {
-		os.Remove(procSelfMountInfo)
-		procSelfMountInfo = old
-	}
 }
 
 // MockEtcFstab mocks content of /etc/fstab read by IsHomeUsingNFS
@@ -218,4 +209,26 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 		om.Set(key, value)
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
+}
+
+// this is weird to use in a test, but it is so that we can test the actual
+// implementation of LoadMountInfo, which normally panics during tests if not
+// properly mocked
+func MountInfoMustMock(new bool) (restore func()) {
+	old := mountInfoMustMockInTests
+	mountInfoMustMockInTests = new
+	return func() {
+		mountInfoMustMockInTests = old
+	}
+}
+
+// this should not be used except to test the actual implementation logic of
+// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
+// use MockMountInfo(), which is exported and the right way to do that.
+func MockProcSelfMountInfoLocation(new string) (restore func()) {
+	old := procSelfMountInfo
+	procSelfMountInfo = new
+	return func() {
+		procSelfMountInfo = old
+	}
 }

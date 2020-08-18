@@ -29,9 +29,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	pidsCgroupDir = cgroup.ControllerPathV1("pids")
-)
+// pidsOfSnap is a mockable version of PidsOfSnap
+var pidsOfSnap = cgroup.PidsOfSnap
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
 	// Grab per-snap lock to prevent new processes from starting. This is
@@ -47,6 +46,28 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	if err := lock.Lock(); err != nil {
 		return err
 	}
+	knownPids, err := pidsOfSnap(info.InstanceName())
+	if err != nil {
+		return err
+	}
+	// As soon as the lock is released the guarantee promised by pidsOfSnap is
+	// no longer true. This is an existing limitation. To cite the
+	// documentation of pidsOfSnap:
+	//
+	// > If the per-snap lock is held while computing the set, then the following
+	// > guarantee is true: If a security tag is not among the result then no such
+	// > tag can come into existence while the lock is held.
+	//
+	// This lock will be wrapped by another lock, the snap-inhibition-lock,
+	// which stalls startup of new apps and hooks. Unlike the snap-lock it can
+	// be held for many minutes or longer, enough to complete arbitrary data
+	// copy and download operations. The idea is that this refresh check will
+	// be performed while holding the snap lock (externally, the locking code
+	// will move to the call site), and if successful (the check indicated that
+	// refresh is possible) an inhibition lock will be grabbed before releasing
+	// the snap lock. This will remove the race condition and give the caller a
+	// chance to perform time-consuming operations.
+	lock.Unlock()
 
 	var busyAppNames []string
 	var busyHookNames []string
@@ -63,11 +84,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
 			busyAppNames = append(busyAppNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -77,11 +94,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
 			busyHookNames = append(busyHookNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -93,7 +106,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	sort.Strings(busyHookNames)
 	sort.Ints(busyPIDs)
 	return &BusySnapError{
-		snapName:      info.SnapName(),
+		SnapName:      info.SnapName(),
 		busyAppNames:  busyAppNames,
 		busyHookNames: busyHookNames,
 		pids:          busyPIDs,
@@ -137,7 +150,7 @@ func HardNothingRunningRefreshCheck(info *snap.Info) error {
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
 type BusySnapError struct {
-	snapName      string
+	SnapName      string
 	pids          []int
 	busyAppNames  []string
 	busyHookNames []string
@@ -148,15 +161,15 @@ func (err *BusySnapError) Error() string {
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.snapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+			err.SnapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
 	case len(err.busyAppNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.snapName, strings.Join(err.busyAppNames, ", "))
+			err.SnapName, strings.Join(err.busyAppNames, ", "))
 	case len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.snapName, strings.Join(err.busyHookNames, ", "))
+			err.SnapName, strings.Join(err.busyHookNames, ", "))
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.snapName)
+		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapName)
 	}
 }
 

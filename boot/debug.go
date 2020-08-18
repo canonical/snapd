@@ -27,12 +27,26 @@ import (
 )
 
 // DumpBootVars writes a dump of the snapd bootvars to the given writer
-func DumpBootVars(w io.Writer) error {
-	bloader, err := bootloader.Find("", nil)
+func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
+	bloader, err := bootloader.Find(dir, nil)
 	if err != nil {
 		return err
 	}
-	allKeys := []string{"snap_mode", "snap_core", "snap_try_core", "snap_kernel", "snap_try_kernel"}
+	var allKeys []string
+	if uc20 {
+		// TODO:UC20: what about snapd_recovery_kernel, snapd_recovery_mode, and
+		//            snapd_recovery_system?
+		allKeys = []string{"kernel_status"}
+	} else {
+		allKeys = []string{
+			"snap_mode",
+			"snap_core",
+			"snap_try_core",
+			"snap_kernel",
+			"snap_try_kernel",
+		}
+	}
+
 	bootVars, err := bloader.GetBootVars(allKeys...)
 	if err != nil {
 		return err

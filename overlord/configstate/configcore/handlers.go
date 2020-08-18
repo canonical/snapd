@@ -23,7 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 type configHandler interface {
@@ -78,6 +78,16 @@ func init() {
 
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
+
+	// system.kernel.printk.console-loglevel
+	addFSOnlyHandler(validateSysctlOptions, handleSysctlConfiguration, coreOnly)
+
+	// journal.persistent
+	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
+
+	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
+		return filesystemOnlyApply(rootDir, plainCoreConfig(defaults), options)
+	}
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
@@ -117,16 +127,17 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 	return h.handleFunc(cfg, opts)
 }
 
-// FilesystemOnlyApply applies filesystem modifications under rootDir, according to the
+// filesystemOnlyApply applies filesystem modifications under rootDir, according to the
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter) error {
+// Exposed for use via sysconfig.ApplyFilesystemOnlyDefaults.
+func filesystemOnlyApply(rootDir string, cfg config.ConfGetter, opts *sysconfig.FilesystemOnlyApplyOptions) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
 	}
 
-	opts := &fsOnlyContext{RootDir: rootDir}
+	ctx := &fsOnlyContext{RootDir: rootDir}
 	for _, h := range handlers {
 		if h.needsState() {
 			continue
@@ -140,10 +151,10 @@ func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter) error {
 		if h.needsState() {
 			continue
 		}
-		if h.flags().coreOnlyConfig && release.OnClassic {
+		if h.flags().coreOnlyConfig && opts != nil && opts.Classic {
 			continue
 		}
-		if err := h.handle(cfg, opts); err != nil {
+		if err := h.handle(cfg, ctx); err != nil {
 			return err
 		}
 	}

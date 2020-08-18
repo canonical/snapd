@@ -53,7 +53,7 @@ func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info
 	panic("Store.Find not expected")
 }
 
-func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	panic("Store.SnapAction not expected")
 }
 
@@ -83,6 +83,10 @@ func (Store) Sections(context.Context, *auth.UserState) ([]string, error) {
 
 func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Store.Assertion not expected")
+}
+
+func (Store) DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error {
+	panic("Store.DownloadAssertions not expected")
 }
 
 func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {

@@ -49,6 +49,8 @@ var _ = Suite(&changeSuite{})
 
 func (s *changeSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	// This isolates us from host's experimental settings.
+	dirs.SetRootDir(c.MkDir())
 	// Mock and record system interactions.
 	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
@@ -58,6 +60,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 func (s *changeSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	s.sys.CheckForStrayDescriptors(c)
+	dirs.SetRootDir("")
 }
 
 func (s *changeSuite) disableRobustMountNamespaceUpdates(c *C) {
@@ -2979,5 +2982,42 @@ func (s *changeSuite) TestComplexPropagatingChanges(c *C) {
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/snap/app/x1/a", Dir: "/snap/app/x1/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}},
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x2/a", Dir: "/snap/app/x2/b/c", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/app/x2/b", Dir: "/snap/app/x2/d", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+	})
+}
+
+func (s *changeSuite) TestUnmountFailsWithEINVALAndUnmounted(c *C) {
+	// We wanted to unmount /target, which failed with EINVAL.
+	// Because /target is no longer mounted, we consume the error and carry on.
+	restore := osutil.MockMountInfo("")
+	defer restore()
+	s.sys.InsertFault(`unmount "/target" UMOUNT_NOFOLLOW`, syscall.EINVAL)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{})
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}}
+	_, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
+	})
+}
+
+func (s *changeSuite) TestUnmountFailsWithEINVALButStillMounted(c *C) {
+	// We wanted to unmount /target, which failed with EINVAL.
+	// Because /target is still mounted, we propagate the error.
+	restore := osutil.MockMountInfo("132 28 0:82 / /target rw,relatime shared:74 - tmpfs tmpfs rw")
+	defer restore()
+	s.sys.InsertFault(`unmount "/target" UMOUNT_NOFOLLOW`, syscall.EINVAL)
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}}
+	_, err := chg.Perform(s.as)
+	c.Assert(err, Equals, syscall.EINVAL)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
 	})
 }

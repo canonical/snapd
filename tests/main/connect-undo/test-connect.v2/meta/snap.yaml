@@ -1,0 +1,10 @@
+name: test-connect
+version: 2
+summary: Basic snap with a connect hook
+
+plugs:
+  network:
+
+apps:
+  network-consumer:
+    command: bin/consumer

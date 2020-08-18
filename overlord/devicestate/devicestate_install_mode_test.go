@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,6 +31,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -71,12 +75,17 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		return fmt.Errorf("TPM not available")
+	})
+	s.AddCleanup(restore)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -110,7 +119,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
 	si = &snap.SideInfo{
@@ -164,8 +173,23 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	var brGadgetRoot, brDevice string
+	var brOpts install.Options
+	var installRunCalled int
+	var sealingObserver gadget.ContentObserver
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs gadget.ContentObserver) error {
+		// ensure we can grab the lock here, i.e. that it's not taken
+		s.state.Lock()
+		s.state.Unlock()
+
+		brGadgetRoot = gadgetRoot
+		brDevice = device
+		brOpts = options
+		sealingObserver = obs
+		installRunCalled++
+		return nil
+	})
+	defer restore()
 
 	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
 		if tc.tpm {
@@ -177,7 +201,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, grade)
+	mockModel := s.makeMockInstalledPcGadget(c, grade, "")
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
@@ -192,12 +216,16 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		c.Check(model, DeepEquals, mockModel)
 		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
+		if tc.encrypt {
+			c.Check(seal, NotNil)
+		}
 		bootMakeBootableCalled++
 		return nil
 	})
@@ -209,6 +237,10 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
+
+	// normally done by snap-bootstrap
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	c.Assert(err, IsNil)
 
 	s.settle(c)
 
@@ -228,22 +260,37 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	// in the right way
 	if tc.encrypt {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "/ubuntu-data.keyfile.unsealed"),
-				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, install.Options{
+			Mount:                   true,
+			Encrypt:                 true,
+			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			RecoveryKeyFile:         filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/recovery.key"),
+			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
+			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
+			KernelPath:              filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:                   mockModel,
+			SystemLabel:             "20191218",
 		})
+
+		// directories were ensured
+		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
+		c.Assert(osutil.IsDirectory(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde")), Equals, true)
+		// inteface is not nil
+		c.Assert(sealingObserver, NotNil)
+		// we expect a very specific type
+		trustedInstallObserver, ok := sealingObserver.(*boot.TrustedAssetsInstallObserver)
+		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", sealingObserver))
+		c.Assert(trustedInstallObserver, NotNil)
 	} else {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount",
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, install.Options{
+			Mount: true,
 		})
 	}
+	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
@@ -254,11 +301,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), `echo "The horror, The horror"; exit 1`)
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) error {
+		return fmt.Errorf("The horror, The horror")
+	})
+	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -360,19 +413,21 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
-func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) {
+func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadgetDefaultsYaml string) *asserts.Model {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) error {
+		return nil
+	})
+	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
+	mockModel := s.makeMockInstalledPcGadget(c, modelGrade, gadgetDefaultsYaml)
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		return nil
 	})
 	defer restore()
@@ -384,11 +439,17 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 
+	// normally done by snap-bootstrap
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	c.Assert(err, IsNil)
+
 	s.settle(c)
+
+	return mockModel
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -403,13 +464,16 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	s.configureRunSystemErr = fmt.Errorf("error from sysconfig.ConfigureRunSystem")
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -420,7 +484,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -434,13 +501,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		c.Assert(err, IsNil)
 	}
 
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   boot.InitramfsWritableDir,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
 }
@@ -456,10 +524,64 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	}
 
 	// but it is signed
-	s.mockInstallModeChange(c, "signed")
+	s.mockInstallModeChange(c, "signed", "")
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
+}
+
+// TODO: convert test to "cloud.conf" support
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadgetNotSupported(c *C) {
+	// XXX: this is slightly magic - in mockInstallModeChange() we create
+	//      a mock pc gadget snap with revno 1. This is why we can set
+	//      set gadget dir here
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
+
+	// pretend we have a cloud-init config in our gadget
+	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// cloud init config from gadget works for signed models too
+	s.mockInstallModeChange(c, "signed", "")
+
+	// nothing about cloud-init got passed to sysconf, we don't
+	// support cloud.cfg.d anymore
+	c.Assert(s.configureRunSystemOptsPassed, HasLen, 1)
+	c.Assert(s.configureRunSystemOptsPassed[0], DeepEquals, &sysconfig.Options{
+		TargetRootDir: boot.InstallHostWritableDir,
+		// not set
+		CloudInitSrcDir: "",
+		GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	model := s.mockInstallModeChange(c, "dangerous", "")
+
+	var buf bytes.Buffer
+	err := asserts.NewEncoder(&buf).Encode(model)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "model"), testutil.FileEquals, buf.String())
 }

@@ -109,7 +109,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {
 	defer restore()
 
 	err := triggerwatch.Wait(testTriggerTimeout)
-	c.Assert(err, ErrorMatches, "cannot find matching devices")
+	c.Assert(err, Equals, triggerwatch.ErrNoMatchingInputDevices)
 }
 
 func (s *triggerwatchSuite) TestNoDevsWaitMatchingError(c *C) {

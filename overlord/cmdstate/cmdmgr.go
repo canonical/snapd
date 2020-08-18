@@ -46,28 +46,43 @@ func (m *CommandManager) Ensure() error {
 var defaultExecTimeout = 5 * time.Second
 
 func doExec(t *state.Task, tomb *tomb.Tomb) error {
-	var argv []string
-	var tout time.Duration
-
 	st := t.State()
 	st.Lock()
-	err1 := t.Get("argv", &argv)
-	err2 := t.Get("timeout", &tout)
-	st.Unlock()
-	if err1 != nil {
-		return err1
+	defer st.Unlock()
+
+	var ignore bool
+	if err := t.Get("ignore", &ignore); err != nil && err != state.ErrNoState {
+		return err
 	}
-	if err2 != nil && err2 != state.ErrNoState {
-		return err2
+	if ignore {
+		t.Logf("task ignored")
+		return nil
 	}
-	if err2 == state.ErrNoState {
+
+	var argv []string
+	var tout time.Duration
+	if err := t.Get("argv", &argv); err != nil {
+		return err
+	}
+
+	err := t.Get("timeout", &tout)
+	// timeout is optional and might not be set
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == state.ErrNoState {
 		tout = defaultExecTimeout
 	}
 
-	if buf, err := osutil.RunAndWait(argv, nil, tout, tomb); err != nil {
-		st.Lock()
+	// the command needs to be run with unlocked state, but after that
+	// we need to restore the lock (for Errorf, and for deferred unlocking
+	// above).
+	st.Unlock()
+	buf, err := osutil.RunAndWait(argv, nil, tout, tomb)
+	st.Lock()
+
+	if err != nil {
 		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
-		st.Unlock()
 		return err
 	}
 

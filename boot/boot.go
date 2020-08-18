@@ -163,16 +163,21 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	return true
 }
 
-// bootState exposes the boot state for a type of boot snap.
+// bootState exposes the boot state for a type of boot snap during
+// normal running state, i.e. after the pivot_root and after the initramfs.
 type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
 	// the status of the trying snap.
+	// Note that the error could be only specific to the try snap, in which case
+	// curSnap may still be non-nil and valid. Callers concerned with robustness
+	// should always inspect a non-nil error with isTrySnapError, and use
+	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
-	// is done via the returned bootStateUpdate's commit.
+	// is done via the returned bootStateUpdate's commit method.
 	setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error)
 
 	// markSuccessful lazily implements marking the boot

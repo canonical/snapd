@@ -1,7 +1,0 @@
-snaps:
- - name: snapd
-   file: @SNAPD@
-   unasserted: true
- - name: core18
-   file: @CORE@
-   unasserted: true

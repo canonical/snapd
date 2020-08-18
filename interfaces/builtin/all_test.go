@@ -280,6 +280,7 @@ slots:
 apps:
     app:
         slots: [iface]
+        activates-on: [iface]
 hooks:
     install:
         slots: [iface]
@@ -324,9 +325,14 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(testInvalidSlotInterfaceYaml))
-	c.Assert(err, IsNil)
+	snapInfo := snaptest.MockInvalidInfo(c, testInvalidSlotInterfaceYaml, nil)
+	c.Check(snapInfo.Apps["app"].Slots, HasLen, 1)
+	c.Check(snapInfo.Apps["app"].ActivatesOn, HasLen, 1)
+	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 1)
+	c.Check(snapInfo.Slots, HasLen, 1)
+	snap.SanitizePlugsSlots(snapInfo)
 	c.Check(snapInfo.Apps["app"].Slots, HasLen, 0)
+	c.Check(snapInfo.Apps["app"].ActivatesOn, HasLen, 0)
 	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
 	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: iface \(unknown interface "iface"\)`)

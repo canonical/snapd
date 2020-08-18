@@ -125,7 +125,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 			CohortKey:    action.CohortKey,
 			Channel:      action.Channel,
 		}}
-		results, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
+		results, _, err := theStore.SnapAction(context.TODO(), nil, actions, nil, user, nil)
 		if err != nil {
 			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
 		}

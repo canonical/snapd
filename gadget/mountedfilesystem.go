@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -56,16 +57,36 @@ func checkContent(content *VolumeContent) error {
 	return nil
 }
 
+func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure, root, src, dst string) error {
+	if observer == nil {
+		return nil
+	}
+	relativeTarget := dst
+	if strings.HasPrefix(dst, root) {
+		// target path isn't really relative, make it so now
+		relative, err := filepath.Rel(root, dst)
+		if err != nil {
+			return err
+		}
+		relativeTarget = relative
+	}
+	_, err := observer.Observe(op, ps, root, src, relativeTarget)
+	return err
+}
+
+// TODO: MountedFilesystemWriter should not be exported
+
 // MountedFilesystemWriter assists in writing contents of a structure to a
 // mounted filesystem.
 type MountedFilesystemWriter struct {
 	contentDir string
 	ps         *LaidOutStructure
+	observer   ContentObserver
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
@@ -78,6 +99,7 @@ func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure) (*Mount
 	fw := &MountedFilesystemWriter{
 		contentDir: contentDir,
 		ps:         ps,
+		observer:   observer,
 	}
 	return fw, nil
 }
@@ -107,6 +129,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 		return fmt.Errorf("internal error: destination directory cannot be unset")
 	}
 
+	// TODO:UC20: preserve managed boot assets
 	preserveInDst, err := mapPreserve(whereDir, preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for destination %q: %v", whereDir, err)
@@ -124,7 +147,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 // location dst. Follows rsync like semantics, that is:
 //   /foo/ -> /bar - writes contents of foo under /bar
 //   /foo  -> /bar - writes foo and its subtree under /bar
-func writeDirectory(src, dst string, preserveInDst []string) error {
+func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
 	hasDirSourceSlash := strings.HasSuffix(src, "/")
 
 	if err := checkSourceIsDir(src); err != nil {
@@ -145,21 +168,33 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 		pSrc := filepath.Join(src, fi.Name())
 		pDst := filepath.Join(dst, fi.Name())
 
-		write := writeFileOrSymlink
+		write := m.observedWriteFileOrSymlink
 		if fi.IsDir() {
 			if err := os.MkdirAll(pDst, 0755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
 			}
 
-			write = writeDirectory
+			write = m.writeDirectory
 			pSrc += "/"
 		}
-		if err := write(pSrc, pDst, preserveInDst); err != nil {
+		if err := write(volumeRoot, pSrc, pDst, preserveInDst); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, dst string, preserveInDst []string) error {
+	if strings.HasSuffix(dst, "/") {
+		// write to directory
+		dst = filepath.Join(dst, filepath.Base(src))
+	}
+
+	if err := observe(m.observer, ContentWrite, m.ps, volumeRoot, src, dst); err != nil {
+		return fmt.Errorf("cannot observe file write: %v", err)
+	}
+	return writeFileOrSymlink(src, dst, preserveInDst)
 }
 
 // writeFileOrSymlink writes the source file or a symlink at given location or
@@ -192,12 +227,11 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 			return fmt.Errorf("cannot write a symlink: %v", err)
 		}
 	} else {
-		// overwrite & sync by default
-		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
-
-		// TODO use osutil.AtomicFile
 		// TODO try to preserve ownership and permission bits
-		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+
+		// do not follow sylimks, dst is a reflection of the src which
+		// is a file
+		if err := osutil.AtomicWriteFileCopy(dst, src, 0); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
 	}
@@ -221,10 +255,10 @@ func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content 
 
 	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.Source, "/") {
 		// write a directory
-		return writeDirectory(realSource, realTarget, preserveInDst)
+		return m.writeDirectory(volumeRoot, realSource, realTarget, preserveInDst)
 	} else {
 		// write a file
-		return writeFileOrSymlink(realSource, realTarget, preserveInDst)
+		return m.observedWriteFileOrSymlink(volumeRoot, realSource, realTarget, preserveInDst)
 	}
 }
 
@@ -245,7 +279,7 @@ func makeStamp(stamp string) error {
 
 type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 
-// MountedFilesystemUpdater assits in applying updates to a mounted filesystem.
+// mountedFilesystemUpdater assists in applying updates to a mounted filesystem.
 //
 // The update process is composed of 2 main passes, and an optional rollback:
 //
@@ -259,18 +293,21 @@ type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 //
 // 3) rollback (optional), where update data is rolled back and replaced with
 // backup copies of files, newly created directories are removed
-type MountedFilesystemUpdater struct {
+type mountedFilesystemUpdater struct {
 	*MountedFilesystemWriter
-	backupDir   string
-	mountLookup mountLookupFunc
+	backupDir         string
+	mountPoint        string
+	managedBootAssets []string
+	updateObserver    ContentObserver
 }
 
-// NewMountedFilesystemUpdater returns an updater for given filesystem
+// newMountedFilesystemUpdater returns an updater for given filesystem
 // structure, with structure content coming from provided root directory. The
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
-func NewMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc) (*MountedFilesystemUpdater, error) {
-	fw, err := NewMountedFilesystemWriter(rootDir, ps)
+func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
+	// avoid passing observer, writes will not be observed
+	fw, err := NewMountedFilesystemWriter(rootDir, ps, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -280,10 +317,22 @@ func NewMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir
 	if backupDir == "" {
 		return nil, fmt.Errorf("internal error: backup directory must not be unset")
 	}
-	fu := &MountedFilesystemUpdater{
+	mount, err := mountLookup(ps)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find mount location of structure %v: %v", ps, err)
+	}
+	// find out if we need to preserve any boot assets
+	bootAssets, err := maybePreserveManagedBootAssets(mount, ps)
+	if err != nil {
+		return nil, fmt.Errorf("cannot preserve managed boot assets: %v", err)
+	}
+
+	fu := &mountedFilesystemUpdater{
 		MountedFilesystemWriter: fw,
 		backupDir:               backupDir,
-		mountLookup:             mountLookup,
+		mountPoint:              mount,
+		managedBootAssets:       bootAssets,
+		updateObserver:          observer,
 	}
 	return fu, nil
 }
@@ -292,10 +341,49 @@ func fsStructBackupPath(backupDir string, ps *LaidOutStructure) string {
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
 }
 
+func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]string, error) {
+	if ps.Role != SystemSeed && ps.Role != SystemBoot {
+		return nil, nil
+	}
+	// the assets are within the system-boot or system-seed partition, set
+	// the right flags so that files are looked for using their paths inside
+	// the partition
+	opts := &bootloader.Options{
+		Recovery:    ps.Role == SystemSeed,
+		NoSlashBoot: ps.Role == SystemBoot,
+	}
+	bl, err := bootloader.Find(mountPoint, opts)
+	if err != nil {
+		if err == bootloader.ErrBootloader {
+			// no bootloader in the partition?
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	if !ok {
+		// bootloader implementation does not support managing its
+		// assets
+		return nil, nil
+	}
+	// TODO:UC20: this should no longer be checked when we use the updater
+	// interface from boot
+	managed, err := mbl.IsCurrentlyManaged()
+	if err != nil {
+		return nil, err
+	}
+	if !managed {
+		// assets are not managed
+		return nil, nil
+	}
+	return mbl.ManagedAssets(), nil
+}
+
 // entryDestPaths resolves destination and backup paths for given
 // source/target combination. Backup location is within provided
 // backup directory or empty if directory was not provided.
-func (f *MountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backupDir string) (dstPath, backupPath string) {
+func (f *mountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backupDir string) (dstPath, backupPath string) {
 	dstBasePath := target
 	if strings.HasSuffix(target, "/") {
 		// write to a directory
@@ -312,7 +400,7 @@ func (f *MountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backu
 
 // entrySourcePath returns the path of given source entry within the root
 // directory provided during initialization.
-func (f *MountedFilesystemUpdater) entrySourcePath(source string) string {
+func (f *mountedFilesystemUpdater) entrySourcePath(source string) string {
 	srcPath := filepath.Join(f.contentDir, source)
 
 	if strings.HasSuffix(source, "/") {
@@ -324,22 +412,18 @@ func (f *MountedFilesystemUpdater) entrySourcePath(source string) string {
 
 // Update applies an update to a mounted filesystem. The caller must have
 // executed a Backup() before, to prepare a data set for rollback purpose.
-func (f *MountedFilesystemUpdater) Update() error {
-	mount, err := f.mountLookup(f.ps)
+func (f *mountedFilesystemUpdater) Update() error {
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
-	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	skipped := 0
 	for _, c := range f.ps.Content {
-		if err := f.updateVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.updateVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			if err == ErrNoUpdate {
 				skipped++
 				continue
@@ -355,7 +439,7 @@ func (f *MountedFilesystemUpdater) Update() error {
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.FileInfo, error) {
+func (f *mountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.FileInfo, error) {
 	srcPath := f.entrySourcePath(source)
 
 	if err := checkSourceIsDir(srcPath); err != nil {
@@ -383,7 +467,7 @@ func targetForSourceDir(source, target string) string {
 	return filepath.Join(target, filepath.Base(source))
 }
 
-func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
 		return fmt.Errorf("cannot list source directory %q: %v", source, err)
@@ -425,7 +509,7 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
@@ -453,7 +537,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	return writeFileOrSymlink(srcPath, dstPath, preserveInDst)
 }
 
-func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
@@ -497,25 +581,21 @@ func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // ├── b.same             <-- stamp indicating ./b is identical to the update data
 // └── c.preserve         <-- stamp indicating ./c is to be preserved
 //
-func (f *MountedFilesystemUpdater) Backup() error {
-	mount, err := f.mountLookup(f.ps)
-	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
+func (f *mountedFilesystemUpdater) Backup() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	if err := os.MkdirAll(backupRoot, 0755); err != nil {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	for _, c := range f.ps.Content {
-		if err := f.backupVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.backupVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
 		}
 	}
@@ -523,7 +603,7 @@ func (f *MountedFilesystemUpdater) Backup() error {
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
 		return fmt.Errorf("cannot backup directory %q: %v", source, err)
@@ -535,7 +615,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 		pSrc := filepath.Join(source, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
 
-		backup := f.backupOrCheckpointFile
+		backup := f.observedBackupOrCheckpointFile
 		if fi.IsDir() {
 			// continue backing up the contents of the directory
 			// rather than the directory itself
@@ -555,7 +635,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 }
 
 // checkpointPrefix creates stamps for each part of the destination prefix that exists
-func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, backupDir string) error {
+func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, backupDir string) error {
 	// check how much of the prefix needs to be created
 	for prefix := filepath.Dir(target); prefix != "." && prefix != "/"; prefix = filepath.Dir(prefix) {
 		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
@@ -584,7 +664,22 @@ func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+	willBeWritten, err := f.backupOrCheckpointFile(dstRoot, source, target, preserveInDst, backupDir)
+	if err != nil {
+		return err
+	}
+	if willBeWritten {
+		srcPath := f.entrySourcePath(source)
+		dstPath, _ := f.entryDestPaths(dstRoot, source, target, backupDir)
+		if err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, srcPath, dstPath); err != nil {
+			return fmt.Errorf("cannot observe pending file write %v\n", err)
+		}
+	}
+	return nil
+}
+
+func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (willWrite bool, err error) {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
@@ -594,37 +689,39 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(dstPath) {
-		return fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
+		return false, fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
 	}
 
 	if !osutil.FileExists(dstPath) {
 		// destination does not exist and will be created when writing
 		// the udpate, no need for backup
-		return nil
+		return true, nil
 	}
 
-	if osutil.FileExists(backupName) || osutil.FileExists(sameStamp) {
-		// file already checked, either has a backup or is the same as
-		// the update, move on
-		return nil
+	if osutil.FileExists(backupName) {
+		// file already checked and backed up
+		return true, nil
+	}
+	if osutil.FileExists(sameStamp) {
+		// file already checked, same as the update, move on
+		return false, nil
 	}
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
 		// file is to be preserved, create a relevant stamp
-
 		if !osutil.FileExists(dstPath) {
 			// preserve, but does not exist, will be written anyway
-			return nil
+			return true, nil
 		}
 		if osutil.FileExists(preserveStamp) {
 			// already stamped
-			return nil
+			return false, nil
 		}
 		// make a stamp
 		if err := makeStamp(preserveStamp); err != nil {
-			return fmt.Errorf("cannot create preserve stamp: %v", err)
+			return false, fmt.Errorf("cannot create preserve stamp: %v", err)
 		}
-		return nil
+		return false, nil
 	}
 
 	// try to find out whether the update and the existing file are
@@ -632,13 +729,13 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 	orig, err := os.Open(dstPath)
 	if err != nil {
-		return fmt.Errorf("cannot open destination file: %v", err)
+		return false, fmt.Errorf("cannot open destination file: %v", err)
 	}
 
 	// backup of the original content
 	backup, err := newStampFile(backupName)
 	if err != nil {
-		return fmt.Errorf("cannot create backup file: %v", err)
+		return false, fmt.Errorf("cannot create backup file: %v", err)
 	}
 	// becomes a backup copy or a noop if canceled
 	defer backup.Commit()
@@ -650,14 +747,14 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	_, err = io.Copy(backup, htr)
 	if err != nil {
 		backup.Cancel()
-		return fmt.Errorf("cannot backup original file: %v", err)
+		return false, fmt.Errorf("cannot backup original file: %v", err)
 	}
 
 	// digest of the update
 	updateDigest, _, err := osutil.FileDigest(srcPath, crypto.SHA1)
 	if err != nil {
 		backup.Cancel()
-		return fmt.Errorf("cannot checksum update file: %v", err)
+		return false, fmt.Errorf("cannot checksum update file: %v", err)
 	}
 	// digest of the currently present data
 	origDigest := origHash.Sum(nil)
@@ -667,20 +764,20 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		// mark that files are identical and update can be skipped, no
 		// backup is needed
 		if err := makeStamp(sameStamp); err != nil {
-			return fmt.Errorf("cannot create a checkpoint file: %v", err)
+			return false, fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
 
 		// makes the deferred commit a noop
 		backup.Cancel()
-		return nil
+		return false, nil
 	}
 
 	// update will overwrite existing file, a backup copy is created on
 	// Commit()
-	return nil
+	return true, nil
 }
 
-func (f *MountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
@@ -695,7 +792,7 @@ func (f *MountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 		return f.backupOrCheckpointDirectory(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	} else {
 		// backup a file
-		return f.backupOrCheckpointFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
+		return f.observedBackupOrCheckpointFile(volumeRoot, content.Source, content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -703,29 +800,24 @@ func (f *MountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 // information collected during backup phase. Files that were modified by the
 // update are stored from their backup copies, newly added directories are
 // removed.
-func (f *MountedFilesystemUpdater) Rollback() error {
-	mount, err := f.mountLookup(f.ps)
-	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
+func (f *mountedFilesystemUpdater) Rollback() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	for _, c := range f.ps.Content {
-		if err := f.rollbackVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.rollbackVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot rollback content: %v", err)
 		}
 	}
-
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backupDir string) error {
 	for prefix := filepath.Dir(target); prefix != "/" && prefix != "."; prefix = filepath.Dir(prefix) {
 		prefixDstPath, prefixBackupPath := f.entryDestPaths(dstRoot, "", prefix, backupDir)
 		if !osutil.FileExists(prefixBackupPath + ".backup") {
@@ -738,7 +830,7 @@ func (f *MountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backup
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(source)
 	if err != nil {
 		return fmt.Errorf("cannot rollback directory %q: %v", source, err)
@@ -769,7 +861,7 @@ func (f *MountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
 	backupName := backupPath + ".backup"
@@ -787,20 +879,26 @@ func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 
 	if osutil.FileExists(backupName) {
 		// restore backup -> destination
-		return writeFileOrSymlink(backupName, dstPath, nil)
+		if err := writeFileOrSymlink(backupName, dstPath, nil); err != nil {
+			return err
+		}
+	} else {
+		// none of the markers exists, file is not preserved, meaning, it has
+		// been added by the update
+		if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot remove written update: %v", err)
+		}
 	}
-
-	// none of the markers exists, file is not preserved, meaning, it has
-	// been added by the update
-
-	if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove written update: %v", err)
+	// avoid passing source path during rollback, the file has been restored
+	// to the disk already
+	if err := observe(f.updateObserver, ContentRollback, f.ps, f.mountPoint, "", dstPath); err != nil {
+		return fmt.Errorf("cannot observe pending file rollback %v\n", err)
 	}
 
 	return nil
 }
 
-func (f *MountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}

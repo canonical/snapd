@@ -25,9 +25,12 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/release"
 )
 
 func (s *SnapSuite) TestDebugBootvars(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	bloader.BootVars = map[string]string{
@@ -49,4 +52,11 @@ snap_kernel=pc-kernel_3.snap
 snap_try_kernel=pc-kernel_4.snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestDebugBootvarsNotOnClassic(c *check.C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
+	c.Assert(err, check.ErrorMatches, `the "boot-vars" command is not available on classic systems`)
 }

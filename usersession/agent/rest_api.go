@@ -104,7 +104,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		Type:   ResponseTypeError,
 		Status: 500,
 		Result: &errorResult{
-			Message: "some services failed to start",
+			Message: "some user services failed to start",
 			Kind:    errorKindServiceControl,
 			Value: map[string]interface{}{
 				"start-errors": startErrors,
@@ -135,7 +135,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		Type:   ResponseTypeError,
 		Status: 500,
 		Result: &errorResult{
-			Message: "some services failed to stop",
+			Message: "some user services failed to stop",
 			Kind:    errorKindServiceControl,
 			Value: map[string]interface{}{
 				"stop-errors": stopErrors,

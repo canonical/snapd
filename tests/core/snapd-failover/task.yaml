@@ -13,7 +13,7 @@ prepare: |
     # snapd snap
     if is_core16_system; then
         # rebuild the core snap into the snapd snap and install it
-        repack_core_snap_into_snapd_snap
+        repack_installed_core_snap_into_snapd_snap
         snap install --dangerous snapd-from-core.snap
     fi
     # ensure we are in snapd snap world
@@ -47,12 +47,15 @@ restore: |
         not test -d /snap/snapd
         # cleanup the snapd-from-core snap we built
         rm -f snapd-from-core.snap
+        rm -f /etc/systemd/user/snapd.session-agent.service
+        rm -f /etc/systemd/user/snapd.session-agent.socket
+        rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+        systemctl --user daemon-reload
+        rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+        rm -f /etc/dbus-1/system.d/snapd.system-services.conf
     fi
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
@@ -64,7 +67,7 @@ execute: |
 
         # get the number of times that snapd.failure was started before we do 
         # anything
-        started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
         # test that random signals don't trigger snapd-failure
         current=$(readlink /snap/snapd/current)
@@ -73,7 +76,7 @@ execute: |
         echo "and snapd is just restarted"
         systemctl kill --signal=SIGSEGV snapd.service
 
-        started_after_rand_sig="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
         if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
             echo "snapd.failure inadvertently started with a random signal!"
@@ -95,7 +98,7 @@ execute: |
         # it will be able to revert and fallback as many times as needed
         #shellcheck disable=SC2167
         for _ in $(seq 1 2); do
-            started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+            started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
             echo "Install the broken snapd"
             if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -107,7 +110,7 @@ execute: |
             #shellcheck disable=SC2165
             for _ in $(seq 60); do
                 # get the number of times that snapd.failure was started
-                started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+                started_after="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
                 if [ "$started_after" -gt "$started_before" ] ; then
                     break
                 fi
@@ -117,7 +120,7 @@ execute: |
             # just because snapd.failure.service is active doesn't mean that we are 
             # fully ready; we should wait until the snap command shows up again
             echo "And verify that snap commands still work and snapd is reverted"
-            retry-tool --maxmins 5.5 bash -c "snap list | MATCH '^snapd .* $current .*'"
+            retry --maxmins 5.5 bash -c "snap list | MATCH '^snapd .* $current .*'"
 
             echo "Verify we got the expected error message"
             snap change --last=install|MATCH "there was a snapd rollback across the restart"

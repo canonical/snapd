@@ -126,11 +126,6 @@ func (s *cgroupSuite) TestProcPidPath(c *C) {
 	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(s.rootDir, "/proc/1234/cgroup"))
 }
 
-func (s *cgroupSuite) TestControllerPathV1(c *C) {
-	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/freezer"))
-	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/memory"))
-}
-
 var mockCgroup = []byte(`
 10:devices:/user.slice
 9:cpuset:/
@@ -236,48 +231,6 @@ func (s *cgroupSuite) TestProgGroupBadSelector(c *C) {
 	c.Check(group, Equals, "")
 }
 
-func (s *cgroupSuite) TestPidsHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1/group2"), 0755)
-	c.Assert(err, IsNil)
-	g2Pids := []byte(`123
-234
-567
-`)
-	allPids := append(g2Pids, []byte(`999
-`)...)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), allPids, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/group2/cgroup.procs"), g2Pids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567, 999})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group1/group2")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group.does.not.exist")
-	c.Assert(err, IsNil)
-	c.Assert(pids, IsNil)
-}
-
-func (s *cgroupSuite) TestPidsBadInput(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1"), 0755)
-	c.Assert(err, IsNil)
-	gPids := []byte(`123
-zebra
-567
-`)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), gPids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, ErrorMatches, `cannot parse pid "zebra"`)
-	c.Assert(pids, IsNil)
-}
-
 func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 	const noise = `12:cpuset:/
 11:rdma:/
@@ -293,12 +246,14 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 `
 
 	d := c.MkDir()
-	f := filepath.Join(d, "cgroup")
-	restore := cgroup.MockPathOfProcPidCgroup(func(pid int) string {
-		c.Assert(pid, Equals, 1234)
-		return f
-	})
+	restore := cgroup.MockFsRootPath(d)
 	defer restore()
+
+	restore = cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	f := filepath.Join(d, "proc", "1234", "cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 
 	for _, scenario := range []struct{ cgroups, path, errMsg string }{
 		{cgroups: "", path: "", errMsg: "cannot find tracking cgroup"},
@@ -319,5 +274,26 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 			c.Assert(path, Equals, scenario.path)
 		}
 	}
+}
 
+func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
+	const text = `0::/
+1:name=systemd:/user.slice/user-0.slice/session-1.scope
+`
+	d := c.MkDir()
+	restore := cgroup.MockFsRootPath(d)
+	defer restore()
+
+	restore = cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	f := filepath.Join(d, "proc", "1234", "cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+
+	c.Assert(ioutil.WriteFile(f, []byte(text), 0644), IsNil)
+	path, err := cgroup.ProcessPathInTrackingCgroup(1234)
+	c.Assert(err, IsNil)
+	// Because v2 is not really mounted, we ignore the entry 0::/
+	// and return the v1 version instead.
+	c.Assert(path, Equals, "/user.slice/user-0.slice/session-1.scope")
 }

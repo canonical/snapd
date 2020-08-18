@@ -64,6 +64,7 @@ type autoRefresh struct {
 	lastRefreshSchedule string
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
+	managedDeniedLogged bool
 }
 
 func newAutoRefresh(st *state.State) *autoRefresh {
@@ -329,12 +330,24 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
-	if managed, legacy := refreshScheduleManaged(m.state); managed {
+	managed, requested, legacy := refreshScheduleManaged(m.state)
+	if managed {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
+		m.managedDeniedLogged = false
 		return nil, "managed", legacy, nil
+	} else if requested {
+		// managed refresh schedule was denied
+		if !m.managedDeniedLogged {
+			logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
+			m.managedDeniedLogged = true
+		}
+		// fallback to default schedule
+		return refreshScheduleDefault()
+	} else {
+		m.managedDeniedLogged = false
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -437,32 +450,33 @@ func autoRefreshInFlight(st *state.State) bool {
 
 // refreshScheduleManaged returns true if the refresh schedule of the
 // device is managed by an external snap
-func refreshScheduleManaged(st *state.State) (managed bool, legacy bool) {
+func refreshScheduleManaged(st *state.State) (managed, requested, legacy bool) {
 	var confStr string
 
 	// this will only be "nil" if running in tests
 	if CanManageRefreshes == nil {
-		return false, legacy
+		return false, false, legacy
 	}
 
 	// check new style timer first
 	tr := config.NewTransaction(st)
 	err := tr.Get("core", "refresh.timer", &confStr)
 	if err != nil && !config.IsNoOption(err) {
-		return false, legacy
+		return false, false, legacy
 	}
 	// if not set, fallback to refresh.schedule
 	if confStr == "" {
 		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil {
-			return false, legacy
+			return false, false, legacy
 		}
 		legacy = true
 	}
 
 	if confStr != "managed" {
-		return false, legacy
+		return false, false, legacy
 	}
-	return CanManageRefreshes(st), legacy
+
+	return CanManageRefreshes(st), true, legacy
 }
 
 // getTime retrieves a time from a state value.
@@ -482,12 +496,19 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
 	if err := checker(info); err != nil {
+		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
 			// This is reset to nil on successful refresh.
 			snapst.RefreshInhibitedTime = &now
 			Set(st, info.InstanceName(), snapst)
+			if _, ok := err.(*BusySnapError); ok {
+				st.Warnf(i18n.NG(
+					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
+					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
+					info.SnapName(), days)
+			}
 			return err
 		}
 
@@ -495,6 +516,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
 			return err
+		}
+		if _, ok := err.(*BusySnapError); ok {
+			st.Warnf(i18n.NG(
+				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
+				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
+				info.SnapName(), days)
 		}
 	}
 	return nil

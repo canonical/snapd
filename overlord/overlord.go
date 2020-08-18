@@ -622,20 +622,22 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
-	return MockWithRestartHandler(nil)
+	return MockWithStateAndRestartHandler(nil, nil)
 }
 
-// MockWithRestartHandler creates an Overlord without any managers and
-// with a backend not using disk. It will use the given handler on
-// restart requests. Managers can be added with AddManager. For
-// testing.
-func MockWithRestartHandler(handleRestart func(state.RestartType)) *Overlord {
+// MockWithStateAndRestartHandler creates an Overlord with the given state
+// unless it is nil in which case it uses a state backend not using
+// disk. It will use the given handler on restart requests. Managers
+// can be added with AddManager. For testing.
+func MockWithStateAndRestartHandler(s *state.State, handleRestart func(state.RestartType)) *Overlord {
 	o := &Overlord{
 		loopTomb:        new(tomb.Tomb),
 		inited:          false,
 		restartBehavior: mockRestartBehavior(handleRestart),
 	}
-	s := state.New(mockBackend{o: o})
+	if s == nil {
+		s = state.New(mockBackend{o: o})
+	}
 	o.stateEng = NewStateEngine(s)
 	o.runner = state.NewTaskRunner(s)
 

@@ -10,9 +10,11 @@ usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-preseed /usr/lib/snapd/
 
 # bash completion
-data/completion/snap /usr/share/bash-completion/completions
-data/completion/complete.sh /usr/lib/snapd/
-data/completion/etelpmoc.sh /usr/lib/snapd/
+data/completion/bash/snap /usr/share/bash-completion/completions
+data/completion/bash/complete.sh /usr/lib/snapd/
+data/completion/bash/etelpmoc.sh /usr/lib/snapd/
+# zsh completion
+data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 # udev, must be installed before 80-udisks
 data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 # snap/snapd version information
@@ -33,6 +35,7 @@ usr/bin/ubuntu-core-launcher
 
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
+usr/lib/snapd/snap-gdbserver-shim
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators

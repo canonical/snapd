@@ -1,8 +1,9 @@
 summary: Check that the seed symlinks work
 
-# TODO:UC20: update for symlinks from ubuntu-data/var/lib/snapd/snaps to
-#            ubuntu-seed and enable for UC20
-systems: [ubuntu-core-1*]
+# We explicitly don't want symlinks from /var/lib/snapd/snaps to
+# /var/lib/snapd/seed in UC20 run mode because /var/lib/snapd/seed snaps are
+# essentially untrusted
+systems: [-ubuntu-core-20-*]
 
 execute: |
     # shellcheck source=tests/lib/systems.sh

@@ -7,75 +7,48 @@ description: |
     inside the user session, no matter the shell they use.
 
 systems:
-   # cannot install zsh
-   - -ubuntu-core-*
+   - -ubuntu-core-*  # cannot install zsh
+   - -ubuntu-14.04-* # cannot use systemd
 
 environment:
     TEST_ZSH_USER: test-zsh
 
 prepare: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-
-    echo "create a user with a different shell"
+    echo "Create a user with a different shell"
     useradd --create-home --user-group -s /bin/zsh "$TEST_ZSH_USER"
-
-    if ! has_user_session_support; then
-        echo "NOTE: no user session support, skipping session setup"
-        exit 0
-    fi
-
-    touch ./has-sessions
-
-    # setup for systems supporting user sessions
-    for uid in $(id -u test) $(id -u "$TEST_ZSH_USER"); do
-        mkdir -p "/run/user/$uid"
-        chown -R "$uid:$uid" "/run/user/$uid"
-        systemctl start "user@$uid.service"
-    done
+    tests.session prepare -u test,test-zsh
 
 restore: |
-    if [ -e has-sessions ]; then
-        for uid in $(id -u test) $(id -u "$TEST_ZSH_USER"); do
-            systemctl stop "user@$uid.service"
-            # The user-runtime-dir@.service unit did not exist before
-            # Systemd 239, so ignore errors.
-            systemctl stop "user-runtime-dir@$uid.service" || true
-        done
-    fi
-    rm -f ./has-sessions
-
+    tests.session restore -u test,test-zsh
     userdel -f -r "$TEST_ZSH_USER"
-
     rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
 
     for user in test "$TEST_ZSH_USER"; do
-        if [ -e ./has-sessions ]; then
-            uid=$(id -u "$user")
-            # dump the environment set up by the user session manager
-            as_given_user "$user" "XDG_RUNTIME_DIR=/run/user/$uid systemctl --user show-environment" > "${user}-session-env"
+        # Dump the environment set up by the user session manager
+        if tests.session has-session-systemd-and-dbus; then
+            tests.session -u "$user" exec systemctl --user show-environment > "${user}-session-env"
         fi
-        as_given_user "$user" "env" > "${user}-profile-env"
+        tests.session -u "$user" exec env > "${user}-profile-env"
     done
 
     for user in test "$TEST_ZSH_USER"; do
-        # even though there's user session support, systemd may be too old and
-        # not support user-environment-generators (specifically systemd versions
-        # earlier than 233)
-        if [ -e ./has-sessions ] && [ -d /usr/lib/systemd/user-environment-generators ]; then
-            MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
-            MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
+        if [ -e "${user}-session-env" ]; then
+            # Even though there's user session support, systemd may be too old and
+            # not support user-environment-generators (specifically systemd versions
+            # earlier than 233).
+            if [ -d /usr/lib/systemd/user-environment-generators ]; then
+                MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
+                MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
+            fi
         fi
-        # profile should also be correctly set up
+        # Profile should also be correctly set up
         case "$user:$SPREAD_SYSTEM" in
             test-zsh:ubuntu-*|test-zsh:debian-*)
-                # due to https://bugs.launchpad.net/ubuntu/+source/zsh/+bug/1640514
+                # Due to https://bugs.launchpad.net/ubuntu/+source/zsh/+bug/1640514
                 not MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
                 not MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
                 ;;

@@ -33,6 +33,7 @@ const networkBindConnectedPlugAppArmor = `
 # Description: Can access the network as a server.
 #include <abstractions/nameservice>
 /run/systemd/resolve/stub-resolv.conf rk,
+network netlink dgram, # not yet included in the nameservice abstraction
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #

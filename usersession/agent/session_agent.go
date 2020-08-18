@@ -150,14 +150,30 @@ const (
 	shutdownTimeout    = 5 * time.Second
 )
 
+type closeOnceListener struct {
+	net.Listener
+
+	idempotClose sync.Once
+	closeErr     error
+}
+
+func (l *closeOnceListener) Close() error {
+	l.idempotClose.Do(func() {
+		l.closeErr = l.Listener.Close()
+	})
+	return l.closeErr
+}
+
 func (s *SessionAgent) Init() error {
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err
 	}
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
-	if s.listener, err = netutil.GetListener(agentSocket, listenerMap); err != nil {
+	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
+	} else {
+		s.listener = &closeOnceListener{Listener: l}
 	}
 	s.idle = &idleTracker{
 		active:     make(map[net.Conn]struct{}),
@@ -182,18 +198,38 @@ func (s *SessionAgent) addRoutes() {
 }
 
 func (s *SessionAgent) Start() {
-	s.tomb.Go(func() error {
-		err := s.serve.Serve(s.listener)
-		if err == http.ErrServerClosed {
-			return nil
-		}
-		if err != nil && s.tomb.Err() == tomb.ErrStillAlive {
-			return err
-		}
-		return nil
-	})
+	s.tomb.Go(s.runServer)
+	s.tomb.Go(s.shutdownServerOnKill)
 	s.tomb.Go(s.exitOnIdle)
 	systemd.SdNotify("READY=1")
+}
+
+func (s *SessionAgent) runServer() error {
+	err := s.serve.Serve(s.listener)
+	if err == http.ErrServerClosed {
+		err = nil
+	}
+	if s.tomb.Err() == tomb.ErrStillAlive {
+		return err
+	}
+	return nil
+}
+
+func (s *SessionAgent) shutdownServerOnKill() error {
+	<-s.tomb.Dying()
+	// closing the listener (but then it needs wrapping in
+	// closeOnceListener) before actually calling Shutdown, to
+	// workaround https://github.com/golang/go/issues/20239, we
+	// can in some cases (e.g. tests) end up calling Shutdown
+	// before runServer calls Serve and in go <1.11 this can be
+	// racy and the shutdown blocks.
+	// Historically We do something similar in the main daemon
+	// logic as well.
+	s.listener.Close()
+	systemd.SdNotify("STOPPING=1")
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	return s.serve.Shutdown(ctx)
 }
 
 func (s *SessionAgent) exitOnIdle() error {
@@ -220,10 +256,7 @@ Loop:
 // Stop performs a graceful shutdown of the session agent and waits up to 5
 // seconds for it to complete.
 func (s *SessionAgent) Stop() error {
-	systemd.SdNotify("STOPPING=1")
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	s.tomb.Kill(s.serve.Shutdown(ctx))
+	s.tomb.Kill(nil)
 	return s.tomb.Wait()
 }
 

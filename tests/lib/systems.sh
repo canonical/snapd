@@ -74,5 +74,5 @@ get_core_for_system(){
 }
 
 is_cgroupv2() {
-    [[ "$(stat -f -c '%T' /sys/fs/cgroup)" == "cgroup2fs" ]]
+    test "$(stat -f -c '%T' /sys/fs/cgroup)" = "cgroup2fs"
 }

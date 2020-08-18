@@ -24,12 +24,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -50,7 +52,10 @@ type autoRefreshStore struct {
 	err error
 }
 
-func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if !opts.IsAutoRefresh {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
@@ -67,7 +72,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, r.err
+	return nil, nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -141,6 +146,9 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	}
 	defer func() { snapstate.CanManageRefreshes = nil }()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -169,8 +177,13 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 
 		c.Check(af.NextRefresh(), DeepEquals, time.Time{})
 
+		count := strings.Count(logbuf.String(),
+			": refresh is managed via the snapd-control interface\n")
+		c.Check(count, Equals, 1, Commentf("too many occurrences:\n%s", logbuf.String()))
+
 		// ensure clean config for the next run
 		s.state.Set("config", nil)
+		logbuf.Reset()
 	}
 }
 
@@ -201,6 +214,53 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 	c.Check(refreshScheduleStr, Equals, "00:00-12:00")
 	c.Check(legacy, Equals, false)
 	c.Check(err, IsNil)
+}
+
+func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
+	canManageCalled := false
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
+		canManageCalled = true
+		// always deny
+		return false
+	}
+	defer func() { snapstate.CanManageRefreshes = nil }()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, conf := range []string{"refresh.timer", "refresh.schedule"} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", conf, "managed")
+		tr.Commit()
+
+		af := snapstate.NewAutoRefresh(s.state)
+		for i := 0; i < 2; i++ {
+			c.Logf("ensure iteration: %v", i)
+			s.state.Unlock()
+			err := af.Ensure()
+			s.state.Lock()
+			c.Check(err, IsNil)
+			c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+			refreshScheduleStr, _, err := af.RefreshSchedule()
+			c.Check(refreshScheduleStr, Equals, snapstate.DefaultRefreshSchedule)
+			c.Check(err, IsNil)
+			c.Check(canManageCalled, Equals, true)
+			count := strings.Count(logbuf.String(),
+				": managed refresh schedule denied, no properly configured snapd-control\n")
+			c.Check(count, Equals, 1, Commentf("too many occurrences:\n%s", logbuf.String()))
+
+			canManageCalled = false
+		}
+
+		// ensure clean config for the next run
+		s.state.Set("config", nil)
+		logbuf.Reset()
+		canManageCalled = false
+	}
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
@@ -648,4 +708,48 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	}
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapName: "pkg"}
+	})
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+
+	pending, _ := s.state.PendingWarnings()
+	c.Assert(pending, HasLen, 1)
+	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+}
+
+func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &pastInstant,
+	}
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapName: "pkg"}
+	})
+	c.Assert(err, IsNil)
+
+	pending, _ := s.state.PendingWarnings()
+	c.Assert(pending, HasLen, 1)
+	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 7 days since its refresh was postponed. It will now be refreshed.`)
 }

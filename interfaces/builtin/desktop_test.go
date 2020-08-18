@@ -154,6 +154,8 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	// are bind mounted from the host system if they exist.
 	restore = release.MockOnClassic(true)
 	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
@@ -177,29 +179,33 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 1)
 	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
 
-	// Fedora is a little special with their fontconfig cache location(s)
-	restore = release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
+	for _, distroWithQuirks := range []string{"fedora", "arch"} {
+		restore = release.MockReleaseInfo(&release.OS{ID: distroWithQuirks})
+		defer restore()
 
-	tmpdir = c.MkDir()
-	dirs.SetRootDir(tmpdir)
-	c.Assert(dirs.SystemFontconfigCacheDirs, DeepEquals, []string{filepath.Join(tmpdir, "/var/cache/fontconfig"), filepath.Join(tmpdir, "/usr/lib/fontconfig/cache")})
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
-	spec = &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	entries = spec.MountEntries()
-	c.Assert(entries, HasLen, 4)
+		tmpdir = c.MkDir()
+		dirs.SetRootDir(tmpdir)
+		if distroWithQuirks == "fedora" {
+			// Fedora is a little special with their fontconfig cache location(s) and how we handle them
+			c.Assert(dirs.SystemFontconfigCacheDirs, DeepEquals, []string{filepath.Join(tmpdir, "/var/cache/fontconfig"), filepath.Join(tmpdir, "/usr/lib/fontconfig/cache")})
+		} else {
+			c.Assert(dirs.SystemFontconfigCacheDirs, DeepEquals, []string{filepath.Join(tmpdir, "/var/cache/fontconfig")})
+		}
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"), 0777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+		spec = &mount.Specification{}
+		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+		entries = spec.MountEntries()
+		c.Assert(entries, HasLen, 2)
 
-	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDirs[0])
-	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
-	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
-
-	c.Check(entries[3].Name, Equals, hostfs+dirs.SystemFontconfigCacheDirs[1])
-	c.Check(entries[3].Dir, Equals, "/usr/lib/fontconfig/cache")
-	c.Check(entries[3].Options, DeepEquals, []string{"bind", "ro"})
+		for _, en := range entries {
+			if en.Dir == "/var/cache/fontconfig" || en.Dir == "/usr/lib/fontconfig/cache" {
+				c.Fatalf("unpexected cache mount entry: %q", en.Dir)
+			}
+		}
+	}
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
