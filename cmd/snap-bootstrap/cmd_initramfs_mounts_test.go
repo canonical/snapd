@@ -649,7 +649,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyRealSystemdMou
 
 	restore := disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
 		},
 	)
 	defer restore()
@@ -1623,7 +1624,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
 		},
 	)
 	defer restore()
@@ -1657,7 +1659,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
 		},
 	)
 	defer restore()
@@ -1696,6 +1699,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{
+				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
+				IsDecryptedDevice: true,
+			}: defaultEncBootDisk,
 		},
 	)
 	defer restore()
@@ -1768,16 +1775,22 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
 
+	mockDisk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"ubuntu-seed":     "ubuntu-seed-partuuid",
+			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "bootDev",
+	}
+
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}: {
-				FilesystemLabelToPartUUID: map[string]string{
-					"ubuntu-seed":     "ubuntu-seed-partuuid",
-					"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
-				},
-				DiskHasPartitions: true,
-				DevNum:            "bootDev",
-			},
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: mockDisk,
+			{
+				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
+				IsDecryptedDevice: true,
+			}: mockDisk,
 			// this is the attacker fs on a different disk
 			{Mountpoint: "somewhere-else"}: {
 				FilesystemLabelToPartUUID: map[string]string{
@@ -1884,9 +1897,14 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			nil,
 		})
 
-		// also add the ubuntu-data fs label
+		// also add the ubuntu-data fs label to the disk referenced by the
+		// ubuntu-seed partition
 		disk := mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuSeedDir}]
 		disk.FilesystemLabelToPartUUID["ubuntu-data"] = "ubuntu-data-partuuid"
+
+		// and also add the /run/mnt/host/ubuntu-data mountpoint for
+		// cross-checking after it is mounted
+		mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsHostUbuntuDataDir}] = disk
 	}
 
 	restore := disks.MockMountPointDisksToPartionMapping(mockDiskMapping)

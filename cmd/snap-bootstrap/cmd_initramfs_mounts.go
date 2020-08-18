@@ -264,7 +264,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 
 	// 3. mount ubuntu-data for recovery
 	const lockKeysOnFinish = true
-	device, _, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
@@ -272,6 +272,22 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	// don't do fsck on the data partition, it could be corrupted
 	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		return err
+	}
+
+	// 3.1 verify that the host ubuntu-data comes from where we expect it to
+	diskOpts := &disks.Options{}
+	if isDecryptDev {
+		// then we need to specify that the data mountpoint is expected to be a
+		// decrypted device
+		diskOpts.IsDecryptedDevice = true
+	}
+
+	matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
 	}
 
 	// 4. final step: copy the auth data and network config from
