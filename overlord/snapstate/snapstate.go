@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -69,11 +70,29 @@ const (
 	HooksEdge                 = state.TaskSetEdge("hooks")
 )
 
-type ErrInsufficientSpace struct{ error }
-
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+type ErrInsufficientSpace struct {
+	// Path is the filesystem path checked for available disk space
+	Path string
+	// Snaps affected by the failing operation
+	Snaps []string
+	// Message is optional, otherwise one is composed from the other information
+	Message string
+}
+
+func (e *ErrInsufficientSpace) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if len(e.Snaps) > 0 {
+		snaps := strings.Join(e.Snaps, ", ")
+		return fmt.Sprintf("insufficient space in %q to perform operation for the following snaps: %s", e.Path, snaps)
+	}
+	return fmt.Sprintf("insufficient space in %q", e.Path)
+}
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -1920,9 +1939,13 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				}
 				// require 5Mb extra
 				requiredSpace := sz + 5*1024*1024
-				if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+				path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-						return nil, &ErrInsufficientSpace{fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+						return nil, &ErrInsufficientSpace{
+							Path:    path,
+							Snaps:   []string{name},
+							Message: fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
 					}
 					return nil, err
 				}
