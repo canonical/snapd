@@ -289,6 +289,9 @@ typedef struct sc_cgroup_fds {
 
 static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 {
+	/* Note that -1 is the neutral value for a file descriptor.
+	 * This is relevant as a cleanup handler for sc_cgroup_fds,
+	 * closes all file descriptors that are not -1. */
 	sc_cgroup_fds fds = { -1, -1, -1 };
 
 	/* Open /sys/fs/cgroup */
@@ -333,7 +336,7 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 
 	/* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
 	const char *devices_allow_relpath = "devices.allow";
-	int devices_allow_fd = -1;
+	int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
 	devices_allow_fd = openat(security_tag_fd, devices_allow_relpath,
 				  O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
 	if (devices_allow_fd < 0) {
@@ -343,7 +346,7 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 
 	/* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
 	const char *devices_deny_relpath = "devices.deny";
-	int devices_deny_fd = -1;
+	int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
 	devices_deny_fd = openat(security_tag_fd, devices_deny_relpath,
 				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
 	if (devices_deny_fd < 0) {
@@ -353,7 +356,7 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 
 	/* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
 	const char *cgroup_procs_relpath = "cgroup.procs";
-	int cgroup_procs_fd = -1;
+	int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
 	cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath,
 				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
 	if (cgroup_procs_fd < 0) {
@@ -362,7 +365,8 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	}
 
 	/* Everything worked so pack the result and "move" the descriptors over so
-	 * that they are not closed by the cleanup functions. */
+	 * that they are not closed by the cleanup functions associated with the
+	 * individual variables. */
 	fds.devices_allow_fd = devices_allow_fd;
 	fds.devices_deny_fd = devices_deny_fd;
 	fds.cgroup_procs_fd = cgroup_procs_fd;
@@ -428,6 +432,9 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 
+	/* Note that -1 is the neutral value for a file descriptor.
+	 * The cleanup function associated with this variable closes
+	 * descriptors other than -1. */
 	sc_cgroup_fds SC_CLEANUP(sc_cleanup_cgroup_fds) fds = { -1, -1, -1 };
 	fds = sc_udev_open_cgroup_v1(security_tag);
 	if (fds.cgroup_procs_fd < 0) {
