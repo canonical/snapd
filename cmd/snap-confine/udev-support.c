@@ -39,12 +39,19 @@ static void sc_dprintf(int fd, const char *format, ...);
 
 static void sc_dprintf(int fd, const char *format, ...)
 {
-	va_list ap;
-	va_start(ap, format);
-	if (vdprintf(fd, format, ap) == -1) {
+	va_list ap1;
+	va_list ap2;
+	int n_expected, n_actual;
+
+	va_start(ap1, format);
+	va_copy(ap2, ap1);
+	n_expected = vsnprintf(NULL, 0, format, ap2);
+	n_actual = vdprintf(fd, format, ap1);
+	if (n_actual == -1 || n_expected != n_actual) {
 		die("cannot write to fd %d", fd);
 	}
-	va_end(ap);
+	va_end(ap2);
+	va_end(ap1);
 }
 
 /* Allow access to common devices. */
