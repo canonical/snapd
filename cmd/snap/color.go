@@ -37,11 +37,11 @@ type unicodeMixin struct {
 func (ux unicodeMixin) addUnicodeChars(esc *escapes) {
 	if canUnicode(ux.Unicode) {
 		esc.dash = "–" // that's an en dash (so yaml is happy)
-		esc.uparrow = "↑"
+		esc.rightUpArrow = "⬏"
 		esc.tick = "✓"
 	} else {
 		esc.dash = "--" // two dashes keeps yaml happy also
-		esc.uparrow = "^"
+		esc.rightUpArrow = "^"
 		esc.tick = "*"
 	}
 }
@@ -130,7 +130,7 @@ type escapes struct {
 	bold  string
 	end   string
 
-	tick, dash, uparrow string
+	tick, dash, rightUpArrow string
 }
 
 var (

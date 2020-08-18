@@ -641,7 +641,7 @@ func (chInfos *channelInfos) addOpenChannel(name, version string, revision snap.
 func (chInfos *channelInfos) addClosedChannel(name string, trackHasOpenChannel bool) {
 	chInfo := &channelInfo{indent: "  ", name: name}
 	if trackHasOpenChannel {
-		chInfo.version = chInfos.esc.uparrow
+		chInfo.version = chInfos.esc.rightUpArrow
 	} else {
 		chInfo.version = chInfos.esc.dash
 	}
