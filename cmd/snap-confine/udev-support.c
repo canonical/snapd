@@ -246,7 +246,7 @@ static void sc_udev_setup_acls(int devices_allow_fd, int devices_deny_fd,
 	sc_udev_allow_assigned(devices_allow_fd, udev, assigned);
 }
 
-static char *sc_udev_mangle_security_tag(const char *security_tag)
+static char *sc_security_to_udev_tag(const char *security_tag)
 {
 	char *udev_tag = sc_strdup(security_tag);
 	for (char *c = strchr(udev_tag, '.'); c != NULL; c = strchr(c, '.')) {
@@ -385,7 +385,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 	 * Because udev does not allow for dots in tag names, those are replaced by
 	 * underscores in snapd. We just match that behavior. */
 	char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
-	udev_tag = sc_udev_mangle_security_tag(security_tag);
+	udev_tag = sc_security_to_udev_tag(security_tag);
 
 	/* Use udev APIs to talk to udev-the-daemon to determine the list of
 	 * "devices" with that tag assigned. The list may be empty, in which case
