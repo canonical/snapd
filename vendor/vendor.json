@@ -110,34 +110,34 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "UHhUJNcYbKn3xxZDuPh9GX6BWrM=",
+			"checksumSHA1": "2iz8v9TJMlscyJ3KWg2C9t/De4s=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "ce1b88dd6faaefcf6db44135630c59ae178277ad",
+			"revisionTime": "2020-08-18T19:11:35Z"
 		},
 		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "ce1b88dd6faaefcf6db44135630c59ae178277ad",
+			"revisionTime": "2020-08-18T19:11:35Z"
 		},
 		{
 			"checksumSHA1": "kDay47kq9OgDplpkrYw0/a8Z+YY=",
 			"path": "github.com/snapcore/secboot/internal/tcg",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "ce1b88dd6faaefcf6db44135630c59ae178277ad",
+			"revisionTime": "2020-08-18T19:11:35Z"
 		},
 		{
 			"checksumSHA1": "PRS8ACUu14shrvAgb747Izc25ns=",
 			"path": "github.com/snapcore/secboot/internal/tcti",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "ce1b88dd6faaefcf6db44135630c59ae178277ad",
+			"revisionTime": "2020-08-18T19:11:35Z"
 		},
 		{
 			"checksumSHA1": "TnfofdyojXYWOwdWCKMY5RCeI7s=",
 			"path": "github.com/snapcore/secboot/internal/truststore",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "ce1b88dd6faaefcf6db44135630c59ae178277ad",
+			"revisionTime": "2020-08-18T19:11:35Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
