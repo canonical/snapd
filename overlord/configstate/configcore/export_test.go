@@ -48,3 +48,8 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 		sysChownPath = old
 	}
 }
+
+var (
+	HijackedCoreCfg = hijackedCoreCfg
+	ValidTimezone   = validTimezone
+)

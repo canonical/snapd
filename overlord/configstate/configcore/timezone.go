@@ -24,8 +24,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
@@ -33,33 +36,20 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.timezone"] = true
+	// and register as hijacked
+	hijackedCoreCfg["core.system.timezone"] = getTimezoneFromSystem
 }
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
 
 func validateTimezoneSettings(tr config.ConfGetter) error {
-	timezone, err := coreCfg(tr, "system.timezone")
-	if err != nil {
-		return err
-	}
-	if timezone == "" {
-		return nil
-	}
-	if !validTimezone(timezone) {
-		return fmt.Errorf("cannot set timezone %q: name not valid", timezone)
-	}
-
+	// No need to validate here, setting will trigger an error if the
+	// timezone is wrong and the setting is never saved to the state
+	// anyway.
 	return nil
 }
 
 func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "virtual" configuration nodes once we have support
-	// for this. The current code is not ideal because if one calls
-	// `snap get system system.hostname` the answer can be ""
-	// when not set via snap set.
-	//
-	// It will also override any hostname on the next `snap set` run
-	// that was written not using `snap set system system.hostname`.
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
 		return nil
@@ -75,6 +65,12 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
 		}
 	} else {
+		// basic validation is needed here to ensure that we don't
+		// write garbage to the filesystem
+		if !validTimezone(timezone) {
+			return fmt.Errorf("cannot set timezone %q: name not valid", timezone)
+		}
+
 		// On the UC16/UC18/UC20 images the file /etc/hostname is a
 		// symlink to /etc/writable/hostname. The /etc/hostname is
 		// not part of the "writable-path" so we must set the file
@@ -92,5 +88,20 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 		}
 	}
 
+	return nil
+}
+
+func getTimezoneFromSystem(snapName, key string, result interface{}) error {
+	// XXX: "timedatectl show" would be nice here but it's only
+	// available on UC20 :(
+	link, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime"))
+	if err != nil {
+		return fmt.Errorf("cannot get timezone: %v", err)
+	}
+	val := strings.TrimPrefix(link, "/usr/share/zoneinfo/")
+
+	// XXX: make this a helper
+	rv := reflect.ValueOf(result)
+	rv.Elem().Set(reflect.ValueOf(val))
 	return nil
 }

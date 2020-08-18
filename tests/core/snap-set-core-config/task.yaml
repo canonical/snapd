@@ -141,5 +141,11 @@ execute: |
     echo "setting the timezone works"
     cat /etc/timezone > current-timezone
     snap set system system.timezone=Europe/Malta
-    MATCH "Europe/Malta" /etc/timezone
+    MATCH "Europe/Malta" < /etc/timezone
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Malta"
+    echo "but the timezone setting is not stored in the state"
+    snap get system -d | not grep "timezone"
+
+    echo "and setting the timezone outside of snapd is reflected by snap get"
+    timedatectl set-timezone "America/Denver"
+    snap get system system.timezone | MATCH "America/Denver"

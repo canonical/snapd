@@ -50,13 +50,8 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	}
 
 	for _, tz := range invalidTimezones {
-		err := configcore.Run(&mockConf{
-			state: s.state,
-			conf: map[string]interface{}{
-				"system.timezone": tz,
-			},
-		})
-		c.Assert(err, ErrorMatches, `cannot set timezone.*`)
+		isValid := configcore.ValidTimezone(tz)
+		c.Assert(isValid, Equals, false)
 	}
 }
 
@@ -99,4 +94,27 @@ func (s *timezoneSuite) TestFilesystemOnlyApply(c *C) {
 	p, err := os.Readlink(filepath.Join(tmpDir, "/etc/writable/localtime"))
 	c.Assert(err, IsNil)
 	c.Check(p, Equals, "/usr/share/zoneinfo/Europe/Berlin")
+}
+
+func (s *timezoneSuite) TestFilesystemOnlyApplyError(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"system.timezone": "ääää-invalid",
+	})
+	tmpDir := c.MkDir()
+	err := configcore.FilesystemOnlyApply(tmpDir, conf, nil)
+	c.Assert(err, ErrorMatches, `cannot set timezone "ääää-invalid": name not valid`)
+}
+
+func (s *timezoneSuite) TestGetTimezoneFromSystem(c *C) {
+	lp := filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime")
+	err := os.MkdirAll(filepath.Dir(lp), 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink("/usr/share/zoneinfo/UTC", lp)
+	c.Assert(err, IsNil)
+
+	var result string
+	fn := configcore.HijackedCoreCfg["core.system.timezone"]
+	err = fn("core", "system.timezone", &result)
+	c.Assert(err, IsNil)
+	c.Check(result, Equals, "UTC")
 }

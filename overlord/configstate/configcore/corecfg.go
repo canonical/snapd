@@ -24,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
@@ -103,25 +104,17 @@ type fsOnlyContext struct {
 	RootDir string
 }
 
+// XXX: move into hijack.go ?
+// XXX2: no need to use config.HijackFunc here, we always have "core"
+//       as the snapName so we could simplify
+//
 // hijackedCoreCfg is a map of all the functions that should be
 // hijacking configuration get/set and need to run custom code instead
 // of just storing the value in the state (e.g. hostname)
-var hijackedCoreCfg = map[string]config.HijackFunc{
-	"example": exampleHijackFunc,
-}
-
-func exampleHijackFunc(snapName, key string, result interface{}) error {
-	val := "foo"
-
-	// XXX: make this a helper
-	rv := reflect.ValueOf(result)
-	rv.Elem().Set(reflect.ValueOf(val))
-	return nil
-}
+var hijackedCoreCfg = map[string]config.HijackFunc{}
 
 func RegisterHijackers(tr *config.Transaction) {
 	for confKey, fn := range hijackedCoreCfg {
-		supportedConfigurations["core."+confKey] = true
-		tr.RegisterHijack("core", confKey, fn)
+		tr.RegisterHijack("core", strings.TrimPrefix(confKey, "core."), fn)
 	}
 }
