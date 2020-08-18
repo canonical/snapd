@@ -146,9 +146,7 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 		if !info.Mode().IsRegular() {
 			return fmt.Errorf("unsupported non-file entry %q mode %v", relPath, info.Mode())
 		}
-		err = osutil.CopyFile(path, filepath.Join(newCacheRoot, relPath),
-			osutil.CopyFlagPreserveAll)
-		if err != nil {
+		if err := osutil.CopyFile(path, filepath.Join(newCacheRoot, relPath), osutil.CopyFlagPreserveAll); err != nil {
 			return fmt.Errorf("cannot copy boot asset cache file %q: %v", relPath, err)
 		}
 		return nil
