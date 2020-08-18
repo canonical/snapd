@@ -126,3 +126,22 @@ func (s *SnapSuite) TestNoRecoverySystems(c *C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "No recovery systems available.\n")
 }
+
+func (s *SnapSuite) TestNoRecoverySystemsError(c *C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/systems")
+			c.Check(r.URL.RawQuery, Equals, "")
+			fmt.Fprintln(w, `{"type": "error", "result": {"message": "permission denied"}, "status-code": 403}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
+	c.Check(err, ErrorMatches, `cannot list recovery systems: permission denied`)
+}

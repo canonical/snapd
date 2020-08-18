@@ -193,14 +193,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
 			}
-			if opts.NoWait {
-				args = append(args, "--no-block")
-			}
 			if opts.Tmpfs {
 				args = append(args, "--type=tmpfs")
 			}
 			if opts.NeedsFsck {
 				args = append(args, "--fsck=yes")
+			} else {
+				args = append(args, "--fsck=no")
+			}
+			if opts.NoWait {
+				args = append(args, "--no-block")
 			}
 			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
 

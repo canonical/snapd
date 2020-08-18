@@ -32,7 +32,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -181,7 +180,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
-func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
+func UnlockVolumeIfEncrypted(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -229,7 +228,7 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
-		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
+		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
 		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
