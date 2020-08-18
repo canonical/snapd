@@ -430,6 +430,6 @@ void sc_setup_device_cgroup(const char *security_tag)
 
 	/* Move ourselves to the device cgroup */
 	sc_dprintf(fds.cgroup_procs_fd, "%i", getpid());
-	debug("associated snap application process with device cgroup %s",
-	      security_tag);
+	debug("associated snap application process %i with device cgroup %s",
+	      getpid(), security_tag);
 }
