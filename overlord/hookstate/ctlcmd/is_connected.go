@@ -73,6 +73,11 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
+
+	// XXX: This will fail for implicit slots.  In practice, this
+	// would only affect calls that used the "core" snap as
+	// context.  That snap does not have any hooks using
+	// is-connected, so the limitation is probably moot.
 	if info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
 		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
 	}
@@ -81,9 +86,6 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
-
-	// XXX should we check if plug/slot exists? We don't differentiate between
-	// non-connected/not-existing at the moment.
 
 	// snapName is the name of the snap executing snapctl command, it's
 	// obtained from the context (ephemeral if run by apps, or full if run by
