@@ -645,7 +645,11 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 }
 
 func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
-	modSnaps := w.model.AllSnaps()
+	// model snaps are accumulated/processed in the order
+	//  * system snap if implicit
+	//  * essential snaps (in Model.EssentialSnaps order)
+	//  * not essential snaps
+	modSnaps := append([]*asserts.ModelSnap{}, w.model.EssentialSnaps()...)
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
 		for _, modSnap := range modSnaps {
@@ -668,6 +672,7 @@ func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
+	modSnaps = append(modSnaps, w.model.SnapsWithoutEssential()...)
 	return modSnaps, nil
 }
 

@@ -41,3 +41,11 @@ func MockUdevPropertiesForDevice(new func(string) (map[string]string, error)) (r
 		udevadmProperties = old
 	}
 }
+
+func MockDevBlockDir(new string) (restore func()) {
+	old := devBlockDir
+	devBlockDir = new
+	return func() {
+		devBlockDir = old
+	}
+}

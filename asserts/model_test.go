@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -178,11 +178,14 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelGradeUnset)
-	allSnaps := model.AllSnaps()
-	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+	essentialSnaps := model.EssentialSnaps()
+	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
 		model.BaseSnap(),
 		model.GadgetSnap(),
+	})
+	snaps := model.SnapsWithoutEssential()
+	c.Check(snaps, DeepEquals, []*asserts.ModelSnap{
 		{
 			Name:     "foo",
 			Modes:    []string{"run"},
@@ -195,14 +198,24 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 		},
 	})
 	// essential snaps included
-	reqSnaps := model.RequiredWithEssentialSnaps()
-	c.Check(reqSnaps, HasLen, len(allSnaps))
-	for i, r := range reqSnaps {
-		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
-		c.Check(r.ID(), Equals, "")
+	reqSnaps := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(reqSnaps.Contains(e), Equals, true)
 	}
+	for _, s := range snaps {
+		c.Check(reqSnaps.Contains(s), Equals, true)
+	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps))
 	// essential snaps excluded
-	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
+	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(noEssential.Contains(e), Equals, false)
+	}
+	for _, s := range snaps {
+		c.Check(noEssential.Contains(s), Equals, true)
+	}
+	c.Check(noEssential.Size(), Equals, len(snaps))
+
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
 }
@@ -536,9 +549,12 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	c.Check(model.Base(), Equals, "")
 	c.Check(model.BaseSnap(), IsNil)
 	c.Check(model.Store(), Equals, "brand-store")
-	allSnaps := model.AllSnaps()
-	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+	essentialSnaps := model.EssentialSnaps()
+	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.GadgetSnap(),
+	})
+	snaps := model.SnapsWithoutEssential()
+	c.Check(snaps, DeepEquals, []*asserts.ModelSnap{
 		{
 			Name:     "foo",
 			Modes:    []string{"run"},
@@ -551,14 +567,23 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 		},
 	})
 	// gadget included
-	reqSnaps := model.RequiredWithEssentialSnaps()
-	c.Check(reqSnaps, HasLen, len(allSnaps))
-	for i, r := range reqSnaps {
-		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
-		c.Check(r.ID(), Equals, "")
+	reqSnaps := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(reqSnaps.Contains(e), Equals, true)
 	}
+	for _, s := range snaps {
+		c.Check(reqSnaps.Contains(s), Equals, true)
+	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps))
 	// gadget excluded
-	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[1:])
+	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(noEssential.Contains(e), Equals, false)
+	}
+	for _, s := range snaps {
+		c.Check(noEssential.Contains(s), Equals, true)
+	}
+	c.Check(noEssential.Size(), Equals, len(snaps))
 }
 
 func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
@@ -640,11 +665,14 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelSecured)
-	allSnaps := model.AllSnaps()
-	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+	essentialSnaps := model.EssentialSnaps()
+	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
 		model.BaseSnap(),
 		model.GadgetSnap(),
+	})
+	snaps := model.SnapsWithoutEssential()
+	c.Check(snaps, DeepEquals, []*asserts.ModelSnap{
 		{
 			Name:           "other-base",
 			SnapID:         "otherbasedididididididididididid",
@@ -679,14 +707,24 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 		},
 	})
 	// essential snaps included
-	reqSnaps := model.RequiredWithEssentialSnaps()
-	c.Check(reqSnaps, HasLen, len(allSnaps)-1)
-	for i, r := range reqSnaps {
-		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
-		c.Check(r.ID(), Equals, allSnaps[i].SnapID)
+	reqSnaps := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(reqSnaps.Contains(e), Equals, true)
 	}
+	for _, s := range snaps {
+		c.Check(reqSnaps.Contains(s), Equals, s.Presence == "required")
+	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps)-1)
 	// essential snaps excluded
-	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
+	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
+	for _, e := range essentialSnaps {
+		c.Check(noEssential.Contains(e), Equals, false)
+	}
+	for _, s := range snaps {
+		c.Check(noEssential.Contains(s), Equals, s.Presence == "required")
+	}
+	c.Check(noEssential.Size(), Equals, len(snaps)-1)
+
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
 }
@@ -725,7 +763,7 @@ func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
-	snapdSnap := model.AllSnaps()[0]
+	snapdSnap := model.EssentialSnaps()[0]
 	c.Check(snapdSnap, DeepEquals, &asserts.ModelSnap{
 		Name:           "snapd",
 		SnapID:         "snapdidididididididididididididd",
@@ -792,8 +830,8 @@ func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Grade(), Equals, asserts.ModelDangerous)
-	allSnaps := model.AllSnaps()
-	c.Check(allSnaps[len(allSnaps)-2], DeepEquals, &asserts.ModelSnap{
+	snaps := model.SnapsWithoutEssential()
+	c.Check(snaps[len(snaps)-2], DeepEquals, &asserts.ModelSnap{
 		Name:           "myapp",
 		SnapType:       "app",
 		Modes:          []string{"run"},

@@ -79,8 +79,14 @@ func init() {
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
 
+	// system.kernel.printk.console-loglevel
+	addFSOnlyHandler(validateSysctlOptions, handleSysctlConfiguration, coreOnly)
+
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
+
+	// system.timezone
+	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
 		return filesystemOnlyApply(rootDir, plainCoreConfig(defaults), options)

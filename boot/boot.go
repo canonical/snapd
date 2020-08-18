@@ -171,7 +171,7 @@ type bootState interface {
 	// the status of the trying snap.
 	// Note that the error could be only specific to the try snap, in which case
 	// curSnap may still be non-nil and valid. Callers concerned with robustness
-	// should always inspect a non-nil error with IsTrySnapError, and use
+	// should always inspect a non-nil error with isTrySnapError, and use
 	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 

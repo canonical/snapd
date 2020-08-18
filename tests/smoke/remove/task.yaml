@@ -13,7 +13,7 @@ execute: |
     snap remove test-snapd-sh
     test ! -d "$SNAP_MOUNT_DIR/test-snapd-sh"
 
-    if snap list | grep -E ^test-snapd-sh; then
+    if snap list test-snapd-sh; then
         echo "test-snapd-sh should be removed but it is not"
         snap list
         exit 1

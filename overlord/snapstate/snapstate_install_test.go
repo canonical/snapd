@@ -264,7 +264,7 @@ epoch: 1*
 	})
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -287,7 +287,7 @@ func dummyInUseCheck(snap.Type) (boot.InUseFunc, error) {
 	}, nil
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -318,12 +318,15 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 		}
 		return info, nil
 	})
-	mockPidsCgroupDir := c.MkDir()
-	restore := snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
-	defer restore()
 
-	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.app"), []int{1234})
+	// mock that "some-snap" has an app and that this app has pids running
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
@@ -340,7 +343,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	c.Check(snapst.RefreshInhibitedTime, NotNil)
 }
 
-func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -376,8 +379,14 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		}
 		return info, nil
 	})
-	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.app"), []int{1234})
+	// And with cgroup information indicating the app has a process with pid 1234.
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.some-app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
@@ -389,7 +398,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -513,7 +522,7 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -2893,6 +2902,10 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("Ubuntu 14.04 does not support user daemons")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2928,6 +2941,23 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+}
+
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", true)
+	tr.Commit()
+
+	// Even with the experimental.user-daemons flag set, user
+	// daemons are not supported on Trusty
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
