@@ -103,21 +103,6 @@ plugs:
 slots:
   slot1:
     interface: x11`)
-	mockInstalledSnap(c, s.st, `name: snap2
-slots:
-  slot2:
-    interface: x11`)
-	mockInstalledSnap(c, s.st, `name: snap3
-plugs:
-  plug4:
-    interface: x11
-slots:
-  slot3:
-    interface: x11`)
-	mockInstalledSnap(c, s.st, `name: snap4
-slots:
-  slot4:
-    interface: x11`)
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},
