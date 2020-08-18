@@ -176,42 +176,50 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		}
 		struct udev_device *device =
 		    udev_device_new_from_syspath(udev, path);
+		/** This is a non-fatal error as devices can disappear asynchronously
+		 * and on slow devices we may indeed observe a device that no longer
+		 * exists.
+		 *
+		 * Similar debug + continue pattern repeats in all the udev calls in
+		 * this function. Related to LP: #1881209 */
 		if (device == NULL) {
-			die("cannot find device from syspath %s", path);
+			debug("cannot find device from syspath %s", path);
+			continue;
 		}
 		dev_t devnum = udev_device_get_devnum(device);
 		unsigned int major = major(devnum);
+		unsigned int minor = minor(devnum);
 		/* The manual page of udev_device_get_devnum says:
 		 * > On success, udev_device_get_devnum() returns the device type of
 		 * > the passed device. On failure, a device type with minor and major
-		 * > number set to 0 is returned.
-		 * Since there is no valid device with major == 0, but there are valid
-		 * devices with minor == 0, we perform only the test for non-zero major
-		 * below. */
-		if (major != 0) {
-			unsigned int minor = minor(devnum);
-			/* devnode is bound to the lifetime of the device and we cannot
-			 * release it separately. */
-			const char *devnode = udev_device_get_devnode(device);
-			if (devnode == NULL) {
-				die("cannot find /dev node from udev device");
-			}
-			debug("inspecting type of device: %s", devnode);
-			struct stat file_info;
-			if (stat(devnode, &file_info) < 0) {
-				die("cannot stat %s", devnode);
-			}
-			switch (file_info.st_mode & S_IFMT) {
-				case S_IFBLK:
-					dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
-					break;
-				case S_IFCHR:
-					dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
-					break;
-				default:
-					/* Not a device, ignore it. */
-					break;
-			}
+		 * > number set to 0 is returned. */
+		if (major == 0 && minor == 0) {
+			debug("cannot get major/minor numbers for syspath %s", path);
+			continue;
+		}
+		/* devnode is bound to the lifetime of the device and we cannot release
+		 * it separately. */
+		const char *devnode = udev_device_get_devnode(device);
+		if (devnode == NULL) {
+			debug("cannot find /dev node from udev device");
+			continue;
+		}
+		debug("inspecting type of device: %s", devnode);
+		struct stat file_info;
+		if (stat(devnode, &file_info) < 0) {
+			debug("cannot stat %s", devnode);
+			continue;
+		}
+		switch (file_info.st_mode & S_IFMT) {
+			case S_IFBLK:
+				dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
+				break;
+			case S_IFCHR:
+				dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
+				break;
+			default:
+				/* Not a device, ignore it. */
+				break;
 		}
 		udev_device_unref(device);
 	}
