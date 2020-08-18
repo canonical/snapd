@@ -244,7 +244,7 @@ func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 
 	for _, s := range bad {
 		res := builtin.AareExclusivePatterns(s)
-		c.Check(res, DeepEquals, []string{})
+		c.Check(res, IsNil)
 	}
 }
 
