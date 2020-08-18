@@ -179,9 +179,11 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 
 // UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
-// keys will be locked when this function completes. The path to the unencrypted
-// device node is returned.
-func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
+// keys will be locked when this function completes. The path to the device node
+// is returned as well as whether the device node is an decrypted device node (
+// in the encrypted case). If no encrypted volume was found, then the returned
+// device node is an unencrypted normal volume.
+func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -189,7 +191,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
 		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
-			return "", fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+			return "", false, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
@@ -202,7 +204,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 
 	var lockErr error
 	var mapperName string
-	err := func() error {
+	err, foundEncDev := func() (error, bool) {
 		defer func() {
 			if lockKeysOnFinish && tpmDeviceAvailable {
 				// Lock access to the sealed keys. This should be called whenever there
@@ -226,43 +228,43 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 		if xerrors.As(err, &errNotFound) {
 			// didn't find the encrypted label, so return nil to try the
 			// decrypted label again
-			return nil
+			return nil, false
 		}
 		if err != nil {
-			return err
+			return err, false
 		}
 		encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
 		if !tpmDeviceAvailable {
-			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev)
+			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev), true
 		}
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish), true
 	}()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if lockErr != nil {
-		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
+		return "", false, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
-	// return the encrypted device if the device we are maybe unlocking is an
-	// encrypted device
-	if mapperName != "" {
-		return filepath.Join("/dev/mapper", mapperName), nil
+	if foundEncDev {
+		// return the encrypted device if the device we are maybe unlocking is
+		// an encrypted device
+		return filepath.Join("/dev/mapper", mapperName), true, nil
 	}
 
 	// otherwise find the device from the disk
 	partUUID, err := disk.FindMatchingPartitionUUID(name)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return filepath.Join("/dev/disk/by-partuuid", partUUID), nil
+	return filepath.Join("/dev/disk/by-partuuid", partUUID), false, nil
 }
 
 // unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use

@@ -1073,12 +1073,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	c.Assert(err, IsNil)
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
-		return "path-to-device", nil
+		// return true because we are using an encrypted device
+		return "path-to-device", true, nil
 	})
 	defer restore()
 
@@ -1700,7 +1701,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
@@ -1708,7 +1709,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
-		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), nil
+		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 	})
 	defer restore()
 
@@ -1791,14 +1792,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	defer restore()
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
-		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), nil
+		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 	})
 	defer restore()
 

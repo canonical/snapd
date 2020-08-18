@@ -264,10 +264,9 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 
 	// 3. mount ubuntu-data for recovery
 	const lockKeysOnFinish = true
-	device, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	device, _, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return err
-
 	}
 
 	// don't do fsck on the data partition, it could be corrupted
@@ -420,7 +419,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 3.2. mount Data
 	const lockKeysOnFinish = true
-	device, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
@@ -435,15 +434,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
-
-	// since ubuntu-data has already been mounted, see if there is an encrypted
-	// device that we should try to boot from
 	diskOpts := &disks.Options{}
-	_, err = disk.FindMatchingPartitionUUID("ubuntu-data-enc")
-	if err == nil {
-		// we found an ubuntu-data-enc device on the disk we mounted ubuntu-boot
-		// from, so assume that ubuntu-data is a decrypted mapper device back to
-		// ubuntu-data-enc
+	if isDecryptDev {
+		// then we need to specify that the data mountpoint is expected to be a
+		// decrypted device
 		diskOpts.IsDecryptedDevice = true
 	}
 
@@ -454,10 +448,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if !matches {
 		// failed to verify that ubuntu-data mountpoint comes from the same disk
 		// as ubuntu-boot
-		if diskOpts.IsDecryptedDevice {
-			return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is not from ubuntu-data-enc partition")
-		}
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is not from same disk as ubuntu-boot partition")
+		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
 	}
 
 	// 4.2. read modeenv

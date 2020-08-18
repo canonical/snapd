@@ -431,9 +431,10 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", boot.InitramfsEncryptionKeyDir, tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", boot.InitramfsEncryptionKeyDir, tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
+			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
 			if tc.hasEncdev {
 				c.Assert(device, Equals, filepath.Join("/dev/mapper", tc.device+"-"+randomUUID))
 			} else {
