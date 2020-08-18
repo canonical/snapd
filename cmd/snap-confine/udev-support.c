@@ -446,7 +446,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 			   udev, assigned);
 
 	/* Move ourselves to the device cgroup */
-	sc_dprintf(fds.cgroup_procs_fd, "%i", getpid());
+	sc_dprintf(fds.cgroup_procs_fd, "%i\n", getpid());
 	debug("associated snap application process %i with device cgroup %s",
 	      getpid(), security_tag);
 }
