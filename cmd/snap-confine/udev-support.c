@@ -105,21 +105,21 @@ static void sc_udev_allow_nvidia(int devices_allow_fd)
 		if (stat(nv_path, &sbuf) < 0) {
 			break;
 		}
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 
 	if (stat("/dev/nvidiactl", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-uvm", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-modeset", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 }
 
@@ -134,8 +134,8 @@ static void sc_udev_allow_uhid(int devices_allow_fd)
 	struct stat sbuf;
 
 	if (stat("/dev/uhid", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 }
 
@@ -153,8 +153,8 @@ static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
 	struct stat sbuf;
 
 	if (stat("/dev/net/tun", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
-			   minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
+			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
 	}
 }
 
@@ -194,7 +194,8 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		 * > the passed device. On failure, a device type with minor and major
 		 * > number set to 0 is returned. */
 		if (major == 0 && minor == 0) {
-			debug("cannot get major/minor numbers for syspath %s", path);
+			debug("cannot get major/minor numbers for syspath %s",
+			      path);
 			continue;
 		}
 		/* devnode is bound to the lifetime of the device and we cannot release
@@ -211,15 +212,17 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 			continue;
 		}
 		switch (file_info.st_mode & S_IFMT) {
-			case S_IFBLK:
-				dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
-				break;
-			case S_IFCHR:
-				dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
-				break;
-			default:
-				/* Not a device, ignore it. */
-				break;
+		case S_IFBLK:
+			dprintf(devices_allow_fd, "b %u:%u rwm\n", major,
+				minor);
+			break;
+		case S_IFCHR:
+			dprintf(devices_allow_fd, "c %u:%u rwm\n", major,
+				minor);
+			break;
+		default:
+			/* Not a device, ignore it. */
+			break;
 		}
 		udev_device_unref(device);
 	}
