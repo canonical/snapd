@@ -50,10 +50,15 @@ import (
 )
 
 // Backend is responsible for maintaining kernel modules
-type Backend struct{}
+type Backend struct {
+	preseed bool
+}
 
 // Initialize does nothing.
-func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
+func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
+	if opts != nil && opts.Preseed {
+		b.preseed = true
+	}
 	return nil
 }
 
@@ -89,7 +94,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 
 	if len(changed) > 0 {
-		loadModules(modules)
+		b.loadModules(modules)
 	}
 	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1739,4 +1739,23 @@ func (s *infoSuite) TestSortApps(c *C) {
 			c.Assert(sortedNames, DeepEquals, tc.sorted)
 		}
 	}
+}
+
+func (s *infoSuite) TestSortAppInfoBySnapApp(c *C) {
+	snap1 := &snap.Info{SuggestedName: "snapa"}
+	snap2 := &snap.Info{SuggestedName: "snapb"}
+	infos := []*snap.AppInfo{
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "b"},
+		{Snap: snap1, Name: "a"},
+		{Snap: snap2, Name: "a"},
+	}
+	sort.Stable(snap.AppInfoBySnapApp(infos))
+
+	c.Check(infos, DeepEquals, []*snap.AppInfo{
+		{Snap: snap1, Name: "a"},
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "a"},
+		{Snap: snap2, Name: "b"},
+	})
 }

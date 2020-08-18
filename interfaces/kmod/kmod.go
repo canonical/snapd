@@ -28,7 +28,10 @@ import (
 // error from modprobe as non-fatal and subsequent module loads are attempted
 // (otherwise failure to load a module means failure to connect the interface
 // and the other security backends)
-func loadModules(modules []string) {
+func (b *Backend) loadModules(modules []string) {
+	if b.preseed {
+		return
+	}
 	for _, mod := range modules {
 		// ignore errors which are logged by loadModule() via syslog
 		_ = exec.Command("modprobe", "--syslog", mod).Run()

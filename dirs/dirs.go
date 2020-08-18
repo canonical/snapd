@@ -97,7 +97,8 @@ var (
 	SnapDBusSessionServicesDir string
 	SnapDBusSystemServicesDir  string
 
-	SnapModeenvFile string
+	SnapModeenvFile   string
+	SnapBootAssetsDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -113,8 +114,6 @@ var (
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
-
-	PidsCgroupDir string
 
 	SnapshotsDir string
 
@@ -321,6 +320,7 @@ func SetRootDir(rootdir string) {
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
+	SnapBootAssetsDir = filepath.Join(rootdir, snappyDir, "boot-assets")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -385,7 +385,6 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
