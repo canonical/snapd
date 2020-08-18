@@ -142,7 +142,7 @@ func aareExclusivePatterns(orig string) []string {
 	// an empty list if invalid. If this function is modified for other
 	// input, aare/quoting/etc will have to be considered.
 	if !snap.ValidateDesktopPrefix(orig) {
-		return make([]string, 0)
+		return nil
 	}
 
 	s := make([]string, len(orig))
