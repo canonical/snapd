@@ -61,6 +61,7 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 var rawusbConnectedPlugUDev = []string{
 	`SUBSYSTEM=="usb"`,
+	`SUBSYSTEM=="usbmisc"`,
 	`SUBSYSTEM=="tty", ENV{ID_BUS}=="usb"`,
 }
 
