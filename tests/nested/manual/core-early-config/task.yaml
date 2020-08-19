@@ -60,5 +60,10 @@ execute: |
 
     echo "Test that rsyslog was disabled early."
     # early config is witnessed by install hook of the pc gadget
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
     execute_remote "test -L /etc/systemd/system/rsyslog.service"
+
+    # timezone is set
+    execute_remote "cat /etc/timezone" | MATCH "Europe/Malta"
+    execute_remote "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"

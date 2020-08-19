@@ -8,3 +8,5 @@ defaults:
     system:
       power-key-action: ignore
       disable-backlight-service: true
+    system:
+      timezone: Europe/Malta

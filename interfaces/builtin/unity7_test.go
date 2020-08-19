@@ -32,11 +32,13 @@ import (
 )
 
 type Unity7InterfaceSuite struct {
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	iface        interfaces.Interface
+	slotInfo     *snap.SlotInfo
+	slot         *interfaces.ConnectedSlot
+	plugInfo     *snap.PlugInfo
+	plug         *interfaces.ConnectedPlug
+	plugInstInfo *snap.PlugInfo
+	plugInst     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&Unity7InterfaceSuite{
@@ -61,6 +63,11 @@ func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 	plugSnap := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
 	s.plugInfo = plugSnap.Plugs["unity7"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+
+	plugSnapInst := snaptest.MockInfo(c, unity7mockPlugSnapInfoYaml, nil)
+	plugSnapInst.InstanceKey = "instance"
+	s.plugInstInfo = plugSnapInst.Plugs["unity7"]
+	s.plugInst = interfaces.NewConnectedPlug(s.plugInstInfo, nil, nil)
 }
 
 func (s *Unity7InterfaceSuite) TestName(c *C) {
@@ -83,6 +90,14 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/usr/share/pixmaps`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_*_desktop`)
+
+	// connected plugs for instance name have a non-nil security snippet for apparmor
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap_instance.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `/usr/share/pixmaps`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_instance_*_desktop`)
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
