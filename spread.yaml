@@ -829,7 +829,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
@@ -884,7 +884,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
@@ -943,7 +943,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
