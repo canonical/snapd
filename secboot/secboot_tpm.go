@@ -239,10 +239,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 		if !tpmDeviceAvailable {
 			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev), true
 		}
-		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
-		//            we expect (and not e.g. an external disk), and also that
-		//            <name> is from <name>-enc and not an unencrypted partition
-		//            with the same name (LP #1863886)
+
 		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
 		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish), true
 	}()
