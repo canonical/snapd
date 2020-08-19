@@ -222,10 +222,6 @@ maybe you need to replace system installed snap-seccomp with the one aligned to 
 you are testing. To do this, simply backup /usr/lib/snapd/snap-seccomp and overwrite it with 
 the testing one. Don't forget to rollback to the original when finish testing)
 
-# Quick intro to hacking on snap-confine
-
-Hey, welcome to the nice, low-level world of snap-confine
-
 ### Running nested tests
 
 Nested tests are used to validate features which cannot be tested on regular tests.
@@ -234,15 +230,18 @@ The nested test suites work different from the other test suites in snapd. In th
 which is created following the rules defined for the test.
 
 The nested tests are executed using spread tool. See the following examples using the qemu and google backends.
+
     . qemu: spread qemu-nested:ubuntu-20.04-64:tests/nested/core20/tpm
     . google: spread google-nested:ubuntu-20.04-64:tests/nested/core20/tpm
 
 The nested system in all the cases is selected based on the host system. The folloing lines show the relation between host and nested systemd (same applies for classic nested tests):
+
     . ubuntu-16.04-64 => ubuntu-core-16-64
     . ubuntu-18.04-64 => ubuntu-core-18-64
     . ubuntu-20.04-64 => ubuntu-core-20-64
 
 The tools used for creating and hosting the nested vms are:
+
     . ubuntu-image snap is used to building the images
     . QEMU is used for the virtualization (with kvm acceleration)
 
@@ -265,6 +264,11 @@ The nested suites use some environment variables to configure the suite and the 
     SPREAD_ENABLE_SECURE_BOOT: Enable secure boot in the nested vm in case it is supported (just supported on UC20)
     SPREAD_BUILD_SNAPD_FROM_CURRENT: Build and use either core or snapd snapd from current branch
     SPREAD_CUSTOM_IMAGE_URL: Download and use an custom image from this url
+
+
+# Quick intro to hacking on snap-confine
+
+Hey, welcome to the nice, low-level world of snap-confine
 
 
 ## Building the code locally
