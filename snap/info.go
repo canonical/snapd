@@ -596,6 +596,21 @@ func BadInterfacesSummary(snapInfo *Info) string {
 	return strings.TrimSuffix(buf.String(), "; ")
 }
 
+// DesktopPrefix returns the prefix string for the desktop files that
+// belongs to the given snapInstance. We need to do something custom
+// here because a) we need to be compatible with the world before we had
+// parallel installs b) we can't just use the usual "_" parallel installs
+// separator because that is already used as the separator between snap
+// and desktop filename.
+func (s *Info) DesktopPrefix() string {
+	if s.InstanceKey == "" {
+		return s.SnapName()
+	}
+	// we cannot use the usual "_" separator because that is also used
+	// to separate "$snap_$desktopfile"
+	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
+}
+
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
@@ -953,7 +968,7 @@ func (app *AppInfo) SecurityTag() string {
 // DesktopFile returns the path to the installed optional desktop file for the
 // application.
 func (app *AppInfo) DesktopFile() string {
-	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.InstanceName(), app.Name))
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
