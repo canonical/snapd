@@ -5,7 +5,9 @@ details: |
 
 # Interfaces not defined for ubuntu core systems
 # FIXME: fails in debian-sid for unknown reasons
-systems: [-ubuntu-core-*, -debian-sid-*]
+# FIXME: `udisksctl mount -b  "$device"` fails on arch with:
+#   Object /org/freedesktop/UDisks2/block_devices/loop200 is not a mountable filesystem.
+systems: [-ubuntu-core-*, -debian-sid-*, -arch-linux-*]
 
 prepare: |
     snap install test-snapd-udisks2
