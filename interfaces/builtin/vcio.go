@@ -40,7 +40,12 @@ const vcioConnectedPlugAppArmor = `
 # vcio v1 access to ARM VideoCore (BCM_VCIO) for userspace GPU programming
 /dev/vcio rw,
 /sys/devices/virtual/bcm2708_vcio/vcio/** r,
-/run/udev/data/c248:[0-9]* r,
+# the vcio driver uses dynamic allocation for its major number and
+# https://www.kernel.org/doc/Documentation/admin-guide/devices.txt lists
+# 234-254 char as "RESERVED FOR DYNAMIC ASSIGNMENT".
+/run/udev/data/c23[4-9]:[0-9]* r,
+/run/udev/data/c24[0-9]:[0-9]* r,
+/run/udev/data/c25[0-4]:[0-9]* r,
 `
 
 var vcioConnectedPlugUDev = []string{
