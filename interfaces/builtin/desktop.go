@@ -253,6 +253,20 @@ deny /var/lib/snapd/desktop/icons/{,**/} r,
 # we have better XDG_DATA_DIRS handling, silence these noisy denials.
 # https://github.com/snapcrafters/discord/issues/23#issuecomment-637607843
 deny @{HOME}/.local/share/flatpak/exports/share/** r,
+
+# Allow access to the IBus portal (IBUS_USE_PORTAL=1)
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.IBus.Portal
+      member=CreateInputContext
+      peer=(name=org.freedesktop.portal.IBus),
+
+dbus (send, receive)
+      bus=session
+      path=/org/freedesktop/IBus/InputContext_[0-9]*
+      interface=org.freedesktop.IBus.InputContext
+      peer=(label=unconfined),
 `
 
 type desktopInterface struct {
