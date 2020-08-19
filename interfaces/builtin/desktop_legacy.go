@@ -243,7 +243,9 @@ dbus (send)
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,
 
 # glib-networking's GLib proxy (different than the portal's proxy service
-# org.freedesktop.portal.ProxyResolver)
+# org.freedesktop.portal.ProxyResolver). The Lookup API allows specifying
+# various URLs (eg, file://, http:// and https://) which will be given to the
+# unconfined glib-pacrunner.
 dbus (send)
     bus=session
     path=/org/gtk/GLib/PACRunner
