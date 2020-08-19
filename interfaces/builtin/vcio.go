@@ -43,6 +43,10 @@ const vcioConnectedPlugAppArmor = `
 /run/udev/data/c248:[0-9]* r,
 `
 
+var vcioConnectedPlugUDev = []string{
+	`SUBSYSTEM=="bcm2708_vcio", KERNEL=="vcio"`,
+}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "vcio",
@@ -51,5 +55,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  vcioBaseDeclarationSlots,
 		connectedPlugAppArmor: vcioConnectedPlugAppArmor,
+		connectedPlugUDev:     vcioConnectedPlugUDev,
 	})
 }
