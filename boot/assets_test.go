@@ -206,6 +206,11 @@ var (
 			Role: gadget.SystemBoot,
 		},
 	}
+	mockSeedStruct = &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role: gadget.SystemSeed,
+		},
+	}
 )
 
 func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
@@ -275,7 +280,6 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	d := c.MkDir()
 
 	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
-	// MockBootloader does not implement trusted assets
 	bootloader.Force(tab)
 	defer bootloader.Force(nil)
 	tab.TrustedAssetsList = []string{
@@ -419,6 +423,364 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
+	d := c.MkDir()
+	root := c.MkDir()
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"asset-hash"},
+			"shim":  {"shim-hash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"recovery-asset-hash"},
+		},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/other-asset",
+		"shim",
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	// the list of trusted assets was asked once for the boot bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// observe the recovery struct
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "foobar"), "nested/other-asset")
+	c.Assert(err, IsNil)
+	// and once again for the recovery bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	// all files are in cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {"asset-hash", dataHash},
+		"shim":  {"shim-hash", shimHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset":       {"recovery-asset-hash", dataHash},
+		"shim":        {shimHash},
+		"other-asset": {dataHash},
+	})
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
+	d := c.MkDir()
+	root := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"shim",
+	}
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err := ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+
+	// add one file to the cache, as if the system got rebooted before
+	// modeenv got updated
+	cache := boot.NewTrustedAssetsCache(dirs.SnapBootAssetsDir)
+	_, err = cache.Add(filepath.Join(d, "foobar"), "trusted", "asset")
+	c.Assert(err, IsNil)
+	// file is in the cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+	})
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"asset-hash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			// shim with same hash is listed as trusted, but missing
+			// from cache
+			"shim": {shimHash},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	// observe the updates
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	// trusted assets were asked for
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	// file is in the cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		// shim was added to cache
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {"asset-hash", dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+		"shim":  {shimHash},
+	})
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
+	d := c.MkDir()
+	root := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+	}
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err := ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+		// nothing is tracked in modeenv yet
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	// observe the updates
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// trusted assets were asked for
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	// file is in the cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+	})
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
+	d := c.MkDir()
+	root := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{"asset"}
+
+	// modeenv is not set up, but the observer should not care
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	// non system-boot or system-seed structure gets ignored
+	mockVolumeStruct := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role: gadget.SystemData,
+		},
+	}
+
+	// observe the updates
+	_, err = obs.Observe(gadget.ContentUpdate, mockVolumeStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// trusted assets were asked for
+	c.Check(tab.TrustedAssetsCalls, Equals, 0)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateNotTrustedMocked(c *C) {
+	d := c.MkDir()
+	root := c.MkDir()
+
+	// mot a non trusted assets bootloader
+	bl := bootloadertest.Mock("not-trusted", "")
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	err := ioutil.WriteFile(filepath.Join(d, "foobar"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// no need to mock modeenv, the bootloader has no trusted assets
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	// observe the updates
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+}
+
+func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) {
+	root := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/other-asset",
+		"shim",
+	}
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err := ioutil.WriteFile(filepath.Join(root, "asset"), data, 0644)
+	c.Assert(err, IsNil)
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+	err = ioutil.WriteFile(filepath.Join(root, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	// mock some files in cache
+	for _, name := range []string{
+		fmt.Sprintf("asset-%s", dataHash),
+		fmt.Sprintf("shim-%s", shimHash),
+		"shim-newshimhash",
+		"asset-newhash",
+		"other-asset-newotherhash",
+	} {
+		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			// new version added during update
+			"asset": {dataHash, "newhash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			// no new version added during update
+			"asset": {dataHash},
+			// new version added during update
+			"shim": {shimHash, "newshimhash"},
+			// completely new file
+			"other-asset": {"newotherhash"},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	_, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "", "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "", "shim")
+	c.Assert(err, IsNil)
+	// the list of trusted assets was asked once for the boot bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// observe the recovery struct
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "", "shim")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "", "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "", "nested/other-asset")
+	c.Assert(err, IsNil)
+	// and once again for the recovery bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	// all files are in cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+		"shim":  {shimHash},
+	})
 }
 
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
