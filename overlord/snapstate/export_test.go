@@ -99,6 +99,9 @@ func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
 
+// helpers
+var InstallSizeInfo = installSizeInfo
+
 // aliases v2
 var (
 	ApplyAliasesChange    = applyAliasesChange

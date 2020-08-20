@@ -82,6 +82,101 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
+// installSizeInfo returns total download size of snaps and their prerequisites
+// (bases and default content providers), querying the store as neccessarry,
+// potentially more than once. It assumes the initial list of snaps already has
+// download infos set.
+// The state must be locked by the caller.
+func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return 0, err
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	skipSnaps := map[string]bool{}
+	for _, snap := range curSnaps {
+		skipSnaps[snap.InstanceName] = true
+	}
+
+	var prereqs []string
+
+	resolveBaseAndContentProviders := func(snapInfo *snap.Info) {
+		if snapInfo.SnapType != snap.TypeApp {
+			return
+		}
+		if snapInfo.Base != "none" {
+			base := defaultCoreSnapName
+			if snapInfo.Base != "" {
+				base = snapInfo.Base
+			}
+			if !skipSnaps[base] {
+				prereqs = append(prereqs, base)
+				skipSnaps[base] = true
+			}
+		}
+		for _, snapName := range defaultContentPlugProviders(st, snapInfo) {
+			if !skipSnaps[snapName] {
+				prereqs = append(prereqs, snapName)
+				skipSnaps[snapName] = true
+			}
+		}
+	}
+
+	var total uint64
+	for _, snapInfo := range snaps {
+		if snapInfo.DownloadInfo.Size == 0 {
+			// XXX: we could support this by simply adding to prereqs
+			return 0, fmt.Errorf("internal error: download info missing for %q", snapInfo.InstanceName())
+		}
+		total += uint64(snapInfo.Size)
+		resolveBaseAndContentProviders(snapInfo)
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	theStore := Store(st, nil)
+	// calls to the store should be done without holding the state lock
+	st.Unlock()
+	defer st.Lock()
+
+	channel := defaultPrereqSnapsChannel()
+
+	// this can potentially be executed multiple times if we (recursively)
+	// find new prerequisites or bases.
+	for len(prereqs) > 0 {
+		actions := []*store.SnapAction{}
+		for _, prereq := range prereqs {
+			action := &store.SnapAction{
+				Action:       "install",
+				InstanceName: prereq,
+				Channel:      channel,
+			}
+			actions = append(actions, action)
+		}
+
+		results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+		if err != nil {
+			return 0, err
+		}
+		prereqs = []string{}
+		for _, res := range results {
+			total += uint64(res.Size)
+			// results may have new base or content providers
+			resolveBaseAndContentProviders(res.Info)
+		}
+	}
+
+	return total, nil
+}
+
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	// TODO: support ignore-validation?
 
