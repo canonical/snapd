@@ -2,8 +2,12 @@
 
 set -ex
 
-# ensure /snap can be removed by the "apt purge snapd" later
-umount /snap || true
+# XXX: remove once the "umount /snap" change in postrm has propagated all
+#      the way to the image
+if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
+    # ensure we can umount /snap
+    sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
+fi
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
