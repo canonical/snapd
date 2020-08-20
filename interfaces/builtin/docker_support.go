@@ -108,6 +108,15 @@ unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 /sys/fs/cgroup/*/kubepods/ rw,
 /sys/fs/cgroup/*/kubepods/** rw,
 
+# containerd can also be configured to use the systemd cgroup driver via
+# plugins.cri.systemd_cgroup = true which moves container processes into
+# systemd-managed cgroups. This is now the recommended configuration since it
+# provides a single cgroup manager (systemd) in an effort to achieve consistent
+# views of resources.
+/sys/fs/cgroup/*/systemd/{,system.slice/} rw,          # create missing dirs
+/sys/fs/cgroup/*/systemd/system.slice/** r,
+/sys/fs/cgroup/*/systemd/system.slice/cgroup.procs w,
+
 # Allow tracing ourself (especially the "runc" process we create)
 ptrace (trace) peer=@{profile_name},
 
