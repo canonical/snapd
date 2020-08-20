@@ -53,9 +53,8 @@ const launcherIntrospectionXML = `
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
-	<method name='OpenDesktopEntryEnv'>
+	<method name='OpenDesktopEntry'>
 		<arg type='s' name='desktopFileID' direction='in'/>
-		<arg type='as' name='env' direction='in'/>
 	</method>
 	<method name="OpenFile">
 		<arg type="s" name="parent_window" direction="in"/>
@@ -125,15 +124,6 @@ var (
 		//   - https://github.com/snapcore/snapd/pull/8910
 		"zoomus",
 	}
-
-	// allowedEnvVars are those environment variables that snaps who have access
-	// to OpenDesktopEntryEnv() can set for the launched snap's environment.
-	// - DISPLAY: set the X11 display
-	// - WAYLAND_DISPLAY: set the wayland display
-	// - XDG_CURRENT_DESKTOP: set identifiers for desktop environments
-	// - XDG_SESSION_DESKTOP: set identifier for the desktop environment
-	// - XDG_SESSION_TYPE: set the session type (e.g. "wayland" or "x11")
-	allowedEnvVars = []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -199,10 +189,10 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	return nil
 }
 
-// OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
+// OpenDesktopEntry implements the 'OpenDesktopEntry' method of the 'io.snapcraft.DesktopLauncher'
 // DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
-func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sender dbus.Sender) *dbus.Error {
+func (s *Launcher) OpenDesktopEntry(desktopFileID string, sender dbus.Sender) *dbus.Error {
 	desktopFile, err := desktopFileIDToFilename(osutil.RegularFileExists, desktopFileID)
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -269,7 +259,7 @@ func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId [
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
 func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string) (string, error) {
 
-	// OpenDesktopEntryEnv() currently only supports launching snap applications from
+	// OpenDesktopEntry() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
 	// written by snapd and considered safe for userd to process.
 	// Since we only access /var/lib/snapd/desktop/applications, ignore

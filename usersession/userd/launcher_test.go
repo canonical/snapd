@@ -210,7 +210,7 @@ Type=Application
 Categories=Game
 `
 
-func (s *launcherSuite) TestOpenDesktopEntryEnvSucceedsWithGoodDesktopId(c *C) {
+func (s *launcherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
@@ -221,11 +221,11 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvSucceedsWithGoodDesktopId(c *C) {
 	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenDesktopEntryEnv("mircade_mircade.desktop", []string{}, ":some-dbus-sender")
+	err = s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
 	c.Assert(err, IsNil)
 }
 
-func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadDesktopId(c *C) {
+func (s *launcherSuite) TestOpenDesktopEntryFailsWithBadDesktopId(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
@@ -236,11 +236,11 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadDesktopId(c *C) {
 	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenDesktopEntryEnv("not-mircade_mircade.desktop", []string{}, ":some-dbus-sender")
+	err = s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")
 	c.Assert(err, NotNil)
 }
 
-func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadExecutable(c *C) {
+func (s *launcherSuite) TestOpenDesktopEntryFailsWithBadExecutable(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
@@ -251,6 +251,6 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadExecutable(c *C) {
 	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenDesktopEntryEnv("mircade_mircade.desktop", []string{}, ":some-dbus-sender")
+	err = s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
 	c.Assert(err, NotNil)
 }
