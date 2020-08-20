@@ -61,31 +61,35 @@ is_classic_confinement_supported() {
     return 1
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit 0
-fi
+main(){
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
 
-subcommand=$1
-action=
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            action=$(echo "$subcommand" | tr '-' '_')
-            shift
-            break
-            ;;
-    esac
-done
+    subcommand=$1
+    action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
 
-if [ -z "$(declare -f "$action")" ]; then
-    echo "Subcommand $subcommand not supported."
-    show_help
-    exit 1
-fi
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "Subcommand $subcommand not supported."
+        show_help
+        exit 1
+    fi
 
-"$action" "$@"
+    "$action" "$@"
+}
+
+main "$@"
