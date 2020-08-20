@@ -2,6 +2,9 @@
 
 set -ex
 
+# ensure /snap can be removed by the "apt purge snapd" later
+umount /snap || true
+
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
 
