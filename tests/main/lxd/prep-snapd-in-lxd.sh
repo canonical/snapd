@@ -17,7 +17,9 @@ apt update
 apt install -y /root/snapd_*.deb
 
 # reload to take effect of the proxy that may have been set before this script
-systemctl daemon-reload
+# XXX: systemctl daemon-reload times out in 16.04:my-nesting-lxd but every
+#      appears to be working normally
+systemctl daemon-reload || true
 systemctl restart snapd.service
 
 # wait for snapd to finish seeding
