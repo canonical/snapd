@@ -118,5 +118,7 @@ func userEnv(info *snap.Info, home string) osutil.Environment {
 		env["HOME"] = info.UserDataDir(home)
 		env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
+	// Provide the location of the real home directory.
+	env["SNAP_REAL_HOME"] = home
 	return env
 }
