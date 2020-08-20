@@ -859,6 +859,7 @@ const commonPrefix = `
 @{SNAP_NAME}="samba"
 # This is a snap name with instance key
 @{SNAP_INSTANCE_NAME}="samba"
+@{SNAP_INSTANCE_DESKTOP}="samba"
 @{SNAP_COMMAND_NAME}="smbd"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
@@ -1017,6 +1018,7 @@ func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
 @{SNAP_NAME}="samba"
 # This is a snap name with instance key
 @{SNAP_INSTANCE_NAME}="samba_foo"
+@{SNAP_INSTANCE_DESKTOP}="samba+foo"
 @{SNAP_COMMAND_NAME}="smbd"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_5ffoo_2esmbd"
@@ -1055,6 +1057,7 @@ func (s *backendSuite) TestTemplateVarsWithHook(c *C) {
 @{SNAP_NAME}="foo"
 # This is a snap name with instance key
 @{SNAP_INSTANCE_NAME}="foo"
+@{SNAP_INSTANCE_DESKTOP}="foo"
 @{SNAP_COMMAND_NAME}="hook.configure"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2efoo_2ehook_2econfigure"
