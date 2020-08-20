@@ -90,6 +90,23 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/usr/share/pixmaps`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_*_desktop`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,`)
+
+	// getDesktopFileRules() rules
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `# This leaks the names of snaps with desktop files`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/[^o]* r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/other-sna[^p]* r,`)
+
+	// connected plugs for instance name have a non-nil security snippet for apparmor
+	apparmorSpec = &apparmor.Specification{}
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap_instance.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `/usr/share/pixmaps`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap_instance.app2"), testutil.Contains, `path=/com/canonical/indicator/messages/other_snap_instance_*_desktop`)
 
 	// connected plugs for instance name have a non-nil security snippet for apparmor
 	apparmorSpec = &apparmor.Specification{}
