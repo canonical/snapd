@@ -98,6 +98,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// the case where we are supposed to wait (which is the default for this
 		// function)
 		args = append(args, "--fsck=yes")
+	} else {
+		// the default is to use fsck=yes, so if it doesn't need fsck we need to
+		// explicitly turn it off
+		args = append(args, "--fsck=no")
 	}
 
 	// Under all circumstances that we use systemd-mount here from
