@@ -34,12 +34,12 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 		for _, c := range as.Content {
 			realSource := filepath.Join(kernelRoot, c)
 			if !osutil.FileExists(realSource) {
-				return fmt.Errorf("content %q: source path %q does not exist", name, c)
+				return fmt.Errorf("asset %q: content %q source path does not exist", name, c)
 			}
 			if strings.HasSuffix(c, "/") {
 				// expecting a directory
 				if !osutil.IsDirectory(realSource + "/") {
-					return fmt.Errorf("content %q: %q is not a directory", name, c)
+					return fmt.Errorf("asset %q: content %q is not a directory", name, c)
 				}
 			}
 		}

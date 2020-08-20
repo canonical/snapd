@@ -49,7 +49,7 @@ assets:
 	mockKernelRoot := makeMockKernel(c, kernelYaml, nil)
 
 	err := kernel.Validate(mockKernelRoot)
-	c.Assert(err, ErrorMatches, `content "dtbs": source path "foo" does not exist`)
+	c.Assert(err, ErrorMatches, `asset "dtbs": content "foo" source path does not exist`)
 }
 
 func (s *validateKernelSuite) TestValidateMissingContentDir(c *C) {
@@ -63,7 +63,7 @@ assets:
 	mockKernelRoot := makeMockKernel(c, kernelYaml, map[string]string{"dir": ""})
 
 	err := kernel.Validate(mockKernelRoot)
-	c.Assert(err, ErrorMatches, `content "dtbs": "dir/" is not a directory`)
+	c.Assert(err, ErrorMatches, `asset "dtbs": content "dir/" is not a directory`)
 }
 
 func (s *validateKernelSuite) TestValidateHappy(c *C) {
