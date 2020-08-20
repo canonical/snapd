@@ -123,7 +123,7 @@ execute: |
         fi
 
         echo "Install snapd in container"
-        lxd.lxc exec $cont_name -- /bin/bash /root/prep-snapd-in-lxd.sh
+        lxd.lxc exec $cont_name -- /root/prep-snapd-in-lxd.sh
         lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
     done
 
@@ -178,7 +178,7 @@ execute: |
     fi
     lxd.lxc exec my-nesting-ubuntu -- \
         lxd.lxc exec my-inner-ubuntu -- \
-            /bin/bash /root/prep-snapd-in-lxd.sh
+            /root/prep-snapd-in-lxd.sh
 
     not lxd.lxc exec my-nesting-ubuntu -- \
         lxd.lxc exec my-inner-ubuntu -- \
