@@ -142,6 +142,135 @@ func (s *utilsSuite) TestSlotLabelExpr(c *C) {
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
+func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
+	res := builtin.AareExclusivePatterns("foo-bar")
+	c.Check(res, DeepEquals, []string{
+		"[^f]*",
+		"f[^o]*",
+		"fo[^o]*",
+		"foo[^-]*",
+		"foo-[^b]*",
+		"foo-b[^a]*",
+		"foo-ba[^r]*",
+	})
+}
+
+func (s *utilsSuite) TestAareExclusivePatternsInstance(c *C) {
+	res := builtin.AareExclusivePatterns("foo-bar+baz")
+	c.Check(res, DeepEquals, []string{
+		"[^f]*",
+		"f[^o]*",
+		"fo[^o]*",
+		"foo[^-]*",
+		"foo-[^b]*",
+		"foo-b[^a]*",
+		"foo-ba[^r]*",
+		"foo-bar[^+]*",
+		"foo-bar+[^b]*",
+		"foo-bar+b[^a]*",
+		"foo-bar+ba[^z]*",
+	})
+}
+
+func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
+	bad := []string{
+		// AARE in name (man apparmor.d: AARE = ?*[]{}^)
+		"bad{",
+		"ba}d",
+		"b[ad",
+		"]bad",
+		"b^d",
+		"b*d",
+		"b?d",
+		"bad{+good",
+		"ba}d+good",
+		"b[ad+good",
+		"]bad+good",
+		"b^d+good",
+		"b*d+good",
+		"b?d+good",
+		// AARE in instance (man apparmor.d: AARE = ?*[]{}^)
+		"good+bad{",
+		"good+ba}d",
+		"good+b[ad",
+		"good+]bad",
+		"good+b^d",
+		"good+b*d",
+		"good+b?d",
+		// various other unexpected in name
+		"+good",
+		"/bad",
+		"bad,",
+		".bad.",
+		"ba'd",
+		"b\"ad",
+		"=bad",
+		"b\\0d",
+		"b\ad",
+		"(bad",
+		"bad)",
+		"b<ad",
+		"b>ad",
+		"bad!",
+		"b#d",
+		":bad",
+		"b@d",
+		"@{BAD}",
+		"b**d",
+		"bad -> evil",
+		"b a d",
+		// various other unexpected in instance
+		"good+",
+		"good+/bad",
+		"good+bad,",
+		"good+.bad.",
+		"good+ba'd",
+		"good+b\"ad",
+		"good+=bad",
+		"good+b\\0d",
+		"good+b\ad",
+		"good+(bad",
+		"good+bad)",
+		"good+b<ad",
+		"good+b>ad",
+		"good+bad!",
+		"good+b#d",
+		"good+:bad",
+		"good+b@d",
+		"good+@{BAD}",
+		"good+b**d",
+		"good+bad -> evil",
+	}
+
+	for _, s := range bad {
+		res := builtin.AareExclusivePatterns(s)
+		c.Check(res, IsNil)
+	}
+}
+
+func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
+	res := builtin.GetDesktopFileRules("foo-bar")
+	c.Check(res, DeepEquals, []string{
+		"# Support applications which use the unity messaging menu, xdg-mime, etc",
+		"# This leaks the names of snaps with desktop files",
+		"/var/lib/snapd/desktop/applications/ r,",
+		"# Allowing reading only our desktop files (required by (at least) the unity",
+		"# messaging menu).",
+		"# parallel-installs: this leaks read access to desktop files owned by keyed",
+		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
+		"/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,",
+		"# Explicitly deny access to other snap's desktop files",
+		"deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,",
+		"deny /var/lib/snapd/desktop/applications/[^f]* r,",
+		"deny /var/lib/snapd/desktop/applications/f[^o]* r,",
+		"deny /var/lib/snapd/desktop/applications/fo[^o]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo[^-]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-[^b]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-b[^a]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-ba[^r]* r,",
+	})
+}
+
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	return builtin.MockPlug(c, yaml, si, plugName)
 }

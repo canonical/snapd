@@ -2,7 +2,7 @@ summary: Ensure that the audio-playback/record interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend tests.session and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"

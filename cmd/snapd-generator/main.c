@@ -99,13 +99,20 @@ static bool file_exists(const char *path) {
 	return stat(path, &buf) == 0 && (buf.st_mode & S_IFMT) == S_IFREG;
 }
 
+// PATH may not be set (the case on 16.04), in which case this is the fallback
+// for looking up squashfuse / snapfuse executable.
+// Based on what systemd uses when compiled for systems with "unmerged /usr"
+// (see man systemd.exec).
+static const char * const path_fallback = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+
 static bool executable_exists(const char *name) {
 	char *path = getenv("PATH");
-	if (path == NULL) {
-		return false;
-	}
 	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-	path_copy = sc_strdup(path);
+	if (path == NULL) {
+		path_copy = sc_strdup(path_fallback);
+	} else {
+		path_copy = sc_strdup(path);
+	}
 
 	char *ptr = NULL;
 	char *token = strtok_r(path_copy, ":", &ptr);
