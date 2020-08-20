@@ -405,9 +405,9 @@ debug-each: |
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
 
-            if [ -f "${WORK_DIR}/serial.log" ]; then
+            if [ -f "${LOGS_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial.log"
+                cat "${LOGS_DIR}/serial.log"
             fi
         fi
 
@@ -837,8 +837,10 @@ suites:
         manual: true
         kill-timeout: 40m
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${LOGS_DIR}/serial.log" ]; then
+                cat "${LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -891,8 +893,10 @@ suites:
             WORK_DIR: '/tmp/work-dir'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${LOGS_DIR}/serial.log" ]; then
+                cat "${LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -950,8 +954,10 @@ suites:
             WORK_DIR: '/tmp/work-dir'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${LOGS_DIR}/serial.log" ]; then
+                cat "${LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1005,8 +1011,10 @@ suites:
             WORK_DIR: '/tmp/work-dir'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${LOGS_DIR}/serial.log" ]; then
+                cat "${LOGS_DIR}/serial.log"
             fi
         kill-timeout: 40m
         prepare: |
