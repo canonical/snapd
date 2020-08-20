@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -533,4 +534,89 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
+}
+
+func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
+	newRoot := c.MkDir()
+	// does not fail when dir does not exist
+	err := boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, IsNil)
+
+	// temporarily overide umask
+	oldUmask := syscall.Umask(0000)
+	defer syscall.Umask(oldUmask)
+
+	entries := []struct {
+		name, content string
+		mode          uint
+	}{
+		{"foo/bar", "1234", 0644},
+		{"grub/grubx64.efi-1234", "grub content", 0622},
+		{"top-level", "top level content", 0666},
+		{"deeply/nested/content", "deeply nested content", 0611},
+	}
+
+	for _, entry := range entries {
+		p := filepath.Join(dirs.SnapBootAssetsDir, entry.name)
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, []byte(entry.content), os.FileMode(entry.mode))
+		c.Assert(err, IsNil)
+	}
+
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, IsNil)
+	for _, entry := range entries {
+		p := filepath.Join(dirs.SnapBootAssetsDirUnder(newRoot), entry.name)
+		c.Check(p, testutil.FileEquals, entry.content)
+		fi, err := os.Stat(p)
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode().Perm(), Equals, os.FileMode(entry.mode),
+			Commentf("unexpected mode of copied file %q: %v", entry.name, fi.Mode().Perm()))
+	}
+}
+
+func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
+	// non-file
+	newRoot := c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	p := filepath.Join(dirs.SnapBootAssetsDir, "fifo")
+	syscall.Mkfifo(p, 0644)
+	err := boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `unsupported non-file entry "fifo" mode prw-.*`)
+
+	// non-writable root
+	newRoot = c.MkDir()
+	nonWritableRoot := filepath.Join(newRoot, "non-writable")
+	err = os.MkdirAll(nonWritableRoot, 0000)
+	c.Assert(err, IsNil)
+	dirs.SnapBootAssetsDir = c.MkDir()
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(nonWritableRoot)
+	c.Assert(err, ErrorMatches, `cannot create cache directory under new root: mkdir .*: permission denied`)
+
+	// file cannot be read
+	newRoot = c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0000)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `cannot copy boot asset cache file "file": failed to copy all: .*`)
+
+	// directory at destination cannot be recreated
+	newRoot = c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	// make a directory at destination non writable
+	err = os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0755)
+	c.Assert(err, IsNil)
+	err = os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0000)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0000)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `cannot recreate cache directory "dir": .*: permission denied`)
+
 }

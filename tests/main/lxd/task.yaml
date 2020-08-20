@@ -92,8 +92,9 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-ubuntu
-    lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-nesting-ubuntu -c security.nesting=true
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
     if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
@@ -122,7 +123,7 @@ execute: |
         fi
 
         echo "Install snapd in container"
-        lxd.lxc exec $cont_name -- /bin/bash /root/prep-snapd-in-lxd.sh
+        lxd.lxc exec $cont_name -- /root/prep-snapd-in-lxd.sh
         lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
     done
 
@@ -140,6 +141,10 @@ execute: |
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
     lxd.lxc exec my-ubuntu -- snap remove --purge test-snapd-sh
+
+    echo "Sanity check that mount overrides were generated inside the container"
+    lxd.lxc exec my-ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-core-.*mount.d/container.conf"
+    lxd.lxc exec my-ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
     # Ensure that we can run lxd as a snap inside a nested container
 
@@ -173,7 +178,7 @@ execute: |
     fi
     lxd.lxc exec my-nesting-ubuntu -- \
         lxd.lxc exec my-inner-ubuntu -- \
-            /bin/bash /root/prep-snapd-in-lxd.sh
+            /root/prep-snapd-in-lxd.sh
 
     not lxd.lxc exec my-nesting-ubuntu -- \
         lxd.lxc exec my-inner-ubuntu -- \
