@@ -143,6 +143,14 @@ case "$action" in
 			# services, then there this condition could be removed.
 			if [ "$u" != root ]; then
 				uid="$(id -u "$u")"
+
+				# Unmount gvfs-fuse and the document portal explicitly.  FUSE
+				# file-systems can stay mounted in a broken state even if their
+				# corresponding process goes away. This can happen if we stop
+				# the slice and the cleanup is not perfectly graceful.
+				umount "/run/user/$uid/gvfs" || true
+				umount "/run/user/$uid/doc" || true
+
 				# See user@.service(5) for discussion about user-UID.slice and
 				# user@UID.service and why both are used. Here we stop the
 				# slice as that encompasses both user@UID.service and any

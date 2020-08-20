@@ -11,8 +11,7 @@ systems:
     - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
-    - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
-    - -ubuntu-2*
+    - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro
     - -ubuntu-core-*  # EDS is unsupported on core systems
 
 # fails in autopkgtest environment with:
