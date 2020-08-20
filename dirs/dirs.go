@@ -97,7 +97,8 @@ var (
 	SnapDBusSessionServicesDir string
 	SnapDBusSystemServicesDir  string
 
-	SnapModeenvFile string
+	SnapModeenvFile   string
+	SnapBootAssetsDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -242,6 +243,12 @@ func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 }
 
+// SnapBootAssetsDirUnder returns the path to boot assets directory under a
+// rootdir.
+func SnapBootAssetsDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "boot-assets")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -319,6 +326,7 @@ func SetRootDir(rootdir string) {
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
+	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
