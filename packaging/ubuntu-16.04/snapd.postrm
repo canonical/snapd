@@ -136,6 +136,12 @@ if [ "$1" = "purge" ]; then
         umount -l /run/snapd/ns/ || true
     fi
 
+    # inside containers we have a generator that creates a bind mount to /snap
+    if [ -e /run/systemd/container ]; then
+        echo "Unmount /snap inside a container"
+        umount /snap || true
+    fi
+
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 
