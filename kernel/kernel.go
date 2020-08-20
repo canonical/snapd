@@ -53,7 +53,7 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 
 	for name := range ki.Assets {
 		if !validAssetName.MatchString(name) {
-			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric charackters", name)
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric characters", name)
 		}
 	}
 

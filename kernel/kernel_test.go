@@ -58,7 +58,7 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlBadName(c *C) {
 	ki, err := kernel.InfoFromKernelYaml(mockInvalidKernelYaml)
-	c.Check(err, ErrorMatches, `invalid asset name "non-alphanumeric", please use only alphanumeric charackters`)
+	c.Check(err, ErrorMatches, `invalid asset name "non-alphanumeric", please use only alphanumeric characters`)
 	c.Check(ki, IsNil)
 }
 
