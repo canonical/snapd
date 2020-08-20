@@ -223,20 +223,9 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 		return dbus.MakeFailedError(err)
 	}
 
+  args = append([]string{"systemd-run", "--user", "--"}, args...)
+
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Env = os.Environ()
-	for _, e := range env {
-		if !strutil.ListContains(allowedEnvVars, strings.SplitN(e, "=", 2)[0]) {
-			return dbus.MakeFailedError(fmt.Errorf("Supplied environment variable %q is not allowed", e))
-		}
-
-		cmd.Env = append(cmd.Env, e)
-	}
-
-	// XXX: this avoids defunct processes but causes userd to persist
-	// until all children are gone (currently, this is not a problem since
-	// userd is long running once started)
-	go cmd.Wait()
 
 	if cmd.Run() != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))

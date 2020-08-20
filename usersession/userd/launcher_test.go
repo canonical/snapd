@@ -212,7 +212,7 @@ Categories=Game
 
 func (s *launcherSuite) TestOpenDesktopEntryEnvSucceedsWithGoodDesktopId(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "/snap/bin/mircade", "true")
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
@@ -227,7 +227,7 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvSucceedsWithGoodDesktopId(c *C) {
 
 func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadDesktopId(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "/snap/bin/mircade", "true")
+	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
@@ -242,7 +242,7 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadDesktopId(c *C) {
 
 func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadExecutable(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "/snap/bin/mircade", "false")
+	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
