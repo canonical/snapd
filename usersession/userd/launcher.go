@@ -296,10 +296,8 @@ func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string)
 	return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
 }
 
-// verifyDesktopFileLocation checks the desktop file location and access.
-// 1. we only consider desktop files in dirs.SnapDesktopFilesDir
-// 2. the desktop file itself and all directories above it are root owned without group/other write
-// 3. the Exec line has an expected prefix
+// verifyDesktopFileLocation checks the desktop file location:
+// we only consider desktop files in dirs.SnapDesktopFilesDir
 func verifyDesktopFileLocation(desktopFile string) error {
 	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir+"/") {
 		// We currently only support launching snap applications from desktop files in
