@@ -29,12 +29,16 @@ var (
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
 )
 
-// FormatEncryptedDevice
+// FormatEncryptedDevice initializes an encrypted volume on the block device
+// given by node, setting the specified label. The key used to unlock the
+// volume is provided using the key argument.
 func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 	return sbInitializeLUKS2Container(node, label, key[:])
 }
 
-// AddRecoveryKey
+// AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
+// volume created with FormatEncryptedDevice on the block device given by node.
+// The existing key to the encrypted volume is provided in the key argument.
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	return sbAddRecoveryKeyToLUKS2Container(node, key[:], rkey)
 }

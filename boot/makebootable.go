@@ -255,7 +255,10 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
-	// TODO:UC20: replicate the boot assets cache in host's writable
+	// replicate the boot assets cache in host's writable
+	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
+	}
 
 	var currentTrustedBootAssets bootAssetsMap
 	if sealer != nil {

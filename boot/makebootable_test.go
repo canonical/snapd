@@ -473,6 +473,17 @@ model=my-brand/my-model-uc20
 grade=dangerous
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 `)
+	copiedGrubBin := filepath.Join(
+		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		"grub",
+		"grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d",
+	)
+	// only one file in the cache under new root
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir), "grub", "*"), []string{
+		copiedGrubBin,
+	})
+	// with the right content
+	c.Check(copiedGrubBin, testutil.FileEquals, "grub content")
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunModeInstallBootConfigErr(c *C) {

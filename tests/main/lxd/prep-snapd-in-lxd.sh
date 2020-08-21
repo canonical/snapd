@@ -1,4 +1,13 @@
-#!/bin/sh -ex
+#!/bin/sh
+
+set -ex
+
+# XXX: remove once the "umount /snap" change in postrm has propagated all
+#      the way to the image
+if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
+    # ensure we can umount /snap
+    sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
+fi
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
@@ -8,7 +17,9 @@ apt update
 apt install -y /root/snapd_*.deb
 
 # reload to take effect of the proxy that may have been set before this script
-systemctl daemon-reload
+# XXX: systemctl daemon-reload times out in 16.04:my-nesting-lxd but every
+#      appears to be working normally
+systemctl daemon-reload || true
 systemctl restart snapd.service
 
 # wait for snapd to finish seeding
