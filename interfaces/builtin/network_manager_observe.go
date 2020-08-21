@@ -137,6 +137,12 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=system
+    path=/org/freedesktop/NetworkManager
+    interface=org.freedesktop.NetworkManager
+    member=PropertiesChanged
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=system
     path="/org/freedesktop/NetworkManager{,/{ActiveConnection,Devices}/*}"
     interface="org.freedesktop.NetworkManger{,.*}"
     member=StateChanged

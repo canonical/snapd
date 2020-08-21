@@ -99,8 +99,11 @@
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
     # the environment for determining the capabilities of the architecture.
     # 'unsafe' is ok here because the kernel will have already cleared the
-    # environment as part of launching snap-confine with
-    # CAP_SYS_ADMIN.
+    # environment as part of launching snap-confine with CAP_SYS_ADMIN. This
+    # does leave directories as configured by ld.so.preload as well as
+    # LD_PRELOAD to be set to a library which is in a directory configured by
+    # ld.so.conf, but access to those locations is mediated by this profile
+    # (which requires rules for specific locations).
     change_profile unsafe /** -> [^u/]**,
     change_profile unsafe /** -> u[^n]**,
     change_profile unsafe /** -> un[^c]**,
