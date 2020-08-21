@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -158,7 +159,7 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
 
-	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_instance_foobar.desktop")
+	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
 	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
@@ -181,7 +182,7 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
-	// foo_instance file was not removed by cleanup
+	// foo+instance file was not removed by cleanup
 	c.Check(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 }
 
@@ -405,7 +406,7 @@ Exec=snap.app
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
+Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
 
@@ -429,7 +430,7 @@ Exec=snap.app %U
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=snap_bar
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app %%U
+Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))
 }
 
@@ -540,7 +541,7 @@ Exec=snap.app
 X-SnapInstanceName=snap_bar
 Name=foo
 Icon=snap.snap_bar.icon
-Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
+Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
 
@@ -577,6 +578,13 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		err = wrappers.AddSnapDesktopFiles(info)
 		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+
+		// Ensure that the old-style parallel install desktop file was
+		// not created.
+		if t.instance != "" {
+			unexpectedOldStyleDesktopFilePath := strings.Replace(expectedDesktopFilePath, "+", "_", 1)
+			c.Assert(osutil.FileExists(unexpectedOldStyleDesktopFilePath), Equals, false)
+		}
 
 		// remove it again
 		err = wrappers.RemoveSnapDesktopFiles(info)

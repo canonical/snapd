@@ -432,6 +432,27 @@ func (b *MockManagedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, e
 	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
 }
 
+// MockTrustedAssetsBootloader mocks a bootloader implementing the
+// bootloader.TrustedAssetsBootloader interface.
+type MockTrustedAssetsBootloader struct {
+	*MockBootloader
+
+	TrustedAssetsList  []string
+	TrustedAssetsErr   error
+	TrustedAssetsCalls int
+}
+
+func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
+	return &MockTrustedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
+	b.TrustedAssetsCalls++
+	return b.TrustedAssetsList, b.TrustedAssetsErr
+}
+
 // MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
 // bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
 // interfaces.

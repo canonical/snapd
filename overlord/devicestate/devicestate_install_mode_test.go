@@ -277,7 +277,12 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		// directories were ensured
 		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
 		c.Assert(osutil.IsDirectory(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde")), Equals, true)
+		// inteface is not nil
 		c.Assert(sealingObserver, NotNil)
+		// we expect a very specific type
+		trustedInstallObserver, ok := sealingObserver.(*boot.TrustedAssetsInstallObserver)
+		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", sealingObserver))
+		c.Assert(trustedInstallObserver, NotNil)
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
