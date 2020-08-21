@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -129,6 +130,12 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 			return nil, err
 		}
 	}
+	if info.SnapType == snap.TypeKernel {
+		if err := kernel.Validate(sourceDir); err != nil {
+			return nil, err
+		}
+	}
+
 	return info, nil
 }
 
