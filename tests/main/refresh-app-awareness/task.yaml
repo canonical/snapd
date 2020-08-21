@@ -11,6 +11,7 @@ prepare: |
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v2/meta/snap.yaml.in >test-snapd-refresh.v2/meta/snap.yaml
     snap pack test-snapd-refresh.v1
     snap pack test-snapd-refresh.v2
+    tests.session -u test prepare
 environment:
     CONFINEMENT/classic: classic
     CONFINEMENT/strict: strict
@@ -27,6 +28,7 @@ restore: |
     # run. This session-level dbus daemon is detected as spurious by the
     # invariant checker.
     systemctl --user stop dbus.service || true
+    tests.session -u test restore
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
         echo "SKIP: unsupported confinement variant"
@@ -42,6 +44,10 @@ execute: |
             ;;
     esac
     test-snapd-refresh.version | MATCH v1
+
+    # We can run "snap run" as a test user, which does not have the permission
+    # to create the run inhibition lock file.
+    tests.session -u test exec test-snapd-refresh.version | MATCH v1
 
     # Run a sleeper app to keep the snap busy. The purpose of the stamp file is
     # to allow us to synchronize with the concurrently running program.
@@ -88,3 +94,7 @@ execute: |
             ;;
     esac
     test-snapd-refresh.version | MATCH v2
+
+    # We can run "snap run" as a test user, which does not have the permission
+    # to open the run inhibition lock file for writing.
+    tests.session -u test exec test-snapd-refresh.version | MATCH v2
