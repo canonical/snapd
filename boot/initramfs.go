@@ -60,9 +60,9 @@ func InitramfsRunModeSelectSnapsToMount(
 	return m, nil
 }
 
-// MarkRecoverModeBootSuccessful will mark the bootenv of the recovery
-// bootloader such that recover mode is now ready to leave
-func MarkRecoverModeBootSuccessful(systemLabel string) error {
+// EnsureNextBootToRunMode will mark the bootenv of the recovery bootloader such
+// that recover mode is now ready to switch back to run mode upon any reboot.
+func EnsureNextBootToRunMode(systemLabel string) error {
 	// at the end of the initramfs we need to set the bootenv such that a reboot
 	// now at any point will rollback to run mode without additional config or
 	// actions

@@ -45,9 +45,9 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 }
 
-func (s *initramfsSuite) TestMarkRecoverModeBootSuccessful(c *C) {
+func (s *initramfsSuite) TestEnsureNextBootToRunMode(c *C) {
 	// with no bootloader available we can't mark successful
-	err := boot.MarkRecoverModeBootSuccessful("label")
+	err := boot.EnsureNextBootToRunMode("label")
 	c.Assert(err, ErrorMatches, "cannot determine bootloader")
 
 	// forcing a bootloader works
@@ -55,7 +55,7 @@ func (s *initramfsSuite) TestMarkRecoverModeBootSuccessful(c *C) {
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	err = boot.MarkRecoverModeBootSuccessful("label")
+	err = boot.EnsureNextBootToRunMode("label")
 	c.Assert(err, IsNil)
 
 	// the bloader vars have been updated
@@ -67,7 +67,7 @@ func (s *initramfsSuite) TestMarkRecoverModeBootSuccessful(c *C) {
 	})
 }
 
-func (s *initramfsSuite) TestMarkRecoverModeBootSuccessfulRealBootloader(c *C) {
+func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 	// create a real grub.cfg on ubuntu-seed
 	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0755)
 	c.Assert(err, IsNil)
@@ -75,7 +75,7 @@ func (s *initramfsSuite) TestMarkRecoverModeBootSuccessfulRealBootloader(c *C) {
 	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = boot.MarkRecoverModeBootSuccessful("somelabel")
+	err = boot.EnsureNextBootToRunMode("somelabel")
 	c.Assert(err, IsNil)
 
 	opts := &bootloader.Options{
