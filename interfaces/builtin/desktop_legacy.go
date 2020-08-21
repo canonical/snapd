@@ -251,13 +251,98 @@ dbus (send)
 deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 
 # glib-networking's GLib proxy (different than the portal's proxy service
-# org.freedesktop.portal.ProxyResolver)
+# org.freedesktop.portal.ProxyResolver). The Lookup API allows specifying
+# various URLs (eg, file://, http:// and https://) which will be given to the
+# unconfined glib-pacrunner.
 dbus (send)
     bus=session
     path=/org/gtk/GLib/PACRunner
     interface=org.gtk.GLib.PACRunner
     member=Lookup
     peer=(label=unconfined),
+
+# app-indicators
+dbus (send)
+    bus=session
+    path=/StatusNotifierWatcher
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="{GetConnectionUnixProcessID,RequestName,ReleaseName}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (bind)
+    bus=session
+    name=org.kde.StatusNotifierItem-[0-9]*,
+
+dbus (send)
+    bus=session
+    path=/StatusNotifierWatcher
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/{StatusNotifierWatcher,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierWatcher
+    member=RegisterStatusNotifierItem
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,XAyatanaSecondaryActivate}
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/{StatusNotifierItem/menu,org/ayatana/NotificationItem/*/Menu}
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem,StatusNotifierItem/menu,org/ayatana/NotificationItem/**}
+    interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
+    member={Get*,AboutTo*,Event*}
+    peer=(label=unconfined),
+
+# notifications
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/ayatana/NotificationItem/*
+    interface=org.kde.StatusNotifierItem
+    member=XAyatanaNew*
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 `
 
 const desktopLegacyConnectedPlugSecComp = `
