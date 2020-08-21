@@ -36,6 +36,31 @@ type flockSuite struct{}
 
 var _ = Suite(&flockSuite{})
 
+// Test that an existing lock file can be opened.
+func (s *flockSuite) TestOpenExistingLockForReading(c *C) {
+	fname := filepath.Join(c.MkDir(), "name")
+	lock, err := osutil.OpenExistingLockForReading(fname)
+	c.Assert(err, ErrorMatches, ".* no such file or directory")
+	c.Assert(lock, IsNil)
+
+	lock, err = osutil.NewFileLockWithMode(fname, 0644)
+	c.Assert(err, IsNil)
+	lock.Close()
+
+	// Having created the lock above, we can now open it correctly.
+	lock, err = osutil.OpenExistingLockForReading(fname)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	// The lock file is read-only though.
+	file := lock.File()
+	defer file.Close()
+	n, err := file.Write([]byte{1, 2, 3})
+	// write(2) returns EBADF if the file descriptor is read only.
+	c.Assert(err, ErrorMatches, ".* bad file descriptor")
+	c.Assert(n, Equals, 0)
+}
+
 // Test that opening and closing a lock works as expected, and that the mode is right.
 func (s *flockSuite) TestNewFileLockWithMode(c *C) {
 	lock, err := osutil.NewFileLockWithMode(filepath.Join(c.MkDir(), "name"), 0644)

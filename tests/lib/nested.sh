@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
@@ -452,11 +454,20 @@ configure_cloud_init_nested_core_vm(){
     local IMAGE=$1
     create_cloud_init_data "$WORK_DIR/user-data" "$WORK_DIR/meta-data"
 
-    loops=$(kpartx -avs "$IMAGE"  | cut -d' ' -f 3)
-    part=$(echo "$loops" | tail -1)
+    # mount the image and find the loop device /dev/loop that is created for it
+    kpartx -avs "$IMAGE"
+    devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
+    dev=$(basename "$devloop")
+    
+    # we add cloud-init data to the 3rd partition, which is writable
+    writableDev="/dev/mapper/${dev}p2"
+    
+    # wait for the loop device to show up
+    retry -n 3 --wait 1 test -e "$writableDev"
     tmp=$(mktemp -d)
-    mount "/dev/mapper/$part" "$tmp"
+    mount "$writableDev" "$tmp"
 
+    # use nocloud-net for the dir to copy data into
     mkdir -p "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
     cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
     cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
@@ -512,10 +523,18 @@ configure_cloud_init_nested_core_vm_uc20(){
     local IMAGE=$1
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
-    loop=$(kpartx -avs "$IMAGE" | sed -n 2p | awk '{print $3}')
+    # mount the image and find the loop device /dev/loop that is created for it
+    kpartx -avs "$IMAGE"
+    devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
+    dev=$(basename "$devloop")
+    
+    # we add cloud-init data to the 2nd partition, which is ubuntu-seed
+    ubuntuSeedDev="/dev/mapper/${dev}p2"
+    
+    # wait for the loop device to show up
+    retry -n 3 --wait 1 test -e "$ubuntuSeedDev"
     tmp=$(mktemp -d)
-
-    mount "/dev/mapper/$loop" "$tmp"
+    mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
     cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
     umount "$tmp"
