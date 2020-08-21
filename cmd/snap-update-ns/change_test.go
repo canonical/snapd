@@ -134,11 +134,18 @@ func (s *changeSuite) TestNeededChangesNoChangeOld(c *C) {
 func (s *changeSuite) TestNeededChangesNoChangeNew(c *C) {
 	s.enableRobustMountNamespaceUpdates(c)
 
-	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	current := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Dir: "/common/stuff"},
+			{Dir: "/common/file", Options: []string{"bind", "x-snapd.kind=file"}},
+		},
+	}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Unmount},
+		// File bind mounts are detached.
+		{Entry: osutil.MountEntry{Dir: "/common/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.detach"}}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Mount},
 	})
 }
