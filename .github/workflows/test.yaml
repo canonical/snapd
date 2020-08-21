@@ -71,7 +71,7 @@ jobs:
       matrix:
         gochannel:
           - 1.9
-          - latest/edge
+          - latest/stable
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
