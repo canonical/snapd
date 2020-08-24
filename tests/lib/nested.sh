@@ -921,6 +921,10 @@ nested_copy() {
     sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
 }
 
+nested_copy_from_remote() {
+    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost:"$1" "$2"
+}
+
 nested_add_tty_chardev() {
     local CHARDEV_ID=$1
     local CHARDEV_PATH=$2
