@@ -414,7 +414,6 @@ func init() {
 
 type exportSnapshotCmd struct {
 	clientMixin
-	durationMixin
 	Positional struct {
 		ID       snapshotID `positional-arg-name:"<id>"`
 		Filename string     `long:"filename"`
