@@ -460,7 +460,7 @@ configure_cloud_init_nested_core_vm(){
     dev=$(basename "$devloop")
     
     # we add cloud-init data to the 3rd partition, which is writable
-    writableDev="/dev/mapper/${dev}p2"
+    writableDev="/dev/mapper/${dev}p3"
     
     # wait for the loop device to show up
     retry -n 3 --wait 1 test -e "$writableDev"
@@ -472,6 +472,7 @@ configure_cloud_init_nested_core_vm(){
     cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
     cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
 
+    sync
     umount "$tmp"
     kpartx -d "$IMAGE"
 }
@@ -537,7 +538,9 @@ configure_cloud_init_nested_core_vm_uc20(){
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
     cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    sync
     umount "$tmp"
+    kpartx -d "$IMAGE"
 }
 
 force_stop_nested_vm(){
