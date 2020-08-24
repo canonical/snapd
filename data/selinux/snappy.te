@@ -360,6 +360,10 @@ fs_getattr_cgroup(snappy_t)
 # fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
 getattr_files_pattern(snappy_t, nsfs_t, nsfs_t)
 
+# lxd snap has nsfs under common directory, this works around denials triggered
+# by snapshot size estimation.
+allow snappy_t unconfined_service_t:file getattr;
+
 # snapd attempts to read /run/cloud-init/instance-data.json
 sysnet_read_config(snappy_t)
 # however older policy may be missing the transition rules, and
