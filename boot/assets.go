@@ -197,16 +197,19 @@ func isAlreadyTracked(current []*trackedAsset, newAsset *trackedAsset) bool {
 	return false
 }
 
-func trackedAssetsToBootMap(trackedAssets []*trackedAsset) bootAssetsMap {
-	if len(trackedAssets) == 0 {
-		return nil
+func isAlreadyTrackedInBootMap(bam bootAssetsMap, newAsset *trackedAsset) bool {
+	return isAssetHashTrackedInBootMap(bam, newAsset.name, newAsset.hash)
+}
+
+func isAssetHashTrackedInBootMap(bam bootAssetsMap, assetName, assetHash string) bool {
+	if bam == nil {
+		return false
 	}
-	bm := bootAssetsMap{}
-	for _, tracked := range trackedAssets {
-		// we expect to have added exactly one hash per tracked asset
-		bm[tracked.name] = append(bm[tracked.name], tracked.hash)
+	hashes, ok := bam[assetName]
+	if !ok {
+		return false
 	}
-	return bm
+	return strutil.ListContains(hashes, assetHash)
 }
 
 // TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
@@ -216,8 +219,8 @@ type TrustedAssetsInstallObserver struct {
 	cache                 *trustedAssetsCache
 	blName                string
 	trustedAssets         []string
-	trackedAssets         []*trackedAsset
-	trackedRecoveryAssets []*trackedAsset
+	trackedAssets         bootAssetsMap
+	trackedRecoveryAssets bootAssetsMap
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -260,8 +263,14 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	// during installation, modeenv is written out later, at this point we
 	// only care that the same file may appear multiple times in gadget
 	// structure content, so make sure we are not tracking it yet
-	if !isAlreadyTracked(o.trackedAssets, ta) {
-		o.trackedAssets = append(o.trackedAssets, ta)
+	if !isAlreadyTrackedInBootMap(o.trackedAssets, ta) {
+		if o.trackedAssets == nil {
+			o.trackedAssets = bootAssetsMap{}
+		}
+		if len(o.trackedAssets[ta.name]) > 0 {
+			return false, fmt.Errorf("cannot reuse asset name %q", ta.name)
+		}
+		o.trackedAssets[ta.name] = append(o.trackedAssets[ta.name], ta.hash)
 	}
 	return true, nil
 }
@@ -290,19 +299,25 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		if err != nil {
 			return err
 		}
-		if !isAlreadyTracked(o.trackedRecoveryAssets, ta) {
-			o.trackedRecoveryAssets = append(o.trackedRecoveryAssets, ta)
+		if !isAlreadyTrackedInBootMap(o.trackedRecoveryAssets, ta) {
+			if o.trackedRecoveryAssets == nil {
+				o.trackedRecoveryAssets = bootAssetsMap{}
+			}
+			if len(o.trackedRecoveryAssets[ta.name]) > 0 {
+				return fmt.Errorf("cannot reuse recovery asset name %q", ta.name)
+			}
+			o.trackedRecoveryAssets[ta.name] = append(o.trackedRecoveryAssets[ta.name], ta.hash)
 		}
 	}
 	return nil
 }
 
 func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
-	return trackedAssetsToBootMap(o.trackedAssets)
+	return o.trackedAssets
 }
 
 func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
-	return trackedAssetsToBootMap(o.trackedRecoveryAssets)
+	return o.trackedRecoveryAssets
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
