@@ -353,6 +353,7 @@ libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
 fs_getattr_tmpfs(snappy_t)
+fs_list_tmpfs(snappy_t)
 fs_getattr_cgroup(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
