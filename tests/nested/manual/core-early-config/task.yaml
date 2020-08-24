@@ -4,7 +4,7 @@ summary: Test that config defaults are applied early when image is created.
 systems: [ubuntu-18.04-64]
 
 environment:
-    IMAGE_ID: core-early-config
+    NESTED_IMAGE_ID: core-early-config
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -36,13 +36,13 @@ prepare: |
     # install hook to have access to /etc/systemd. Ideally we would use
     # system-files plug, but it wouldn't get autoconnected due to assertions.
     IMAGE_NAME="$(get_image_name core)"
-    loops=$(kpartx -avs "$IMAGES_DIR/$IMAGE_NAME"  | cut -d' ' -f 3)
+    loops=$(kpartx -avs "$NESTED_IMAGES_DIR/$IMAGE_NAME"  | cut -d' ' -f 3)
     part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
     mount "/dev/mapper/$part" "$tmp"
     sed -i "$tmp/system-data/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)file: pc_x1.snap/\1file: pc_x1.snap\n\1devmode: true\n/'
     umount "$tmp"
-    kpartx -d "$IMAGES_DIR/$IMAGE_NAME"
+    kpartx -d "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     rmdir "$tmp"
 
     start_nested_core_vm

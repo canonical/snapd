@@ -8,13 +8,13 @@ environment:
     # this is for how nested.sh sets up the initial user, we will control
     # cloud-init for the test through -cdrom with users created through
     # system-user assertions to ensure that we are testing the right things
-    USE_CLOUD_INIT: false
+    NESTED_USE_CLOUD_INIT: false
     # this variant ensures that existing images without the fix are no longer
     # vulnerable after refreshing to a version of snapd with the fix
-    BUILD_FROM_CURRENT/refresh: false
+    NESTED_BUILD_FROM_CURRENT/refresh: false
     # this variant ensures that new images with the fix are not vulnerable
-    BUILD_FROM_CURRENT/firstboot: true
-    IMAGE_ID: cloud-init-nocloud-$BUILD_FROM_CURRENT
+    NESTED_BUILD_FROM_CURRENT/firstboot: true
+    NESTED_IMAGE_ID: cloud-init-nocloud-$BUILD_FROM_CURRENT
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -78,7 +78,7 @@ execute: |
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
-    if [ "$BUILD_FROM_CURRENT" = "false" ]; then
+    if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
         echo "Refreshing to a version of snapd with the fix"
         if is_core_16_nested_system; then
             # build the core snap for this run
@@ -148,7 +148,7 @@ execute: |
     # is awkward to modify programmatically, so instead this will just re-create
     # the same systemd unit with different args
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    start_nested_core_vm_unit "$IMAGES_DIR/$(get_current_image_name)"
+    start_nested_core_vm_unit "$NESTED_IMAGES_DIR/$(get_current_image_name)"
 
     # cloud-init will actually still run because it was not disabled and we
     # provided a cloud-init drive but importantly, it will not import the drive,

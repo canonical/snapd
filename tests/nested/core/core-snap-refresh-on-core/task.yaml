@@ -3,7 +3,7 @@ summary: Check that the core snap can be refreshed on a core device
 details: |
     This test checks that the core snap can be refreshed from an installed
     revision to a new one. It expects to find a new snap revision in the
-    channel pointed by the NEW_CORE_CHANNEL env var.
+    channel pointed by the NESTED_CORE_REFRESH_CHANNEL env var.
 
 systems: [ubuntu-16.04-64]
     
@@ -15,8 +15,8 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    INITIAL_REV="$(get_nested_core_revision_for_channel "${CORE_CHANNEL}")"
-    NEW_REV="$(get_nested_core_revision_for_channel "${NEW_CORE_CHANNEL}")"
+    INITIAL_REV="$(get_nested_core_revision_for_channel "${NESTED_CORE_CHANNEL}")"
+    NEW_REV="$(get_nested_core_revision_for_channel "${NESTED_CORE_REFRESH_CHANNEL}")"
 
     if [ "$INITIAL_REV" = "$NEW_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
@@ -30,7 +30,7 @@ execute: |
     execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # go to known good starting place
-    execute_remote "snap download core --${CORE_CHANNEL}"
+    execute_remote "snap download core --${NESTED_CORE_CHANNEL}"
     execute_remote "sudo snap ack core_*.assert"
     execute_remote "sudo snap install core_*.snap"
 
@@ -41,7 +41,7 @@ execute: |
     execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # Refresh
-    refresh_to_new_core "$NEW_CORE_CHANNEL"
+    refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
 
     # After refresh, check new core is installed  
     test "$(get_nested_core_revision_installed)" = "${NEW_REV}"

@@ -36,7 +36,7 @@ execute: |
         exit 1
     fi
 
-    PARAM_MEM="-m $MINIMAL_MEM" start_nested_core_vm
+    NESTED_PARAM_MEM="-m $MINIMAL_MEM" start_nested_core_vm
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022

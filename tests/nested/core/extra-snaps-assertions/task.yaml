@@ -12,8 +12,8 @@ execute: |
     echo "We have a model assertion"
     execute_remote "snap known model" | MATCH "series: 16"
 
-    EXPRESSION="^core .* +latest/$CORE_CHANNEL +canonical\\* +core"
-    if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+    EXPRESSION="^core .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +core"
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         EXPRESSION="^core .* +x1 .* core"
     fi
 

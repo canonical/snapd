@@ -7,10 +7,10 @@ systems: [ubuntu-18.04-64, ubuntu-16.04-64]
 environment:
     # this test ensures that existing images without the fix are no longer
     # vulnerable after refreshing to a version of snapd with the fix
-    BUILD_FROM_CURRENT/refresh: false
-    BUILD_FROM_CURRENT/firstboot: true
-    USE_CLOUD_INIT: false
-    IMAGE_ID: cloud-init-never-$BUILD_FROM_CURRENT
+    NESTED_BUILD_FROM_CURRENT/refresh: false
+    NESTED_BUILD_FROM_CURRENT/firstboot: true
+    NESTED_USE_CLOUD_INIT: false
+    NESTED_IMAGE_ID: cloud-init-never-$BUILD_FROM_CURRENT
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -55,7 +55,7 @@ execute: |
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
-    if [ "$BUILD_FROM_CURRENT" = "false" ]; then
+    if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
         if is_core_16_nested_system; then
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
@@ -127,7 +127,7 @@ execute: |
     # is awkward to modify programmatically, so instead this will just re-create
     # the same systemd unit with different args
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    start_nested_core_vm_unit "$IMAGES_DIR/$(get_current_image_name)"
+    start_nested_core_vm_unit "$NESTED_IMAGES_DIR/$(get_current_image_name)"
 
     # cloud-init should not actually run, since it was disabled, but in case the
     # test fails, for a better error, we will wait for cloud-init to report that

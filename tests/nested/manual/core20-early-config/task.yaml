@@ -3,9 +3,9 @@ summary: Test that gadget config defaults are applied early on core20.
 systems: [ubuntu-20.04-64]
 
 environment:
-    ENABLE_TPM: true
-    ENABLE_SECURE_BOOT: true
-    BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh

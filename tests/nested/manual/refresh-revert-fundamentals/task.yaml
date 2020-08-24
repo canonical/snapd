@@ -7,12 +7,12 @@ description: |
 systems: [ubuntu-20.04-*]
 
 environment:
-    CORE_CHANNEL: beta
-    CORE_REFRESH_CHANNEL: edge
-    BUILD_SNAPD_FROM_CURRENT: false
-    USE_CLOUD_INIT: true
-    ENABLE_SECURE_BOOT: true
-    ENABLE_TPM: true
+    NESTED_CORE_CHANNEL: beta
+    NESTED_CORE_REFRESH_CHANNEL: edge
+    NESTED_BUILD_SNAPD_FROM_CURRENT: false
+    NESTED_USE_CLOUD_INIT: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_ENABLE_TPM: true
 
     SNAP/kernel: pc-kernel
     TRACK/kernel: 20
@@ -30,8 +30,8 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     
-    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_CHANNEL)"
-    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
     if [ "$FROM_REV" = "$TO_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
@@ -54,7 +54,7 @@ restore: |
     destroy_nested_vm
     cleanup_nested_env
 
-    rm -f "$WORK_DIR/image/ubuntu-core.img"
+    rm -f "$NESTED_IMAGES_DIR/ubuntu-core.img"
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -64,12 +64,12 @@ execute: |
         exit
     fi
 
-    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_CHANNEL)"
-    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
-    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${CORE_CHANNEL}.*"
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
     # The snap is refreshed
-    REFRESH_ID=$(execute_remote "sudo snap refresh --no-wait --channel $CORE_REFRESH_CHANNEL $SNAP")
+    REFRESH_ID=$(execute_remote "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -87,7 +87,7 @@ execute: |
     wait_for_ssh
 
     # Check the new version of the snaps is correct after the system reboot
-    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${CORE_REFRESH_CHANNEL}.*"
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     # We check the change is completed
     case "$SNAP" in
@@ -121,7 +121,7 @@ execute: |
     wait_for_ssh
 
     # Check the version of the snaps after the revert is correct
-    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${CORE_REFRESH_CHANNEL}.*"
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     # We check the change is completed
     case "$SNAP" in
