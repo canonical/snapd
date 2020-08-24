@@ -140,22 +140,20 @@ func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
-
 	type tableT struct {
 		content string
-		size    int
 		status  int
 	}
 
 	table := []tableT{
-		{"Hello World!", 12, 200},
-		{"", 0, 400},
+		{"Hello World!", 200},
+		{"", 400},
 	}
 
 	for i, t := range table {
 		comm := check.Commentf("%d: %d", i, t.content)
 
-		cs.contentLength = int64(t.size)
+		cs.contentLength = int64(len(t.content))
 		cs.rsp = t.content
 		cs.status = t.status
 
@@ -167,12 +165,11 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 1)
 		}
-		c.Assert(size, check.Equals, int64(t.size), comm)
+		c.Assert(size, check.Equals, int64(len(t.content)), comm)
 
 		if t.status == 200 {
 			buf, err := ioutil.ReadAll(r)
 			c.Assert(err, check.IsNil)
-			c.Assert(len(buf), check.Equals, t.size)
 			c.Assert(string(buf), check.Equals, t.content)
 		}
 	}
