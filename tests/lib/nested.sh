@@ -430,7 +430,7 @@ create_nested_core_vm() {
                     if [ -d "$(get_extra_snaps_path)" ]; then
                         GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
                     fi
-                    # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]
+                    # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
                     if [ -z "$GADGET_SNAP" ]; then
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
@@ -668,7 +668,7 @@ start_nested_core_vm_unit() {
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
-        if [ "$ENABLE_TPM" = "true" ]; then
+        if [ "$NESTED_ENABLE_TPM" = "true" ]; then
             if ! snap list swtpm-mvo; then
                 snap install swtpm-mvo --beta
             fi
