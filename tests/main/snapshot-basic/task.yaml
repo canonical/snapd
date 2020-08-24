@@ -39,9 +39,14 @@ execute: |
     test "$( tar -tvf "${SET_ID}_export.snapshot" | wc -l )" = "3"
     # do it again and ensure it has the files have the same size
     snap export-snapshot "$SET_ID" "${SET_ID}_export-2.snapshot"
+    test "$( tar -tvf "${SET_ID}_export-2.snapshot" | wc -l )" = "3"
     s1="$(stat -c%s "${SET_ID}_export.snapshot" )"
     s2="$(stat -c%s "${SET_ID}_export-2.snapshot" )"
     test "$s1" = "$s2"
+    echo "and the same files are snapshoted"
+    f1="$(tar -tf "${SET_ID}_export.snapshot" )"
+    f2="$(tar -tf "${SET_ID}_export-2.snapshot" )"
+    test "$f1" = "$f2"
 
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
