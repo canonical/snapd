@@ -89,6 +89,7 @@ const microStackSupportConnectedPlugAppArmor = `
 
 # Used by libvirt (cgroup-related):
 /sys/fs/cgroup/unified/cgroup.controllers r,
+/sys/fs/cgroup/cpuset/cpuset.cpus r,
 
 # Non-systemd layout: https://libvirt.org/cgroups.html#currentLayoutGeneric
 /sys/fs/cgroup/*/ r,
@@ -129,8 +130,37 @@ owner /{dev,run}/shm/spice.* rw,
 /run/lock/lvm/** rwk,
 # Files like /run/lvm/pvs_online, /run/lvm/vgs_online, /run/lvm/hints
 /run/lvm/ rw,
-/run/lvm/** rwk,
-/run/dmeventd-client rw,
+/run/lvm/** rwlk,
+/run/dmeventd-client rwlk,
+/run/dmeventd-server rwlk,
+
+# Used by tgtd.
+/run/tgtd/ rw,
+/run/tgtd/** rwlk,
+
+# Paths accessed by iscsid during its operation.
+/run/lock/iscsi/ rw,
+/run/lock/iscsi/** rwlk,
+/sys/devices/virtual/iscsi_transport/tcp/** r,
+/sys/devices/virtual/iscsi_transport/iser/** r,
+/sys/class/iscsi_session/** rw,
+/sys/class/iscsi_host/** r,
+/sys/devices/platform/host*/scsi_host/host*/** rw,
+/sys/devices/platform/host*/session*/connection*/iscsi_connection/connection*/** rw,
+/sys/devices/platform/host*/session*/iscsi_session/session*/** rw,
+/sys/devices/platform/host*/session*/target*/** rw,
+/sys/devices/platform/host*/iscsi_host/host*/** rw,
+
+# While the block-devices interface allows rw access, Libvirt also needs to be able to lock those.
+/dev/sd{,[a-h]}[a-z] rwk,
+/dev/sdi[a-v] rwk,
+# os-brick needs access to those when detaching a scsi device from an instance.
+/sys/block/sd{,[a-h]}[a-z]/device/delete rw,
+/sys/block/sdi[a-v]/device/delete rw,
+
+owner @{PROC}/@{pid}/oom_score_adj rw,
+/proc/sys/fs/nr_open r,
+
 
 # Allow running utility processes under the specialized AppArmor profiles.
 # These profiles will prevent utility processes escaping confinement.
@@ -193,7 +223,7 @@ type microStackInterface struct {
 	commonInterface
 }
 
-var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`}
+var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`, `iscsi-tcp`}
 
 func init() {
 	registerIface(&microStackInterface{commonInterface{
