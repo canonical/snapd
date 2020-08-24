@@ -75,8 +75,8 @@ execute: |
         snapd|pc)
             # we manually reboot even after snapd refresh to ensure that if
             # resealing took place we are still able to boot
-            execute_remote "snap watch $REFRESH_ID"
-            execute_remote "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            execute_remote "snap watch $REFRESH_ID" || break
+            execute_remote "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*" || break
             execute_remote "sudo reboot" || true
             ;;
         pc-kernel|core20)
@@ -109,8 +109,8 @@ execute: |
         snapd|pc)
             # we manually reboot even after snapd refresh to ensure that if
             # resealing took place we are still able to boot
-            execute_remote "snap watch $REVERT_ID"
-            execute_remote "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            execute_remote "snap watch $REVERT_ID" || break
+            execute_remote "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*" || break
             execute_remote "sudo reboot" || true
             ;;
         pc-kernel|core20)
