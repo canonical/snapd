@@ -343,3 +343,40 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	c.Check(rsp, check.FitsTypeOf, &daemon.SnapshotExportResponse{})
 	c.Check(snapshotExportCalled, check.Equals, 1)
 }
+
+func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) {
+	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
+		return map[string]string{"id": "xxx"}
+	})()
+
+	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
+	req, err := http.NewRequest("GET", "/v2/snapshots/xxx/export", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ExportSnapshot(daemon.SnapshotExportCmd, req, nil).(*daemon.Resp)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `'id' must be a positive base 10 number; got "xxx"`})
+}
+
+func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
+	var snapshotExportCalled int
+
+	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
+		return map[string]string{"id": "1"}
+	})()
+	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+		snapshotExportCalled++
+		return nil, fmt.Errorf("boom")
+	})()
+
+	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
+	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ExportSnapshot(daemon.SnapshotExportCmd, req, nil).(*daemon.Resp)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `cannot export 1: boom`})
+	c.Check(snapshotExportCalled, check.Equals, 1)
+}
