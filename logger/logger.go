@@ -165,6 +165,8 @@ func SimpleSetup() error {
 
 var procCmdline = "/proc/cmdline"
 
+// TODO: consider generalizing this to snapdenv and having it used by
+// other places that consider SNAPD_DEBUG
 func debugEnabledOnKernelCmdline() bool {
 	buf, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
