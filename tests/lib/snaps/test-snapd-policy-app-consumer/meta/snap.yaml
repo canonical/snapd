@@ -422,6 +422,9 @@ apps:
   upower-observe:
     command: bin/run
     plugs: [ upower-observe ]
+  vcio:
+    command: bin/run
+    plugs: [ vcio ]
   wayland:
     command: bin/run
     plugs: [ wayland ]
