@@ -39,6 +39,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -462,6 +465,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		tpmErr               error
 		tpmEnabled           bool
 		missingFile          bool
+		badSnapFile          bool
 		addEFISbPolicyErr    error
 		addSystemdEFIStubErr error
 		addSnapModelErr      error
@@ -474,6 +478,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "file /does/not/exist does not exist"},
+		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/foo.snap" is not a snap or snapdir`},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
@@ -483,7 +488,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 	} {
 		tmpDir := c.MkDir()
 		var mockEFI []string
-		for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
+		for _, name := range []string{"a", "b", "c", "d"} {
 			mockFileName := filepath.Join(tmpDir, name)
 			err := ioutil.WriteFile(mockFileName, nil, 0644)
 			c.Assert(err, IsNil)
@@ -493,6 +498,26 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		if tc.missingFile {
 			mockEFI[0] = "/does/not/exist"
 		}
+
+		// create a snap file
+		foo := filepath.Join(tmpDir, "foo.snap")
+		var foosnap snap.Container
+		if tc.badSnapFile {
+			err := ioutil.WriteFile(foo, nil, 0644)
+			c.Assert(err, IsNil)
+		} else {
+			snapdir := c.MkDir()
+			err := os.MkdirAll(filepath.Join(snapdir, "meta"), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(filepath.Join(snapdir, "meta", "snap.yaml"), []byte("name: foo"), 0644)
+			c.Assert(err, IsNil)
+			sqfs := squashfs.New(foo)
+			err = sqfs.Build(tmpDir, &squashfs.BuildOpts{SnapType: "app"})
+			c.Assert(err, IsNil)
+			foosnap, err = snapfile.Open(foo)
+			c.Assert(err, IsNil)
+		}
+		mockEFI = append(mockEFI, foo)
 
 		myParams := secboot.SealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
@@ -565,7 +590,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				Next: []*sb.EFIImageLoadEvent{
 					{
 						Source: sb.Shim,
-						Image:  sb.FileEFIImage(mockEFI[4]),
+						Image: sb.SnapFileEFIImage{
+							Container: foosnap,
+							Path:      mockEFI[4],
+							FileName:  "kernel.efi",
+						},
 					},
 				},
 			},
