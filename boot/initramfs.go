@@ -21,6 +21,7 @@ package boot
 
 import (
 	"os/exec"
+	"time"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/osutil"
@@ -97,8 +98,14 @@ var initramfsReboot = func() error {
 	if err != nil {
 		return osutil.OutputErr(out, err)
 	}
-	// should be unreachable
-	return nil
+
+	// reboot command in practice seems to not return, but apparently it is
+	// theoretically possible it could return, so to account for this we will
+	// loop for a "long" time waiting for the system to be rebooted, and panic
+	// after a timeout so that if something goes wrong with the reboot we do
+	// exit with some info about the expected reboot
+	time.Sleep(10 * time.Minute)
+	panic("expected reboot to happen within 10 minutes after calling /sbin/reboot")
 }
 
 func MockInitramfsReboot(f func() error) (restore func()) {
