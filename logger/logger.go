@@ -129,20 +129,20 @@ type Log struct {
 }
 
 // Debug only prints if SNAPD_DEBUG is set
-func (l Log) Debug(msg string) {
+func (l *Log) Debug(msg string) {
 	if l.debug || osutil.GetenvBool("SNAPD_DEBUG") {
 		l.log.Output(3, "DEBUG: "+msg)
 	}
 }
 
 // Notice alerts the user about something, as well as putting it syslog
-func (l Log) Notice(msg string) {
+func (l *Log) Notice(msg string) {
 	l.log.Output(3, msg)
 }
 
 // New creates a log.Logger using the given io.Writer and flag.
 func New(w io.Writer, flag int) (Logger, error) {
-	logger := Log{
+	logger := &Log{
 		log:   log.New(w, "", flag),
 		debug: debugEnabledOnKernelCmdline(),
 	}

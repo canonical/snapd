@@ -27,7 +27,7 @@ func GetLogger() Logger {
 }
 
 func GetLoggerFlags() int {
-	log, ok := GetLogger().(Log)
+	log, ok := GetLogger().(*Log)
 	if !ok {
 		return -1
 	}
