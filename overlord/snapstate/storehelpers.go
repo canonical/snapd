@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+var currentSnaps = currentSnapsImpl
+
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)
@@ -374,7 +376,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	return sar.Info, err
 }
 
-func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
+func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, err

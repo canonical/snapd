@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -286,6 +287,50 @@ func (s *snapmgrTestSuite) TestInstallSizeWithNestedDependencies(c *C) {
 	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1}, 0)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize+snapOtherContentSlotSize+someOtherBaseSize))
+}
+
+
+func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	var currentSnapsCalled int
+	restore := snapstate.MockCurrentSnaps(func(st *state.State) ([]*store.CurrentSnap, error) {
+		currentSnapsCalled++
+		// call original implementation of currentSnaps
+		curr, err := snapstate.CurrentSnaps(st)
+		if currentSnapsCalled == 1 {
+			return curr, err
+		}
+		// simulate other change that installed some-snap3 and other-base while
+		// we release the lock inside installSizeInfo.
+		curr = append(curr, &store.CurrentSnap{InstanceName: "some-snap3"})
+		curr = append(curr, &store.CurrentSnap{InstanceName: "other-base"})
+		return curr, nil
+	})
+	defer restore()
+
+	s.setupInstallSizeStore()
+
+	snap1 := snaptest.MockSnap(c, snapYamlWithBase1, &snap.SideInfo{
+		RealName: "some-snap1",
+		Revision: snap.R(1),
+	})
+	snap1.Size = snap1Size
+	snap3 := snaptest.MockSnap(c, snapYamlWithBase3, &snap.SideInfo{
+		RealName: "some-snap3",
+		Revision: snap.R(2),
+	})
+	snap3.Size = snap3Size
+
+	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1, snap3}, 0)
+	c.Assert(err, IsNil)
+	// snap3 and its base installed by another change, not counted here
+	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
+
+	// sanity
+	c.Check(currentSnapsCalled, Equals, 2)
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
