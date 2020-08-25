@@ -434,7 +434,7 @@ snapd (2.46-1) unstable; urgency=medium
     - tests: modernize and use snapd.tool
     - vendor: update to latest github.com/snapcore/bolt for riscv64
     - cmd/snap-confine: add support for libc6-lse
-    - interfaces: miscellanious policy updates xlv
+    - interfaces: miscellaneous policy updates xlv
     - interfaces/system-packages-doc: fix typo in variable names
     - tests: port interfaces-calendar-service to tests.session
     - tests: install/run the lzo test snap too
@@ -627,7 +627,7 @@ snapd (2.46-1) unstable; urgency=medium
     - store: handle error-list in fetch-assertions results
     - tests: port interfaces-audio-playback-record to session-tool
     - data/completion: add `snap` command completion for zsh
-    - tests/degrated: ignore failure in systemd-vconsole-setup.service
+    - tests/degraded: ignore failure in systemd-vconsole-setup.service
     - image: stub implementation of image.Prepare for darwin
     - tests: session-tool --restore -u stops user-$UID.slice
     - o/ifacestate/handlers.go: fix typo
