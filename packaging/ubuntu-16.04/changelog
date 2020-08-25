@@ -1,3 +1,9 @@
+snapd (2.46) xenial; urgency=medium
+
+  * placeholder changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 25 Aug 2020 18:05:56 +0200
+
 snapd (2.46~pre2) xenial; urgency=medium
 
   * Second pre-release for 2.46, LP: #1891134
