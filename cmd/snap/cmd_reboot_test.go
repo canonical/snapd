@@ -65,7 +65,7 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, `Reboot into "20200101" with mode "recover" scheduled.
+	c.Check(s.Stdout(), Equals, `Reboot into "20200101" "recover" mode.
 `)
 	c.Check(s.Stderr(), Equals, "")
 }

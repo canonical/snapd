@@ -104,6 +104,6 @@ func (x *cmdReboot) Execute(args []string) error {
 		return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
 	}
 
-	fmt.Fprintf(Stdout, "Reboot into %q with mode %q scheduled.\n", x.Positional.Label, action.Mode)
+	fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, action.Mode)
 	return nil
 }
