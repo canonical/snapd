@@ -574,3 +574,95 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 		"type":        "error",
 	})
 }
+
+func (s *apiSuite) TestSystemRebootSimple(c *check.C) {
+	d := s.daemon(c)
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	body := `{"action":"reboot"}`
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 200)
+
+	c.Check(d.restartSystem, check.Equals, state.RestartSystemNow)
+}
+
+func (s *apiSuite) TestSystemRebootAutoDetectCurrentSystem(c *check.C) {
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	bt := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bt)
+	defer func() { bootloader.Force(nil) }()
+
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("seeded-systems", []map[string]interface{}{{
+		"system": "20200318", "model": "my-model-2", "brand-id": "my-brand",
+		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
+		"seed-time": "2009-11-10T23:00:00Z",
+	}})
+	st.Unlock()
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	model := s.brands.Model("my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("oc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	st.Lock()
+	st.VerifyReboot("boot-id-0")
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, model)
+	st.Unlock()
+
+	body := `{"action":"reboot", "mode":"recover"}`
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 200)
+
+	restarting, restartType := st.Restarting()
+	c.Check(restarting, check.Equals, true)
+	c.Check(restartType, check.Equals, state.RestartSystemNow)
+}

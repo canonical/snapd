@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -98,11 +99,7 @@ type systemActionRequest struct {
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
 	var req systemActionRequest
-
 	systemLabel := muxVars(r)["label"]
-	if systemLabel == "" {
-		return BadRequest("system action requires the system label to be provided")
-	}
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&req); err != nil {
@@ -111,8 +108,49 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
-	if req.Action != "do" {
+	switch req.Action {
+	case "do":
+		return postSystemActionDo(c, systemLabel, &req)
+	case "reboot":
+		return postSystemActionReboot(c, systemLabel, &req)
+	default:
 		return BadRequest("unsupported action %q", req.Action)
+	}
+}
+
+func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
+	// XXX: should there be a "DeviceManager.RequestReboot()" helper
+	//      instead?
+
+	// most simple case: just reboot
+	if systemLabel == "" && req.Mode == "" {
+		c.d.state.Lock()
+		defer c.d.state.Unlock()
+
+		c.d.state.RequestRestart(state.RestartSystemNow)
+		return SyncResponse(nil, nil)
+	}
+
+	// no systemLabel means "current" so get the current system
+	dm := c.d.overlord.DeviceManager()
+	if systemLabel == "" {
+		systems, err := dm.Systems()
+		if err != nil {
+			return InternalError("cannot get available system: %v", err)
+		}
+		for _, sys := range systems {
+			if sys.Current {
+				systemLabel = sys.Label
+				break
+			}
+		}
+	}
+	return postSystemActionDo(c, systemLabel, req)
+}
+
+func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
 	}
 	if req.Mode == "" {
 		return BadRequest("system action requires the mode to be provided")
