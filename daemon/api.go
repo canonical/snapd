@@ -1383,7 +1383,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot parse content type: %v", err)
 	}
 
-	charset := params["charset"].ToUpper();
+	charset := params["charset"].ToUpper()
 	if mediaType == "application/json" && (charset == "" || charset == "UTF-8") {
 		return snapsOp(c, r, user)
 	}
