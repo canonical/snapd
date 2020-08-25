@@ -179,7 +179,7 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	}
 
 	charset := strings.ToUpper(params["charset"])
-	if (charset != "" && charset != "UTF-8") {
+	if charset != "" && charset != "UTF-8" {
 		return BadRequest("unknown charset in content type: %s", contentType)
 	}
 
