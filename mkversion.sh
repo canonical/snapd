@@ -39,7 +39,9 @@ fi
 
 # Let's try to derive the version from git..
 if command -v git >/dev/null; then
-    version_from_git="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+    # do not use --dirty until snapcraft deals with this correctly
+    version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
+    echo "version from git: $version_from_git"
 fi
 
 # at this point we maybe in _build/src/github etc where we have no
@@ -47,6 +49,7 @@ fi
 # switch to the real source dir for the changelog parsing
 if command -v dpkg-parsechangelog >/dev/null; then
     version_from_changelog="$(cd "$PKG_BUILDDIR"; dpkg-parsechangelog --show-field Version)";
+    echo "version from changelog: $version_from_changelog"
 fi
 
 # select version based on priority
