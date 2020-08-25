@@ -235,7 +235,7 @@ if [ "$STATIC" = 1 ]; then
         if [ "$file" = "vendor" ] || [ "$file" = "po" ]; then
             continue
         fi
-        misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs "$file"
+        misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs,includ,nto,maked,occurence "$file"
     done
 
     echo "Checking for ineffective assignments"
