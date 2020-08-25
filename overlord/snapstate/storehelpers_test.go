@@ -190,7 +190,7 @@ func (s *snapmgrTestSuite) TestInstallSizeSimple(c *C) {
 	})
 	snap2.Size = snap2Size
 
-	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1, snap2}, 0)
+	sz, err := snapstate.InstallSize(st, []*snap.Info{snap1, snap2}, 0)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
 }
@@ -232,7 +232,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithBases(c *C) {
 		Current: snap.R(1),
 	})
 
-	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1, snap2, snap3, snap4}, 0)
+	sz, err := snapstate.InstallSize(st, []*snap.Info{snap1, snap2, snap3, snap4}, 0)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size+snap3Size+snap4Size+someBaseSize+otherBaseSize))
 }
@@ -262,7 +262,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithContentProviders(c *C) {
 	s.mockCoreSnap(c)
 
 	// both snaps have same content providers and base
-	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1, snap2}, 0)
+	sz, err := snapstate.InstallSize(st, []*snap.Info{snap1, snap2}, 0)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size+someBaseSize+snapContentSlotSize))
 }
@@ -284,7 +284,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithNestedDependencies(c *C) {
 
 	s.mockCoreSnap(c)
 
-	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1}, 0)
+	sz, err := snapstate.InstallSize(st, []*snap.Info{snap1}, 0)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize+snapOtherContentSlotSize+someOtherBaseSize))
 }
@@ -303,7 +303,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 			return curr, err
 		}
 		// simulate other change that installed some-snap3 and other-base while
-		// we release the lock inside installSizeInfo.
+		// we release the lock inside InstallSize.
 		curr = append(curr, &store.CurrentSnap{InstanceName: "some-snap3"})
 		curr = append(curr, &store.CurrentSnap{InstanceName: "other-base"})
 		return curr, nil
@@ -323,7 +323,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	})
 	snap3.Size = snap3Size
 
-	sz, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1, snap3}, 0)
+	sz, err := snapstate.InstallSize(st, []*snap.Info{snap1, snap3}, 0)
 	c.Assert(err, IsNil)
 	// snap3 and its base installed by another change, not counted here
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
@@ -342,6 +342,6 @@ func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
 			RealName: "snap",
 		}}
 
-	_, err := snapstate.InstallSizeInfo(st, []*snap.Info{snap1}, 0)
+	_, err := snapstate.InstallSize(st, []*snap.Info{snap1}, 0)
 	c.Assert(err, ErrorMatches, `internal error: download info missing.*`)
 }

@@ -103,7 +103,7 @@ func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 }
 
 // helpers
-var InstallSizeInfo = installSizeInfo
+var InstallSize = installSize
 
 // aliases v2
 var (
