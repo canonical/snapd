@@ -4174,7 +4174,7 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
