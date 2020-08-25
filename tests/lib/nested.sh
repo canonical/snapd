@@ -590,10 +590,10 @@ start_nested_core_vm_unit() {
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="${PARAM_MEM:--m 4096}"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="${PARAM_MEM:--m 2048}"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
@@ -605,7 +605,7 @@ start_nested_core_vm_unit() {
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
     PARAM_USB="-usb"
-    PARAM_CD="${PARAM_CD:-}"
+    PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"

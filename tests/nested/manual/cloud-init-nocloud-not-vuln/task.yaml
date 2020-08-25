@@ -35,7 +35,7 @@ prepare: |
 
     # first boot will use seed1 to create the normal-user in addition to the 
     # system-user assertion
-    PARAM_CD="-cdrom $(pwd)/seed1.iso"
+    NESTED_PARAM_CD="-cdrom $(pwd)/seed1.iso"
 
     create_nested_core_vm
     start_nested_core_vm
@@ -139,7 +139,7 @@ execute: |
     force_stop_nested_vm
 
     # add the second, attacker cloud-init drive as a CD-ROM drive
-    PARAM_CD="-cdrom $(pwd)/seed2.iso"
+    NESTED_PARAM_CD="-cdrom $(pwd)/seed2.iso"
 
     # start the unit so that it re-uses the existing drive and doesn't re-setup
     # ssh
