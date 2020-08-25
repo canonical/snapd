@@ -107,11 +107,19 @@ func (s *restSuite) TestServiceControl(c *C) {
 }
 
 func (s *restSuite) TestServiceControlDaemonReload(c *C) {
+	s.testServiceControlDaemonReload(c, "application/json")
+}
+
+func (s *restSuite) TestServiceControlDaemonReloadComplexerContentType(c *C) {
+	s.testServiceControlDaemonReload(c, "application/json; charset=utf-8")
+}
+
+func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
