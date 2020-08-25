@@ -98,9 +98,9 @@ func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, e
 		return 0, err
 	}
 
-	skipSnaps := map[string]bool{}
+	accountedSnaps := map[string]bool{}
 	for _, snap := range curSnaps {
-		skipSnaps[snap.InstanceName] = true
+		accountedSnaps[snap.InstanceName] = true
 	}
 
 	var prereqs []string
@@ -114,26 +114,26 @@ func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, e
 			if snapInfo.Base != "" {
 				base = snapInfo.Base
 			}
-			if !skipSnaps[base] {
+			if !accountedSnaps[base] {
 				prereqs = append(prereqs, base)
-				skipSnaps[base] = true
+				accountedSnaps[base] = true
 			}
 		}
 		for _, snapName := range defaultContentPlugProviders(st, snapInfo) {
-			if !skipSnaps[snapName] {
+			if !accountedSnaps[snapName] {
 				prereqs = append(prereqs, snapName)
-				skipSnaps[snapName] = true
+				accountedSnaps[snapName] = true
 			}
 		}
 	}
 
-	var total uint64
+	snapSizes := map[string]uint64{}
 	for _, snapInfo := range snaps {
 		if snapInfo.DownloadInfo.Size == 0 {
 			// XXX: we could support this by simply adding to prereqs
 			return 0, fmt.Errorf("internal error: download info missing for %q", snapInfo.InstanceName())
 		}
-		total += uint64(snapInfo.Size)
+		snapSizes[snapInfo.InstanceName()] = uint64(snapInfo.Size)
 		resolveBaseAndContentProviders(snapInfo)
 	}
 
@@ -143,10 +143,6 @@ func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, e
 	}
 
 	theStore := Store(st, nil)
-	// calls to the store should be done without holding the state lock
-	st.Unlock()
-	defer st.Lock()
-
 	channel := defaultPrereqSnapsChannel()
 
 	// this can potentially be executed multiple times if we (recursively)
@@ -162,16 +158,37 @@ func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, e
 			actions = append(actions, action)
 		}
 
+		// calls to the store should be done without holding the state lock
+		st.Unlock()
 		results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+		st.Lock()
 		if err != nil {
 			return 0, err
 		}
 		prereqs = []string{}
 		for _, res := range results {
-			total += uint64(res.Size)
+			snapSizes[res.InstanceName()] = uint64(res.Size)
 			// results may have new base or content providers
 			resolveBaseAndContentProviders(res.Info)
 		}
+	}
+
+	// state is locked at this point
+
+	// since we unlock state above when querying store, other changes may affect
+	// same snaps, therefore obtain current snaps again and only compute total
+	// size of snaps that would actually need to be installed.
+	curSnaps, err = currentSnaps(st)
+	if err != nil {
+		return 0, err
+	}
+	for _, snap := range curSnaps {
+		delete(snapSizes, snap.InstanceName)
+	}
+
+	var total uint64
+	for _, sz := range snapSizes {
+		total += sz
 	}
 
 	return total, nil
