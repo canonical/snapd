@@ -170,9 +170,17 @@ func (dummyReporter) Notify(string) {}
 func postServiceControl(c *Command, r *http.Request) Response {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
-	charset := strings.ToUpper(params["charset"])
-	if err != nil || mediaType != "application/json" || !(charset == "" || charset == "UTF-8") {
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType != "application/json" {
 		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	charset := strings.ToUpper(params["charset"])
+	if (charset != "" && charset != "UTF-8") {
+		return BadRequest("unknown charset in content type: %s", contentType)
 	}
 
 	decoder := json.NewDecoder(r.Body)
