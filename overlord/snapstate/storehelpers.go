@@ -84,12 +84,12 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-// installSizeInfo returns total download size of snaps and their prerequisites
+// installSize returns total download size of snaps and their prerequisites
 // (bases and default content providers), querying the store as neccessarry,
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
-func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+func installSize(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return 0, err
@@ -132,7 +132,6 @@ func installSizeInfo(st *state.State, snaps []*snap.Info, userID int) (uint64, e
 	snapSizes := map[string]uint64{}
 	for _, snapInfo := range snaps {
 		if snapInfo.DownloadInfo.Size == 0 {
-			// XXX: we could support this by simply adding to prereqs
 			return 0, fmt.Errorf("internal error: download info missing for %q", snapInfo.InstanceName())
 		}
 		snapSizes[snapInfo.InstanceName()] = uint64(snapInfo.Size)
