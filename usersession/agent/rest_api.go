@@ -21,6 +21,7 @@ package agent
 
 import (
 	"encoding/json"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
@@ -167,7 +168,9 @@ type dummyReporter struct{}
 func (dummyReporter) Notify(string) {}
 
 func postServiceControl(c *Command, r *http.Request) Response {
-	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 

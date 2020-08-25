@@ -1378,7 +1378,12 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
 
-	if contentType == "application/json" {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
+		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	if mediaType == "application/json" {
 		return snapsOp(c, r, user)
 	}
 
@@ -1392,11 +1397,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse POST body: %v", err)
-	}
-
 	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
 	if err != nil {
 		return BadRequest("cannot read POST form: %v", err)
