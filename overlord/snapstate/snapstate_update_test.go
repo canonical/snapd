@@ -779,6 +779,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size: 5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,

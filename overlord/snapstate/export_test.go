@@ -79,12 +79,6 @@ func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool
 	return func() { osutilEnsureUserGroup = old }
 }
 
-func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
-	old := osutilCheckFreeSpace
-	osutilCheckFreeSpace = mock
-	return func() { osutilCheckFreeSpace = old }
-}
-
 var (
 	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap

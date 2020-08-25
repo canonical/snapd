@@ -861,6 +861,29 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	// check if there is enough disk space for requested snaps and their
+	// prerequisites.
+	snapInfos := make([]*snap.Info, len(installs))
+	for i, sar := range installs {
+		snapInfos[i] = sar.Info
+	}
+	totalSize, err := installSizeInfo(st, snapInfos, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// require 5Mb extra
+	requiredSpace := totalSize + 5*1024*1024
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+			return nil, nil, &ErrInsufficientSpace{
+				Path:  path,
+				Snaps: toInstall,
+			}
+		}
+		return nil, nil, err
+	}
+
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
@@ -2512,4 +2535,10 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
+	old := osutilCheckFreeSpace
+	osutilCheckFreeSpace = mock
+	return func() { osutilCheckFreeSpace = old }
 }
