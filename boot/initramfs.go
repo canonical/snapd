@@ -93,7 +93,7 @@ var initramfsReboot = func() error {
 		panic("initramfsReboot must be mocked in tests")
 	}
 
-	out, err := exec.Command("/bin/reboot").CombinedOutput()
+	out, err := exec.Command("/sbin/reboot").CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
 	}
