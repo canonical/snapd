@@ -4171,6 +4171,26 @@ func (s *apiSuite) TestPostSnapOpMoreComplexContentType(c *check.C) {
 	s.testPostSnapsOp(c, "application/json; charset=utf-8")
 }
 
+func (s *apiSuite) TestPostSnapOpInvalidCharset(c *check.C) {
+	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
+	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 0)
+		t := s.NewTask("fake-refresh-all", "Refreshing everything")
+		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemonWithOverlordMock(c)
+
+	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
+
+	rsp, ok := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "unknown charset in content type")
+}
+
 func (s *apiSuite) testPostSnapsOp(c *check.C, contentType string) {
 	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
