@@ -4179,14 +4179,12 @@ func (s *apiSuite) TestPostSnapOpInvalidCharset(c *check.C) {
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
-	d := s.daemonWithOverlordMock(c)
-
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
 
-	rsp, ok := postSnaps(snapsCmd, req, nil).(*resp)
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "unknown charset in content type")
 }
