@@ -286,7 +286,7 @@ cleanup_nested_env() {
 
 get_image_name() {
     local TYPE="$1"
-    local SOURCE="${CORE_CHANNEL}"
+    local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION="16"
 
