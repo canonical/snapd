@@ -306,7 +306,7 @@ get_image_name() {
 }
 
 is_generic_image() {
-    test -z "${IMAGE_ID:-}"
+    test -z "${NESTED_IMAGE_ID:-}"
 }
 
 get_extra_snaps_path() {
