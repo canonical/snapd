@@ -1379,8 +1379,8 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
 
 	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil || mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
 	}
 
 	if mediaType == "application/json" {
