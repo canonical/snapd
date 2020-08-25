@@ -289,7 +289,6 @@ func (s *snapmgrTestSuite) TestInstallSizeWithNestedDependencies(c *C) {
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize+snapOtherContentSlotSize+someOtherBaseSize))
 }
 
-
 func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C) {
 	st := s.state
 	st.Lock()
