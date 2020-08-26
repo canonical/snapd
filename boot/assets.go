@@ -188,11 +188,11 @@ func (t *trackedAsset) equal(other *trackedAsset) bool {
 		t.hash == other.hash
 }
 
-func isAlreadyTrackedInBootMap(bam bootAssetsMap, newAsset *trackedAsset) bool {
-	return isAssetHashTrackedInBootMap(bam, newAsset.name, newAsset.hash)
+func isAssetAlreadyTracked(bam bootAssetsMap, newAsset *trackedAsset) bool {
+	return isAssetHashTrackedInMap(bam, newAsset.name, newAsset.hash)
 }
 
-func isAssetHashTrackedInBootMap(bam bootAssetsMap, assetName, assetHash string) bool {
+func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) bool {
 	if bam == nil {
 		return false
 	}
@@ -254,7 +254,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	// during installation, modeenv is written out later, at this point we
 	// only care that the same file may appear multiple times in gadget
 	// structure content, so make sure we are not tracking it yet
-	if !isAlreadyTrackedInBootMap(o.trackedAssets, ta) {
+	if !isAssetAlreadyTracked(o.trackedAssets, ta) {
 		if o.trackedAssets == nil {
 			o.trackedAssets = bootAssetsMap{}
 		}
@@ -290,7 +290,7 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		if err != nil {
 			return err
 		}
-		if !isAlreadyTrackedInBootMap(o.trackedRecoveryAssets, ta) {
+		if !isAssetAlreadyTracked(o.trackedRecoveryAssets, ta) {
 			if o.trackedRecoveryAssets == nil {
 				o.trackedRecoveryAssets = bootAssetsMap{}
 			}
