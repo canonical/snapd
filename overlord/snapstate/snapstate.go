@@ -867,7 +867,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	for i, sar := range installs {
 		snapInfos[i] = sar.Info
 	}
-	totalSize, err := installSizeInfo(st, snapInfos, userID)
+	totalSize, err := installSize(st, snapInfos, userID)
 	if err != nil {
 		return nil, nil, err
 	}
