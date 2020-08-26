@@ -188,15 +188,6 @@ func (t *trackedAsset) equal(other *trackedAsset) bool {
 		t.hash == other.hash
 }
 
-func isAlreadyTracked(current []*trackedAsset, newAsset *trackedAsset) bool {
-	for _, ta := range current {
-		if newAsset.equal(ta) {
-			return true
-		}
-	}
-	return false
-}
-
 func isAlreadyTrackedInBootMap(bam bootAssetsMap, newAsset *trackedAsset) bool {
 	return isAssetHashTrackedInBootMap(bam, newAsset.name, newAsset.hash)
 }
