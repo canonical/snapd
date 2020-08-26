@@ -478,7 +478,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "file /does/not/exist does not exist"},
-		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/foo.snap" is not a snap or snapdir`},
+		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/kernel.snap" is not a snap or snapdir`},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
@@ -500,24 +500,25 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		}
 
 		// create a snap file
-		foo := filepath.Join(tmpDir, "foo.snap")
-		var foosnap snap.Container
+		snapPath := filepath.Join(tmpDir, "kernel.snap")
+		var kernelSnap snap.Container
 		if tc.badSnapFile {
-			err := ioutil.WriteFile(foo, nil, 0644)
+			err := ioutil.WriteFile(snapPath, nil, 0644)
 			c.Assert(err, IsNil)
 		} else {
-			snapdir := c.MkDir()
-			err := os.MkdirAll(filepath.Join(snapdir, "meta"), 0755)
+			kernelDir := c.MkDir()
+			snapYamlPath := filepath.Join(kernelDir, "meta/snap.yaml")
+			err := os.MkdirAll(filepath.Dir(snapYamlPath), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(filepath.Join(snapdir, "meta", "snap.yaml"), []byte("name: foo"), 0644)
+			err = ioutil.WriteFile(snapYamlPath, []byte("name: kernel"), 0644)
 			c.Assert(err, IsNil)
-			sqfs := squashfs.New(foo)
-			err = sqfs.Build(tmpDir, &squashfs.BuildOpts{SnapType: "app"})
+			sqfs := squashfs.New(snapPath)
+			err = sqfs.Build(kernelDir, &squashfs.BuildOpts{SnapType: "kernel"})
 			c.Assert(err, IsNil)
-			foosnap, err = snapfile.Open(foo)
+			kernelSnap, err = snapfile.Open(snapPath)
 			c.Assert(err, IsNil)
 		}
-		mockEFI = append(mockEFI, foo)
+		mockEFI = append(mockEFI, snapPath)
 
 		myParams := secboot.SealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
@@ -591,7 +592,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					{
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
-							Container: foosnap,
+							Container: kernelSnap,
 							Path:      mockEFI[4],
 							FileName:  "kernel.efi",
 						},
