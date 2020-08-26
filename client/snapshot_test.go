@@ -151,7 +151,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	}
 
 	for i, t := range table {
-		comm := check.Commentf("%d: %d", i, t.content)
+		comm := check.Commentf("%d: %q", i, t.content)
 
 		cs.contentLength = int64(len(t.content))
 		cs.rsp = t.content
