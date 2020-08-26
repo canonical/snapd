@@ -102,6 +102,7 @@ var (
 	datasourceRe      = regexp.MustCompile(`DataSource([a-zA-Z0-9]+).*`)
 
 	cloudInitSnapdRestrictFile = "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+	cloudInitDisabledFile      = "/etc/cloud/cloud-init.disabled"
 
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
@@ -150,7 +151,7 @@ func CloudInitStatus() (CloudInitState, error) {
 
 	// if it was explicitly disabled via the cloud-init disable file, then
 	// return special status for that
-	disabledFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud-init.disabled")
+	disabledFile := filepath.Join(dirs.GlobalRootDir, cloudInitDisabledFile)
 	if osutil.FileExists(disabledFile) {
 		return CloudInitDisabledPermanently, nil
 	}
