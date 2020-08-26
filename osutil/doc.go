@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,7 @@
  *
  */
 
+// Package osutil offers utilities related to the operating system or
+// i/o, mainly for files, filesystems and mounts, and also users and
+// processes.
 package osutil
-
-type Sizer struct {
-	size int64
-}
-
-func (sz *Sizer) Write(data []byte) (n int, err error) {
-	n = len(data)
-	sz.size += int64(n)
-	return
-}
-
-func (sz *Sizer) Reset() {
-	sz.size = 0
-}
-
-func (sz *Sizer) Size() int64 {
-	return sz.size
-}
