@@ -159,17 +159,17 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	se, err := snapshotExport(context.TODO(), setID)
+	export, err := snapshotExport(context.TODO(), setID)
 	if err != nil {
 		return BadRequest("cannot export %v: %v", setID, err)
 	}
 	// init (size calculation) can be slow so drop the lock
 	st.Unlock()
-	err = se.Init()
+	err = export.Init()
 	st.Lock()
 	if err != nil {
 		return BadRequest("cannot calculate snapshot export size %v", setID)
 	}
 
-	return &snapshotExportResponse{se}
+	return &snapshotExportResponse{export}
 }
