@@ -25,6 +25,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
@@ -445,6 +446,14 @@ func (x *exportSnapshotCmd) Execute([]string) (err error) {
 			os.Remove(filename + ".part")
 		}
 	}()
+
+	// Pre-allocate the disk space for the snapshot, if the file system supports this.
+	const fallocKeepSize = 1 // This is FALLOC_FL_KEEP_SIZE
+	if err := syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, expectedSize); err != nil {
+		if err != syscall.EOPNOTSUPP && err != syscall.ENOSYS {
+			return fmt.Errorf("cannot pre-allocate disk space for snapshot: %v", err)
+		}
+	}
 
 	n, err := io.Copy(f, r)
 	if err != nil {
