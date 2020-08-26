@@ -418,12 +418,12 @@ nested_create_core_vm() {
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+                    rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap
                     KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
 
                     chmod 0600 "$KERNEL_SNAP"
-                    rm -f "$PWD/pc-kernel.snap"
                     EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
