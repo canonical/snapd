@@ -38,12 +38,15 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
+	testutil.BaseTest
+
 	cli           *client.Client
 	req           *http.Request
 	reqs          []*http.Request
@@ -56,14 +59,14 @@ type clientSuite struct {
 	contentLength int64
 
 	countingCloser *countingCloser
-
-	restore func()
 }
 
 var _ = Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *C) {
 	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
+	cs.AddCleanup(func() { os.Unsetenv(client.TestAuthFileEnvKey) })
+
 	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
@@ -79,13 +82,9 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.countingCloser = nil
 
 	dirs.SetRootDir(c.MkDir())
+	cs.AddCleanup(func() { dirs.SetRootDir("") })
 
-	cs.restore = client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
-}
-
-func (cs *clientSuite) TearDownTest(c *C) {
-	os.Unsetenv(client.TestAuthFileEnvKey)
-	cs.restore()
+	cs.AddCleanup(client.MockDoTimings(time.Millisecond, 100*time.Millisecond))
 }
 
 type countingCloser struct {
