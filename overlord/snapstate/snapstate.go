@@ -799,6 +799,25 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
+	// check if there is enough disk space for requested snap and its
+	// prerequisites.
+	totalSize, err := installSize(st, []*snap.Info{info}, userID)
+	if err != nil {
+		return nil, err
+	}
+	// require 5Mb extra
+	requiredSpace := totalSize + 5*1024*1024
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+			return nil, &ErrInsufficientSpace{
+				Path:  path,
+				Snaps: []string{info.InstanceName()},
+			}
+		}
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
 		Channel:      opts.Channel,
 		Base:         info.Base,
@@ -867,7 +886,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	for i, sar := range installs {
 		snapInfos[i] = sar.Info
 	}
-	totalSize, err := installSizeInfo(st, snapInfos, userID)
+	totalSize, err := installSize(st, snapInfos, userID)
 	if err != nil {
 		return nil, nil, err
 	}
