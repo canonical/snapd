@@ -328,6 +328,10 @@ func (s *SquashfsTestSuite) TestRandomAccessFile(c *C) {
 	c.Assert(err, IsNil)
 	defer r.Close()
 
+	ri, err := r.Stat()
+	c.Assert(err, IsNil)
+	c.Assert(ri.Size(), Equals, int64(9))
+
 	b := make([]byte, 4)
 	n, err := r.ReadAt(b, 4)
 	c.Assert(err, IsNil)

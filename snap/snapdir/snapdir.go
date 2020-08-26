@@ -74,6 +74,7 @@ func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions
 func (s *SnapDir) RandomAccessFile(file string) (interface {
 	io.ReaderAt
 	io.Closer
+	Stat() (os.FileInfo, error)
 }, error) {
 	return os.Open(filepath.Join(s.path, file))
 }
