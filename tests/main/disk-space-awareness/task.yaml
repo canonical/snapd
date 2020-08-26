@@ -1,0 +1,61 @@
+summary: Check that basic snap operation are aware of low disk space.
+
+description: |
+  Check that operations such as snap installation or snap removal (with an
+  automatic snapshot) error out early if there is not enough disk space.
+
+environment:
+  TMPFSMOUNT: /var/lib/snapd
+
+prepare: |
+  systemctl stop snapd.{socket,service}
+
+  # mount /var/lib/snapd on a tmpfs
+  mount -t tmpfs tmpfs -o size=500M,mode=0755 "$TMPFSMOUNT"
+
+  systemctl start snapd.{socket,service}
+
+restore: |
+  systemctl stop snapd.{socket,service}
+  umount -l "$TMPFSMOUNT"
+  systemctl start snapd.{socket,service}
+
+execute: |
+  resize() {
+    # remount can increase/decrease the size as long as it is enough for
+    # already stored data.
+    mount -o remount,size="$1",mode=0755 "$TMPFSMOUNT"
+  }
+
+  # disk usage, in MB
+  get_disk_usage() {
+    echo $(du -s --block-size=1048576 "$TMPFSMOUNT" | awk '{print $1}')
+  }
+
+  echo "Snap download fails with little disk space"
+  NEWSIZE=$(expr $(get_disk_usage) + 1)
+  resize "${NEWSIZE}M"
+  snap install hello-world 2>&1 | MATCH "cannot install \"hello-world\": insufficient space"
+
+  # note, installing hello-world also pulls core snap.
+  echo "And succeeds with enough space"
+  resize 600M
+  snap install hello-world
+
+  # run the snap once to have data dirs created
+  hello-world
+
+  # create 4M filler in common directory to inflate backup size
+  dd if=/dev/zero of=/var/snap/hello-world/common/filler bs=1024 count=4096
+
+  echo "Resizing the disk down with just 1MB extra"
+  NEWSIZE=$(expr $(get_disk_usage) + 1)
+  resize "${NEWSIZE}M"
+
+  if snap remove hello-world > error.txt 2>&1; then
+    echo "expected snap remove hello-world to fail"
+    exit 1
+  fi
+  
+  MATCH "error: cannot remove \"hello-world\": cannot create automatic snapshot when" < error.txt
+  MATCH "removing last revision of the snap: insufficient space in" < error.txt
