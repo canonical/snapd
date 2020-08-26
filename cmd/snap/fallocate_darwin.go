@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014,2015,2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,12 @@
  *
  */
 
-package logger
+package main
 
-func GetLogger() Logger {
-	lock.Lock()
-	defer lock.Unlock()
+import (
+	"os"
+)
 
-	return logger
-}
-
-func GetLoggerFlags() int {
-	log, ok := GetLogger().(*Log)
-	if !ok {
-		return -1
-	}
-
-	return log.log.Flags()
-}
-
-func MockProcCmdline(new string) (restore func()) {
-	old := procCmdline
-	procCmdline = new
-	return func() {
-		procCmdline = old
-	}
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	return nil
 }
