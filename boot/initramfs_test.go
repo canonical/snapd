@@ -572,12 +572,12 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 			if t.blvars != nil {
 				c.Assert(bl.SetBootVars(t.blvars), IsNil, comment)
-				emptyMap := make(map[string]string, len(t.blvars))
+				cleanBootVars := make(map[string]string, len(t.blvars))
 				for k := range t.blvars {
-					emptyMap[k] = ""
+					cleanBootVars[k] = ""
 				}
 				cleanups = append(cleanups, func() {
-					c.Assert(bl.SetBootVars(emptyMap), IsNil, comment)
+					c.Assert(bl.SetBootVars(cleanBootVars), IsNil, comment)
 				})
 			}
 

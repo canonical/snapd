@@ -245,7 +245,7 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	return kern, tryBootSn, status, nil
 }
 
-func (ks20 *bootState20Kernel) revisionsFromModeenv(modeenv *Modeenv) (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
+func (ks20 *bootState20Kernel) revisionsFromModeenv(*Modeenv) (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	// the kernel snap doesn't use modeenv at all for getting their revisions
 	return ks20.revisions()
 }

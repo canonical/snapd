@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type ManagerBackend managerBackend
@@ -96,6 +97,8 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
 
+	CurrentSnaps = currentSnaps
+
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
@@ -104,6 +107,9 @@ var (
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// helpers
+var InstallSize = installSize
 
 // aliases v2
 var (
@@ -233,6 +239,14 @@ func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func(
 	pidsOfSnap = f
 	return func() {
 		pidsOfSnap = old
+	}
+}
+
+func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) func() {
+	old := currentSnaps
+	currentSnaps = f
+	return func() {
+		currentSnaps = old
 	}
 }
 
