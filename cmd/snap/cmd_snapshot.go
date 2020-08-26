@@ -409,6 +409,9 @@ func init() {
 				desc: i18n.G("The filename of the export"),
 			},
 		})
+	// This command is hidden because there's no corresponding
+	// "import-snapshot" to consume the produced data.
+	// TODO: implement import-snapshot and remove the hidden attribute.
 	cmd.hidden = true
 }
 
