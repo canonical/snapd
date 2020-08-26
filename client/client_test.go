@@ -105,7 +105,7 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	if cs.doCalls < len(cs.rsps) {
 		body = cs.rsps[cs.doCalls]
 	}
-	cs.countingCloser = &countingCloser{strings.NewReader(body), 0}
+	cs.countingCloser = &countingCloser{Reader: strings.NewReader(body)}
 	rsp := &http.Response{
 		Body:          cs.countingCloser,
 		Header:        cs.header,
