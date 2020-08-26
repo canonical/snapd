@@ -360,6 +360,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	}
 
 	for _, t := range tt {
+		comment := Commentf(t.comment)
 		// setup status.json
 		old := dirs.GlobalRootDir
 		dirs.SetRootDir(c.MkDir())
@@ -367,30 +368,30 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		statusJSONFile := filepath.Join(dirs.GlobalRootDir, "/run/cloud-init/status.json")
 		if t.cloudInitStatusJSON != "" {
 			err := os.MkdirAll(filepath.Dir(statusJSONFile), 0755)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 			err = ioutil.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 		}
 
 		// if we expect snapd to write a yaml config file for cloud-init, ensure
 		// the dir exists before hand
 		if t.expRestrictYamlWritten != "" {
 			err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d"), 0755)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 		}
 
 		res, err := sysconfig.RestrictCloudInit(t.state, t.sysconfOpts)
 		if t.expError == "" {
-			c.Assert(err, IsNil, Commentf(t.comment))
-			c.Assert(res.DataSource, Equals, t.expDatasource, Commentf(t.comment))
-			c.Assert(res.Action, Equals, t.expAction, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
+			c.Assert(res.DataSource, Equals, t.expDatasource, comment)
+			c.Assert(res.Action, Equals, t.expAction, comment)
 			if t.expRestrictYamlWritten != "" {
 				// check the snapd restrict yaml file that should have been written
 				c.Assert(
 					filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"),
 					testutil.FileEquals,
 					t.expRestrictYamlWritten,
-					Commentf(t.comment),
+					comment,
 				)
 			}
 
@@ -406,11 +407,11 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			c.Assert(
 				filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud-init.disabled"),
 				fileCheck,
-				Commentf(t.comment),
+				comment,
 			)
 
 		} else {
-			c.Assert(err, ErrorMatches, t.expError, Commentf(t.comment))
+			c.Assert(err, ErrorMatches, t.expError, comment)
 		}
 	}
 }
