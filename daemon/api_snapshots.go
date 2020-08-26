@@ -143,6 +143,10 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
+// getSnapshotExport streams an archive containing an export of existing snapshots.
+//
+// The snapshots are re-packaged into a single uncompressed tar archive and
+// internally contain multiple zip files.
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
