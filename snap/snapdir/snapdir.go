@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/internal"
 )
 
 func IsSnapDir(path string) bool {
@@ -74,9 +75,13 @@ func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions
 func (s *SnapDir) RandomAccessFile(file string) (interface {
 	io.ReaderAt
 	io.Closer
-	Stat() (os.FileInfo, error)
+	Size() (int64, error)
 }, error) {
-	return os.Open(filepath.Join(s.path, file))
+	f, err := os.Open(filepath.Join(s.path, file))
+	if err != nil {
+		return nil, err
+	}
+	return internal.SizedFile{f}, nil
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -242,7 +243,7 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 func (s *Snap) RandomAccessFile(filePath string) (interface {
 	io.ReaderAt
 	io.Closer
-	Stat() (os.FileInfo, error)
+	Size() (int64, error)
 }, error) {
 	var f *os.File
 	err := s.withUnpackedFile(filePath, func(p string) (err error) {
@@ -252,7 +253,7 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	return internal.SizedFile{f}, nil
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.
