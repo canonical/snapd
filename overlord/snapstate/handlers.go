@@ -1815,8 +1815,8 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// get the disabled services after we stopped all the services.
 	// this list is not meant to save what services are disabled at any given
 	// time, specifically just what services are disabled while systemd loses
-	// track of the services. this list then affects what services are enabled
-	// back when we start services of a new revision of the snap in
+	// track of the services. this list is also used to determine what services are enabled
+	// when we start services of a new revision of the snap in
 	// start-snap-services handler.
 	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
 	if err != nil {
