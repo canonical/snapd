@@ -620,7 +620,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// cloud-init errored, so we give the device admin / developer a few
 			// minutes to reboot the machine to re-run cloud-init and try again,
 			// otherwise we will disable cloud-init permanently
-			// initialize
+
+			// initialize the time we first saw cloud-init in error state
 			if m.cloudInitErrorAttemptStart == nil {
 				// save the time we started the attempt to restrict
 				now := timeNow()
