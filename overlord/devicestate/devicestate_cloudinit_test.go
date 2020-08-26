@@ -308,7 +308,7 @@ fi`)
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 			Action:     "restrict",
 		}, nil
 	})
@@ -355,7 +355,7 @@ fi`)
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was GCE
-			Datasource: "GCE",
+			DataSource: "GCE",
 			Action:     "restrict",
 		}, nil
 	})
@@ -418,7 +418,7 @@ fi`, cloudInitScriptStateFile))
 		// we would have restricted it
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 			Action:     "restrict",
 		}, nil
 	})
@@ -892,7 +892,7 @@ fi`, cloudInitScriptStateFile))
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "restrict",
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 		}, nil
 	})
 	defer r()

@@ -692,11 +692,11 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			actionMsg = "disabled permanently"
 		case "restrict":
 			// log different messages depending on what datasource was used
-			if res.Datasource == "NoCloud" {
+			if res.DataSource == "NoCloud" {
 				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
 			} else {
 				// all other datasources just log that we limited it to that datasource
-				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.Datasource)
+				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)

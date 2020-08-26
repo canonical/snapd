@@ -382,7 +382,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		res, err := sysconfig.RestrictCloudInit(t.state, t.sysconfOpts)
 		if t.expError == "" {
 			c.Assert(err, IsNil, Commentf(t.comment))
-			c.Assert(res.Datasource, Equals, t.expDatasource, Commentf(t.comment))
+			c.Assert(res.DataSource, Equals, t.expDatasource, Commentf(t.comment))
 			c.Assert(res.Action, Equals, t.expAction, Commentf(t.comment))
 			if t.expRestrictYamlWritten != "" {
 				// check the snapd restrict yaml file that should have been written
