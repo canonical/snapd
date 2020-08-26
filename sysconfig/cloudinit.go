@@ -294,20 +294,14 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 		// USB drive inserted by an attacker with label CIDATA will defeat
 		// security measures on Ubuntu Core, so with the additional fs_label
 		// spec, we disable that import.
-		err := ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
-		if err != nil {
-			return res, err
-		}
+		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
 	default:
 		// all other datasources that are not NoCloud will be restricted to only
 		// allow this specific datasource to prevent an attack via NoCloud for
 		// example
 		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.DataSource))
-		err := ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
-		if err != nil {
-			return res, err
-		}
+		err = ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
 	}
 
-	return res, nil
+	return res, err
 }
