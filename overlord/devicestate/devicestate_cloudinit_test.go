@@ -46,6 +46,10 @@ func (s *cloudInitSuite) SetUpTest(c *C) {
 	logbuf, r := logger.MockLogger()
 	s.mockLogger = logbuf
 	s.AddCleanup(r)
+
+	// mock /etc/cloud on writable
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
+	c.Assert(err, IsNil)
 }
 
 func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
@@ -172,7 +176,6 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
-
 	// write a cloud-init restriction file
 	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
 	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
@@ -279,10 +282,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitDoneRestricts(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -315,7 +314,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -330,10 +329,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitDoneProperCloudRestricts(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -366,7 +361,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -381,10 +376,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitRunningEnsuresUntilNotRunning(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -433,7 +424,7 @@ fi`, cloudInitScriptStateFile))
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// no log messages while we wait for the transition
@@ -465,10 +456,6 @@ fi`, cloudInitScriptStateFile))
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisables(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -525,7 +512,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called restrict
@@ -565,10 +552,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisablesFasterEnsure(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -633,7 +616,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called restrict
@@ -675,10 +658,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisables(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -732,7 +711,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to disable
@@ -776,10 +755,6 @@ func (s *cloudInitSuite) TestCloudInitTakingTooLongDisablesFasterEnsures(c *C) {
 	// same test as TestCloudInitTakingTooLongDisables, but with a faster
 	// re-ensure cycle to ensure that if we get scheduled to run Ensure() sooner
 	// than expected everything still works
-
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
 
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
@@ -834,7 +809,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to disable
@@ -875,10 +850,6 @@ fi`)
 }
 
 func (s *cloudInitSuite) TestCloudInitErrorOnceAllowsFixing(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -943,7 +914,7 @@ fi`, cloudInitScriptStateFile))
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to restrict
