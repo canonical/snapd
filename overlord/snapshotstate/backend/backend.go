@@ -419,7 +419,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 			}
 			f := os.NewFile(uintptr(fd), reader.Name())
 			if f == nil {
-				return fmt.Errorf("invalid fd %v for %v", fd, reader.Name())
+				return fmt.Errorf("cannot open file from descriptor %d", fd)
 			}
 			snapshotFiles = append(snapshotFiles, f)
 		}
