@@ -412,7 +412,9 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	// files are getting opened.
 	err = Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
-			// dup() the file descriptor
+			// Duplicate the file descriptor of the reader we were handed as
+			// Iter() closes those as soon as this unnamed returns. We
+			// re-package the file descriptor into snapshotFiles below.
 			fd, err := syscall.Dup(int(reader.Fd()))
 			if err != nil {
 				return fmt.Errorf("cannot duplicate descriptor: %v", err)
