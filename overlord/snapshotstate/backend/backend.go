@@ -476,8 +476,8 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	var files []string
 	tw := tar.NewWriter(w)
 	defer tw.Close()
-	for _, snapshotFd := range se.snapshotFiles {
-		stat, err := snapshotFd.Stat()
+	for _, snapshotFile := range se.snapshotFiles {
+		stat, err := snapshotFile.Stat()
 		if err != nil {
 			return err
 		}
@@ -485,7 +485,7 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 			// should never happen
 			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
 		}
-		if _, err := snapshotFd.Seek(0, 0); err != nil {
+		if _, err := snapshotFile.Seek(0, 0); err != nil {
 			return fmt.Errorf("cannot seek on %v: %v", stat.Name(), err)
 		}
 		hdr, err := tar.FileInfoHeader(stat, "")
@@ -495,11 +495,11 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 		if err = tw.WriteHeader(hdr); err != nil {
 			return fmt.Errorf("cannot write header for %v: %v", stat.Name(), err)
 		}
-		if _, err := io.Copy(tw, snapshotFd); err != nil {
+		if _, err := io.Copy(tw, snapshotFile); err != nil {
 			return fmt.Errorf("cannot write data for %v: %v", stat.Name(), err)
 		}
 
-		files = append(files, path.Base(snapshotFd.Name()))
+		files = append(files, path.Base(snapshotFile.Name()))
 	}
 
 	// write the metadata last, then the client can use that to
