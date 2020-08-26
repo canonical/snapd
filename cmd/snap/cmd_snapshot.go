@@ -423,7 +423,7 @@ type exportSnapshotCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *exportSnapshotCmd) Execute([]string) error {
+func (x *exportSnapshotCmd) Execute([]string) (err error) {
 	setID, err := x.Positional.ID.ToUint()
 	if err != nil {
 		return err
@@ -440,7 +440,11 @@ func (x *exportSnapshotCmd) Execute([]string) error {
 		return err
 	}
 	defer f.Close()
-	defer func() { os.Remove(filename + ".part") }()
+	defer func() {
+		if err != nil {
+			os.Remove(filename + ".part")
+		}
+	}()
 
 	n, err := io.Copy(f, r)
 	if err != nil {
