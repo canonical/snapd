@@ -116,7 +116,7 @@ execute: |
     snap check-snapshot "$SET_ID"
     # export the large snap and record memory usage
     "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
-    "$SET_ID" "${SET_ID}_export.snapshot"
+        "$SET_ID" "${SET_ID}_export.snapshot"
     test -e "${SET_ID}_export.snapshot"
     # Ensure our snapshot export file is at least 50MB. The data we created
     # is 100MB of randomness so even with amazing compression we should never
