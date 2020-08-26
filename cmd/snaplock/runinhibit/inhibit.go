@@ -113,7 +113,8 @@ func Unlock(snapName string) error {
 // It returns the current, non-empty hit if inhibition is in place. Otherwise
 // it returns an empty hint.
 func IsLocked(snapName string) (Hint, error) {
-	flock, err := openHintFileLock(snapName)
+	fname := filepath.Join(InhibitDir, snapName+".lock")
+	flock, err := osutil.OpenExistingLockForReading(fname)
 	if os.IsNotExist(err) {
 		return "", nil
 	}

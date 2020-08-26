@@ -13,7 +13,6 @@ systems:
   # be problematic.  OpenSUSE 15.2 will hopefully be fine.
   - opensuse-tumbleweed-*
   - ubuntu-18.04-*
-  - ubuntu-19.10-*
   - ubuntu-2*
 
 environment:
