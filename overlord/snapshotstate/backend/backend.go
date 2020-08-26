@@ -415,7 +415,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 			// dup() the file descriptor
 			fd, err := syscall.Dup(int(reader.Fd()))
 			if err != nil {
-				return fmt.Errorf("cannot dup %v", reader.Name())
+				return fmt.Errorf("cannot duplicate descriptor: %v", err)
 			}
 			f := os.NewFile(uintptr(fd), reader.Name())
 			if f == nil {
