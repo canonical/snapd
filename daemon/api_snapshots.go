@@ -168,7 +168,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	err = export.Init()
 	st.Lock()
 	if err != nil {
-		return BadRequest("cannot calculate snapshot export size %v", setID)
+		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
 	}
 
 	return &snapshotExportResponse{SnapshotExport: export}
