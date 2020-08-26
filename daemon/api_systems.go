@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -118,34 +117,22 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 }
 
+func handleSystemActionErr(err error, systemLabel string) Response {
+	if os.IsNotExist(err) {
+		return NotFound("requested seed system %q does not exist", systemLabel)
+	}
+	if err == devicestate.ErrUnsupportedAction {
+		return BadRequest("requested action is not supported by system %q", systemLabel)
+	}
+	return InternalError(err.Error())
+}
+
 func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
-	// XXX: should there be a "DeviceManager.RequestReboot()" helper
-	//      instead?
-
-	// most simple case: just reboot
-	if systemLabel == "" && req.Mode == "" {
-		c.d.state.Lock()
-		defer c.d.state.Unlock()
-
-		c.d.state.RequestRestart(state.RestartSystemNow)
-		return SyncResponse(nil, nil)
-	}
-
-	// no systemLabel means "current" so get the current system
 	dm := c.d.overlord.DeviceManager()
-	if systemLabel == "" {
-		systems, err := dm.Systems()
-		if err != nil {
-			return InternalError("cannot get available system: %v", err)
-		}
-		for _, sys := range systems {
-			if sys.Current {
-				systemLabel = sys.Label
-				break
-			}
-		}
+	if err := dm.RequestReboot(systemLabel, req.Mode); err != nil {
+		return handleSystemActionErr(err, systemLabel)
 	}
-	return postSystemActionDo(c, systemLabel, req)
+	return SyncResponse(nil, nil)
 }
 
 func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest) Response {
@@ -161,13 +148,7 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 		Mode:  req.Mode,
 	}
 	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
-		if os.IsNotExist(err) {
-			return NotFound("requested seed system %q does not exist", systemLabel)
-		}
-		if err == devicestate.ErrUnsupportedAction {
-			return BadRequest("requested action is not supported by system %q", systemLabel)
-		}
-		return InternalError(err.Error())
+		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil, nil)
 }

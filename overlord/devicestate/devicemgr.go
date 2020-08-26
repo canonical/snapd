@@ -995,6 +995,28 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
+func (m *DeviceManager) RequestReboot(systemLabel, mode string) error {
+	// most simple case: just reboot
+	if systemLabel == "" && mode == "" {
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		logger.Noticef("restarting system")
+		m.state.RequestRestart(state.RestartSystemNow)
+		return nil
+	}
+
+	// no systemLabel means "current" so get the current system label
+	if systemLabel == "" {
+		systemMode := m.SystemMode()
+		currentSys, _ := currentSystemForMode(m.state, systemMode)
+		systemLabel = currentSys.System
+	}
+
+	// hand over to RequestSystemAction now
+	return m.RequestSystemAction(systemLabel, SystemAction{Mode: mode})
+}
+
 // RequestSystemAction request provided system to be run in a given mode. A
 // system reboot will be requested when the request can be successfully carried
 // out.
