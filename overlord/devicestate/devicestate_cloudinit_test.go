@@ -171,6 +171,37 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
+
+	// write a cloud-init restriction file
+	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
+	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(disableFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock cloud-init command, but make it always fail, it shouldn't be called
+	// as cloud-init.disabled should tell sysconfig to never consult cloud-init
+	// directly
+	cmd := testutil.MockCommand(c, "cloud-init", `
+echo "unexpected call to cloud-init with args $*"
+exit 1`)
+	defer cmd.Restore()
+
+	r := devicestate.MockRestrictCloudInit(func(sysconfig.CloudInitState, *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		c.Error("EnsureCloudInitRestricted should not have restricted cloud-init when already disabled")
+		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
+	})
+	defer r()
+
+	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockLogger.String(), Equals, "")
+
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
 func (s *cloudInitSuite) TestCloudInitAlreadyDisabledDoesNothing(c *C) {
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
