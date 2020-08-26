@@ -231,6 +231,9 @@ if [ "$STATIC" = 1 ]; then
     if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
+    # FIXME: auter is only misspelled in the changelog so we should fix there
+    # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
+    # exportfs is used in the nfs-support test
     MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
     git ls-files -z -- . ':!:./po' ':!:./vendor' |
         xargs -0 misspell -error -i "$MISSPELL_IGNORE"
