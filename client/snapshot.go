@@ -179,8 +179,10 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
 }
 
-// SnapshotExport streams the requested snapshot set
-func (client *Client) SnapshotExport(setID uint64) (io.ReadCloser, int64, error) {
+// SnapshotExport streams the requested snapshot set.
+//
+// The return value includes the length of the returned stream.
+func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
 	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
 	if err != nil {
 		return nil, 0, err
