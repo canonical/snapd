@@ -405,7 +405,8 @@ func init() {
 				desc: i18n.G("Set id of snapshot to export"),
 			},
 			{
-				name: "<filename>",
+				// TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+				name: i18n.G("<filename>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The filename of the export"),
 			},
@@ -451,7 +452,7 @@ func (x *exportSnapshotCmd) Execute([]string) (err error) {
 	const fallocKeepSize = 1 // This is FALLOC_FL_KEEP_SIZE
 	if err := syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, expectedSize); err != nil {
 		if err != syscall.EOPNOTSUPP && err != syscall.ENOSYS {
-			return fmt.Errorf("cannot pre-allocate disk space for snapshot: %v", err)
+			return fmt.Errorf(i18n.G("cannot pre-allocate disk space for snapshot: %v"), err)
 		}
 	}
 
@@ -460,14 +461,15 @@ func (x *exportSnapshotCmd) Execute([]string) (err error) {
 		return err
 	}
 	if n != expectedSize {
-		return fmt.Errorf("unexpected size, got: %v but wanted %v", n, expectedSize)
+		return fmt.Errorf(i18n.G("unexpected size, got: %v but wanted %v"), n, expectedSize)
 	}
 
 	if err := os.Rename(filename+".part", filename); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "Exported snapshot #%s into %q\n", x.Positional.ID, x.Positional.Filename)
+	// TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
+	fmt.Fprintf(Stdout, i18n.G("Exported snapshot #%s into %q\n"), x.Positional.ID, x.Positional.Filename)
 
 	return nil
 }
