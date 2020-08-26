@@ -594,8 +594,6 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
 	// attached to a device via a USB drive and inject code onto the device.
 
-	// TODO: expand the scope to run on any device with a gadget, so i.e.
-	//       classic devices connected to a brand store also have this run?
 	if seeded && !release.OnClassic {
 		opts := &sysconfig.CloudInitRestrictOptions{}
 
