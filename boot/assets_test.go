@@ -376,6 +376,39 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Check(obs.CurrentTrustedBootAssetsMap(), IsNil)
 }
 
+func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/asset",
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644)
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// same asset name but different content
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "other"), "nested/asset")
+	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+}
+
 func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	d := c.MkDir()
 
@@ -487,6 +520,36 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryNoAssets(c *C) {
 	// happy with non trusted bootloader too
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	c.Assert(err, IsNil)
+}
+
+func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/asset",
+	}
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(d, "nested"), 0755)
+	c.Assert(err, IsNil)
+	// same asset name but different content
+	err = ioutil.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0644)
+	c.Assert(err, IsNil)
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	// same asset name but different content
+	c.Assert(err, ErrorMatches, `cannot reuse recovery asset name "asset"`)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 }
 
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
