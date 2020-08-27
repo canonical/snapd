@@ -337,9 +337,11 @@ type TrustedAssetsUpdateObserver struct {
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
+	changedAssets     []*trackedAsset
 
 	seedBootloader    bootloader.Bootloader
 	seedTrustedAssets []string
+	seedChangedAssets []*trackedAsset
 
 	modeenv *Modeenv
 }
@@ -435,9 +437,14 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	}
 
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
+	changedAssets := &o.changedAssets
 	if recovery {
 		trustedAssets = &o.modeenv.CurrentTrustedRecoveryBootAssets
+		changedAssets = &o.seedChangedAssets
 	}
+	// keep track of the change for cancellation purpose
+	*changedAssets = append(*changedAssets, ta)
+
 	if !isAssetAlreadyTracked(*trustedAssets, ta) {
 		if *trustedAssets == nil {
 			*trustedAssets = bootAssetsMap{}
@@ -539,11 +546,68 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 	return nil
 }
 
+func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) error {
+	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
+	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
+	changedAssets := o.changedAssets
+	if recovery {
+		trustedAssets = &o.modeenv.CurrentTrustedRecoveryBootAssets
+		otherTrustedAssets = o.modeenv.CurrentTrustedBootAssets
+		changedAssets = o.seedChangedAssets
+	}
+
+	for _, changed := range changedAssets {
+		if *trustedAssets == nil {
+			return nil
+		}
+		hashList, ok := (*trustedAssets)[changed.name]
+		if !ok || len(hashList) == 0 {
+			// not tracked already, nothing to do
+			continue
+		}
+		if len(hashList) == 1 {
+			currentAssetHash := hashList[0]
+			if currentAssetHash != changed.hash {
+				// assets list has already been trimmed, nothing
+				// to do
+				continue
+			} else {
+				// asset was newly added
+				delete(*trustedAssets, changed.name)
+			}
+		} else {
+			(*trustedAssets)[changed.name] = hashList[:1]
+		}
+		if !isAssetHashTrackedInMap(otherTrustedAssets, changed.name, changed.hash) {
+			// asset revision is not used used elsewhere, we can remove it from the cache
+			if err := o.cache.Remove(changed.blName, changed.name, changed.hash); err != nil {
+				return fmt.Errorf("cannot remove unused boot asset %v:%v: %v", changed.name, changed.hash, err)
+			}
+		}
+	}
+	return nil
+}
+
 // Canceled is called when the update has been canceled, or if changes
 // were written and the update has been reverted.
 func (o *TrustedAssetsUpdateObserver) Canceled() error {
+	if o.modeenv == nil {
+		// modeenv wasn't even loaded yet, meaning none of the boot
+		// assets was updated
+		return nil
+	}
+	for _, isRecovery := range []bool{false, true} {
+		if err := o.canceledUpdate(isRecovery); err != nil {
+			// XXX: should this be a log instead?
+			return err
+		}
+	}
+
+	if err := o.modeenv.WriteTo(""); err != nil {
+		return fmt.Errorf("cannot write modeeenv: %v", err)
+	}
+
 	// TODO:UC20:
-	// - drop unused assets and update modeenv if needed
 	// - reseal with a given state of modeenv
 	return nil
 }
