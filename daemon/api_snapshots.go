@@ -43,8 +43,9 @@ var snapshotCmd = &Command{
 }
 
 var snapshotExportCmd = &Command{
-	Path: "/v2/snapshots/{id}/export",
-	GET:  getSnapshotExport,
+	Path:       "/v2/snapshots/{id}/export",
+	GET:        getSnapshotExport,
+	ReadAccess: authenticatedAccess{},
 }
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {

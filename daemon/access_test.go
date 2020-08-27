@@ -184,6 +184,10 @@ func (s *accessSuite) TestRootAccess(c *C) {
 
 	user := &auth.UserState{}
 
+	// rootAccess denies access without ucred
+	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(nil, nil, user), Equals, accessForbidden)
+
 	// rootAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
