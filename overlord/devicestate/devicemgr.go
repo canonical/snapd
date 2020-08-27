@@ -995,7 +995,17 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
-func (m *DeviceManager) RequestReboot(systemLabel, mode string) error {
+// Reboot triggers a reboot into the given systemLabel and mode.
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// most simple case: just reboot
 	if systemLabel == "" && mode == "" {
 		m.state.Lock()

@@ -127,13 +127,13 @@ func handleSystemActionErr(err error, systemLabel string) Response {
 	return InternalError(err.Error())
 }
 
-var deviceManagerRequestReboot = func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
-	return dm.RequestReboot(systemLabel, mode)
+var deviceManagerReboot = func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+	return dm.Reboot(systemLabel, mode)
 }
 
 func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
 	dm := c.d.overlord.DeviceManager()
-	if err := deviceManagerRequestReboot(dm, systemLabel, req.Mode); err != nil {
+	if err := deviceManagerReboot(dm, systemLabel, req.Mode); err != nil {
 		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil, nil)

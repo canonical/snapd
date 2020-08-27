@@ -576,7 +576,7 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
-	restore := MockDeviceManagerRequestReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+	restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 		c.Fatalf("request reboot should not get called")
 		return nil
 	})
@@ -605,7 +605,7 @@ func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
 		{"20200101", "recover"},
 	} {
 		called := 0
-		restore := MockDeviceManagerRequestReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 			called++
 			c.Check(dm, check.NotNil)
 			c.Check(systemLabel, check.Equals, tc.systemLabel)
@@ -635,7 +635,7 @@ func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
 	s.daemon(c)
 
 	for _, tc := range []struct {
-		requestRebootErr error
+		rebootErr        error
 		expectedHttpCode int
 		expectedErr      string
 	}{
@@ -644,9 +644,9 @@ func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
 		{devicestate.ErrUnsupportedAction, 400, `requested action is not supported by system ""`},
 	} {
 		called := 0
-		restore := MockDeviceManagerRequestReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 			called++
-			return tc.requestRebootErr
+			return tc.rebootErr
 		})
 		defer restore()
 
