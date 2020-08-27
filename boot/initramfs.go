@@ -34,14 +34,11 @@ func InitramfsRunModeSelectSnapsToMount(
 	var err error
 	m := make(map[snap.Type]snap.PlaceInfo)
 	for _, typ := range typs {
-		var selectSnapFn func() (snap.PlaceInfo, error)
+		// TODO: consider passing a bootStateUpdate20 instead?
+		var selectSnapFn func(*Modeenv) (snap.PlaceInfo, error)
 		switch typ {
 		case snap.TypeBase:
-			bs := &bootState20Base{
-				bootState20Modeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
-			}
+			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{NoSlashBoot: true}
@@ -49,13 +46,10 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Kernel{
 				blDir:  blDir,
 				blOpts: blOpts,
-				kModeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
-		sn, err = selectSnapFn()
+		sn, err = selectSnapFn(modeenv)
 		if err != nil {
 			return nil, err
 		}
@@ -64,4 +58,28 @@ func InitramfsRunModeSelectSnapsToMount(
 	}
 
 	return m, nil
+}
+
+// EnsureNextBootToRunMode will mark the bootenv of the recovery bootloader such
+// that recover mode is now ready to switch back to run mode upon any reboot.
+func EnsureNextBootToRunMode(systemLabel string) error {
+	// at the end of the initramfs we need to set the bootenv such that a reboot
+	// now at any point will rollback to run mode without additional config or
+	// actions
+
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	m := map[string]string{
+		"snapd_recovery_system": systemLabel,
+		"snapd_recovery_mode":   "run",
+	}
+	return bl.SetBootVars(m)
 }

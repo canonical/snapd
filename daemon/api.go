@@ -47,7 +47,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -106,6 +106,7 @@ var api = []*Command{
 	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
+	snapshotExportCmd,
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,
@@ -427,7 +428,9 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
-	result := webify(mapLocal(about), url.String())
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	result := webify(mapLocal(about, sd), url.String())
 
 	return SyncResponse(result, nil)
 }
@@ -732,6 +735,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	results := make([]*json.RawMessage, len(found))
 
+	sd := servicestate.NewStatusDecorator(progress.Null)
 	for i, x := range found {
 		name := x.info.InstanceName()
 		rev := x.info.Revision
@@ -742,7 +746,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x, sd), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
@@ -891,6 +895,7 @@ var (
 	snapshotForget  = snapshotstate.Forget
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -2358,7 +2363,9 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {
 		return InternalError("%v", err)
 	}

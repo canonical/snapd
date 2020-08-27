@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -99,11 +100,12 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	isRemodel := remodelCtx.ForRemodeling()
 	groundDeviceCtx := remodelCtx.GroundContext()
 
-	// be extra paranoid when checking we are installing the right gadget
-	expectedGadgetSnap := groundDeviceCtx.Model().Gadget()
+	model := groundDeviceCtx.Model()
 	if isRemodel {
-		expectedGadgetSnap = remodelCtx.Model().Gadget()
+		model = remodelCtx.Model()
 	}
+	// be extra paranoid when checking we are installing the right gadget
+	expectedGadgetSnap := model.Gadget()
 	if snapsup.InstanceName() != expectedGadgetSnap {
 		return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
 			snapsup.InstanceName(), expectedGadgetSnap)
@@ -136,8 +138,16 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
+	var updateObserver gadget.ContentUpdateObserver
+	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset update observer: %v", err)
+	}
+	if err == nil {
+		updateObserver = observeTrustedBootAssets
+	}
 	st.Unlock()
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy)
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {

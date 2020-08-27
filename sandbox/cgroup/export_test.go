@@ -19,18 +19,16 @@
 package cgroup
 
 import (
-	"time"
-
 	"github.com/godbus/dbus"
 )
 
 var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-	ParsePid           = parsePid
-
+	Cgroup2SuperMagic       = cgroup2SuperMagic
+	ProbeCgroupVersion      = probeCgroupVersion
+	ParsePid                = parsePid
 	DoCreateTransientScope  = doCreateTransientScope
 	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
+
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
@@ -97,13 +95,5 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 	doCreateTransientScope = fn
 	return func() {
 		doCreateTransientScope = old
-	}
-}
-
-func MockTimeSleep(fn func(time.Duration)) (restore func()) {
-	old := timeSleep
-	timeSleep = fn
-	return func() {
-		timeSleep = old
 	}
 }

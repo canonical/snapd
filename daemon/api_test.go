@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -1003,7 +1002,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			{Snap: "some-snap_instance", Name: "foo"},
 		},
 	}
-	c.Check(mapLocal(about), check.DeepEquals, expected)
+	c.Check(mapLocal(about, nil), check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
@@ -1015,17 +1014,17 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 	about := aboutSnap{info: &info, snapst: &snapst}
 
 	// if not a 'try', then MountedFrom is just MountFile()
-	c.Check(mapLocal(about).MountedFrom, check.Equals, mountFile)
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, mountFile)
 
 	// if it's a try, then MountedFrom resolves the symlink
 	// (note it doesn't matter, here, whether the target of the link exists)
 	snapst.TryMode = true
 	c.Assert(os.Symlink("/xyzzy", mountFile), check.IsNil)
-	c.Check(mapLocal(about).MountedFrom, check.Equals, "/xyzzy")
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, "/xyzzy")
 
 	// if the readlink fails, it's unset
 	c.Assert(os.Remove(mountFile), check.IsNil)
-	c.Check(mapLocal(about).MountedFrom, check.Equals, "")
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, "")
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -7041,7 +7040,7 @@ func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7054,7 +7053,7 @@ func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7076,7 +7075,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")

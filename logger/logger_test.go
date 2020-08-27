@@ -21,8 +21,10 @@ package logger_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -121,4 +123,18 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 		c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 	})
 	c.Check(called, Equals, true)
+}
+
+func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
+	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
+	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1"), 0644)
+	c.Assert(err, IsNil)
+	restore := logger.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	var buf bytes.Buffer
+	l, err := logger.New(&buf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	l.Debug("xyzzy")
+	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
