@@ -74,22 +74,24 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
-type ErrInsufficientSpace struct {
+type InsufficientSpaceError struct {
 	// Path is the filesystem path checked for available disk space
 	Path string
 	// Snaps affected by the failing operation
 	Snaps []string
+	// Kind of the change that failed
+	ChangeKind string
 	// Message is optional, otherwise one is composed from the other information
 	Message string
 }
 
-func (e *ErrInsufficientSpace) Error() string {
+func (e *InsufficientSpaceError) Error() string {
 	if e.Message != "" {
 		return e.Message
 	}
 	if len(e.Snaps) > 0 {
 		snaps := strings.Join(e.Snaps, ", ")
-		return fmt.Sprintf("insufficient space in %q to perform operation for the following snaps: %s", e.Path, snaps)
+		return fmt.Sprintf("insufficient space in %q to perform %q change for the following snaps: %s", e.Path, e.ChangeKind, snaps)
 	}
 	return fmt.Sprintf("insufficient space in %q", e.Path)
 }
@@ -881,9 +883,10 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-			return nil, nil, &ErrInsufficientSpace{
+			return nil, nil, &InsufficientSpaceError{
 				Path:  path,
 				Snaps: toInstall,
+				ChangeKind: "install",
 			}
 		}
 		return nil, nil, err
@@ -1969,9 +1972,10 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-						return nil, &ErrInsufficientSpace{
+						return nil, &InsufficientSpaceError{
 							Path:    path,
 							Snaps:   []string{name},
+							ChangeKind: "remove",
 							Message: fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
 					}
 					return nil, err

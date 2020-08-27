@@ -3157,8 +3157,8 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	defer s.state.Unlock()
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
-	diskSpaceErr := err.(*snapstate.ErrInsufficientSpace)
-	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform operation for the following snaps: one, two`)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
 }
