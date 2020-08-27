@@ -78,20 +78,25 @@ type accessChecker interface {
 	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 }
 
+// requireSnapdSocket ensures the request was received via snapd.socket.
+func requireSnapdSocket(ucred *ucrednet) accessResult {
+	if ucred == nil {
+		return accessForbidden
+	}
+
+	if ucred.socket != dirs.SnapdSocket {
+		return accessForbidden
+	}
+
+	return accessOK
+}
+
 // openAccess allows requests without authentication, provided they
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
 func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred == nil {
-		return accessForbidden
-	}
-	// Forbid access from snapd-snap.socket
-	if ucred.socket == dirs.SnapSocket {
-		return accessForbidden
-	}
-
-	return accessOK
+	return requireSnapdSocket(ucred)
 }
 
 // authenticatedAccess allows requests from authenticated users,
@@ -105,14 +110,8 @@ type authenticatedAccess struct {
 }
 
 func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	// Require peer credentials
-	if ucred == nil {
-		return accessForbidden
-	}
-
-	// Forbid access from snapd-snap.socket
-	if ucred.socket == dirs.SnapSocket {
-		return accessForbidden
+	if result := requireSnapdSocket(ucred); result != accessOK {
+		return result
 	}
 
 	if user != nil {
@@ -138,11 +137,11 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 type rootAccess struct{}
 
 func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred == nil {
-		return accessForbidden
+	if result := requireSnapdSocket(ucred); result != accessOK {
+		return result
 	}
 
-	if ucred.uid == 0 && ucred.socket != dirs.SnapSocket {
+	if ucred.uid == 0 {
 		return accessOK
 	}
 	return accessForbidden

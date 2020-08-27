@@ -448,7 +448,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		// as root
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 		rec := httptest.NewRecorder()
 		systemsActionCmd.ServeHTTP(rec, req)
 		if tc.expUnsupported {
@@ -555,7 +555,7 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 	// non root
-	req.RemoteAddr = "pid=100;uid=1234;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1234;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	systemsActionCmd.ServeHTTP(rec, req)

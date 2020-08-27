@@ -3892,7 +3892,7 @@ func (s *apiSuite) TestInstallUserAgentContextCreated(c *check.C) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 

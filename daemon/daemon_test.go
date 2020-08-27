@@ -131,7 +131,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Check(rec.Code, check.Equals, 403, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
@@ -140,7 +140,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -157,7 +157,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -202,7 +202,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -1091,7 +1091,7 @@ func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
 	req, err := http.NewRequest(mth, "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	return rec
