@@ -316,6 +316,10 @@ readdir
 readlink
 readlinkat
 
+# the file descriptors used here will already be mediated by apparmor, so it's 
+# safe to not filter syscall args here 
+copy_file_range
+
 # allow reading from sockets
 recv
 recvfrom
