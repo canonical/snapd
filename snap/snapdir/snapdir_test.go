@@ -82,9 +82,7 @@ func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	c.Assert(err, IsNil)
 	defer r.Close()
 
-	size, err := r.Size()
-	c.Assert(err, IsNil)
-	c.Assert(size, Equals, int64(5))
+	c.Assert(r.Size(), Equals, int64(5))
 
 	b := make([]byte, 2)
 	n, err := r.ReadAt(b, 2)

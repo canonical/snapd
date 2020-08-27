@@ -75,13 +75,13 @@ func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions
 func (s *SnapDir) RandomAccessFile(file string) (interface {
 	io.ReaderAt
 	io.Closer
-	Size() (int64, error)
+	Size() int64
 }, error) {
 	f, err := os.Open(filepath.Join(s.path, file))
 	if err != nil {
 		return nil, err
 	}
-	return internal.SizedFile{f}, nil
+	return internal.NewSizedFile(f)
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {

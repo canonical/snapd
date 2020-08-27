@@ -23,14 +23,20 @@ import (
 	"os"
 )
 
+// SizedFile holds an os.File plus its (initial) size.
 type SizedFile struct {
 	*os.File
+	size int64
 }
 
-func (f SizedFile) Size() (int64, error) {
+func NewSizedFile(f *os.File) (*SizedFile, error) {
 	fi, err := f.Stat()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return fi.Size(), nil
+	return &SizedFile{File: f, size: fi.Size()}, nil
+}
+
+func (f *SizedFile) Size() int64 {
+	return f.size
 }

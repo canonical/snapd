@@ -238,12 +238,13 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	return f(filepath.Join(unpackDir, filePath))
 }
 
-// RandomAccessFile returns an implementation to read at any given location
-// for a single file inside the squashfs snap.
+// RandomAccessFile returns an implementation to read at any given
+// location for a single file inside the squashfs snap plus
+// information about the file size.
 func (s *Snap) RandomAccessFile(filePath string) (interface {
 	io.ReaderAt
 	io.Closer
-	Size() (int64, error)
+	Size() int64
 }, error) {
 	var f *os.File
 	err := s.withUnpackedFile(filePath, func(p string) (err error) {
@@ -253,7 +254,7 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 	if err != nil {
 		return nil, err
 	}
-	return internal.SizedFile{f}, nil
+	return internal.NewSizedFile(f)
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.
