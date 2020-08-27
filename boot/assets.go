@@ -343,11 +343,9 @@ type TrustedAssetsUpdateObserver struct {
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
-	trackedAssets     []*trackedAsset
 
-	seedBootloader        bootloader.Bootloader
-	seedTrustedAssets     []string
-	trackedRecoveryAssets []*trackedAsset
+	seedBootloader    bootloader.Bootloader
+	seedTrustedAssets []string
 
 	modeenv *Modeenv
 }
