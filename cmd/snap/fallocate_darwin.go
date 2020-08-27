@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2018 Canonical Ltd
  *
@@ -15,24 +17,12 @@
  *
  */
 
-#ifndef SNAP_CONFINE_FEATURE_H
-#define SNAP_CONFINE_FEATURE_H
+package main
 
-#include <stdbool.h>
+import (
+	"os"
+)
 
-typedef enum sc_feature_flag {
-	SC_FEATURE_PER_USER_MOUNT_NAMESPACE = 1 << 0,
-	SC_FEATURE_REFRESH_APP_AWARENESS = 1 << 1,
-	SC_FEATURE_PARALLEL_INSTANCES = 1 << 2,
-	SC_FEATURE_HIDDEN_SNAP_FOLDER = 1 << 3,
-} sc_feature_flag;
-
-/**
- * sc_feature_enabled returns true if a given feature flag has been activated
- * by the user via "snap set core experimental.xxx=true". This is determined by
- * testing the presence of a file in /var/lib/snapd/features/ that is named
- * after the flag name.
-**/
-bool sc_feature_enabled(sc_feature_flag flag);
-
-#endif
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	return nil
+}

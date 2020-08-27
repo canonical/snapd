@@ -1613,10 +1613,26 @@ recovery_system=20191118
 	}
 
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+
+	// finally check that the recovery system bootenv was updated to be in run
+	// mode
+	bloader, err := bootloader.Find("", nil)
+	c.Assert(err, IsNil)
+	m, err := bloader.GetBootVars("snapd_recovery_system", "snapd_recovery_mode")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"snapd_recovery_system": "20191118",
+		"snapd_recovery_mode":   "run",
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
 
 	// mock that we don't know which partition uuid the kernel was booted from
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -1657,6 +1673,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
 	defer restore()
 
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
@@ -1695,6 +1716,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
 
 	restore = disks.MockMountPointDisksToPartionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1775,6 +1801,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
 
+	// setup a bootloader for setting the bootenv
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	
 	mockDisk := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-partuuid",
@@ -1890,6 +1921,11 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 	}
 
 	if mode == "recover" {
+		// setup a bootloader for setting the bootenv after we are done
+		bloader := bootloadertest.Mock("mock", c.MkDir())
+		bootloader.Force(bloader)
+		defer bootloader.Force(nil)
+
 		// add the expected mount of ubuntu-data onto the host data dir
 		modeMnts = append(modeMnts, systemdMount{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",

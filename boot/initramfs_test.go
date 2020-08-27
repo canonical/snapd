@@ -45,6 +45,56 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 }
 
+func (s *initramfsSuite) TestEnsureNextBootToRunMode(c *C) {
+	// with no bootloader available we can't mark successful
+	err := boot.EnsureNextBootToRunMode("label")
+	c.Assert(err, ErrorMatches, "cannot determine bootloader")
+
+	// forcing a bootloader works
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	err = boot.EnsureNextBootToRunMode("label")
+	c.Assert(err, IsNil)
+
+	// the bloader vars have been updated
+	m, err := bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": "label",
+	})
+}
+
+func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
+	// create a real grub.cfg on ubuntu-seed
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = boot.EnsureNextBootToRunMode("somelabel")
+	c.Assert(err, IsNil)
+
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+	bloader, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, opts)
+	c.Assert(err, IsNil)
+	c.Assert(bloader.Name(), Equals, "grub")
+
+	// the bloader vars have been updated
+	m, err := bloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": "somelabel",
+	})
+}
+
 func makeSnapFilesOnInitramfsUbuntuData(c *C, comment CommentInterface, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
 	snapDir := dirs.SnapBlobDirUnder(boot.InitramfsWritableDir)
@@ -501,6 +551,13 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 
 			if t.blvars != nil {
 				c.Assert(bl.SetBootVars(t.blvars), IsNil, comment)
+				cleanBootVars := make(map[string]string, len(t.blvars))
+				for k := range t.blvars {
+					cleanBootVars[k] = ""
+				}
+				cleanups = append(cleanups, func() {
+					c.Assert(bl.SetBootVars(cleanBootVars), IsNil, comment)
+				})
 			}
 
 			if len(t.snapsToMake) != 0 {
