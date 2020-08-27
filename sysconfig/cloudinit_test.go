@@ -360,7 +360,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	}
 
 	for _, t := range tt {
-		comment := Commentf(t.comment)
+		comment := Commentf("%s", t.comment)
 		// setup status.json
 		old := dirs.GlobalRootDir
 		dirs.SetRootDir(c.MkDir())
