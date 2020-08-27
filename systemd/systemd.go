@@ -353,7 +353,12 @@ func (s *systemd) DaemonReexec() error {
 }
 
 func (s *systemd) Enable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
+	var err error
+	if s.rootDir != "/" {
+		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+	} else {
+		_, err = s.systemctl("enable", serviceName)
+	}
 	return err
 }
 
@@ -363,7 +368,12 @@ func (s *systemd) Unmask(serviceName string) error {
 }
 
 func (s *systemd) Disable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
+	var err error
+	if s.rootDir != "/" {
+		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+	} else {
+		_, err = s.systemctl("disable", serviceName)
+	}
 	return err
 }
 
