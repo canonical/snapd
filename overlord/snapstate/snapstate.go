@@ -94,6 +94,11 @@ func (e *ErrInsufficientSpace) Error() string {
 	return fmt.Sprintf("insufficient space in %q", e.Path)
 }
 
+func safetyMarginDiskSpace(size uint64) uint64 {
+	// 5Mb margin
+	return size + 5*1024*1024
+}
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -871,8 +876,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	if err != nil {
 		return nil, nil, err
 	}
-	// require 5Mb extra
-	requiredSpace := totalSize + 5*1024*1024
+
+	requiredSpace := safetyMarginDiskSpace(totalSize)
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -1960,8 +1965,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				if err != nil {
 					return nil, err
 				}
-				// require 5Mb extra
-				requiredSpace := sz + 5*1024*1024
+				requiredSpace := safetyMarginDiskSpace(sz)
 				path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
