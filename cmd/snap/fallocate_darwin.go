@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,12 @@
  *
  */
 
-package osutil
+package main
 
-type Sizer struct {
-	size int64
-}
+import (
+	"os"
+)
 
-func (sz *Sizer) Write(data []byte) (n int, err error) {
-	n = len(data)
-	sz.size += int64(n)
-	return
-}
-
-func (sz *Sizer) Reset() {
-	sz.size = 0
-}
-
-func (sz *Sizer) Size() int64 {
-	return sz.size
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	return nil
 }

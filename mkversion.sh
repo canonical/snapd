@@ -37,9 +37,24 @@ if [ -n "$1" ]; then
     version_from_user="$1"
 fi
 
+DIRTY=false
+
 # Let's try to derive the version from git..
 if command -v git >/dev/null; then
-    version_from_git="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
+    # don't include --dirty here as we independently track whether the tree is
+    # dirty and append that last, including it here will make dirty trees 
+    # directly on top of tags show up with version_from_git as 2.46-dirty which
+    # will not match 2.46 from the changelog and then result in a final version
+    # like 2.46+git2.46.2.46 which is silly and unhelpful
+    # tracking the dirty independently like this will produce instead 2.46-dirty
+    # for a dirty tree on top of a tag, and 2.46+git83.g1671726-dirty for a 
+    # commit not directly on top of a tag
+    version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
+
+    # check if we are using a dirty tree
+    if git describe --always --dirty | grep -q dirty; then
+        DIRTY=true
+    fi
 fi
 
 # at this point we maybe in _build/src/github etc where we have no
@@ -86,6 +101,10 @@ if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && [ "$version_f
     fi
 fi
 
+# append dirty at the end if we had a dirty tree
+if [ "$DIRTY" = "true" ]; then
+    v="$v-dirty"
+fi
 
 if [ "$OUTPUT_ONLY" = true ]; then
     echo "$v"

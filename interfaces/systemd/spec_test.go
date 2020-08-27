@@ -51,5 +51,15 @@ func (s *specSuite) TestClashing(c *C) {
 	err := spec.AddService("foo.service", svc1)
 	c.Assert(err, IsNil)
 	err = spec.AddService("foo.service", svc2)
-	c.Assert(err, ErrorMatches, "interface requires conflicting system needs")
+	c.Assert(err, ErrorMatches, `interface requires conflicting system needs: service "foo.service" used to be defined as .*, now re-defined as .*`)
+}
+
+func (s *specSuite) TestDifferentObjectsNotClashing(c *C) {
+	svc1 := &systemd.Service{ExecStart: "one and the same"}
+	svc2 := &systemd.Service{ExecStart: "one and the same"}
+	spec := systemd.Specification{}
+	err := spec.AddService("foo.service", svc1)
+	c.Assert(err, IsNil)
+	err = spec.AddService("foo.service", svc2)
+	c.Assert(err, IsNil)
 }
