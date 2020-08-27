@@ -35,16 +35,16 @@ var (
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
 		Path:        "/v2/assertions",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
 		GET:         getAssertTypeNames,
 		POST:        doAssert,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	assertsFindManyCmd = &Command{
 		Path:       "/v2/assertions/{assertType}",
-		ReadAccess: openAccess{},
 		GET:        assertsFindMany,
+		ReadAccess: openAccess{},
 	}
 )
 

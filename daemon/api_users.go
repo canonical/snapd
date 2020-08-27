@@ -44,29 +44,29 @@ import (
 var (
 	loginCmd = &Command{
 		Path:        "/v2/login",
-		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 		POST:        loginUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	logoutCmd = &Command{
 		Path:        "/v2/logout",
-		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 		POST:        logoutUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	// backwards compat; to-be-deprecated
 	createUserCmd = &Command{
 		Path:        "/v2/create-user",
-		WriteAccess: rootAccess{},
 		POST:        postCreateUser,
+		WriteAccess: rootAccess{},
 	}
 
 	usersCmd = &Command{
 		Path:        "/v2/users",
-		ReadAccess:  rootAccess{},
-		WriteAccess: rootAccess{},
 		GET:         getUsers,
 		POST:        postUsers,
+		ReadAccess:  rootAccess{},
+		WriteAccess: rootAccess{},
 	}
 )
 

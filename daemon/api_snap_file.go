@@ -30,8 +30,8 @@ import (
 
 var snapFileCmd = &Command{
 	Path:       "/v2/snaps/{name}/file",
-	ReadAccess: openAccess{},
 	GET:        getSnapFile,
+	ReadAccess: openAccess{},
 }
 
 func getSnapFile(c *Command, r *http.Request, user *auth.UserState) Response {

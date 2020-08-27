@@ -36,10 +36,10 @@ import (
 var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
 	Path:        "/v2/snapshots",
-	ReadAccess:  openAccess{},
-	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	GET:         listSnapshots,
 	POST:        changeSnapshots,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
 
 var snapshotExportCmd = &Command{

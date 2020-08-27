@@ -127,126 +127,126 @@ var (
 	// see access.go for details how the access is controlled
 	rootCmd = &Command{
 		Path:       "/",
-		ReadAccess: openAccess{},
 		GET:        tbd,
+		ReadAccess: openAccess{},
 	}
 
 	sysInfoCmd = &Command{
 		Path:       "/v2/system-info",
-		ReadAccess: openAccess{},
 		GET:        sysInfo,
+		ReadAccess: openAccess{},
 	}
 
 	appIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
-		ReadAccess: openAccess{},
 		GET:        appIconGet,
+		ReadAccess: openAccess{},
 	}
 
 	findCmd = &Command{
 		Path:       "/v2/find",
-		ReadAccess: openAccess{},
 		GET:        searchStore,
+		ReadAccess: openAccess{},
 	}
 
 	snapsCmd = &Command{
 		Path:        "/v2/snaps",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	snapCmd = &Command{
 		Path:        "/v2/snaps/{name}",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getSnapInfo,
 		POST:        postSnap,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	appsCmd = &Command{
 		Path:        "/v2/apps",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
 		GET:         getAppsInfo,
 		POST:        postApps,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	logsCmd = &Command{
 		Path:       "/v2/logs",
-		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:        getLogs,
+		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	snapConfCmd = &Command{
 		Path:        "/v2/snaps/{name}/conf",
-		ReadAccess:  authenticatedAccess{},
-		WriteAccess: authenticatedAccess{},
 		GET:         getSnapConf,
 		PUT:         setSnapConf,
+		ReadAccess:  authenticatedAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	interfacesCmd = &Command{
 		Path:        "/v2/interfaces",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 		GET:         interfacesConnectionsMultiplexer,
 		POST:        changeInterfaces,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
 
 	stateChangeCmd = &Command{
 		Path:        "/v2/changes/{id}",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getChange,
 		POST:        abortChange,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
-		ReadAccess: openAccess{},
 		GET:        getChanges,
+		ReadAccess: openAccess{},
 	}
 
 	buyCmd = &Command{
 		Path:        "/v2/buy",
-		WriteAccess: authenticatedAccess{},
 		POST:        postBuy,
+		WriteAccess: authenticatedAccess{},
 	}
 
 	readyToBuyCmd = &Command{
 		Path:       "/v2/buy/ready",
-		ReadAccess: authenticatedAccess{},
 		GET:        readyToBuy,
+		ReadAccess: authenticatedAccess{},
 	}
 
 	snapctlCmd = &Command{
 		Path:        "/v2/snapctl",
-		WriteAccess: snapAccess{},
 		POST:        runSnapctl,
+		WriteAccess: snapAccess{},
 	}
 
 	sectionsCmd = &Command{
 		Path:       "/v2/sections",
-		ReadAccess: openAccess{},
 		GET:        getSections,
+		ReadAccess: openAccess{},
 	}
 
 	aliasesCmd = &Command{
 		Path:        "/v2/aliases",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
 		GET:         getAliases,
 		POST:        changeAliases,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	warningsCmd = &Command{
 		Path:        "/v2/warnings",
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getWarnings,
 		POST:        ackWarnings,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	buildID = "unknown"
