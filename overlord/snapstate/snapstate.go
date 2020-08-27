@@ -74,6 +74,8 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
+// InsufficientSpaceError represents an error where there is not enough disk
+// space to perform an operation.
 type InsufficientSpaceError struct {
 	// Path is the filesystem path checked for available disk space
 	Path string
@@ -96,8 +98,8 @@ func (e *InsufficientSpaceError) Error() string {
 	return fmt.Sprintf("insufficient space in %q", e.Path)
 }
 
+// safetyMarginDiskSpace returns size plus a safety margin (5Mb)
 func safetyMarginDiskSpace(size uint64) uint64 {
-	// 5Mb margin
 	return size + 5*1024*1024
 }
 
@@ -884,8 +886,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			return nil, nil, &InsufficientSpaceError{
-				Path:  path,
-				Snaps: toInstall,
+				Path:       path,
+				Snaps:      toInstall,
 				ChangeKind: "install",
 			}
 		}
@@ -1973,10 +1975,10 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 						return nil, &InsufficientSpaceError{
-							Path:    path,
-							Snaps:   []string{name},
+							Path:       path,
+							Snaps:      []string{name},
 							ChangeKind: "remove",
-							Message: fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+							Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
 					}
 					return nil, err
 				}
