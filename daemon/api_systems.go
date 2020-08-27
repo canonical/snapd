@@ -127,6 +127,7 @@ func handleSystemActionErr(err error, systemLabel string) Response {
 	return InternalError(err.Error())
 }
 
+// wrapped for unit tests
 var deviceManagerReboot = func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 	return dm.Reboot(systemLabel, mode)
 }
