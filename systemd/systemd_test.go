@@ -21,6 +21,7 @@ package systemd_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -507,13 +508,97 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 	c.Check(s.j, Equals, 1)
 }
 
-func (s *SystemdTestSuite) TestLogPID(c *C) {
+// mustJSONMarshal panic's if the value cannot be marshaled
+func mustJSONMarshal(v interface{}) *json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("couldn't marshal json in test fixture: %v", err))
+	}
+	msg := json.RawMessage(b)
+	return &msg
+}
+
+func (s *SystemdTestSuite) TestLogPIDWithNonTrivialKeyValues(c *C) {
+	l1 := Log{
+		"_PID": mustJSONMarshal([]string{}),
+	}
+	l2 := Log{
+		"_PID": mustJSONMarshal(6),
+	}
+	l3 := Log{
+		"_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l4 := Log{
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l5 := Log{
+		"_PID":       mustJSONMarshal("42"),
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l6 := Log{
+		"_PID":       mustJSONMarshal([]string{"42"}),
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l7 := Log{
+		"_PID":       mustJSONMarshal([]string{"42", "42"}),
+		"SYSLOG_PID": mustJSONMarshal([]string{"singlepid"}),
+	}
 	c.Check(Log{}.PID(), Equals, "-")
-	c.Check(Log{"_PID": "99"}.PID(), Equals, "99")
-	c.Check(Log{"SYSLOG_PID": "99"}.PID(), Equals, "99")
+	c.Check(l1.PID(), Equals, "-")
+	c.Check(l2.PID(), Equals, "-")
+	c.Check(l3.PID(), Equals, "-")
+	c.Check(l4.PID(), Equals, "-")
 	// things starting with underscore are "trusted", so we trust
 	// them more than the user-settable ones:
-	c.Check(Log{"_PID": "42", "SYSLOG_PID": "99"}.PID(), Equals, "42")
+	c.Check(l5.PID(), Equals, "42")
+	c.Check(l6.PID(), Equals, "42")
+	c.Check(l7.PID(), Equals, "singlepid")
+}
+
+func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
+	l1 := Log{
+		"MESSAGE": mustJSONMarshal([]string{"m1", "m2", "m3"}),
+	}
+	l2 := Log{
+		"MESSAGE": mustJSONMarshal("m1"),
+	}
+	l3 := Log{
+		// this is just "hello" in ascii
+		"MESSAGE": mustJSONMarshal([]rune{104, 101, 108, 108, 111}),
+	}
+	l4 := Log{
+		"MESSAGE": mustJSONMarshal(5),
+	}
+	c.Check(Log{}.Message(), Equals, "-")
+	// multiple strings are concatenated with newlines
+	c.Check(l1.Message(), Equals, "m1\nm2\nm3")
+	// strings are normal
+	c.Check(l2.Message(), Equals, "m1")
+	// rune arrays are converted to strings
+	c.Check(l3.Message(), Equals, "hello")
+	// non-strings are empty
+	c.Check(l4.Message(), Equals, "-")
+}
+
+func (s *SystemdTestSuite) TestLogSID(c *C) {
+	c.Check(Log{}.SID(), Equals, "-")
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal("abcdef")}.SID(), Equals, "abcdef")
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abcdef"})}.SID(), Equals, "abcdef")
+	// multiple string values are not supported
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abc", "def"})}.SID(), Equals, "-")
+
+}
+
+func (s *SystemdTestSuite) TestLogPID(c *C) {
+	c.Check(Log{}.PID(), Equals, "-")
+	c.Check(Log{"_PID": mustJSONMarshal("99")}.PID(), Equals, "99")
+	c.Check(Log{"SYSLOG_PID": mustJSONMarshal("99")}.PID(), Equals, "99")
+	// things starting with underscore are "trusted", so we trust
+	// them more than the user-settable ones:
+	c.Check(Log{
+		"_PID":       mustJSONMarshal("42"),
+		"SYSLOG_PID": mustJSONMarshal("99"),
+	}.PID(), Equals, "42")
 }
 
 func (s *SystemdTestSuite) TestTime(c *C) {
@@ -521,15 +606,15 @@ func (s *SystemdTestSuite) TestTime(c *C) {
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, "no timestamp")
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "what"}.Time()
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("what")}.Time()
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `timestamp not a decimal number: "what"`)
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "0"}.Time()
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("0")}.Time()
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00 +0000 UTC")
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "42"}.Time()
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("42")}.Time()
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00.000042 +0000 UTC")
 }

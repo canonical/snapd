@@ -22,6 +22,7 @@ package systemd
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -246,8 +247,20 @@ type Systemd interface {
 	Unmask(service string) error
 }
 
-// A Log is a single entry in the systemd journal
-type Log map[string]string
+// A Log is a single entry in the systemd journal.
+// In almost all cases, the strings map to a single string value, but as per the
+// manpage for journalctl, under the json format,
+//
+//    Journal entries permit non-unique fields within the same log entry. JSON
+//    does not allow non-unique fields within objects. Due to this, if a
+//    non-unique field is encountered a JSON array is used as field value,
+//    listing all field values as elements.
+//
+// as such, we sometimes get array values which need to be handled differently,
+// and additionally if systemd thinks the value of a string is not safe ascii,
+// it will just turn the whole string into an array of ints, which are just
+// runes and need to be decoded to a string as well.
+type Log map[string]*json.RawMessage
 
 const (
 	// the default target for systemd units that we generate
@@ -692,12 +705,56 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
+func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
+	valObject, ok := l[key]
+	if !ok || valObject == nil {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so we may miss a message here
+		return "", fmt.Errorf("key %q missing from message", key)
+	}
+
+	// first try normal string
+	s := ""
+	err := json.Unmarshal(*valObject, &s)
+	if err == nil {
+		return s, nil
+	}
+
+	// try runes next, this is the case if journald thinks the output is not
+	// safe ascii
+	r := []rune{}
+	err = json.Unmarshal(*valObject, &r)
+	if err == nil {
+		return string(r), nil
+	}
+
+	// finally try list of strings
+	stringSlice := []string{}
+	err = json.Unmarshal(*valObject, &stringSlice)
+	if err == nil {
+		// if the slice is of length 1, just promote it to a plain scalar string
+		if len(stringSlice) == 1 {
+			return stringSlice[0], nil
+		}
+		// otherwise let the caller handle it
+		return sliceHandler(stringSlice)
+	}
+
+	return "", fmt.Errorf("failed to decode")
+}
+
 // Time returns the time the Log was received by the journal.
 func (l Log) Time() (time.Time, error) {
-	sus, ok := l["__REALTIME_TIMESTAMP"]
-	if !ok {
+	// since the __REALTIME_TIMESTAMP is underscored and thus "trusted" by
+	// systemd, we assume that it will always be a valid string and not try to
+	// handle any possible array cases
+	sus, err := l.parseLogRawMessageString("__REALTIME_TIMESTAMP", func([]string) (string, error) {
+		return "", errors.New("no timestamp")
+	})
+	if err != nil {
 		return time.Time{}, errors.New("no timestamp")
 	}
+
 	// according to systemd.journal-fields(7) it's microseconds as a decimal string
 	us, err := strconv.ParseInt(sus, 10, 64)
 	if err != nil {
@@ -709,28 +766,45 @@ func (l Log) Time() (time.Time, error) {
 
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
-	if msg, ok := l["MESSAGE"]; ok {
-		return msg
+	// for MESSAGE, if there are multiple strings, just concatenate them with a
+	// newline to keep as much data from journald as possible
+	msg, err := l.parseLogRawMessageString("MESSAGE", func(stringSlice []string) (string, error) {
+		return strings.Join(stringSlice, "\n"), nil
+	})
+	if err != nil {
+		return "-"
 	}
-
-	return "-"
+	return msg
 }
 
 // SID is the syslog identifier of the Log, if any; otherwise, "-".
 func (l Log) SID() string {
-	if sid, ok := l["SYSLOG_IDENTIFIER"]; ok {
-		return sid
+	// if there are multiple SYSLOG_IDENTIFIER values, just act like there was
+	// not one, making an arbitrary choice here is probably not helpful
+	sid, err := l.parseLogRawMessageString("SYSLOG_IDENTIFIER", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple identifiers not supported")
+	})
+	if err != nil || sid == "" {
+		return "-"
 	}
-
-	return "-"
+	return sid
 }
 
 // PID is the pid of the client pid, if any; otherwise, "-".
 func (l Log) PID() string {
-	if pid, ok := l["_PID"]; ok {
+	// look for _PID first as that is underscored and thus "trusted" from
+	// systemd, also don't support multiple arrays if we find then
+	pid, err := l.parseLogRawMessageString("_PID", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple pids not supported")
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
-	if pid, ok := l["SYSLOG_PID"]; ok {
+
+	pid, err = l.parseLogRawMessageString("SYSLOG_PID", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple pids not supported")
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
 
