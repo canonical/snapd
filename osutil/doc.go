@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014,2015,2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,7 @@
  *
  */
 
-package logger
-
-func GetLogger() Logger {
-	lock.Lock()
-	defer lock.Unlock()
-
-	return logger
-}
-
-func GetLoggerFlags() int {
-	log, ok := GetLogger().(*Log)
-	if !ok {
-		return -1
-	}
-
-	return log.log.Flags()
-}
-
-func MockProcCmdline(new string) (restore func()) {
-	old := procCmdline
-	procCmdline = new
-	return func() {
-		procCmdline = old
-	}
-}
+// Package osutil offers utilities related to the operating system or
+// i/o, mainly for files, filesystems and mounts, and also users and
+// processes.
+package osutil

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -69,6 +71,28 @@ const (
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
+
+var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+type ErrInsufficientSpace struct {
+	// Path is the filesystem path checked for available disk space
+	Path string
+	// Snaps affected by the failing operation
+	Snaps []string
+	// Message is optional, otherwise one is composed from the other information
+	Message string
+}
+
+func (e *ErrInsufficientSpace) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if len(e.Snaps) > 0 {
+		snaps := strings.Join(e.Snaps, ", ")
+		return fmt.Sprintf("insufficient space in %q to perform operation for the following snaps: %s", e.Path, snaps)
+	}
+	return fmt.Sprintf("insufficient space in %q", e.Path)
+}
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -1909,6 +1933,22 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
+				sz, err := EstimateSnapshotSize(st, name, nil)
+				if err != nil {
+					return nil, err
+				}
+				// require 5Mb extra
+				requiredSpace := sz + 5*1024*1024
+				path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+						return nil, &ErrInsufficientSpace{
+							Path:    path,
+							Snaps:   []string{name},
+							Message: fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+					}
+					return nil, err
+				}
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
