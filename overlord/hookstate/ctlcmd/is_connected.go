@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap"
 )
 
 var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
@@ -37,7 +38,7 @@ type isConnectedCommand struct {
 	Positional struct {
 		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
 	} `positional-args:"true" required:"true"`
-	Pid int `long:"pid" description:"Process ID for a connected process"`
+	Pid int `long:"pid" description:"Process ID for a plausibly connected process"`
 }
 
 var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
@@ -51,6 +52,12 @@ $ echo $?
 
 Snaps can only query their own plugs and slots - snap name is implicit and
 implied by the snapctl execution context.
+
+The --pid option can be used to determine whether a plug or slot is
+connected to the snap identified by the given process ID.  In this
+mode, additional failure exit codes may be returned: 10 if the other
+process is not snap confined, or 11 if the other snap is not connected
+but uses classic confinement.
 `)
 
 func init() {
@@ -91,12 +98,16 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
-	var otherSnapName string
+	var otherSnap *snap.Info
 	if c.Pid != 0 {
-		otherSnapName, err = cgroupSnapNameFromPid(c.Pid)
-		// FIXME: should we treat non-snap processes as connected?
+		name, err := cgroupSnapNameFromPid(c.Pid)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot get snap name for pid %d: %s", c.Pid, err)
+			// Indicate that this pid is not a snap
+			return &UnsuccessfulError{ExitCode: 10}
+		}
+		otherSnap, err = snapstate.CurrentInfo(st, name)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot get snap info for pid %d: %s", c.Pid, err)
 		}
 	}
 
@@ -115,8 +126,8 @@ func (c *isConnectedCommand) Execute(args []string) error {
 
 		matchingPlug := connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot
 		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot
-		if otherSnapName != "" {
-			if matchingPlug && connRef.SlotRef.Snap == otherSnapName || matchingSlot && connRef.PlugRef.Snap == otherSnapName {
+		if otherSnap != nil {
+			if matchingPlug && connRef.SlotRef.Snap == otherSnap.InstanceName() || matchingSlot && connRef.PlugRef.Snap == otherSnap.InstanceName() {
 				return nil
 			}
 		} else {
@@ -124,6 +135,10 @@ func (c *isConnectedCommand) Execute(args []string) error {
 				return nil
 			}
 		}
+	}
+
+	if otherSnap != nil && otherSnap.Confinement == snap.ClassicConfinement {
+		return &UnsuccessfulError{ExitCode: 11}
 	}
 
 	return &UnsuccessfulError{ExitCode: 1}

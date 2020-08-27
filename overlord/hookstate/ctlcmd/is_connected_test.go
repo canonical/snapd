@@ -85,8 +85,12 @@ var isConnectedTests = []struct {
 	exitCode: 1,
 }, {
 	// snap1:plug1 is not connected to a non-snap pid
-	args: []string{"is-connected", "--pid", "42", "plug1"},
-	err:  "internal error: cannot get snap name for pid 42: Not a snap",
+	args:     []string{"is-connected", "--pid", "42", "plug1"},
+	exitCode: 10,
+}, {
+	// snap1:plug1 is not connected to snap4, but snap4 is classic
+	args:     []string{"is-connected", "--pid", "1004", "plug1"},
+	exitCode: 11,
 }, {
 	// snap1:slot1 is connected to snap3
 	args: []string{"is-connected", "--pid", "1003", "slot1"},
@@ -96,8 +100,12 @@ var isConnectedTests = []struct {
 	exitCode: 1,
 }, {
 	// snap1:slot1 is not connected to a non-snap pid
-	args: []string{"is-connected", "--pid", "42", "slot1"},
-	err:  "internal error: cannot get snap name for pid 42: Not a snap",
+	args:     []string{"is-connected", "--pid", "42", "slot1"},
+	exitCode: 10,
+}, {
+	// snap1:slot1 is not connected to snap4, but snap4 is classic
+	args:     []string{"is-connected", "--pid", "1004", "slot1"},
+	exitCode: 11,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
@@ -126,6 +134,22 @@ plugs:
     interface: x11
 slots:
   slot1:
+    interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap2
+slots:
+  slot2:
+    interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap3
+plugs:
+  plug4:
+    interface: x11
+slots:
+  slot3:
+    interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap4
+confinement: classic
+slots:
+  slot4:
     interface: x11`)
 	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		switch {
