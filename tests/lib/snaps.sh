@@ -9,13 +9,13 @@ make_snap() {
     local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
     # assigned in a separate step to avoid hiding a failure
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
     fi
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
-        find "$SNAP_DIR" -name '*.snap' | head -n1
+        find "$SNAP_DIR" -name "${SNAP_NAME}_*_all.snap" | head -n1
     fi
 }
 

@@ -27,6 +27,9 @@ execute: |
     test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
     rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
 
+    # Try to pack a local snap which does not exist
+    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "error: cannot pack"
+
     # Make and install a snap by using the install-local subcommand
     snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
     test-snapd-tools.echo test123 | MATCH "test123"
@@ -66,7 +69,7 @@ execute: |
     # Make and install a snap by using the install-local subcommand with --classic
     if "$TESTSTOOLS"/snaps-state is-classic-confinement-supported; then
         snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
-        snap list "$SNAP_CLASSIC" | MATCH "classic$"
+        snap list "$SNAP_CLASSIC" | MATCH classic$
         snap remove "$SNAP_CLASSIC"
         rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
     fi
