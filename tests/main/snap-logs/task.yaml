@@ -20,7 +20,10 @@ execute: |
     snap logs -n=all test-snapd-service | MATCH "running"
     
     echo "check -f option works"
-    snap logs -f test-snapd-service > service.log &    
+    # XXX: journalctl -f -u .. drops some lines of service output when
+    # asked for multiple units, therefore query for specific service instead
+    # of test-snapd-service (which would expand to all services).
+    snap logs -f test-snapd-service.test-snapd-service > service.log &
     snap stop test-snapd-service
     for _ in $(seq 10); do
         if MATCH "stop service" < service.log; then
