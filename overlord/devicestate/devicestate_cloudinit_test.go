@@ -21,14 +21,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type cloudInitSuite struct {
+type cloudInitBaseSuite struct {
 	deviceMgrBaseSuite
 	mockLogger *bytes.Buffer
 }
 
+type cloudInitSuite struct {
+	cloudInitBaseSuite
+}
+
 var _ = Suite(&cloudInitSuite{})
 
-func (s *cloudInitSuite) SetUpTest(c *C) {
+func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
 	// undo the cloud-init mocking from deviceMgrBaseSuite, since here we
