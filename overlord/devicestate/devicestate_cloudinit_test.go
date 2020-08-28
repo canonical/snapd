@@ -160,7 +160,9 @@ func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
+	statusCalls := 0
 	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
 	defer r()
@@ -173,6 +175,7 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 
 	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
