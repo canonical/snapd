@@ -9,20 +9,31 @@ prepare: |
 execute: |
   echo "The test-snap1 service is running"
   systemctl is-active snap.test-snap1.svc.service
-
   svc_pid=$(systemctl show --property=MainPID snap.test-snap1.svc.service | cut -d = -f 2)
+
+  fail() {
+      expected="$1"
+      shift
+      if "$@"; then
+        echo "Expected command to fail"
+        exit 1
+      else
+        err="$?"
+        test "$err" -eq "$expected"
+      fi
+  }
 
   echo "Plugs and slots are initially disconnected"
   not test-snap2.snapctl is-connected bar-plug
   not test-snap2.snapctl is-connected foo-slot
 
   echo "Disconnected interfaces are not connected to a snap process"
-  not test-snap2.snapctl is-connected --pid "$svc_pid" bar-plug
-  not test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
+  fail 1 test-snap2.snapctl is-connected --pid "$svc_pid" bar-plug
+  fail 1 test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
 
   echo "Disconnected interfaces are not connected to non-snap process"
-  not test-snap2.snapctl is-connected --pid 1 bar-plug
-  not test-snap2.snapctl is-connected --pid 1 foo-slot
+  fail 10 test-snap2.snapctl is-connected --pid 1 bar-plug
+  fail 10 test-snap2.snapctl is-connected --pid 1 foo-slot
 
   echo "Connect interfaces"
   snap connect test-snap1:foo-plug test-snap2:foo-slot
@@ -33,5 +44,25 @@ execute: |
   test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
 
   echo "Interfaces still not connected to non-snap process"
-  not test-snap2.snapctl is-connected --pid 1 bar-plug
-  not test-snap2.snapctl is-connected --pid 1 foo-slot
+  fail 10 test-snap2.snapctl is-connected --pid 1 bar-plug
+  fail 10  test-snap2.snapctl is-connected --pid 1 foo-slot
+
+  # The remaining tests rely on classic confinement, so skip Ubuntu Core
+  if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    exit 0
+  fi
+
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+  install_local_classic test-snap-classic
+
+  echo "The test-snap-classic service is running"
+  systemctl is-active snap.test-snap-classic.svc.service
+  classic_pid=$(systemctl show --property=MainPID snap.test-snap-classic.svc.service | cut -d = -f 2)
+
+  echo "Unconnected classic snaps report a special exit code"
+  fail 11 test-snap2.snapctl is-connected --pid "$classic_pid" foo-slot
+
+  echo "But still reports success when connected"
+  snap connect test-snap-classic:foo-plug test-snap2:foo-slot
+  test-snap2.snapctl is-connected --pid "$classic_pid" foo-slot

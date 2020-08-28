@@ -1,0 +1,15 @@
+name: test-snap-classic
+confinement: classic
+version: 1
+summary: Classic test snap
+
+plugs:
+  foo-plug:
+    interface: content
+    content: foo
+    target: $SNAP_COMMON/foo
+
+apps:
+  svc:
+    command: bin/service.sh
+    daemon: simple
