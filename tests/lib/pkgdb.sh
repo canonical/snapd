@@ -181,7 +181,7 @@ distro_install_local_package() {
             quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         opensuse-*)
-            quiet rpm -i --replacepkgs "$@"
+            quiet zypper in -y --no-recommends --allow-unsigned-rpm "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
