@@ -85,7 +85,7 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
 	}))
-	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string) error {
+	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string, *cgroup.TrackingOptions) error {
 		return nil
 	}))
 }
@@ -1296,8 +1296,10 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
 		created = true
 		return nil
 	})
@@ -1350,8 +1352,10 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.hook.configure")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, false)
 		created = true
 		return nil
 	})
@@ -1403,7 +1407,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	})
 	defer restore()
 
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		panic("services rely on systemd tracking, should not have created a transient scope")
 	})
 	defer restore()
@@ -1458,8 +1462,10 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
 		created = true
 		// Pretend that the tracking system was unable to track this application.
 		return cgroup.ErrCannotTrackProcess
