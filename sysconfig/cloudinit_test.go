@@ -74,6 +74,17 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		TargetRootDir:  boot.InstallHostWritableDir,
+		AllowCloudInit: true,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
 // this test is the same as the logic from install mode devicestate, where we
 // want to install cloud-init configuration not onto the running, ephemeral
 // writable, but rather the host writable partition that will be used upon
@@ -95,6 +106,51 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
+	gadgetDir := c.MkDir()
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	err = sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		TargetRootDir: boot.InstallHostWritableDir,
+		GadgetDir:     gadgetDir,
+	})
+	c.Assert(err, IsNil)
+
+	// and did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfIgnoresUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := c.MkDir()
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	gadgetDir := c.MkDir()
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	err = sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		CloudInitSrcDir: cloudCfgSrcDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+		GadgetDir:       gadgetDir,
+	})
+	c.Assert(err, IsNil)
+
+	// and did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+
+	// but did not copy the ubuntu-seed files
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {

@@ -54,7 +54,11 @@ func DisableCloudInit(rootDir string) error {
 	return nil
 }
 
-func installCloudInitCfg(src, targetdir string) error {
+// installCloudInitCfgDir installs glob cfg files from the source directory to
+// the cloud config dir. For installing single files from anywhere with any
+// name, use installUnifiedCloudInitCfg
+func installCloudInitCfgDir(src, targetdir string) error {
+	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
 		return err
@@ -76,21 +80,50 @@ func installCloudInitCfg(src, targetdir string) error {
 	return nil
 }
 
-// TODO:UC20: - allow cloud.conf coming from the gadget
-//            - think about if/what cloud-init means on "secured" models
+// installUnifiedCloudInitCfg installs a single cloud-init config file to the
+// cloud config dir as "ubuntu-core-cloud_91.cfg".
+func installUnifiedCloudInitCfg(src, targetdir string) error {
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
+	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
+	return osutil.CopyFile(src, configFile, 0)
+}
+
 func configureCloudInit(opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
 
-	switch opts.CloudInitSrcDir {
-	case "":
-		// disable cloud-init by default using the writable dir
-		err = DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
-	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+	// TODO: too naive to just re-use GadgetDir here automatically?
+	gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
+	if osutil.FileExists(gadgetCloudConf) {
+		// then copy / install the gadget config and return without considering
+		// CloudInitSrcDir
+		if err := installUnifiedCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+			return err
+		}
+		return nil
 	}
-	return err
+
+	// it's valid to not set CloudInitSrcDir, in this case cloud-init may pick
+	// up dynamic metadata and userdata from NoCloud sources such as a CD-ROM
+	// drive with label CIDATA, etc.
+	if opts.CloudInitSrcDir != "" {
+		if err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+			return err
+		}
+	}
+
+	if !opts.AllowCloudInit {
+		if err := DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // CloudInitState represents the various cloud-init states

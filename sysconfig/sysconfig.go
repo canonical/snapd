@@ -40,6 +40,10 @@ type Options struct {
 	// boot.InstallHostWritableDir
 	TargetRootDir string
 
+	// AllowCloudInit is whether to allow cloud-init to run or not in the
+	// TargetRootDir.
+	AllowCloudInit bool
+
 	// GadgetDir is the path of the mounted gadget snap.
 	GadgetDir string
 }
