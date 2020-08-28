@@ -1019,12 +1019,14 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
 		systemMode := m.SystemMode()
-		currentSys, _ := currentSystemForMode(m.state, systemMode)
+		currentSys, err := currentSystemForMode(m.state, systemMode)
+		if err != nil {
+			return fmt.Errorf("cannot get curent system: %v", err)
+		}
 		systemLabel = currentSys.System
 	}
 
-	// hand over to RequestSystemAction now
-	return m.RequestSystemAction(systemLabel, SystemAction{Mode: mode})
+	return m.doSystemAction(systemLabel, SystemAction{Mode: mode})
 }
 
 // RequestSystemAction request provided system to be run in a given mode. A
@@ -1034,7 +1036,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
+	return m.doSystemAction(systemLabel, action)
+}
 
+func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}

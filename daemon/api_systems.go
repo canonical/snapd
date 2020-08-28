@@ -117,6 +117,9 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 }
 
+// XXX: should deviceManager return more sensible errors here?
+//      E.g. UnsupportedActionError{systemLabel, mode}
+//           SystemDoesNotExistError{systemLabel}
 func handleSystemActionErr(err error, systemLabel string) Response {
 	if os.IsNotExist(err) {
 		return NotFound("requested seed system %q does not exist", systemLabel)

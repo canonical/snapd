@@ -631,3 +631,17 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, ".*/seed/systems/20191119: no such file or directory")
 }
+
+func (s *deviceMgrSystemsSuite) TestRebootHappy(c *C) {
+	// no current system
+	err := s.mgr.Reboot("20191119", "install")
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_system": "20191119",
+		"snapd_recovery_mode":   "install",
+	})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+}
