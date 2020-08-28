@@ -71,7 +71,7 @@ jobs:
       matrix:
         gochannel:
           - 1.9
-          - latest/edge
+          - latest/stable
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -191,6 +191,7 @@ jobs:
         - fedora-31-64
         - fedora-32-64
         - opensuse-15.1-64
+        - opensuse-15.2-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-32

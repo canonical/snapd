@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -375,6 +376,39 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Check(obs.CurrentTrustedBootAssetsMap(), IsNil)
 }
 
+func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/asset",
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644)
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// same asset name but different content
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "other"), "nested/asset")
+	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+}
+
 func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	d := c.MkDir()
 
@@ -406,6 +440,151 @@ func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	c.Assert(err, ErrorMatches, `cannot list "trusted-assets" bootloader trusted assets: mocked trusted assets error`)
 }
 
+func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/other-asset",
+		"shim",
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err = ioutil.WriteFile(filepath.Join(d, "asset"), data, 0644)
+	c.Assert(err, IsNil)
+	err = os.Mkdir(filepath.Join(d, "nested"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "nested/other-asset"), data, 0644)
+	c.Assert(err, IsNil)
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, IsNil)
+	// a single file in cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("other-asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// let's see what the observer has tracked
+	tracked := obs.CurrentTrustedRecoveryBootAssetsMap()
+	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
+		"asset":       []string{dataHash},
+		"other-asset": []string{dataHash},
+		"shim":        []string{shimHash},
+	})
+}
+
+func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryNoAssets(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	// does not fail when the bootloader has no trusted assets
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, IsNil)
+	// asked for the list of trusted assets
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// nothing was tracked
+	tracked := obs.CurrentTrustedRecoveryBootAssetsMap()
+	c.Check(tracked, IsNil)
+
+	// force a non trusted bootloader
+	bl := bootloadertest.Mock("non-trusted-bootloader", "")
+	bootloader.Force(bl)
+	// happy with non trusted bootloader too
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, IsNil)
+}
+
+func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/asset",
+	}
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(d, "nested"), 0755)
+	c.Assert(err, IsNil)
+	// same asset name but different content
+	err = ioutil.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0644)
+	c.Assert(err, IsNil)
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	// same asset name but different content
+	c.Assert(err, ErrorMatches, `cannot reuse recovery asset name "asset"`)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+}
+
+func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
+	d := c.MkDir()
+
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	tab.TrustedAssetsList = []string{
+		"asset",
+	}
+
+	// no trusted asset
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, ErrorMatches, "cannot open asset file: .*/asset: no such file or directory")
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+
+	tab.TrustedAssetsErr = fmt.Errorf("fail")
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, ErrorMatches, `cannot list "recovery-bootloader" recovery bootloader trusted assets: fail`)
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+
+	// force an error
+	bootloader.ForceError(fmt.Errorf("fail bootloader"))
+	err = obs.ObserveExistingTrustedRecoveryAssets(d)
+	c.Assert(err, ErrorMatches, `cannot identify recovery system bootloader: fail bootloader`)
+}
+
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	// we get an observer for UC20
 	uc20Model := makeMockUC20Model()
@@ -418,4 +597,89 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
+}
+
+func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
+	newRoot := c.MkDir()
+	// does not fail when dir does not exist
+	err := boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, IsNil)
+
+	// temporarily overide umask
+	oldUmask := syscall.Umask(0000)
+	defer syscall.Umask(oldUmask)
+
+	entries := []struct {
+		name, content string
+		mode          uint
+	}{
+		{"foo/bar", "1234", 0644},
+		{"grub/grubx64.efi-1234", "grub content", 0622},
+		{"top-level", "top level content", 0666},
+		{"deeply/nested/content", "deeply nested content", 0611},
+	}
+
+	for _, entry := range entries {
+		p := filepath.Join(dirs.SnapBootAssetsDir, entry.name)
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, []byte(entry.content), os.FileMode(entry.mode))
+		c.Assert(err, IsNil)
+	}
+
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, IsNil)
+	for _, entry := range entries {
+		p := filepath.Join(dirs.SnapBootAssetsDirUnder(newRoot), entry.name)
+		c.Check(p, testutil.FileEquals, entry.content)
+		fi, err := os.Stat(p)
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode().Perm(), Equals, os.FileMode(entry.mode),
+			Commentf("unexpected mode of copied file %q: %v", entry.name, fi.Mode().Perm()))
+	}
+}
+
+func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
+	// non-file
+	newRoot := c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	p := filepath.Join(dirs.SnapBootAssetsDir, "fifo")
+	syscall.Mkfifo(p, 0644)
+	err := boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `unsupported non-file entry "fifo" mode prw-.*`)
+
+	// non-writable root
+	newRoot = c.MkDir()
+	nonWritableRoot := filepath.Join(newRoot, "non-writable")
+	err = os.MkdirAll(nonWritableRoot, 0000)
+	c.Assert(err, IsNil)
+	dirs.SnapBootAssetsDir = c.MkDir()
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(nonWritableRoot)
+	c.Assert(err, ErrorMatches, `cannot create cache directory under new root: mkdir .*: permission denied`)
+
+	// file cannot be read
+	newRoot = c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0000)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `cannot copy boot asset cache file "file": failed to copy all: .*`)
+
+	// directory at destination cannot be recreated
+	newRoot = c.MkDir()
+	dirs.SnapBootAssetsDir = c.MkDir()
+	// make a directory at destination non writable
+	err = os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0755)
+	c.Assert(err, IsNil)
+	err = os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0000)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0000)
+	c.Assert(err, IsNil)
+	err = boot.CopyBootAssetsCacheToRoot(newRoot)
+	c.Assert(err, ErrorMatches, `cannot recreate cache directory "dir": .*: permission denied`)
+
 }

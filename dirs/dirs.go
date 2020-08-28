@@ -212,6 +212,11 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapdStateDir returns the path to /var/lib/snapd dir under rootdir.
+func SnapdStateDir(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir)
+}
+
 // SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
 func SnapBlobDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "snaps")
@@ -241,6 +246,12 @@ func FeaturesDirUnder(rootdir string) string {
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// SnapBootAssetsDirUnder returns the path to boot assets directory under a
+// rootdir.
+func SnapBootAssetsDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "boot-assets")
 }
 
 // AddRootDirCallback registers a callback for whenever the global root
@@ -320,7 +331,7 @@ func SetRootDir(rootdir string) {
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
-	SnapBootAssetsDir = filepath.Join(rootdir, snappyDir, "boot-assets")
+	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
