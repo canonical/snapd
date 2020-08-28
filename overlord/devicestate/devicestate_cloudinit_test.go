@@ -16,7 +16,10 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -54,6 +57,169 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	// mock /etc/cloud on writable
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
 	c.Assert(err, IsNil)
+}
+
+type cloudInitUC20Suite struct {
+	cloudInitBaseSuite
+}
+
+var _ = Suite(&cloudInitUC20Suite{})
+
+func (s *cloudInitUC20Suite) SetUpTest(c *C) {
+	s.cloudInitBaseSuite.SetUpTest(c)
+
+	// make a uc20 style dangerous model assertion for the device
+	// note that actually the devicemgr ensure only cares about having a grade
+	// for uc20, it doesn't use the grade for anything right now, the install
+	// handler code however does care about the grade, so here we just default
+	// to signed
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]interface{}{
+		"display-name": "UC20 pc model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              "pckernelidididididididididididid",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "pcididididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc20-model",
+		Serial: "serial",
+	})
+}
+
+func (s *cloudInitSuite) SetUpTest(c *C) {
+	s.cloudInitBaseSuite.SetUpTest(c)
+
+	// make a uc16/uc18 style model assertion for the device
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
+	si := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "pcididididididididididididididid",
+	}
+
+	// create a gadget snap in snapstate
+	st := s.o.State()
+	st.Lock()
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Current:  snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+	})
+	st.Unlock()
+
+	// create a cloud.conf file in the gadget snap's mount dir
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
+	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644), IsNil)
+
+	// pretend that cloud-init finished running
+	statusCalls := 0
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
+		return sysconfig.CloudInitDone, nil
+	})
+	defer r()
+
+	restrictCalls := 0
+	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitDone)
+		c.Assert(opts, Not(IsNil))
+		// a gadget cloud.conf is not NoCloud
+		c.Assert(opts.DisableNoCloud, Equals, false)
+		return sysconfig.CloudInitRestrictionResult{
+			Action:     "disabled",
+			DataSource: "GCE",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
+	si := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "pcididididididididididididididid",
+	}
+
+	// create a gadget snap in snapstate
+	st := s.o.State()
+	st.Lock()
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Current:  snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+	})
+	st.Unlock()
+
+	// create the gadget snap's mount dir
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
+	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
+
+	// pretend that cloud-init never ran
+	statusCalls := 0
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
+		return sysconfig.CloudInitUntriggered, nil
+	})
+	defer r()
+
+	restrictCalls := 0
+	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitUntriggered)
+		c.Assert(opts, Not(IsNil))
+		// a gadget cloud.conf is not NoCloud
+		c.Assert(opts.DisableNoCloud, Equals, true)
+		return sysconfig.CloudInitRestrictionResult{
+			Action: "disabled",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
@@ -129,13 +295,6 @@ func (s *cloudInitSuite) TestCloudInitAlreadyEnsuredRestrictedDoesNothing(c *C) 
 }
 
 func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C) {
-	st := s.o.State()
-	st.Lock()
-	// avoid device registration
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Serial: "123",
-	})
-	st.Unlock()
 	n := 0
 
 	// mock that it was restricted so that we set the internal bool to say it
@@ -332,6 +491,74 @@ fi`)
 
 	// a message about cloud-init done and being restricted
 	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+
+	// and 1 call to restrict
+	c.Assert(restrictCalls, Equals, 1)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitDoneNoCloudDisables(c *C) {
+	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
+	// restricted yet and thus it should then check to see if it was manually
+	// disabled
+
+	si := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "pcididididididididididididididid",
+	}
+
+	// create a gadget snap in snapstate
+	st := s.o.State()
+	st.Lock()
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Current:  snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+	})
+	st.Unlock()
+
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", "gadget yaml"},
+		{"meta/snap.yaml", `name: pc
+type: gadget`},
+	})
+
+	cmd := testutil.MockCommand(c, "cloud-init", `
+if [ "$1" = "status" ]; then
+	echo "status: done"
+else
+	echo "unexpected args $*"
+	exit 1
+fi`)
+	defer cmd.Restore()
+
+	restrictCalls := 0
+
+	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitDone)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// we would have restricted it since it ran
+		return sysconfig.CloudInitRestrictionResult{
+			// pretend it was NoCloud
+			DataSource: "NoCloud",
+			Action:     "restrict",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"cloud-init", "status"},
+	})
+
+	// a message about cloud-init done and being restricted
+	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 
 	// and 1 call to restrict
 	c.Assert(restrictCalls, Equals, 1)
