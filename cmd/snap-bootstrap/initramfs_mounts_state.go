@@ -27,14 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
-)
-
-var (
-	osutilIsMounted = osutil.IsMounted
 )
 
 // initramfsMountsState helps tracking the state and progress
@@ -142,8 +137,4 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
 	}
 	return ma.(*asserts.Model), nil
-}
-
-func (mst *initramfsMountsState) IsMounted(dir string) (bool, error) {
-	return osutilIsMounted(dir)
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -74,9 +75,7 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 	return fn, info
 }
 
-func (s *makeBootableSuite) TestMakeBootable(c *C) {
-	dirs.SetRootDir("")
-
+func makeMockModel() *asserts.Model {
 	headers := map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -90,7 +89,13 @@ func (s *makeBootableSuite) TestMakeBootable(c *C) {
 		"kernel":       "pc-kernel=18",
 		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}
-	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+	return assertstest.FakeAssertion(headers).(*asserts.Model)
+}
+
+func (s *makeBootableSuite) TestMakeBootable(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockModel()
 
 	grubCfg := []byte("#grub cfg")
 	unpackedGadgetDir := c.MkDir()
@@ -126,7 +131,7 @@ version: 4.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// check the bootloader config
@@ -268,7 +273,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// ensure only a single file got copied (the grub.cfg)
@@ -313,7 +318,7 @@ func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c 
 		Recovery:          true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
@@ -327,7 +332,7 @@ func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *
 	err = os.MkdirAll(filepath.Join(rootdir, "systems/20191205"), 0755)
 	c.Assert(err, IsNil)
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
@@ -347,6 +352,18 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSeedGrubCfg, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// setup recovery boot assets
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	c.Assert(err, IsNil)
+	// SHA3-384: 39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		[]byte("recovery shim content"), 0644)
+	c.Assert(err, IsNil)
+	// SHA3-384: aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		[]byte("recovery grub content"), 0644)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-boot
@@ -370,6 +387,11 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	grubCfgAsset := []byte("#grub cfg from assets")
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
+
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "bootx64.efi"), []byte("shim content"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grubx64.efi"), []byte("grub content"), 0644)
+	c.Assert(err, IsNil)
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
@@ -402,7 +424,24 @@ version: 5.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	// set up observer state
+	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+	runBootStruct := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role: gadget.SystemBoot,
+		},
+	}
+	// only grubx64.efi gets installed to system-boot
+	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(unpackedGadgetDir, "grubx64.efi"), "EFI/boot/grubx64.efi")
+	c.Assert(err, IsNil)
+	// observe recovery assets
+	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
+	c.Assert(err, IsNil)
+
+	err = boot.MakeBootable(model, rootdir, bootWith, obs)
 	c.Assert(err, IsNil)
 
 	// ensure grub.cfg in boot was installed from internal assets
@@ -447,7 +486,35 @@ base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
+current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
+current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 `)
+	copiedGrubBin := filepath.Join(
+		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		"grub",
+		"grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d",
+	)
+	copiedRecoveryGrubBin := filepath.Join(
+		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		"grub",
+		"grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5",
+	)
+	copiedRecoveryShimBin := filepath.Join(
+		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		"grub",
+		"bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37",
+	)
+
+	// only one file in the cache under new root
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir), "grub", "*"), []string{
+		copiedRecoveryShimBin,
+		copiedGrubBin,
+		copiedRecoveryGrubBin,
+	})
+	// with the right content
+	c.Check(copiedGrubBin, testutil.FileEquals, "grub content")
+	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
+	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunModeInstallBootConfigErr(c *C) {
@@ -508,7 +575,7 @@ version: 5.0
 	}
 
 	// no grub cfg in gadget directory raises an error
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "cannot install boot config with a mismatched gadget")
 
 	// set up grub.cfg in gadget
@@ -519,7 +586,7 @@ version: 5.0
 	// no write access to destination directory
 	restore := assets.MockInternal("grub.cfg", nil)
 	defer restore()
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, `cannot install managed bootloader assets: internal error: no boot asset for "grub.cfg"`)
 }
 
@@ -571,7 +638,7 @@ version: 5.0
 	}
 
 	// TODO:UC20: enable this use case
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find boot config in %q", unpackedGadgetDir))
 }
 
@@ -622,7 +689,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// since uboot.conf was absent, we won't have installed the uboot.env, as
@@ -701,7 +768,7 @@ version: 5.0
 		Recovery:          false,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps

@@ -3,6 +3,51 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
+  snap-builds:
+    runs-on: ubuntu-16.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Cache snapd snap build status
+      id: cache-snapd-build-status
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
+    - name: Check cached snap build
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              has_cached_snap=0
+              while read name; do
+                  has_cached_snap=1
+                  # bring back artifacts from the cache
+                  cp -v "$name" "${{ github.workspace }}"
+              done < <(find "$(dirname $CACHE_RESULT_STAMP)" -name "*.snap")
+              if [ "$has_cached_snap" = "1" ]; then
+                  # we have restored an artifact from the cache
+                  echo "::set-output name=already-ran::true"
+              fi
+          fi
+    - name: Build snapd snap
+      if: steps.cached-results.outputs.already-ran != 'true'
+      uses: snapcore/action-build@v1
+    - name: Cache built artifact
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
+    - name: Uploading snapd snap artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: snap-files
+        path: "*.snap"
+    - name: Mark successful snap build
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+
   unit-tests:
     runs-on: ubuntu-16.04
     env:
@@ -14,8 +59,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # XXX: only skip format checks on 1.13+
-      SKIP_GOFMT: 1
       # XXX: compat env for "check-pr-title.py" in "run-checks", can go
       #      once we switch away from that. Note that we cannot currently
       #      use a github action check (like deepakputhraya/action-pr-title)
@@ -28,7 +71,7 @@ jobs:
       matrix:
         gochannel:
           - 1.9
-          - latest/edge
+          - latest/stable
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -96,6 +139,12 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          # run gofmt checks only with Go 1.9 and 1.10
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.(9|10)' ; then
+              # and skip with other versions
+              export SKIP_GOFMT=1
+              echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          fi
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -147,7 +196,6 @@ jobs:
         - ubuntu-16.04-32
         - ubuntu-16.04-64
         - ubuntu-18.04-64
-        - ubuntu-19.10-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64
         - ubuntu-core-16-64
@@ -230,8 +278,11 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          export CORE_CHANNEL=edge
-          export BUILD_SNAPD_FROM_CURRENT=true
+          export SPREAD_BUILD_SNAPD_FROM_CURRENT=true
+          export SPREAD_ENABLE_KVM=true
+          if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
+              export SPREAD_ENABLE_KVM=false
+          fi
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |

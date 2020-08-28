@@ -1,7 +1,6 @@
 summary: Ensure that foreground applications block app refresh.
-# fedora-31: uses cgroupv2, which we don't support
-# fedora-32: uses cgroupv2, which we don't support
-systems: [ -fedora-31-*, -fedora-32-*]
+# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+systems: [-ubuntu-14.04-*]
 details: |
     When the refresh-app-awareness feature is enabled running snap processes,
     mainly foreground applications, will block the refresh of said snap.
@@ -12,6 +11,7 @@ prepare: |
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v2/meta/snap.yaml.in >test-snapd-refresh.v2/meta/snap.yaml
     snap pack test-snapd-refresh.v1
     snap pack test-snapd-refresh.v2
+    tests.session -u test prepare
 environment:
     CONFINEMENT/classic: classic
     CONFINEMENT/strict: strict
@@ -19,11 +19,16 @@ restore: |
     snap remove --purge test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
     rm -f test-snapd-refresh.*/meta/snap.yaml
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
-    systemctl --user stop dbus.service || true
     snap unset core experimental.refresh-app-awareness
     rm -f install.log
+    # Stop the dbus.service of the user session of the root user. This test
+    # runs in several configurations, not all of which have this capability.
+    # Where supported the test code below causes socket activation, through the
+    # refresh-app-awareness application tracking mechanism built into snap
+    # run. This session-level dbus daemon is detected as spurious by the
+    # invariant checker.
+    systemctl --user stop dbus.service || true
+    tests.session -u test restore
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
         echo "SKIP: unsupported confinement variant"
@@ -40,12 +45,20 @@ execute: |
     esac
     test-snapd-refresh.version | MATCH v1
 
+    # We can run "snap run" as a test user, which does not have the permission
+    # to create the run inhibition lock file.
+    tests.session -u test exec test-snapd-refresh.version | MATCH v1
+
     # Run a sleeper app to keep the snap busy. The purpose of the stamp file is
     # to allow us to synchronize with the concurrently running program.
     #shellcheck disable=SC2016
     test-snapd-refresh.sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
     pid=$!
     trap 'kill '"$pid"' || true' EXIT
+
+    # While the sleeper app is running check that we can still run other
+    # processes. This checks if we can spawn a distinct scope.
+    test-snapd-refresh.version | MATCH v1
 
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
@@ -81,3 +94,7 @@ execute: |
             ;;
     esac
     test-snapd-refresh.version | MATCH v2
+
+    # We can run "snap run" as a test user, which does not have the permission
+    # to open the run inhibition lock file for writing.
+    tests.session -u test exec test-snapd-refresh.version | MATCH v2

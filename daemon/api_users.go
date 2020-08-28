@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -115,7 +116,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: "please use a valid email address.",
-				Kind:    errorKindInvalidAuthData,
+				Kind:    client.ErrorKindInvalidAuthData,
 				Value:   map[string][]string{"email": {"invalid"}},
 			},
 			Status: 400,
@@ -131,7 +132,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
-				Kind:    errorKindTwoFactorRequired,
+				Kind:    client.ErrorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
 			Status: 401,
@@ -140,7 +141,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
-				Kind:    errorKindTwoFactorFailed,
+				Kind:    client.ErrorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
 			Status: 401,
@@ -152,7 +153,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: err.Error(),
-					Kind:    errorKindInvalidAuthData,
+					Kind:    client.ErrorKindInvalidAuthData,
 					Value:   err,
 				},
 				Status: 400,
@@ -162,7 +163,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: err.Error(),
-					Kind:    errorKindPasswordPolicy,
+					Kind:    client.ErrorKindPasswordPolicy,
 					Value:   err,
 				},
 				Status: 401,

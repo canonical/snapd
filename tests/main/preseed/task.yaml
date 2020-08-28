@@ -4,7 +4,7 @@ description: |
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

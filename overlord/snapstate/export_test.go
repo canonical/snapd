@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type ManagerBackend managerBackend
@@ -78,6 +79,12 @@ func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool
 	return func() { osutilEnsureUserGroup = old }
 }
 
+func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
+	old := osutilCheckFreeSpace
+	osutilCheckFreeSpace = mock
+	return func() { osutilCheckFreeSpace = old }
+}
+
 var (
 	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
@@ -90,6 +97,8 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
 
+	CurrentSnaps = currentSnaps
+
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
@@ -98,6 +107,9 @@ var (
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// helpers
+var InstallSize = installSize
 
 // aliases v2
 var (
@@ -213,14 +225,6 @@ var (
 
 type AuxStoreInfo = auxStoreInfo
 
-func MockPidsCgroupDir(dir string) (restore func()) {
-	old := pidsCgroupDir
-	pidsCgroupDir = dir
-	return func() {
-		pidsCgroupDir = old
-	}
-}
-
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
@@ -228,6 +232,22 @@ var (
 
 func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
 	return m.maybeUndoRemodelBootChanges(t)
+}
+
+func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
+	old := pidsOfSnap
+	pidsOfSnap = f
+	return func() {
+		pidsOfSnap = old
+	}
+}
+
+func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) func() {
+	old := currentSnaps
+	currentSnaps = f
+	return func() {
+		currentSnaps = old
+	}
 }
 
 // autorefresh

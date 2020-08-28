@@ -51,7 +51,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options) error {
+func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) error {
 	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 	}
@@ -142,7 +142,7 @@ func Run(gadgetRoot, device string, options Options) error {
 			return err
 		}
 
-		if err := writeContent(&part, gadgetRoot); err != nil {
+		if err := writeContent(&part, gadgetRoot, observer); err != nil {
 			return err
 		}
 
@@ -176,12 +176,21 @@ func Run(gadgetRoot, device string, options Options) error {
 		loadChain = append(loadChain, options.KernelPath)
 	}
 
-	// TODO:UC20: get cmdline definition from bootloaders
+	// Get the expected kernel command line for the system that is currently being installed
+	cmdline, err := boot.ComposeCandidateCommandLine(options.Model)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kernel command line: %v", err)
+	}
+
+	// Get the expected kernel command line of the recovery system we're installing from
+	recoveryCmdline, err := boot.ComposeRecoveryCommandLine(options.Model, options.SystemLabel)
+	if err != nil {
+		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+	}
+
 	kernelCmdlines := []string{
-		// run mode
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		// recover mode
-		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+		cmdline,
+		recoveryCmdline,
 	}
 
 	sealKeyParams := secboot.SealKeyParams{

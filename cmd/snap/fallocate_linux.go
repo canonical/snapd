@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,12 +17,19 @@
  *
  */
 
-#include "cgroup-pids-support.h"
+package main
 
-#include "cgroup-support.h"
+import (
+	"os"
+	"syscall"
+)
 
-static const char *pids_cgroup_dir = "/sys/fs/cgroup/pids";
-
-void sc_cgroup_pids_join(const char *snap_security_tag, pid_t pid) {
-    sc_cgroup_create_and_join(pids_cgroup_dir, snap_security_tag, pid);
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	const fallocKeepSize = 1 // This is FALLOC_FL_KEEP_SIZE
+	if err := syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, size); err != nil {
+		if err != syscall.EOPNOTSUPP && err != syscall.ENOSYS {
+			return err
+		}
+	}
+	return nil
 }
