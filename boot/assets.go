@@ -632,3 +632,103 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	// - reseal with a given state of modeenv
 	return nil
 }
+
+func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
+	trustedAssetsMap := &m.CurrentTrustedBootAssets
+	otherTrustedAssetsMap := m.CurrentTrustedRecoveryBootAssets
+	if opts != nil && opts.Role == bootloader.RoleRecovery {
+		trustedAssetsMap = &m.CurrentTrustedRecoveryBootAssets
+		otherTrustedAssetsMap = m.CurrentTrustedBootAssets
+	}
+
+	if len(*trustedAssetsMap) == 0 {
+		// bootloader may have trusted assets, but we are not tracking
+		// any for the boot process
+		return nil, nil
+	}
+
+	// let's find the bootloader first
+	bl, trustedAssets, err := findMaybeTrustedAssetsBootloader(root, opts)
+	if err != nil {
+		return nil, err
+	}
+	if len(trustedAssets) == 0 {
+		// not a trusted assets bootloader, nothing to do
+		return nil, nil
+	}
+
+	cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
+	for _, trustedAsset := range trustedAssets {
+		assetName := filepath.Base(trustedAsset)
+
+		// find the hash of the file on disk
+		assetHash, err := cache.fileHash(filepath.Join(root, trustedAsset))
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
+		}
+		if assetHash == "" {
+			// no trusted asset on disk, but we booted nonetheless
+
+			// given that asset names cannot be reused, clear the
+			// boot assets map for the current bootloader
+			delete(*trustedAssetsMap, assetName)
+			continue
+		}
+
+		// this is what we booted with
+		bootedWith := []string{assetHash}
+		// one of these was expected during boot
+		hashList := (*trustedAssetsMap)[assetName]
+
+		// update the list of what we booted with
+		(*trustedAssetsMap)[assetName] = bootedWith
+
+		// find out if anything needs to be dropped
+		for _, hash := range hashList {
+			if hash == assetHash {
+				continue
+			}
+			if !isAssetHashTrackedInMap(otherTrustedAssetsMap, assetName, hash) {
+				// asset can be dropped
+				drop = append(drop, &trackedAsset{
+					blName: bl.Name(),
+					name:   assetName,
+					hash:   hash,
+				})
+			}
+		}
+	}
+	return drop, nil
+}
+
+// observeSuccessfulBootWithAssets makes not of a state of the trusted boot
+// assets after a successful boot. Returns a modified modeenv reflecting a new
+// state, and a list of assets that can be dropped from the cache.
+func observeSuccessfulBootWithAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	newM, err = m.Copy()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, bl := range []struct {
+		root string
+		opts *bootloader.Options
+	}{
+		{
+			// ubuntu-boot bootloader
+			root: InitramfsUbuntuBootDir,
+			opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
+		}, {
+			// ubuntu-seed bootloader
+			root: InitramfsUbuntuSeedDir,
+			opts: &bootloader.Options{Role: bootloader.RoleRecovery, NoSlashBoot: true},
+		},
+	} {
+		dropForBootloader, err := observeSuccessfulBootWithAssetsForBootloader(newM, bl.root, bl.opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		drop = append(drop, dropForBootloader...)
+	}
+	return newM, drop, nil
+}

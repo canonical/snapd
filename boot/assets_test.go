@@ -44,6 +44,12 @@ type assetsSuite struct {
 
 var _ = Suite(&assetsSuite{})
 
+func (s *assetsSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
+}
+
 func checkContentGlob(c *C, glob string, expected []string) {
 	l, err := filepath.Glob(glob)
 	c.Assert(err, IsNil)
@@ -1865,6 +1871,199 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	c.Check(logBuf.String(), Matches, fmt.Sprintf(`.* cannot remove unused boot asset shim:%s: .* permission denied\n`, shimHash))
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootNoTrusted(c *C) {
+	// call to observe successful boot without any trusted assets
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		// no trusted assets
+	}
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Check(drop, IsNil)
+	c.Check(newM, DeepEquals, m)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
+	// call to observe successful boot, but assets do not exist on disk
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash"},
+		},
+	}
+
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Check(drop, IsNil)
+	// we booted without assets on disk nonetheless
+	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
+	// call to observe successful boot
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+
+	// only asset for ubuntu
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// shim and asset for seed
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash", dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"recoveryassethash", dataHash},
+			"shim":  {"recoveryshimhash", shimHash},
+		},
+	}
+
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+		"shim":  {shimHash},
+	})
+	c.Check(drop, HasLen, 3)
+	for i, en := range []struct {
+		assetName, hash string
+	}{
+		{"asset", "assethash"},
+		{"asset", "recoveryassethash"},
+		{"shim", "recoveryshimhash"},
+	} {
+		c.Check(drop[i].Equals("trusted", en.assetName, en.hash), IsNil)
+	}
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
+	// call to observe successful boot, but the asset we booted with is unexpected
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	unexpected := []byte("unexpected")
+	unexpectedHash := "2c823b62c52e614e48faac7e8b1fbb8ff3aee4d06b6f7fe5bd7d64953162b6e9879ead4827fa19c8c9a514585ddac94c"
+
+	// asset for ubuntu
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0644), IsNil)
+	// and for seed
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash", dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"recoveryassethash", dataHash},
+		},
+	}
+
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {unexpectedHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {unexpectedHash},
+	})
+	c.Check(drop, HasLen, 3)
+	for i, en := range []struct {
+		assetName, hash string
+	}{
+		{"asset", "assethash"},
+		{"asset", "recoveryassethash"},
+		{"asset", dataHash},
+	} {
+		c.Check(drop[i].Equals("trusted", en.assetName, en.hash), IsNil)
+	}
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
+	// call to observe successful boot
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+
+	// only asset for ubuntu
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// shim and asset for seed
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+			"shim":  {shimHash},
+		},
+	}
+
+	// nothing is changed
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(newM, DeepEquals, m)
+	c.Check(drop, HasLen, 0)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
+	// call to observe successful boot
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	data := []byte("foobar")
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0000), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0000), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+	}
+
+	// nothing is changed
+	_, _, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, ErrorMatches, "cannot calculate the digest of existing trusted asset: .*/asset: permission denied")
 }
 
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {

@@ -516,6 +516,24 @@ func genericSetNext(b bootState20, next snap.PlaceInfo) (u20 *bootStateUpdate20,
 	return u20, TryStatus, nil
 }
 
+func toBootStateUpdate20(update bootStateUpdate) (u20 *bootStateUpdate20, err error) {
+	// try to extract bootStateUpdate20 out of update
+	if update != nil {
+		var ok bool
+		if u20, ok = update.(*bootStateUpdate20); !ok {
+			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+		}
+	}
+	if u20 == nil {
+		// make a new one, also loading modeenv
+		u20, err = newBootStateUpdate20(nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return u20, nil
+}
+
 // selectSuccessfulBootSnap inspects the specified boot state to pick what
 // boot snap should be marked as successful and use as a valid rollback target.
 // If the first return value is non-nil, the second return value will be the
@@ -525,19 +543,9 @@ func selectSuccessfulBootSnap(b bootState20, update bootStateUpdate) (
 	bootedSnap snap.PlaceInfo,
 	err error,
 ) {
-	// try to extract bootStateUpdate20 out of update
-	if update != nil {
-		var ok bool
-		if u20, ok = update.(*bootStateUpdate20); !ok {
-			return nil, nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
-		}
-	}
-	if u20 == nil {
-		// make a new one, also loading modeenv
-		u20, err = newBootStateUpdate20(nil)
-		if err != nil {
-			return nil, nil, err
-		}
+	u20, err = toBootStateUpdate20(update)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// get the try snap and the current status
@@ -624,4 +632,54 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 
 	// we have a try snap and everything appears in order
 	return trySnap, curSnap, nil
+}
+
+//
+// non snap boot resources
+//
+
+// bootState20BootAssets implements the basicBootState interface for trusted
+// boot assets UC20.
+type bootState20BootAssets struct{}
+
+func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(u20.modeenv.CurrentTrustedBootAssets) == 0 && len(u20.modeenv.CurrentTrustedRecoveryBootAssets) == 0 {
+		// not using trusted boot assets, nothing more to do
+		return update, nil
+	}
+
+	newM, dropAssets, err := observeSuccessfulBootWithAssets(u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful boot assets: %v", err)
+	}
+	// update modeenv
+	u20.writeModeenv = newM
+
+	if len(dropAssets) == 0 {
+		// nothing to drop, we're done
+		return u20, nil
+	}
+
+	u20.preModeenv(func() error {
+		cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
+		// drop listed assets from cache
+		for _, ta := range dropAssets {
+			// TODO ta.blName must be set!
+			err := cache.Remove(ta.blName, ta.name, ta.hash)
+			if err != nil {
+				return fmt.Errorf("cannot remove unused boot asset %v:%v: %v", ta.name, ta.hash, err)
+			}
+		}
+		return nil
+	})
+	return u20, nil
+}
+
+func trustedAssetsBootState(dev Device) *bootState20BootAssets {
+	return &bootState20BootAssets{}
 }
