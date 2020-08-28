@@ -1,0 +1,25 @@
+summary: Run a smoke test on UC20 with encryption enabled
+
+description: |
+    This test checks basic snapd commands on UC20 with secure boot and encryption enabled
+
+systems: [ubuntu-core-2*]
+
+# Do not remove manual:true, it is used to run just when the test is targeted
+manual: true
+
+execute: |
+
+    echo "Verifying tpm working on the nested vm"
+    dmesg | grep -i tpm | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*
+    test -e /sys/kernel/security/tpm0/binary_bios_measurements
+
+    echo "and secure boot is enabled on the nested vm"
+    xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c | MATCH "00000000: 0600 0000 01\s+....."
+
+    echo "and the recovery key is available"
+    test -e /var/lib/snapd/device/fde/recovery.key
+    echo "and has the expected size"
+    stat --printf=%s /var/lib/snapd/device/fde/recovery.key | MATCH '^16$'
+    echo "and has the expected owner and permissions"
+    stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key | MATCH '^0:0 600$'

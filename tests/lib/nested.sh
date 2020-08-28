@@ -795,6 +795,27 @@ copy_remote(){
     sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
 }
 
+run_local_test(){
+    local TESTS_TO_RUN=$1
+    set +x
+    fetch_spread
+    NESTED_SPREAD_SYSTEM=$(get_nested_spread_system)
+    SPREAD_EXTERNAL_ADDRESS=localhost:"$SSH_PORT" "$WORK_DIR/spread" -v "external:$NESTED_SPREAD_SYSTEM:$TESTS_TO_RUN"
+}
+
+get_nested_spread_system(){
+    if is_core_20_nested_system ; then
+        echo ubuntu-core-20-64
+    elif is_core_18_nested_system; then
+        echo ubuntu-core-18-64
+    elif is_core_16_nested_system; then
+        echo ubuntu-core-16-64
+    else
+        echo "unsupported nested system"
+        exit 1
+    fi
+}
+
 add_tty_chardev(){
     local CHARDEV_ID=$1
     local CHARDEV_PATH=$2

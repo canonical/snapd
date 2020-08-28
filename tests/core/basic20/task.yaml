@@ -1,6 +1,6 @@
 summary: Check basic core20 system functionality
 
-systems: [ubuntu-core-20-*]
+systems: [ubuntu-core-2*]
 
 execute: |
     echo "Check that the system snaps are there"
