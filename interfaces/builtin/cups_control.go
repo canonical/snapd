@@ -119,8 +119,8 @@ type cupsControlInterface struct {
 }
 
 func (iface *cupsControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	// Only apply slot snippet when running as application snap on classic
-	// since the slot side may be from the classic OS or snap.
+	// On classic, only apply slot snippet when running as application snap
+	// on classic since the slot side may be from the classic OS or snap.
 	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(cupsControlPermanentSlotAppArmor)
 	}
@@ -128,8 +128,8 @@ func (iface *cupsControlInterface) AppArmorPermanentSlot(spec *apparmor.Specific
 }
 
 func (iface *cupsControlInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Only apply slot snippet when running as application snap on classic
-	// since the slot side may be from the classic OS or snap.
+	// On classic, only apply slot snippet when running as application snap
+	// on classic since the slot side may be from the classic OS or snap.
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
