@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 const (
@@ -333,9 +335,13 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		}
 
 		// Add EFI secure boot policy profile
+		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
+		if err != nil {
+			return fmt.Errorf("cannot build EFI image load sequences: %v", err)
+		}
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: buildLoadSequences(modelParams.EFILoadChains),
+			LoadSequences: loadSequences,
 			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
 			//            signature updates to blacklist signing keys (after rotating them).
 			//            This also requires integration of sbkeysync, and some work to
@@ -421,7 +427,7 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 
 // buildLoadSequences creates a linear EFI image load event chain for each one of the
 // specified sequences of file paths.
-func buildLoadSequences(pathSequences [][]string) []*sb.EFIImageLoadEvent {
+func buildLoadSequences(pathSequences [][]string) ([]*sb.EFIImageLoadEvent, error) {
 	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
 	// device configuration. So you could have something like this:
 	//
@@ -445,14 +451,33 @@ func buildLoadSequences(pathSequences [][]string) []*sb.EFIImageLoadEvent {
 
 	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(pathSequences))
 
+	efiImage := func(name string) (sb.EFIImage, error) {
+		if strings.HasSuffix(name, ".snap") {
+			snapf, err := snapfile.Open(name)
+			if err != nil {
+				return nil, err
+			}
+			return sb.SnapFileEFIImage{
+				Container: snapf,
+				Path:      name,
+				FileName:  "kernel.efi",
+			}, nil
+		}
+		return sb.FileEFIImage(name), nil
+	}
+
 	for _, filePaths := range pathSequences {
 		var event *sb.EFIImageLoadEvent
 		var next []*sb.EFIImageLoadEvent
 
 		for i := len(filePaths) - 1; i >= 0; i-- {
+			image, err := efiImage(filePaths[i])
+			if err != nil {
+				return nil, err
+			}
 			event = &sb.EFIImageLoadEvent{
 				Source: sb.Shim,
-				Image:  sb.FileEFIImage(filePaths[i]),
+				Image:  image,
 				Next:   next,
 			}
 			next = []*sb.EFIImageLoadEvent{event}
@@ -463,7 +488,7 @@ func buildLoadSequences(pathSequences [][]string) []*sb.EFIImageLoadEvent {
 		loadEvents = append(loadEvents, event)
 	}
 
-	return loadEvents
+	return loadEvents, nil
 }
 
 func checkFilesPresence(pathList []string) error {
