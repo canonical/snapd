@@ -76,6 +76,10 @@ func (r *repairSuite) SetUpTest(c *C) {
 	r.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
+func (r *repairSuite) TearDownTest(c *C) {
+	r.BaseTest.TearDownTest(c)
+}
+
 func (r *repairSuite) Stdout() string {
 	return r.stdout.String()
 }
