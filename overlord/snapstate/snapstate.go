@@ -2276,6 +2276,8 @@ func NumSnaps(st *state.State) (int, error) {
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
+// Note that a SnapState with an empty Sequence will be treated as if snapst was
+// nil and name will be deleted from the state.
 func Set(st *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
