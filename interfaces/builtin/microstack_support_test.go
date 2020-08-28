@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -92,7 +94,7 @@ func (s *microStackSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "lchownat\n")
+	c.Check(seccompSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "mknod - |S_IFBLK -\nmknodat - - |S_IFBLK -")
 }
 
 func (s *microStackSupportInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -101,6 +103,53 @@ func (s *microStackSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *microStackSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
+	spec := &kmod.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"vhost":        true,
+		"vhost-net":    true,
+		"vhost-scsi":   true,
+		"vhost-vsock":  true,
+		"pci-stub":     true,
+		"vfio":         true,
+		"nbd":          true,
+		"dm-mod":       true,
+		"dm-thin-pool": true,
+		"dm-snapshot":  true,
+		"iscsi-tcp":    true,
+	})
+}
+
+func (s *microStackSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
+	spec := &udev.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 11)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+KERNEL=="vhost-net", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+KERNEL=="vhost-scsi", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+KERNEL=="vhost-vsock", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="block", KERNEL=="nbd[0-9]*", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="misc", KERNEL=="vfio", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="vfio", KERNEL=="[0-9]*", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="block", KERNEL=="loop[0-9]*", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="misc", KERNEL=="loop-control", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="misc", KERNEL=="device-mapper", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
+SUBSYSTEM=="block", KERNEL=="dm-[0-9]*", TAG+="snap_microstack_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_microstack_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_microstack_app $devpath $major:$minor"`)
 }
 
 func (s *microStackSupportInterfaceSuite) TestInterfaces(c *C) {

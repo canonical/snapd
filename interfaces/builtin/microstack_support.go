@@ -34,7 +34,7 @@ const microStackSupportSummary = `allows operating as the MicroStack service`
 const microStackSupportBaseDeclarationPlugs = `
   microstack-support:
     allow-installation: false
-    allow-auto-connection: true
+    deny-auto-connection: true
 `
 
 const microStackSupportBaseDeclarationSlots = `
@@ -42,7 +42,7 @@ const microStackSupportBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    allow-auto-connection: true
+    deny-auto-connection: true
 `
 
 const microStackSupportConnectedPlugAppArmor = `
