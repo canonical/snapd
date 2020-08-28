@@ -94,8 +94,7 @@ const microStackSupportConnectedPlugAppArmor = `
 # Non-systemd layout: https://libvirt.org/cgroups.html#currentLayoutGeneric
 /sys/fs/cgroup/*/ r,
 /sys/fs/cgroup/*/machine/ rw,
-/sys/fs/cgroup/*/machine/*/ rw,
-/sys/fs/cgroup/*/machine/qemu-*.libvirt-qemu/** rw,
+/sys/fs/cgroup/*/machine/** rw,
 
 # systemd-layout: https://libvirt.org/cgroups.html#systemdLayout
 /sys/fs/cgroup/*/machine.slice/machine-qemu*/{,**} rw,
@@ -206,6 +205,7 @@ const microStackSupportConnectedPlugSecComp = `
 mknod - |S_IFBLK -
 mknodat - - |S_IFBLK -
 `
+
 var microStackConnectedPlugUDev = []string{
 	`KERNEL=="vhost-net"`,
 	`KERNEL=="vhost-scsi"`,
@@ -227,15 +227,15 @@ var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-s
 
 func init() {
 	registerIface(&microStackInterface{commonInterface{
-		name:                  "microstack-support",
-		summary:               microStackSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  microStackSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  microStackSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: microStackSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  microStackSupportConnectedPlugSecComp,
-		connectedPlugUDev:     microStackConnectedPlugUDev,
+		name:                     "microstack-support",
+		summary:                  microStackSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     microStackSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     microStackSupportBaseDeclarationPlugs,
+		connectedPlugAppArmor:    microStackSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
+		connectedPlugUDev:        microStackConnectedPlugUDev,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 	}})
 }
