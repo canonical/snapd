@@ -165,7 +165,7 @@ owner @{PROC}/@{pid}/oom_score_adj rw,
 # These profiles will prevent utility processes escaping confinement.
 capability mac_admin,
 
-# MicroStack services such as libvirt use has a server/client design where
+# MicroStack services such as libvirt use a server/client design where
 # unix sockets are used for IPC.
 capability chown,
 
@@ -186,9 +186,9 @@ change_profile -> libvirt-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*,
 signal (read, send) peer=libvirt-*,
 
 # Allow reading certain proc entries, see ptrace(2) "Ptrace access mode checking".
-# For ourselves.
+# For ourselves:
 ptrace (read, trace) peer=@{profile_name},
-# For VM processes libvirt spawns.
+# For VM processes libvirt spawns:
 ptrace (read, trace) peer=libvirt-*,
 
 # Used by neutron-ovn-agent.
@@ -197,7 +197,7 @@ unmount /run/netns/ovnmeta-*,
 
 const microStackSupportConnectedPlugSecComp = `
 # Description: allow MicroStack to operate by allowing the necessary system calls to be used by various services.
-# (libvirt, qemu, qemu-img, dnsmasq, Nova, Neutron, Keystone, Glance, Cinder)
+# (libvirt, qemu, qemu-img, Nova, Neutron, Keystone, Glance, Cinder)
 
 # Note that this profile necessarily contains the union of all the syscalls each of the
 # utilities requires. We rely on MicroStack to generate specific AppArmor profiles
