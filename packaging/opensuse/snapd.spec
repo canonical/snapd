@@ -134,6 +134,7 @@ Requires:       apparmor-profiles
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
+Requires:       system-user-daemon
 
 # Old versions of xdg-document-portal can expose data belonging to
 # other confied apps.  Older OpenSUSE releases are unlikely to change,
