@@ -3,5 +3,3 @@ defaults:
      service:
        ssh:
          disable: true
-       rsyslog:
-         disable: true

@@ -7,6 +7,8 @@ summary: |
 systems: [ubuntu-core-18-*]
 
 environment:
+    # XXX: to test systems other than core18 with more defaults we will need
+    # separate defaults file(s).
     GADGET_FILE: gadget-defaults.yaml
 
 prepare: |
