@@ -402,7 +402,7 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if is_nested_system; then
+        if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
@@ -854,12 +854,12 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            prepare_nested_env
+            nested_prepare_env
 
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -905,20 +905,20 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            prepare_nested_env
-            create_nested_classic_vm
+            nested_prepare_env
+            nested_create_classic_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            start_nested_classic_vm
+            nested_start_classic_vm
         restore-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+            nested_destroy_vm
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -964,20 +964,20 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            prepare_nested_env
-            create_nested_core_vm
+            nested_prepare_env
+            nested_create_core_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            start_nested_core_vm
+            nested_start_core_vm
         restore-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+            nested_destroy_vm
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1028,14 +1028,14 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            prepare_nested_env
-            create_nested_core_vm
-            start_nested_core_vm
+            nested_prepare_env
+            nested_create_core_vm
+            nested_start_core_vm
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
-            cleanup_nested_env
+            nested_destroy_vm
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

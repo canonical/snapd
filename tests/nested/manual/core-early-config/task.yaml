@@ -10,7 +10,7 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    cleanup_nested_env
+    nested_cleanup_env
 
     mkdir extra-snaps
 
@@ -30,12 +30,12 @@ prepare: |
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     mv "$KERNEL_SNAP" extra-snaps/
 
-    create_nested_core_vm
+    nested_create_core_vm
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use
     # system-files plug, but it wouldn't get autoconnected due to assertions.
-    IMAGE_NAME="$(get_image_name core)"
+    IMAGE_NAME="$(nested_get_image_name core)"
     loops=$(kpartx -avs "$NESTED_IMAGES_DIR/$IMAGE_NAME"  | cut -d' ' -f 3)
     part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
@@ -45,27 +45,27 @@ prepare: |
     kpartx -d "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     rmdir "$tmp"
 
-    start_nested_core_vm
+    nested_start_core_vm
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-    cleanup_nested_env
+    nested_destroy_vm
+    nested_cleanup_env
     rm -rf extra-snaps
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    execute_remote "sudo snap wait system seed.loaded"
+    nested_execute "sudo snap wait system seed.loaded"
 
     echo "Test that rsyslog was disabled early."
     # early config is witnessed by install hook of the pc gadget
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    execute_remote "test -L /etc/systemd/system/rsyslog.service"
+    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    nested_execute "test -L /etc/systemd/system/rsyslog.service"
 
     # timezone is set
-    execute_remote "cat /etc/timezone" | MATCH "Europe/Malta"
-    execute_remote "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    nested_execute "cat /etc/timezone" | MATCH "Europe/Malta"
+    nested_execute "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"

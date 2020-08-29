@@ -33,32 +33,32 @@ execute: |
         exit 0
     fi
 
-    execute_remote "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
-    execute_remote "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
+    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
+    nested_execute "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
-    if ! wait_for_ssh; then
+    if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
+    while ! nested_execute "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
         sleep 1
     done
-    execute_remote "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
     # sanity check, no refresh should be done here but the command shouldn't fail
-    execute_remote "sudo snap refresh"
-    execute_remote "sudo snap revert core" || true
+    nested_execute "sudo snap refresh"
+    nested_execute "sudo snap revert core" || true
 
-    if ! wait_for_ssh; then
+    if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
-    execute_remote "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
-    execute_remote "ifconfig" | MATCH eth0
+    while ! nested_execute "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    nested_execute "ifconfig" | MATCH eth0
 
 
-    execute_remote "sudo snap refresh"
-    execute_remote "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
+    nested_execute "sudo snap refresh"
+    nested_execute "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
