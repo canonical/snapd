@@ -254,16 +254,16 @@ Nested test suite is composed by the following 4 suites:
 
 The nested suites use some environment variables to configure the suite and the tests inside it, the most important ones are the described bellow:
 
-    SPREAD_NESTED_WORK_DIR: It is path to the directory where all the nested assets and images are stored
-    SPREAD_NESTED_TYPE: Use core for ubuntu core nested systems or classic instead.
-    SPREAD_NESTED_CORE_CHANNEL: The images are created using ubuntu-image snap, use it to define the default branch
-    SPREAD_NESTED_CORE_REFRESH_CHANNEL: The images can be refreshed to a specific channel, use it to specify the channel
-    SPREAD_NESTED_USE_CLOUD_INIT: Use cloud init to make initial system configuration instead of user assertion
-    SPREAD_NESTED_ENABLE_KVM: Enable kvm in the qemu command line
-    SPREAD_NESTED_ENABLE_TPM: re boot in the nested vm in case it is supported (just supported on UC20)
-    SPREAD_NESTED_ENABLE_SECURE_BOOT: Enable secure boot in the nested vm in case it is supported (just supported on UC20)
-    SPREAD_NESTED_BUILD_SNAPD_FROM_CURRENT: Build and use either core or snapd snapd from current branch
-    SPREAD_NESTED_CUSTOM_IMAGE_URL: Download and use an custom image from this url
+    NESTED_WORK_DIR: It is path to the directory where all the nested assets and images are stored
+    NESTED_TYPE: Use core for ubuntu core nested systems or classic instead.
+    NESTED_CORE_CHANNEL: The images are created using ubuntu-image snap, use it to define the default branch
+    NESTED_CORE_REFRESH_CHANNEL: The images can be refreshed to a specific channel, use it to specify the channel
+    NESTED_USE_CLOUD_INIT: Use cloud init to make initial system configuration instead of user assertion
+    NESTED_ENABLE_KVM: Enable kvm in the qemu command line
+    NESTED_ENABLE_TPM: re boot in the nested vm in case it is supported (just supported on UC20)
+    NESTED_ENABLE_SECURE_BOOT: Enable secure boot in the nested vm in case it is supported (just supported on UC20)
+    NESTED_BUILD_SNAPD_FROM_CURRENT: Build and use either core or snapd snapd from current branch
+    NESTED_CUSTOM_IMAGE_URL: Download and use an custom image from this url
 
 
 # Quick intro to hacking on snap-confine
