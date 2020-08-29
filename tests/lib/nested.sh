@@ -263,7 +263,6 @@ nested_cleanup_env() {
     rm -rf "$NESTED_ASSETS_DIR"
     rm -rf "$NESTED_LOGS_DIR"
     rm -rf "$NESTED_IMAGES_DIR"/*.img
-    rm -rf "$NESTED_IMAGES_DIR/$(nested_get_current_image_name).xz"
     nested_prepare_env
 }
 
@@ -691,13 +690,8 @@ nested_get_current_image_name() {
 
 nested_start_core_vm() {
     local CURRENT_IMAGE IMAGE_NAME
-    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)"
-
-    # In case there is not a current image to be started but there is a compressed
-    # one, this is uncompressed and used for the current test
-    if [ ! -f "$CURRENT_IMAGE" ] && [ -f "${CURRENT_IMAGE}.xz" ]; then
-        nested_uncompress_image "$(nested_get_current_image_name)"
-    fi
+    CURRENT_NAME="$(nested_get_current_image_name)"
+    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$CURRENT_NAME"
 
     # In case the current image already exists, it needs to be reused and in that
     # case is neither required to copy the base image nor prepare the ssh
@@ -709,23 +703,36 @@ nested_start_core_vm() {
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         IMAGE_NAME="$(nested_get_image_name core)"
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
+            echo "No image found to be started"
+            exit 1
+        fi
         nested_uncompress_image "$IMAGE_NAME"
         mv "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        # configure ssh for first time
-        nested_prepare_ssh
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
+            # configure ssh for first time
+            nested_prepare_ssh
 
-        # compress the current image if it a generic image
-        if nested_is_generic_image; then
-            nested_force_stop_vm
-            wait_for_service "$NESTED_VM" inactive
-            nested_compress_image "$(nested_get_current_image_name)"
-            nested_force_start_vm
-            wait_for_service "$NESTED_VM"
-            nested_wait_for_ssh
+            # compress the current image if it a generic image
+            if nested_is_generic_image; then
+                # Stop the current image and compress it
+                nested_force_stop_vm
+                wait_for_service "$NESTED_VM" inactive
+                nested_compress_image "$CURRENT_NAME"
+
+                # Save the image with the name of the original image
+                mv "$NESTED_IMAGES_DIR/$CURRENT_NAME.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
+                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured"
+
+                # Start the current image again and wait until it is ready
+                nested_force_start_vm
+                wait_for_service "$NESTED_VM"
+                nested_wait_for_ssh
+            fi
         fi
     else
         # Start the nested core vm
@@ -887,9 +894,11 @@ nested_get_core_revision_installed() {
 }
 
 nested_fetch_spread() {
-    mkdir -p "$NESTED_WORK_DIR"
-    curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
-    # make sure spread really exists
-    test -x "$NESTED_WORK_DIR/spread"
-    echo "$NESTED_WORK_DIR/spread"
+    if ! [ -f "$NESTED_WORK_DIR/spread" ]; then
+        mkdir -p "$NESTED_WORK_DIR"
+        curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        # make sure spread really exists
+        test -x "$NESTED_WORK_DIR/spread"
+        echo "$NESTED_WORK_DIR/spread"
+    fi
 }
