@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,4 +61,28 @@ func Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
 		return 0, errno
 	}
 	return n, nil
+}
+
+// renameExchange is the RENAME_EXCHANGE flag to renameat2.
+const renameExchange = 1 << 1
+
+// ExchangeFiles atomically exchanges two files on one file system.
+//
+// All kinds of file objects, regular files, directories, symbolic links,
+// etc are supported. Not all file systems are supported. Notably ZFS
+// is not yet supported: https://github.com/openzfs/zfs/pull/9414
+func ExchangeFiles(oldDirFd int, oldPath string, newDirFd int, newPath string) error {
+	oldPathPtr, err := syscall.BytePtrFromString(oldPath)
+	if err != nil {
+		return err
+	}
+	newPathPtr, err := syscall.BytePtrFromString(newPath)
+	if err != nil {
+		return err
+	}
+	_, _, errno := syscall.Syscall6(sysRenameAt2, uintptr(oldDirFd), uintptr(unsafe.Pointer(oldPathPtr)), uintptr(newDirFd), uintptr(unsafe.Pointer(newPathPtr)), renameExchange, 0)
+	if errno != 0 {
+		return errno
+	}
+	return nil
 }
