@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
@@ -52,10 +52,14 @@ nested_prepare_ssh() {
     nested_execute "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
     nested_execute "echo test:ubuntu | sudo chpasswd"
     nested_execute "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    # Check we can connect with the new test user and make sudo
+    nested_execute_as test ubuntu "sudo true"
 
     nested_execute "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
     nested_execute "echo external:ubuntu | sudo chpasswd"
     nested_execute "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
+    # Check we can connect with the new external user and make sudo
+    nested_execute_as external ubuntu "sudo true"
 }
 
 nested_create_assertions_disk() {
@@ -451,6 +455,7 @@ nested_create_core_vm() {
     fi
 
     # Save a compressed copy of the image
+    # TODO: analyze if it is better to compress just when the image is generic
     nested_compress_image "$IMAGE_NAME"
 }
 
@@ -703,11 +708,16 @@ nested_start_core_vm() {
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         IMAGE_NAME="$(nested_get_image_name core)"
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ] && ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
             exit 1
         fi
-        nested_uncompress_image "$IMAGE_NAME"
+
+        # First time the image is used $IMAGE_NAME exists so it is used, otherwise
+        # the saved image from previous run is uncompressed
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+            nested_uncompress_image "$IMAGE_NAME"
+        fi
         mv "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
@@ -720,24 +730,34 @@ nested_start_core_vm() {
             # compress the current image if it a generic image
             if nested_is_generic_image; then
                 # Stop the current image and compress it
-                nested_force_stop_vm
-                wait_for_service "$NESTED_VM" inactive
+                nested_shutdown
                 nested_compress_image "$CURRENT_NAME"
 
                 # Save the image with the name of the original image
-                mv "$NESTED_IMAGES_DIR/$CURRENT_NAME.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
+                mv "${CURRENT_IMAGE}.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
                 touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured"
 
                 # Start the current image again and wait until it is ready
-                nested_force_start_vm
-                wait_for_service "$NESTED_VM"
-                nested_wait_for_ssh
+                nested_start
             fi
         fi
     else
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
     fi    
+}
+
+nested_shutdown() {
+    nested_execute "sudo shutdown now" || true
+    nested_wait_for_no_ssh
+    nested_force_stop_vm
+    wait_for_service "$NESTED_VM" inactive
+}
+
+nested_start() {
+    nested_force_start_vm
+    wait_for_service "$NESTED_VM" active
+    nested_wait_for_ssh
 }
 
 nested_compress_image() {
@@ -850,7 +870,14 @@ nested_destroy_vm() {
 }
 
 nested_execute() {
-    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
+    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
+}
+
+nested_execute_as() {
+    local USER="$1"
+    local PWD="$2"
+    shift 2
+    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {
