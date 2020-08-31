@@ -21,14 +21,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type cloudInitSuite struct {
+type cloudInitBaseSuite struct {
 	deviceMgrBaseSuite
 	mockLogger *bytes.Buffer
 }
 
+type cloudInitSuite struct {
+	cloudInitBaseSuite
+}
+
 var _ = Suite(&cloudInitSuite{})
 
-func (s *cloudInitSuite) SetUpTest(c *C) {
+func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
 	// undo the cloud-init mocking from deviceMgrBaseSuite, since here we
@@ -160,7 +164,9 @@ func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
+	statusCalls := 0
 	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
 	defer r()
@@ -173,6 +179,7 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 
 	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
@@ -261,8 +268,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitUntriggered)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{Action: "disable"}, nil
 	})
@@ -303,8 +311,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
@@ -350,8 +359,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was GCE
@@ -413,8 +423,9 @@ fi`, cloudInitScriptStateFile))
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
@@ -477,8 +488,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitErrored)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -573,8 +585,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitErrored)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -679,8 +692,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitEnabled)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -777,8 +791,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitEnabled)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -886,8 +901,9 @@ fi`, cloudInitScriptStateFile))
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "restrict",
