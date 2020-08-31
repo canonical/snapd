@@ -149,12 +149,10 @@ nested_get_ubuntu_image_url_for_vm() {
 }
 
 nested_get_image_url_for_vm() {
-    local IMAGE_SYSTEM="${1:-$SPREAD_SYSTEM}"
     if [[ "$SPREAD_BACKEND" == google* ]]; then
-        #shellcheck disable=SC2119
-        nested_get_google_image_url_for_vm "$IMAGE_SYSTEM"
+        nested_get_google_image_url_for_vm "$@"
     else
-        nested_get_ubuntu_image_url_for_vm "$IMAGE_SYSTEM"
+        nested_get_ubuntu_image_url_for_vm "$@"
     fi
 }
 
