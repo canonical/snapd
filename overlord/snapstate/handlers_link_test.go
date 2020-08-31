@@ -92,6 +92,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -133,6 +137,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 	// we end with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
@@ -328,6 +335,11 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	// a hook might have set some config
 	cfg := json.RawMessage(`{"c":true}`)
 	err := config.SetSnapConfig(s.state, "foo", &cfg)
@@ -374,6 +386,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(config, HasLen, 1)
 	_, ok := config["core"]
 	c.Check(ok, Equals, true)
+
+	// link snap participant was invoked, once for do, once for undo.
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo", "foo"})
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
@@ -482,6 +497,11 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	si := &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(35),
@@ -527,6 +547,9 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
