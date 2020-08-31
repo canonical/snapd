@@ -870,28 +870,35 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
-	// check if there is enough disk space for requested snaps and their
-	// prerequisites.
-	snapInfos := make([]*snap.Info, len(installs))
-	for i, sar := range installs {
-		snapInfos[i] = sar.Info
-	}
-	totalSize, err := installSize(st, snapInfos, userID)
-	if err != nil {
+	tr := config.NewTransaction(st)
+	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
+	if err != nil && !config.IsNoOption(err) {
 		return nil, nil, err
 	}
-
-	requiredSpace := safetyMarginDiskSpace(totalSize)
-	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-			return nil, nil, &InsufficientSpaceError{
-				Path:       path,
-				Snaps:      toInstall,
-				ChangeKind: "install",
-			}
+	if checkDiskSpaceInstall {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		snapInfos := make([]*snap.Info, len(installs))
+		for i, sar := range installs {
+			snapInfos[i] = sar.Info
 		}
-		return nil, nil, err
+		totalSize, err := installSize(st, snapInfos, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      toInstall,
+					ChangeKind: "install",
+				}
+			}
+			return nil, nil, err
+		}
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1966,21 +1973,28 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
-				sz, err := EstimateSnapshotSize(st, name, nil)
-				if err != nil {
+				tr := config.NewTransaction(st)
+				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
+				if err != nil && !config.IsNoOption(err) {
 					return nil, err
 				}
-				requiredSpace := safetyMarginDiskSpace(sz)
-				path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-				if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-						return nil, &InsufficientSpaceError{
-							Path:       path,
-							Snaps:      []string{name},
-							ChangeKind: "remove",
-							Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+				if checkDiskSpaceRemove {
+					sz, err := EstimateSnapshotSize(st, name, nil)
+					if err != nil {
+						return nil, err
 					}
-					return nil, err
+					requiredSpace := safetyMarginDiskSpace(sz)
+					path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+					if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+							return nil, &InsufficientSpaceError{
+								Path:       path,
+								Snaps:      []string{name},
+								ChangeKind: "remove",
+								Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+						}
+						return nil, err
+					}
 				}
 				addNext(ts)
 			} else {
