@@ -56,6 +56,9 @@ restore: |
 
     rm -f "$NESTED_IMAGES_DIR/ubuntu-core.img"
 
+debug: |
+    nested_execute "snap changes" || true
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -73,10 +76,11 @@ execute: |
 
     case "$SNAP" in
         snapd|pc)
-            # we manually reboot even after snapd refresh to ensure that if
+            # We manually reboot even after snapd refresh to ensure that if
             # resealing took place we are still able to boot
-            nested_execute "snap watch $REFRESH_ID" || break
-            nested_execute "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*" || break
+            # The following commands could fails in case the connection is suddenly
+            # stopped because of the reboot in the nested machine
+            nested_execute "snap watch $REFRESH_ID" || true
             nested_execute "sudo reboot" || true
             ;;
         pc-kernel|core20)
@@ -109,8 +113,9 @@ execute: |
         snapd|pc)
             # we manually reboot even after snapd refresh to ensure that if
             # resealing took place we are still able to boot
-            nested_execute "snap watch $REVERT_ID" || break
-            nested_execute "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*" || break
+            # The following commands could fails in case the connection is suddenly
+            # stopped because of the reboot in the nested machine
+            nested_execute "snap watch $REVERT_ID" || true
             nested_execute "sudo reboot" || true
             ;;
         pc-kernel|core20)
