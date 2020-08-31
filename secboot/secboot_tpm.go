@@ -26,13 +26,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -327,13 +327,6 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	for _, modelParams := range params.ModelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
-		// Verify if all EFI image files exist
-		for _, chain := range modelParams.EFILoadChains {
-			if err := checkFilesPresence(chain); err != nil {
-				return err
-			}
-		}
-
 		// Add EFI secure boot policy profile
 		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
 		if err != nil {
@@ -427,7 +420,7 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 
 // buildLoadSequences creates a linear EFI image load event chain for each one of the
 // specified sequences of file paths.
-func buildLoadSequences(pathSequences [][]string) ([]*sb.EFIImageLoadEvent, error) {
+func buildLoadSequences(bootImages [][]bootloader.BootImage) ([]*sb.EFIImageLoadEvent, error) {
 	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
 	// device configuration. So you could have something like this:
 	//
@@ -449,29 +442,14 @@ func buildLoadSequences(pathSequences [][]string) ([]*sb.EFIImageLoadEvent, erro
 	// the system with the Microsoft chain of trust, then the actual trees of
 	// EFIImageLoadEvents will need to match the exact supported boot sequences.
 
-	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(pathSequences))
+	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(bootImages))
 
-	efiImage := func(name string) (sb.EFIImage, error) {
-		if strings.HasSuffix(name, ".snap") {
-			snapf, err := snapfile.Open(name)
-			if err != nil {
-				return nil, err
-			}
-			return sb.SnapFileEFIImage{
-				Container: snapf,
-				Path:      name,
-				FileName:  "kernel.efi",
-			}, nil
-		}
-		return sb.FileEFIImage(name), nil
-	}
-
-	for _, filePaths := range pathSequences {
+	for _, sequence := range bootImages {
 		var event *sb.EFIImageLoadEvent
 		var next []*sb.EFIImageLoadEvent
 
-		for i := len(filePaths) - 1; i >= 0; i-- {
-			image, err := efiImage(filePaths[i])
+		for i := len(sequence) - 1; i >= 0; i-- {
+			image, err := efiImageFromBootImage(sequence[i])
 			if err != nil {
 				return nil, err
 			}
@@ -491,11 +469,22 @@ func buildLoadSequences(pathSequences [][]string) ([]*sb.EFIImageLoadEvent, erro
 	return loadEvents, nil
 }
 
-func checkFilesPresence(pathList []string) error {
-	for _, p := range pathList {
-		if !osutil.FileExists(p) {
-			return fmt.Errorf("file %s does not exist", p)
-		}
+func efiImageFromBootImage(b bootloader.BootImage) (sb.EFIImage, error) {
+	if !osutil.FileExists(b.Path) {
+		return nil, fmt.Errorf("file %s does not exist", b.Path)
 	}
-	return nil
+
+	if b.Relative == "" {
+		return sb.FileEFIImage(b.Path), nil
+	}
+
+	snapf, err := snapfile.Open(b.Path)
+	if err != nil {
+		return nil, err
+	}
+	return sb.SnapFileEFIImage{
+		Container: snapf,
+		Path:      b.Path,
+		FileName:  b.Relative,
+	}, nil
 }

@@ -343,3 +343,36 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	}
 	return nil, ErrBootloader
 }
+
+// BootImage represents each image in the chains of trusted assets and kernels
+// used in the boot process. A boot image can be an EFI binary or a snap file
+// containing an EFI binary.
+type BootImage struct {
+	// Path is the path to the boot image file.
+	Path string
+	// Relative is the path to the EFI image inside a snap container.
+	Relative string
+	// FromRecovery is true if this boot image originates from the recovery
+	// bootload boot chain.
+	FromRecovery bool
+	// IsKernel is true if this boot image corresponds to a kernel file.
+	IsKernel bool
+}
+
+func NewBootImage(path, rel string, fromRecovery, isKernel bool) BootImage {
+	return BootImage{
+		Path:         path,
+		Relative:     rel,
+		FromRecovery: fromRecovery,
+		IsKernel:     isKernel,
+	}
+}
+
+func (b BootImage) WithPath(path string) BootImage {
+	b.Path = path
+	return b
+}
+
+func (b BootImage) Equals(a BootImage) bool {
+	return b.Path == a.Path && b.Relative == a.Relative && b.IsKernel == a.IsKernel && b.FromRecovery == a.FromRecovery
+}
