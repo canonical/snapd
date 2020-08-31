@@ -1045,10 +1045,12 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 	}
 
 	systemMode := m.SystemMode()
+	// XXX: why do we ignore the error here?
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
+		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
 	system, err := systemFromSeed(systemLabel, currentSys)
@@ -1064,6 +1066,7 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 		}
 	}
 	if sysAction == nil {
+		// XXX: provide more context here like what mode was requested?
 		return ErrUnsupportedAction
 	}
 
