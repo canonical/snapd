@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -80,6 +81,9 @@ func getInstalledThemes(d *Daemon) (gtkThemes, iconThemes, soundThemes []string,
 			}
 		}
 	}
+	sort.Strings(gtkThemes)
+	sort.Strings(iconThemes)
+	sort.Strings(soundThemes)
 	return gtkThemes, iconThemes, soundThemes, nil
 }
 

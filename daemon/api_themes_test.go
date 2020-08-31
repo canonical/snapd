@@ -20,8 +20,6 @@
 package daemon
 
 import (
-	"sort"
-
 	. "gopkg.in/check.v1"
 )
 
@@ -80,11 +78,8 @@ slots:
 
 	gtkThemes, iconThemes, soundThemes, err := getInstalledThemes(s.d)
 	c.Check(err, IsNil)
-	sort.Strings(gtkThemes)
 	c.Check(gtkThemes, DeepEquals, []string{"Bar-gtk", "Foo-gtk", "Foo-gtk-dark"})
-	sort.Strings(iconThemes)
 	c.Check(iconThemes, DeepEquals, []string{"Bar-icons", "Foo-icons"})
-	sort.Strings(soundThemes)
 	c.Check(soundThemes, DeepEquals, []string{"Bar-sounds", "Foo-sounds"})
 }
 
