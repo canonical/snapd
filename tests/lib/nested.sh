@@ -127,6 +127,7 @@ nested_get_google_image_url_for_vm() {
         esac
 }
 
+# shellcheck disable=SC2120
 nested_get_ubuntu_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64*)
@@ -148,6 +149,7 @@ nested_get_ubuntu_image_url_for_vm() {
         esac
 }
 
+# shellcheck disable=SC2120
 nested_get_image_url_for_vm() {
     if [[ "$SPREAD_BACKEND" == google* ]]; then
         nested_get_google_image_url_for_vm "$@"
