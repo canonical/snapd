@@ -28,11 +28,46 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
+const (
+	RecoveryBootloaderAsset = iota
+	RecoveryBootloaderKernel
+	BootloaderAsset
+	BootloaderKernel
+)
+
+// EFIImage represents an EFI binary (or snap file containing an EFI
+// binary) that is part of a load sequence.
+type EFIImage struct {
+	// Type specified the role and origin of this image
+	Type int
+	// The path to the image or snap file
+	Path string
+	// The relative path to the EFI binary in the snap file
+	Relative string
+}
+
+func NewEFIImage(t int, path, rel string) EFIImage {
+	return EFIImage{
+		Type:     t,
+		Path:     path,
+		Relative: rel,
+	}
+}
+
+func (e EFIImage) WithPath(path string) EFIImage {
+	e.Path = path
+	return e
+}
+
+func (e EFIImage) Equals(f EFIImage) bool {
+	return e.Type == f.Type && e.Path == f.Path && e.Relative == f.Relative
+}
+
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
 	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]string
+	EFILoadChains [][]EFIImage
 	// The kernel command line
 	KernelCmdlines []string
 }
