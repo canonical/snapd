@@ -77,6 +77,7 @@ func (r *repairSuite) SetUpTest(c *C) {
 }
 
 func (r *repairSuite) TearDownTest(c *C) {
+	r.baseRunnerSuite.TearDownTest(c)
 	r.BaseTest.TearDownTest(c)
 }
 
