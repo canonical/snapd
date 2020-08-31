@@ -28,7 +28,7 @@ type Options struct {
 	Mount bool
 	// Encrypt the data partition
 	Encrypt bool
-	// KeyFile is the location where the encryption key is written to
+	// KernelPath is the path to the kernel to seal the keyfile to
 	KernelPath string
 	// Model is the device model to seal the keyfile to
 	Model *asserts.Model
