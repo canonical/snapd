@@ -459,6 +459,58 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestEFIImageFromBootImage(c *C) {
+	tmpDir := c.MkDir()
+
+	// set up some test files
+	existingFile := filepath.Join(tmpDir, "foo")
+	err := ioutil.WriteFile(existingFile, nil, 0644)
+	c.Assert(err, IsNil)
+	missingFile := filepath.Join(tmpDir, "bar")
+	snapFile := filepath.Join(tmpDir, "test.snap")
+	snapf, err := createMockSnapFile(c.MkDir(), snapFile, "app")
+
+	for _, tc := range []struct {
+		bootImage bootloader.BootImage
+		efiImage  sb.EFIImage
+		err       string
+	}{
+		{
+			// happy case for EFI image
+			bootImage: bootloader.NewBootImage(existingFile, "", false, false),
+			efiImage:  sb.FileEFIImage(existingFile),
+		},
+		{
+			// missing EFI image
+			bootImage: bootloader.NewBootImage(missingFile, "", false, false),
+			err:       fmt.Sprintf("file %s/bar does not exist", tmpDir),
+		},
+		{
+			// happy case for snap file
+			bootImage: bootloader.NewBootImage(snapFile, "rel", false, false),
+			efiImage:  sb.SnapFileEFIImage{Container: snapf, Path: snapFile, FileName: "rel"},
+		},
+		{
+			// invalid snap file
+			bootImage: bootloader.NewBootImage(existingFile, "rel", false, false),
+			err:       fmt.Sprintf(`"%s/foo" is not a snap or snapdir`, tmpDir),
+		},
+		{
+			// missing snap file
+			bootImage: bootloader.NewBootImage(missingFile, "rel", false, false),
+			err:       fmt.Sprintf("file %s/bar does not exist", tmpDir),
+		},
+	} {
+		o, err := secboot.EFIImageFromBootImage(tc.bootImage)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Assert(o, DeepEquals, tc.efiImage)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
