@@ -1106,6 +1106,47 @@ func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
 	return 0, nil
 }
 
+// LinkSnapParticipant is an interface for interacting with snap link/unlink
+// operations.
+//
+// Unlike the interface for a task handler, only one notification method is
+// used. The method notifies a participant that linkage of a snap has changed.
+// This method is invoked in link-snap, unlink-snap, the undo path of those
+// methods and the undo handler for link-snap.
+//
+// In all cases it is invoked after all other operations are completed but
+// before the task completes.
+type LinkSnapParticipant interface {
+	// SnapLinkageChanged is called when a snap is linked or unlinked.
+	// The error is only logged and does not stop the task it is used from.
+	SnapLinkageChanged(st *state.State, instanceName string) error
+}
+
+var linkSnapParticipants []LinkSnapParticipant
+
+// AddLinkSnapParticipant adds a participant in the link/unlink operations.
+func AddLinkSnapParticipant(p LinkSnapParticipant) {
+	linkSnapParticipants = append(linkSnapParticipants, p)
+}
+
+// MockLinkSnapParticipants replaces the list of link snap participants for testing.
+func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
+	old := linkSnapParticipants
+	linkSnapParticipants = ps
+	return func() {
+		linkSnapParticipants = old
+	}
+}
+
+func notifyLinkParticipants(t *state.Task, instanceName string) {
+	st := t.State()
+	for _, p := range linkSnapParticipants {
+		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
+			t.Errorf("link participant %T failed to observe linkage change of snap %q: %v", p, instanceName, err)
+		}
+	}
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1234,6 +1275,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if unlinkErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
+		notifyLinkParticipants(t, snapsup.InstanceName())
 	}()
 	if err != nil {
 		return err
@@ -1333,6 +1375,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			InjectAutoConnect(t, snapsup)
 		}
 	}
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
@@ -1656,6 +1701,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
 	}
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -1867,6 +1916,9 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.LastActiveDisabledServices,
 		snapsup.LastActiveDisabledServices...,
 	)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	// mark as inactive
 	snapst.Active = false

@@ -73,6 +73,7 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"copy-snap-data",
 		"setup-profiles",
+		"export-content",
 		"link-snap",
 	)
 	expected = append(expected,
@@ -873,6 +874,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -912,7 +918,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check install-record present
-	mountTask := ta[len(ta)-11]
+	mountTask := ta[len(ta)-12]
 	c.Check(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
@@ -1051,6 +1057,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -1172,7 +1183,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	mountTask := tasks[len(tasks)-11]
+	mountTask := tasks[len(tasks)-12]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
@@ -1239,6 +1250,11 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -1272,6 +1288,11 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 
 			unlinkFirstInstallUndo: true,
+		},
+		{
+			op:    "export-content:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -1381,6 +1402,11 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(666),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap",
 			revno: snap.R(666),
 		},
@@ -1546,6 +1572,11 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
@@ -1730,6 +1761,11 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "mock",
@@ -1845,6 +1881,11 @@ epoch: 1*
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "mock",
+			revno: snap.R(-3),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "mock",
 			revno: snap.R(-3),
 		},
@@ -1971,6 +2012,11 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "mock",
@@ -2040,7 +2086,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2049,10 +2095,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[1].path, Matches, `.*/orig-name_1.0_all.snap`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R(42))
 
-	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
-	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].path, Equals, filepath.Join(dirs.SnapMountDir, "some-snap/42"))
+	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, *si)
+	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[6].path, Equals, filepath.Join(dirs.SnapMountDir, "some-snap/42"))
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2212,6 +2258,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "core",
@@ -2268,6 +2319,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
@@ -2365,8 +2421,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 28)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 14)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 30)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 15)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -2667,6 +2723,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		name:  "snap-content-slot",
 		revno: snap.R(11),
 	}, {
+		op:    "export-content:Doing",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	}, {
 		op: "candidate",
 		sinfo: snap.SideInfo{
 			RealName: "snap-content-slot",
@@ -2712,6 +2772,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		old:  "<no-old>",
 	}, {
 		op:    "setup-profiles:Doing",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op:    "export-content:Doing",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
 	}, {
@@ -3112,7 +3176,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	mountTask := tasks[len(tasks)-11]
+	mountTask := tasks[len(tasks)-12]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), Equals, state.ErrNoState)

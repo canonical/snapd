@@ -256,6 +256,9 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("validate-snap", fakeHandler, nil)
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
+	runner.AddHandler("export-content", fakeHandler, fakeHandler)
+	runner.AddHandler("unexport-content", fakeHandler, fakeHandler)
+	runner.AddHandler("update-current-subkey", fakeHandler, fakeHandler)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -287,8 +290,8 @@ func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	}
 
 	s.state.Lock()
-
 	defer s.state.Unlock()
+
 	snapstate.Set(s.state, "no-instance-key", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
@@ -417,6 +420,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"save-snapshot",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -431,6 +435,7 @@ func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
 		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -504,6 +509,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"remove-aliases",
 		"unlink-current-snap",
 		"setup-profiles",
+		"export-content",
 		"link-snap",
 		"auto-connect",
 		"set-auto-aliases",
@@ -619,6 +625,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"remove-aliases",
 		"unlink-current-snap",
 		"setup-profiles",
+		"export-content",
 		"link-snap",
 		"auto-connect",
 		"set-auto-aliases",
@@ -648,6 +655,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prepare-snap",
 		"setup-profiles",
+		"export-content",
 		"link-snap",
 		"setup-aliases",
 		"start-snap-services",
@@ -851,6 +859,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 	})
 	verifyStopReason(c, ts, "disable")
@@ -1005,6 +1014,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -1033,6 +1043,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) 
 		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -1501,6 +1512,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -1545,6 +1561,9 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			continue
 		}
 		if t.Kind() == "save-snapshot" {
+			continue
+		}
+		if t.Kind() == "unexport-content" {
 			continue
 		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
@@ -1638,6 +1657,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
@@ -1684,6 +1708,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			continue
 		}
 		if t.Kind() == "save-snapshot" {
+			continue
+		}
+		if t.Kind() == "unexport-content" {
 			continue
 		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
@@ -1779,6 +1806,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -1884,6 +1916,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -1947,6 +1984,9 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			continue
 		}
 		if t.Kind() == "save-snapshot" {
+			continue
+		}
+		if t.Kind() == "unexport-content" {
 			continue
 		}
 		snapsup, err := snapstate.TaskSnapSetup(t)
@@ -2577,6 +2617,11 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -2686,6 +2731,11 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap-with-base",
@@ -2772,6 +2822,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(2),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -2854,7 +2909,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2909,6 +2964,11 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -2999,6 +3059,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -3028,6 +3093,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "export-content:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -3103,6 +3173,11 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -3117,6 +3192,11 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "export-content:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -3212,6 +3292,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "candidate",
 			sinfo: si,
 		},
@@ -3291,6 +3376,11 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -3376,6 +3466,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
 			op:    "candidate",
 			sinfo: si,
 		},
@@ -3457,6 +3552,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -5293,7 +5393,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -5301,6 +5401,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"auto-disconnect",
 			"remove-aliases",
 			"unlink-snap",
+			"unexport-content",
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",
@@ -5902,6 +6003,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "core",
@@ -5938,6 +6044,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -6034,6 +6145,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
 		},
 		{
 			op:    "remove-profiles:Doing",

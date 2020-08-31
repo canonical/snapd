@@ -76,6 +76,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 	expected = append(expected,
 		"copy-snap-data",
 		"setup-profiles",
+		"export-content",
 		"link-snap",
 	)
 	if opts&maybeCore != 0 {
@@ -239,6 +240,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
+		"export-content:Doing",
 		"candidate",
 		"link-snap",
 		"auto-connect:Doing",
@@ -354,6 +356,11 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -748,6 +755,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
+		"export-content:Doing",
 		"candidate",
 		"link-snap",
 		"auto-connect:Doing",
@@ -798,7 +806,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-snap" snap if present`)
 
@@ -947,6 +955,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "services-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "services-snap",
@@ -1024,7 +1037,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -1173,6 +1186,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "services-snap",
@@ -1250,7 +1268,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
 
@@ -2047,6 +2065,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -2062,6 +2085,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+		},
+		{
+			op:    "export-content:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -2356,6 +2384,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
@@ -2387,6 +2420,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+		},
+		{
+			op:    "export-content:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -3738,7 +3776,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 20
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
