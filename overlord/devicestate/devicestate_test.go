@@ -86,10 +86,6 @@ type deviceMgrBaseSuite struct {
 
 	restartRequests []state.RestartType
 
-	restoreOnClassic         func()
-	restoreGenericClassicMod func()
-	restoreSanitize          func()
-
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
 
 	// saved so that if a derived suite wants to undo the cloud-init mocking to
@@ -134,16 +130,18 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
 	s.restartRequests = nil
 
-	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.restoreOnClassic = release.MockOnClassic(false)
+	s.AddCleanup(release.MockOnClassic(false))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
@@ -155,7 +153,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 	s.se = s.o.StateEngine()
 
-	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
+	s.AddCleanup(sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel))
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
 	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
@@ -174,6 +172,11 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, db)
 	s.state.Unlock()
+	s.AddCleanup(func() {
+		s.state.Lock()
+		assertstate.ReplaceDB(s.state, nil)
+		s.state.Unlock()
+	})
 
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
@@ -208,23 +211,13 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreCloudInitStatusRestore = devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
+	s.AddCleanup(s.restoreCloudInitStatusRestore)
+
+	s.AddCleanup(func() { s.ancillary = nil })
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
 	return s.newFakeStore(devBE)
-}
-
-func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
-	s.ancillary = nil
-	s.state.Lock()
-	assertstate.ReplaceDB(s.state, nil)
-	s.state.Unlock()
-	bootloader.Force(nil)
-	dirs.SetRootDir("")
-	s.restoreGenericClassicMod()
-	s.restoreOnClassic()
-	s.restoreSanitize()
-	s.restoreCloudInitStatusRestore()
 }
 
 func (s *deviceMgrBaseSuite) settle(c *C) {

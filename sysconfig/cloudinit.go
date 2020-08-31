@@ -102,6 +102,7 @@ var (
 	datasourceRe      = regexp.MustCompile(`DataSource([a-zA-Z0-9]+).*`)
 
 	cloudInitSnapdRestrictFile = "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+	cloudInitDisabledFile      = "/etc/cloud/cloud-init.disabled"
 
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
@@ -150,7 +151,7 @@ func CloudInitStatus() (CloudInitState, error) {
 
 	// if it was explicitly disabled via the cloud-init disable file, then
 	// return special status for that
-	disabledFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud-init.disabled")
+	disabledFile := filepath.Join(dirs.GlobalRootDir, cloudInitDisabledFile)
 	if osutil.FileExists(disabledFile) {
 		return CloudInitDisabledPermanently, nil
 	}
@@ -185,12 +186,13 @@ func CloudInitStatus() (CloudInitState, error) {
 	}
 }
 
+// these structs are externally defined by cloud-init
 type v1Data struct {
-	Datasource string
+	DataSource string `json:"datasource"`
 }
 
 type cloudInitStatus struct {
-	V1 v1Data
+	V1 v1Data `json:"v1"`
 }
 
 // CloudInitRestrictionResult is the result of calling RestrictCloudInit. The
@@ -198,7 +200,7 @@ type cloudInitStatus struct {
 // to the restricted datasource if Action is "restrict".
 type CloudInitRestrictionResult struct {
 	Action     string
-	Datasource string
+	DataSource string
 }
 
 // CloudInitRestrictOptions are options for how to restrict cloud-init with
@@ -268,7 +270,7 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 	// if the datasource was empty then cloud-init did something wrong or
 	// perhaps it incorrectly reported that it ran but something else deleted
 	// the file
-	datasourceRaw := stat.V1.Datasource
+	datasourceRaw := stat.V1.DataSource
 	if datasourceRaw == "" {
 		return res, fmt.Errorf("cloud-init error: missing datasource from status.json")
 	}
@@ -281,31 +283,25 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 	if len(datasourceMatches) != 2 {
 		return res, fmt.Errorf("cloud-init error: unexpected datasource format %q", datasourceRaw)
 	}
-	res.Datasource = datasourceMatches[1]
+	res.DataSource = datasourceMatches[1]
 
 	cloudInitRestrictFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
 
-	switch res.Datasource {
+	switch res.DataSource {
 	case "NoCloud":
 		// With the NoCloud datasource, we also need to restrict/disable the
 		// import of arbitrary filesystem labels to use as datasources, i.e. a
 		// USB drive inserted by an attacker with label CIDATA will defeat
 		// security measures on Ubuntu Core, so with the additional fs_label
 		// spec, we disable that import.
-		err := ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
-		if err != nil {
-			return res, err
-		}
+		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
 	default:
 		// all other datasources that are not NoCloud will be restricted to only
 		// allow this specific datasource to prevent an attack via NoCloud for
 		// example
-		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.Datasource))
-		err := ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
-		if err != nil {
-			return res, err
-		}
+		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.DataSource))
+		err = ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
 	}
 
-	return res, nil
+	return res, err
 }

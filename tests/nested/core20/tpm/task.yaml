@@ -7,3 +7,4 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     run_local_test tests/core/tpm
+
