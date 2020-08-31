@@ -57,6 +57,8 @@ restore: |
     rm -f "$NESTED_IMAGES_DIR/ubuntu-core.img"
 
 debug: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     nested_execute "snap changes" || true
 
 execute: |
