@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -248,6 +249,20 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}
+}
+
+// A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
+type snapshotExportResponse struct {
+	*snapshotstate.SnapshotExport
+}
+
+// ServeHTTP from the Response interface
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	if err := s.StreamTo(w); err != nil {
+		logger.Debugf("cannot export snapshot: %v", err)
+	}
+	s.Close()
 }
 
 // A fileResponse 's ServeHTTP method serves the file

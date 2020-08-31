@@ -471,3 +471,10 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 
 	return summaries.snapNames(), ts, nil
 }
+
+// Export exports a given snapshot ID
+// Note that the state much be locked by the caller.
+var Export = backend.NewSnapshotExport
+
+// SnapshotExport provides a snapshot export that can be streamed out
+type SnapshotExport = backend.SnapshotExport

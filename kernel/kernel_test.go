@@ -30,6 +30,24 @@ import (
 	"github.com/snapcore/snapd/kernel"
 )
 
+func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
+	kernelRootDir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
+	c.Assert(err, IsNil)
+
+	for fname, content := range filesWithContent {
+		p := filepath.Join(kernelRootDir, fname)
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, []byte(content), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	return kernelRootDir
+}
+
 type kernelYamlTestSuite struct{}
 
 var _ = Suite(&kernelYamlTestSuite{})

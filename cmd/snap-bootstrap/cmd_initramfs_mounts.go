@@ -315,6 +315,13 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return err
 	}
 
+	// finally we need to modify the bootenv to mark the system as successful,
+	// this ensures that when you reboot from recover mode without doing
+	// anything else, you are auto-transitioned back to run mode
+	if err := boot.EnsureNextBootToRunMode(recoverySystem); err != nil {
+		return err
+	}
+
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
 	return nil

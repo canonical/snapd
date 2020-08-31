@@ -44,6 +44,8 @@ type Options struct {
 	GadgetDir string
 }
 
+// FilesystemOnlyApplyOptions is the set of options for
+// ApplyFilesystemOnlyDefaults.
 type FilesystemOnlyApplyOptions struct {
 	// Classic is true when the system in rootdir is a classic system
 	Classic bool

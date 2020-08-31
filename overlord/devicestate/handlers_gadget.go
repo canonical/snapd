@@ -146,9 +146,11 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	if err == nil {
 		updateObserver = observeTrustedBootAssets
 	}
-	st.Unlock()
+	// do not release the state lock, the update observer may attempt to
+	// modify modeenv inside, which implicitly is guarded by the state lock;
+	// on top of that we do not expect the update to be moving large amounts
+	// of data
 	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
-	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed

@@ -125,6 +125,14 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
 
+# kubelet can be configured to use the systemd cgroup driver which moves
+# container processes into systemd-managed cgroups. This is now the recommended
+# configuration since it provides a single cgroup manager (systemd) in an
+# effort to achieve consistent views of resources.
+/sys/fs/cgroup/*/systemd/{,system.slice/} rw,          # create missing dirs
+/sys/fs/cgroup/*/systemd/system.slice/** r,
+/sys/fs/cgroup/*/systemd/system.slice/cgroup.procs w,
+
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
 capability sys_ptrace,
