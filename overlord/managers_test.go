@@ -155,6 +155,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	// needed by hooks
 	s.AddCleanup(testutil.MockCommand(c, "snap", "").Restore)
 
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -585,7 +588,8 @@ const (
 	    "all"
 	],
         "download": {
-            "url": "@URL@"
+			"url": "@URL@",
+			"size": 123
         },
         "epoch": @EPOCH@,
         "type": "@TYPE@",

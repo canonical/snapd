@@ -231,6 +231,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		Confinement: confinement,
 		SnapType:    typ,
