@@ -128,7 +128,7 @@ nested_get_google_image_url_for_vm() {
 }
 
 nested_get_ubuntu_image_url_for_vm() {
-    case "$SPREAD_SYSTEM" in
+    case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64*)
             echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
             ;;
@@ -149,11 +149,12 @@ nested_get_ubuntu_image_url_for_vm() {
 }
 
 nested_get_image_url_for_vm() {
+    local IMAGE_SYSTEM="${1:-$SPREAD_SYSTEM}"
     if [[ "$SPREAD_BACKEND" == google* ]]; then
         #shellcheck disable=SC2119
-        nested_get_google_image_url_for_vm
+        nested_get_google_image_url_for_vm "$IMAGE_SYSTEM"
     else
-        nested_get_ubuntu_image_url_for_vm
+        nested_get_ubuntu_image_url_for_vm "$IMAGE_SYSTEM"
     fi
 }
 
