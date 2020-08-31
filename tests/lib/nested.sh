@@ -727,6 +727,7 @@ nested_start_core_vm() {
         if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
+            sync
 
             # compress the current image if it a generic image
             if nested_is_generic_image; then
