@@ -142,6 +142,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// layout, but that means that changes to snap-bootstrap would block on
 		// waiting for those files to be added before things works here, this is
 		// a more flexible strategy that puts snap-bootstrap in control
+		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
 		for _, initrdUnit := range []string{
 			"initrd.target",
 			"initrd-fs.target",
@@ -158,8 +159,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			content := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-			err = ioutil.WriteFile(filepath.Join(targetDir, fname), content, 0644)
+			err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
 			if err != nil {
 				return err
 			}
