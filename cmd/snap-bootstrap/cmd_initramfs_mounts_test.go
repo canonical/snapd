@@ -1225,10 +1225,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		snapFiles            []snap.PlaceInfo
 		kernelStatus         string
 
-		expLog     string
-		expError   string
-		expModeenv *boot.Modeenv
-		comment    string
+		expRebootPanic string
+		expLog         string
+		expError       string
+		expModeenv     *boot.Modeenv
+		comment        string
 	}{
 		// default case no upgrades
 		{
@@ -1382,25 +1383,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			},
 			comment: "happy fallback failed boot with try snap",
 		},
-		// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
-		//            already booted the try snap, so mounting the fallback kernel will
-		//            not match in some cases
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
-			additionalMountsFunc: func() []systemdMount {
-				return []systemdMount{
-					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
-					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-				}
-			},
 			enableKernel:    s.kernel,
 			enableTryKernel: s.kernelr2,
 			snapFiles:       []snap.PlaceInfo{s.core20, s.kernel, s.kernelr2},
 			kernelStatus:    boot.TryingStatus,
+			expRebootPanic:  "reboot due to untrusted try kernel snap",
 			comment:         "happy fallback untrusted try kernel snap",
 		},
 		// TODO:UC20: if we ever have a way to compare what kernel was booted,
@@ -1414,16 +1407,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Base:           s.core20.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
-			kernelStatus: boot.TryingStatus,
-			additionalMountsFunc: func() []systemdMount {
-				return []systemdMount{
-					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
-					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-				}
-			},
-			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.core20, s.kernel},
-			comment:      "happy fallback kernel_status trying no try kernel",
+			kernelStatus:   boot.TryingStatus,
+			enableKernel:   s.kernel,
+			snapFiles:      []snap.PlaceInfo{s.core20, s.kernel},
+			expRebootPanic: "reboot due to no try kernel snap",
+			comment:        "happy fallback kernel_status trying no try kernel",
 		},
 
 		// unhappy cases
@@ -1456,6 +1444,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		comment := Commentf(t.comment)
 
 		var cleanups []func()
+
+		if t.expRebootPanic != "" {
+			r := boot.MockInitramfsReboot(func() error {
+				panic(t.expRebootPanic)
+			})
+			cleanups = append(cleanups, r)
+		}
 
 		// setup unique root dir per test
 		rootDir := c.MkDir()
@@ -1509,23 +1504,28 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		// dir for each test case
 		makeSnapFilesOnEarlyBootUbuntuData(c, t.snapFiles...)
 
-		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-		if t.expError != "" {
-			c.Assert(err, ErrorMatches, t.expError, comment)
+		if t.expRebootPanic != "" {
+			f := func() { main.Parser().ParseArgs([]string{"initramfs-mounts"}) }
+			c.Assert(f, PanicMatches, t.expRebootPanic, comment)
 		} else {
-			c.Assert(err, IsNil, comment)
+			_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+			if t.expError != "" {
+				c.Assert(err, ErrorMatches, t.expError, comment)
+			} else {
+				c.Assert(err, IsNil, comment)
 
-			// check the resultant modeenv
-			// if the expModeenv is nil, we just compare to the start
-			newModeenv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
-			c.Assert(err, IsNil, comment)
-			m := t.modeenv
-			if t.expModeenv != nil {
-				m = t.expModeenv
+				// check the resultant modeenv
+				// if the expModeenv is nil, we just compare to the start
+				newModeenv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
+				c.Assert(err, IsNil, comment)
+				m := t.modeenv
+				if t.expModeenv != nil {
+					m = t.expModeenv
+				}
+				c.Assert(newModeenv.BaseStatus, DeepEquals, m.BaseStatus, comment)
+				c.Assert(newModeenv.TryBase, DeepEquals, m.TryBase, comment)
+				c.Assert(newModeenv.Base, DeepEquals, m.Base, comment)
 			}
-			c.Assert(newModeenv.BaseStatus, DeepEquals, m.BaseStatus, comment)
-			c.Assert(newModeenv.TryBase, DeepEquals, m.TryBase, comment)
-			c.Assert(newModeenv.Base, DeepEquals, m.Base, comment)
 		}
 
 		for _, r := range cleanups {
@@ -1805,7 +1805,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
-	
+
 	mockDisk := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-partuuid",
