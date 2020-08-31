@@ -163,17 +163,17 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}
 
 	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
-	loadChain := []string{
+	loadChain := []secboot.EFIImage{
 		// the path to the shim EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		secboot.NewEFIImage(secboot.RecoveryBootloaderAsset, filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), ""),
 		// the path to the recovery grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		secboot.NewEFIImage(secboot.RecoveryBootloaderAsset, filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), ""),
 		// the path to the run mode grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
+		secboot.NewEFIImage(secboot.BootloaderAsset, filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), ""),
 	}
 	if options.KernelPath != "" {
 		// the path to the kernel EFI binary
-		loadChain = append(loadChain, options.KernelPath)
+		loadChain = append(loadChain, secboot.NewEFIImage(secboot.BootloaderAsset, options.KernelPath, ""))
 	}
 
 	// Get the expected kernel command line for the system that is currently being installed
@@ -198,7 +198,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 			{
 				Model:          options.Model,
 				KernelCmdlines: kernelCmdlines,
-				EFILoadChains:  [][]string{loadChain},
+				EFILoadChains:  [][]secboot.EFIImage{loadChain},
 			},
 		},
 		KeyFile:                 options.KeyFile,
