@@ -192,12 +192,6 @@ type trackedAsset struct {
 	blName, name, hash string
 }
 
-func (t *trackedAsset) equal(other *trackedAsset) bool {
-	return t.blName == other.blName &&
-		t.name == other.name &&
-		t.hash == other.hash
-}
-
 func isAssetAlreadyTracked(bam bootAssetsMap, newAsset *trackedAsset) bool {
 	return isAssetHashTrackedInMap(bam, newAsset.name, newAsset.hash)
 }
@@ -508,8 +502,6 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 		}
 	}
 
-	// XXX: do we need to support using the same asset name multiple times
-	// for a given bootloader?
 	newHash := ""
 	if len(hashList) == 1 {
 		if newlyAdded {
