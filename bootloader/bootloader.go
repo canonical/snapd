@@ -376,20 +376,21 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 // used in the boot process. A boot file can be an EFI binary or a snap file
 // containing an EFI binary.
 type BootFile struct {
-	// Path is the path to the boot file.
+	// Path is the path to the file in the filesystem or, if Snap
+	// is set, the relative path inside the snap file.
 	Path string
-	// Relative is the path to the EFI image inside a snap container.
-	Relative string
+	// Snap contains the path to the snap file if a snap file is used.
+	Snap string
 	// Role is set to the role of the bootloader this boot image
 	// originates from.
 	Role Role
 }
 
-func NewBootFile(path, rel string, role Role) BootFile {
+func NewBootFile(snap, path string, role Role) BootFile {
 	return BootFile{
-		Path:     path,
-		Relative: rel,
-		Role:     role,
+		Snap: snap,
+		Path: path,
+		Role: role,
 	}
 }
 

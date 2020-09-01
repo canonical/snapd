@@ -470,21 +470,20 @@ func buildLoadSequences(bootImages [][]bootloader.BootFile) ([]*sb.EFIImageLoadE
 }
 
 func efiImageFromBootFile(b bootloader.BootFile) (sb.EFIImage, error) {
-	if !osutil.FileExists(b.Path) {
-		return nil, fmt.Errorf("file %s does not exist", b.Path)
-	}
-
-	if b.Relative == "" {
+	if b.Snap == "" {
+		if !osutil.FileExists(b.Path) {
+			return nil, fmt.Errorf("file %s does not exist", b.Path)
+		}
 		return sb.FileEFIImage(b.Path), nil
 	}
 
-	snapf, err := snapfile.Open(b.Path)
+	snapf, err := snapfile.Open(b.Snap)
 	if err != nil {
 		return nil, err
 	}
 	return sb.SnapFileEFIImage{
 		Container: snapf,
-		Path:      b.Path,
-		FileName:  b.Relative,
+		Path:      b.Snap,
+		FileName:  b.Path,
 	}, nil
 }
