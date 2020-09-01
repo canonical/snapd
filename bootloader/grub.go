@@ -56,6 +56,10 @@ type grub struct {
 func newGrub(rootdir string, opts *Options) Bootloader {
 	g := &grub{rootdir: rootdir}
 	if opts != nil {
+		// Set the flag to extract the run kernel, only
+		// for UC20 run mode.
+		// Both UC16/18 and the recovery mode of UC20 load
+		// the kernel directly from snaps.
 		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
 		g.recovery = opts.Role == RoleRecovery
 		g.nativePartionLayout = opts.NoSlashBoot || g.recovery
