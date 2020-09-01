@@ -55,15 +55,15 @@ type grub struct {
 // newGrub create a new Grub bootloader object
 func newGrub(rootdir string, opts *Options) Bootloader {
 	g := &grub{rootdir: rootdir}
-	if opts != nil && (opts.Recovery || opts.NoSlashBoot) {
+	if opts != nil {
+		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
+		g.recovery = opts.Role == RoleRecovery
+		g.native = opts.NoSlashBoot || g.recovery
+	}
+	if g.native {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"
-	}
-	if opts != nil {
-		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
-		g.recovery = opts.Recovery
-		g.native = opts.NoSlashBoot
 	}
 
 	return g
@@ -107,11 +107,11 @@ func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
 }
 
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
-	if opts != nil && opts.Recovery {
+	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
 		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
-	if opts != nil && opts.ExtractedRunKernelImage {
+	if opts != nil && opts.Role == RoleRunMode {
 		// install managed boot config that can handle kernel.efi
 		return g.installManagedBootConfig(gadgetDir)
 	}
@@ -353,9 +353,10 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) UpdateBootConfig(opts *Options) error {
+	// XXX: do we need to take opts here?
 	bootScriptName := "grub.cfg"
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	if opts != nil && opts.Recovery {
+	if opts != nil && opts.Role == RoleRecovery {
 		// use the recovery asset when asked to do so
 		bootScriptName = "grub-recovery.cfg"
 	}

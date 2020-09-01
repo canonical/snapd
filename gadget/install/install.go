@@ -53,10 +53,6 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) error {
-	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
-		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
-	}
-
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -95,11 +91,11 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	if options.KeyFile != "" {
-		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	for _, keyFile := range sealedKeyFiles {
+		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
 		}
-
 	}
 
 	created, err := createMissingPartitions(diskLayout, lv)
@@ -158,8 +154,16 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		return nil
 	}
 
+	// ensure directories
+	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
 	// Write the recovery key
-	if err := rkey.Save(options.RecoveryKeyFile); err != nil {
+	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
+	if err := rkey.Save(recoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
@@ -206,9 +210,9 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 				EFILoadChains:  [][]bootloader.BootImage{loadChain},
 			},
 		},
-		KeyFile:                 options.KeyFile,
-		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
-		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
+		KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
+		TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
 	}
 
 	if err := secboot.SealKey(key, &sealKeyParams); err != nil {

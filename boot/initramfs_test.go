@@ -80,7 +80,7 @@ func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bloader, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, opts)
 	c.Assert(err, IsNil)
