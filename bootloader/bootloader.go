@@ -353,7 +353,7 @@ type BootImage struct {
 	// Relative is the path to the EFI image inside a snap container.
 	Relative string
 	// FromRecovery is true if this boot image originates from the recovery
-	// bootload boot chain.
+	// bootloader boot chain.
 	FromRecovery bool
 	// IsKernel is true if this boot image corresponds to a kernel file.
 	IsKernel bool
@@ -368,11 +368,15 @@ func NewBootImage(path, rel string, fromRecovery, isKernel bool) BootImage {
 	}
 }
 
+// WithPath returns a copy of the BootImage with path updated to the
+// specified value.
 func (b BootImage) WithPath(path string) BootImage {
 	b.Path = path
 	return b
 }
 
+// Equals verifies whether all fields of two BootImage instances contain
+// the same values.
 func (b BootImage) Equals(a BootImage) bool {
 	return b.Path == a.Path && b.Relative == a.Relative && b.IsKernel == a.IsKernel && b.FromRecovery == a.FromRecovery
 }
