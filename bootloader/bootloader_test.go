@@ -309,3 +309,10 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		c.Check(bl.Name(), Equals, tc.expName)
 	}
 }
+
+func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
+	a := bootloader.NewBootFile("", "some/path", bootloader.RoleRunMode)
+	b := a.WithPath("other/path")
+	c.Assert(a.Path, Equals, "some/path")
+	c.Assert(b.Path, Equals, "other/path")
+}

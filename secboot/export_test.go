@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	EFIImageFromBootImage = efiImageFromBootImage
+	EFIImageFromBootFile = efiImageFromBootFile
 )
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
