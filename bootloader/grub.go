@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -478,4 +478,60 @@ func (g *grub) TrustedAssets() ([]string, error) {
 		// run mode grub EFI binary
 		"EFI/boot/grubx64.efi",
 	}, nil
+}
+
+// RecoveryBootChain returns the chain of recovery mode boot files for the
+// specified recovery system and kernel. This function should be called
+// only for the recovery bootloader.
+func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+
+	recoveryTrustedAssets, err := g.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(recoveryTrustedAssets)+1)
+	for _, ta := range recoveryTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	// add recovery kernel to the recovery chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
+
+	return chain, nil
+}
+
+// BootChain returns the chain of run mode boot files for the specified run
+// mode bootloader and kernel. This function should be called only for the
+// recovery bootloader.
+func (g *grub) BootChain(runBl TrustedAssetsBootloader, kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+
+	recoveryTrustedAssets, err := g.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	trustedAssets, err := runBl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(recoveryTrustedAssets)+len(trustedAssets)+1)
+	for _, ta := range recoveryTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	for _, ta := range trustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRunMode))
+	}
+	// add kernel to the boot chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
+
+	return chain, nil
 }

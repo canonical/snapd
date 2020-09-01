@@ -192,6 +192,12 @@ type TrustedAssetsBootloader interface {
 	// the bootloader's rootdir that are measured in the boot process in the
 	// order of loading during the boot.
 	TrustedAssets() ([]string, error)
+
+	// RecoveryBootChain returns the chain of recovery mode boot files.
+	RecoveryBootChain(kernelPath string) ([]BootFile, error)
+
+	// RecoveryBootChain returns the chain of run mode boot files.
+	BootChain(runBl TrustedAssetsBootloader, kernelPath string) ([]BootFile, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
