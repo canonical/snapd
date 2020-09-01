@@ -49,7 +49,7 @@ type grub struct {
 
 	uefiRunKernelExtraction bool
 	recovery                bool
-	native                  bool
+	nativePartionLayout     bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -58,9 +58,9 @@ func newGrub(rootdir string, opts *Options) Bootloader {
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
 		g.recovery = opts.Role == RoleRecovery
-		g.native = opts.NoSlashBoot || g.recovery
+		g.nativePartionLayout = opts.NoSlashBoot || g.recovery
 	}
-	if g.native {
+	if g.nativePartionLayout {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"
@@ -463,8 +463,8 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 // the bootloader's rootdir that are measured in the boot process in the
 // order of loading during the boot.
 func (g *grub) TrustedAssets() ([]string, error) {
-	if !g.native {
-		return nil, fmt.Errorf("internal error: trusted assets called without native hierarchy")
+	if !g.nativePartionLayout {
+		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
 		return []string{
