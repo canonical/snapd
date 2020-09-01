@@ -383,16 +383,13 @@ type BootFile struct {
 	// FromRecovery is true if this boot image originates from the recovery
 	// bootloader boot chain.
 	FromRecovery bool
-	// IsKernel is true if this boot image corresponds to a kernel file.
-	IsKernel bool
 }
 
-func NewBootFile(path, rel string, fromRecovery, isKernel bool) BootFile {
+func NewBootFile(path, rel string, fromRecovery bool) BootFile {
 	return BootFile{
 		Path:         path,
 		Relative:     rel,
 		FromRecovery: fromRecovery,
-		IsKernel:     isKernel,
 	}
 }
 
@@ -401,10 +398,4 @@ func NewBootFile(path, rel string, fromRecovery, isKernel bool) BootFile {
 func (b BootFile) WithPath(path string) BootFile {
 	b.Path = path
 	return b
-}
-
-// Equals verifies whether all fields of two BootFile instances contain
-// the same values.
-func (b BootFile) Equals(a BootFile) bool {
-	return b.Path == a.Path && b.Relative == a.Relative && b.IsKernel == a.IsKernel && b.FromRecovery == a.FromRecovery
 }

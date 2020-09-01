@@ -170,19 +170,17 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
 	fromRecovery := true
 	fromSystem := false
-	isKernel := true
-	notKernel := false
 	loadChain := []bootloader.BootFile{
 		// the path to the shim EFI binary
-		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), "", fromRecovery, notKernel),
+		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), "", fromRecovery),
 		// the path to the recovery grub EFI binary
-		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), "", fromRecovery, notKernel),
+		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), "", fromRecovery),
 		// the path to the run mode grub EFI binary
-		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), "", fromSystem, notKernel),
+		bootloader.NewBootFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), "", fromSystem),
 	}
 	if options.KernelPath != "" {
 		// the path to the kernel EFI binary
-		loadChain = append(loadChain, bootloader.NewBootFile(options.KernelPath, "", fromSystem, isKernel))
+		loadChain = append(loadChain, bootloader.NewBootFile(options.KernelPath, "", fromSystem))
 	}
 
 	// Get the expected kernel command line for the system that is currently being installed
