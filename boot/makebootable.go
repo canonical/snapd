@@ -288,11 +288,11 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
-		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
-		NoSlashBoot: true,
 		// Bootloader for run mode
 		Role: bootloader.RoleRunMode,
+		// At this point the run mode bootloader is under the native
+		// run partition layout, no /boot mount.
+		NoSlashBoot: true,
 	}
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
