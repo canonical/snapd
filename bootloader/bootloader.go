@@ -380,16 +380,16 @@ type BootFile struct {
 	Path string
 	// Relative is the path to the EFI image inside a snap container.
 	Relative string
-	// FromRecovery is true if this boot image originates from the recovery
-	// bootloader boot chain.
-	FromRecovery bool
+	// Role is set to the role of the bootloader this boot image
+	// originates from.
+	Role Role
 }
 
-func NewBootFile(path, rel string, fromRecovery bool) BootFile {
+func NewBootFile(path, rel string, role Role) BootFile {
 	return BootFile{
-		Path:         path,
-		Relative:     rel,
-		FromRecovery: fromRecovery,
+		Path:     path,
+		Relative: rel,
+		Role:     role,
 	}
 }
 
