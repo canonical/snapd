@@ -33,7 +33,7 @@ type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
 	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]bootloader.BootImage
+	EFILoadChains [][]bootloader.BootFile
 	// The kernel command line
 	KernelCmdlines []string
 }

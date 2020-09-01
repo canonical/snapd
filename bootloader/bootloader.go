@@ -372,11 +372,11 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// BootImage represents each image in the chains of trusted assets and kernels
-// used in the boot process. A boot image can be an EFI binary or a snap file
+// BootFile represents each file in the chains of trusted assets and kernels
+// used in the boot process. A boot file can be an EFI binary or a snap file
 // containing an EFI binary.
-type BootImage struct {
-	// Path is the path to the boot image file.
+type BootFile struct {
+	// Path is the path to the boot file.
 	Path string
 	// Relative is the path to the EFI image inside a snap container.
 	Relative string
@@ -387,8 +387,8 @@ type BootImage struct {
 	IsKernel bool
 }
 
-func NewBootImage(path, rel string, fromRecovery, isKernel bool) BootImage {
-	return BootImage{
+func NewBootFile(path, rel string, fromRecovery, isKernel bool) BootFile {
+	return BootFile{
 		Path:         path,
 		Relative:     rel,
 		FromRecovery: fromRecovery,
@@ -396,15 +396,15 @@ func NewBootImage(path, rel string, fromRecovery, isKernel bool) BootImage {
 	}
 }
 
-// WithPath returns a copy of the BootImage with path updated to the
+// WithPath returns a copy of the BootFile with path updated to the
 // specified value.
-func (b BootImage) WithPath(path string) BootImage {
+func (b BootFile) WithPath(path string) BootFile {
 	b.Path = path
 	return b
 }
 
-// Equals verifies whether all fields of two BootImage instances contain
+// Equals verifies whether all fields of two BootFile instances contain
 // the same values.
-func (b BootImage) Equals(a BootImage) bool {
+func (b BootFile) Equals(a BootFile) bool {
 	return b.Path == a.Path && b.Relative == a.Relative && b.IsKernel == a.IsKernel && b.FromRecovery == a.FromRecovery
 }

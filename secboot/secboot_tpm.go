@@ -420,7 +420,7 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 
 // buildLoadSequences creates a linear EFI image load event chain for each one of the
 // specified sequences of file paths.
-func buildLoadSequences(bootImages [][]bootloader.BootImage) ([]*sb.EFIImageLoadEvent, error) {
+func buildLoadSequences(bootImages [][]bootloader.BootFile) ([]*sb.EFIImageLoadEvent, error) {
 	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
 	// device configuration. So you could have something like this:
 	//
@@ -449,7 +449,7 @@ func buildLoadSequences(bootImages [][]bootloader.BootImage) ([]*sb.EFIImageLoad
 		var next []*sb.EFIImageLoadEvent
 
 		for i := len(sequence) - 1; i >= 0; i-- {
-			image, err := efiImageFromBootImage(sequence[i])
+			image, err := efiImageFromBootFile(sequence[i])
 			if err != nil {
 				return nil, err
 			}
@@ -469,7 +469,7 @@ func buildLoadSequences(bootImages [][]bootloader.BootImage) ([]*sb.EFIImageLoad
 	return loadEvents, nil
 }
 
-func efiImageFromBootImage(b bootloader.BootImage) (sb.EFIImage, error) {
+func efiImageFromBootFile(b bootloader.BootFile) (sb.EFIImage, error) {
 	if !osutil.FileExists(b.Path) {
 		return nil, fmt.Errorf("file %s does not exist", b.Path)
 	}
