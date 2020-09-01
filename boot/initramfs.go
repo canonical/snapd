@@ -20,7 +20,11 @@
 package boot
 
 import (
+	"os/exec"
+	"time"
+
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,4 +86,33 @@ func EnsureNextBootToRunMode(systemLabel string) error {
 		"snapd_recovery_mode":   "run",
 	}
 	return bl.SetBootVars(m)
+}
+
+// initramfsReboot triggers a reboot from the initramfs immediately
+var initramfsReboot = func() error {
+	if osutil.IsTestBinary() {
+		panic("initramfsReboot must be mocked in tests")
+	}
+
+	out, err := exec.Command("/sbin/reboot").CombinedOutput()
+	if err != nil {
+		return osutil.OutputErr(out, err)
+	}
+
+	// reboot command in practice seems to not return, but apparently it is
+	// theoretically possible it could return, so to account for this we will
+	// loop for a "long" time waiting for the system to be rebooted, and panic
+	// after a timeout so that if something goes wrong with the reboot we do
+	// exit with some info about the expected reboot
+	time.Sleep(10 * time.Minute)
+	panic("expected reboot to happen within 10 minutes after calling /sbin/reboot")
+}
+
+func MockInitramfsReboot(f func() error) (restore func()) {
+	osutil.MustBeTestBinary("initramfsReboot only can be mocked in tests")
+	old := initramfsReboot
+	initramfsReboot = f
+	return func() {
+		initramfsReboot = old
+	}
 }
