@@ -115,7 +115,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
-	var installObserver gadget.ContentObserver
+	var installObserver gadget.ContentInstallObserver
 	if useEncryption {
 		bopts.Encrypt = true
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")

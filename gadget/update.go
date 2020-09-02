@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -74,6 +75,13 @@ type ContentObserver interface {
 	// file was added during the update), the source path is empty.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
 		targetRootDir, sourcePath, relativeTargetPath string) (bool, error)
+}
+
+type ContentInstallObserver interface {
+	ContentObserver
+	// SetEncryptionKey stores the encrypted data partition key to be sealed
+	// at the end of the installation process.
+	SetEncryptionKey(secboot.EncryptionKey)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
