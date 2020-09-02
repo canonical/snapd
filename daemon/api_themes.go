@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -28,6 +29,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -106,10 +111,60 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
+func checkThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]*snap.Info) (map[string]themeStatus, error) {
+	status := make(map[string]themeStatus, len(themes))
+
+	for _, theme := range themes {
+		// Skip duplicates
+		if _, ok := status[theme]; ok {
+			continue
+		}
+		if strutil.SortedListContains(installed, theme) {
+			status[theme] = themeInstalled
+			continue
+		}
+		status[theme] = themeUnavailable
+		for _, name := range themePackageCandidates(prefix, theme) {
+			if info, err := theStore.SnapInfo(ctx, store.SnapSpec{Name: name}, user); err == nil {
+				// Only mark the theme as available if
+				// it has been published to the stable
+				// channel.
+				if info.Channel == "stable" {
+					status[theme] = themeAvailable
+					toInstall[name] = info
+				}
+				break
+			} else if err != store.ErrSnapNotFound {
+				return nil, err
+			}
+		}
+	}
+	return status, nil
+}
+
+func checkThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (gtkStatus, iconStatus, soundStatus map[string]themeStatus, toInstall map[string]*snap.Info, err error) {
+	installedGtk, installedIcon, installedSound, err := getInstalledThemes(c.d)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	theStore := getStore(c)
+	toInstall = make(map[string]*snap.Info)
+	if gtkStatus, err = checkThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, toInstall); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if iconStatus, err = checkThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, toInstall); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if soundStatus, err = checkThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, toInstall); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return gtkStatus, iconStatus, soundStatus, toInstall, nil
+}
+
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
+	//ctx := store.WithClientUserAgent(r.Context(), r)
 
 	return SyncResponse([]string{"TBD"}, nil)
 }

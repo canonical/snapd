@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
+func (s *apiBaseSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	if s.d == nil {
 		panic("call s.daemon(c) in your test first")
 	}
@@ -61,7 +61,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-func (s *apiSuite) mockIface(c *C, iface interfaces.Interface) {
+func (s *apiBaseSuite) mockIface(c *C, iface interfaces.Interface) {
 	if s.d == nil {
 		panic("call s.daemon(c) in your test first")
 	}

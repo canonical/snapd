@@ -20,10 +20,51 @@
 package daemon
 
 import (
+	"context"
+	"errors"
+
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
-func (s *apiSuite) TestGetInstalledThemes(c *C) {
+var _ = Suite(&themesSuite{})
+
+type themesSuite struct {
+	apiBaseSuite
+
+	available map[string]*snap.Info
+	err       error
+}
+
+func (s *themesSuite) SetUpTest(c *C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.available = make(map[string]*snap.Info)
+	s.err = store.ErrSnapNotFound
+}
+
+func (s *themesSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	s.pokeStateLock()
+	if info := s.available[spec.Name]; info != nil {
+		return info, nil
+	}
+	return nil, s.err
+}
+
+func (s *themesSuite) daemon(c *C) {
+	s.apiBaseSuite.daemon(c)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
+}
+
+func (s *themesSuite) TestGetInstalledThemes(c *C) {
 	s.daemon(c)
 	s.mockSnap(c, `name: snap1
 version: 42
@@ -83,7 +124,7 @@ slots:
 	c.Check(soundThemes, DeepEquals, []string{"Bar-sounds", "Foo-sounds"})
 }
 
-func (s *apiSuite) TestThemePackageCandidates(c *C) {
+func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	// The package name includes the passed in prefix
 	c.Check(themePackageCandidates("gtk-theme-", "Yaru"), DeepEquals, []string{"gtk-theme-yaru"})
 	c.Check(themePackageCandidates("icon-theme-", "Yaru"), DeepEquals, []string{"icon-theme-yaru"})
@@ -102,4 +143,74 @@ func (s *apiSuite) TestThemePackageCandidates(c *C) {
 	// with leading and trailing dashes removed
 	c.Check(themePackageCandidates("gtk-theme-", "+foo_"), DeepEquals, []string{"gtk-theme-foo"})
 	c.Check(themePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []string{"gtk-theme-foo-bar", "gtk-theme-foo"})
+}
+
+func (s *themesSuite) TestCheckThemeStatusForType(c *C) {
+	s.daemon(c)
+
+	s.available = map[string]*snap.Info{
+		"gtk-theme-available": {
+			SuggestedName: "gtk-theme-available",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"gtk-theme-installed": {
+			SuggestedName: "gtk-theme-installed",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	toInstall := make(map[string]*snap.Info)
+
+	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
+	c.Check(err, IsNil)
+	c.Check(status, DeepEquals, map[string]themeStatus{
+		"Installed":   themeInstalled,
+		"Available":   themeAvailable,
+		"Unavailable": themeUnavailable,
+	})
+	c.Check(toInstall, HasLen, 1)
+	c.Check(toInstall["gtk-theme-available"], NotNil)
+}
+
+func (s *themesSuite) TestCheckThemeStatusForTypeStripsSuffixes(c *C) {
+	s.daemon(c)
+
+	s.available = map[string]*snap.Info{
+		"gtk-theme-yaru": {
+			SuggestedName: "gtk-theme-yaru",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	toInstall := make(map[string]*snap.Info)
+
+	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
+	c.Check(err, IsNil)
+	c.Check(status, DeepEquals, map[string]themeStatus{
+		"Yaru-dark": themeAvailable,
+	})
+	c.Check(toInstall, HasLen, 1)
+	c.Check(toInstall["gtk-theme-yaru"], NotNil)
+}
+
+func (s *themesSuite) TestCheckThemeStatusForTypeReturnsErrors(c *C) {
+	s.daemon(c)
+
+	s.err = errors.New("store error")
+
+	ctx := context.Background()
+	toInstall := make(map[string]*snap.Info)
+
+	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
+	c.Check(err, Equals, s.err)
+	c.Check(status, IsNil)
+	c.Check(toInstall, HasLen, 0)
 }
