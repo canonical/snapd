@@ -698,7 +698,7 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, `.*: reboot into system "20191119" for "Reinstall"\n`)
+	c.Check(s.mockLogger.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
@@ -727,7 +727,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-		c.Check(s.mockLogger.String(), Matches, `.*: reboot into system "20191119" for ".*"\n`)
+		c.Check(s.mockLogger.String(), Matches, `.*: rebooting into system "20191119" in ".*" mode\n`)
 	}
 }
 
@@ -766,7 +766,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToRun(c *C) {
 		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: reboot into system "%s" for "Run normally"\n`, s.mockedSystemSeeds[0].label))
+	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "run" mode\n`, s.mockedSystemSeeds[0].label))
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
@@ -793,7 +793,7 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		"snapd_recovery_system": "",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: reboot into system "%s" for "Run normally"\n`, s.mockedSystemSeeds[0].label))
+	c.Check(s.mockLogger.String(), Matches, `.*: rebooting system\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
