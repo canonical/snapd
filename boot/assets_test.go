@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1511,15 +1512,26 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	// trigger loading modeenv and bootloader information
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
 	c.Assert(err, IsNil)
+	// observe an update only for the recovery bootloader, the run bootloader trusted assets remain empty
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "shim"), "shim")
-	c.Assert(err, IsNil)
-	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "shim"), "shim")
 	c.Assert(err, IsNil)
 
 	// cancel the update
 	err = obs.Canceled()
 	c.Assert(err, IsNil)
 	afterCancelM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(afterCancelM.CurrentTrustedBootAssets, HasLen, 0)
+	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+
+	// get a new observer, and observe an update for run bootloader asset only
+	obs = s.uc20UpdateObserver(c)
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	// cancel once more
+	err = obs.Canceled()
+	c.Assert(err, IsNil)
+	afterCancelM, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(afterCancelM.CurrentTrustedBootAssets, HasLen, 0)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
@@ -1557,11 +1569,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 
 	// procure the desired state by:
 	// injecting a changed asset for run bootloader
-	obs.InjectChangedAsset("trusted", "asset", "changehash", false)
+	recoveryAsset := true
+	obs.InjectChangedAsset("trusted", "asset", "changehash", !recoveryAsset)
 	// and a changed asset for recovery bootloader
-	obs.InjectChangedAsset("trusted", "asset", "changehash", true)
+	obs.InjectChangedAsset("trusted", "asset", "changehash", recoveryAsset)
 	// completely unknown
-	obs.InjectChangedAsset("trusted", "unknown", "somehash", false)
+	obs.InjectChangedAsset("trusted", "unknown", "somehash", !recoveryAsset)
 
 	// cancel the update
 	err = obs.Canceled()
@@ -1570,6 +1583,87 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
+}
+
+func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) {
+	// make sure that trying to remove the file from cache will no break the
+	// cancellation
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+
+	d := c.MkDir()
+	root := c.MkDir()
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"recoveryhash"},
+		},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// mock the files in cache
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	for _, name := range []string{
+		"asset-assethash",
+		"asset-recoveryhash",
+	} {
+		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	// we get an observer for UC20
+	obs := s.uc20UpdateObserver(c)
+
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, filepath.Join(d, "shim"), "shim")
+	c.Assert(err, IsNil)
+	// make sure that the cache directory state is as expected
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-assethash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-recoveryhash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	// and the file is added to the assets map
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {"assethash"},
+		"shim":  {shimHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {"recoveryhash"},
+		"shim":  {shimHash},
+	})
+
+	// make cache directory read only and thus cache.Remove() fail
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0444), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755)
+
+	// cancel should not fail, even though files cannot be removed from cache
+	err = obs.Canceled()
+	c.Assert(err, IsNil)
+	afterCancelM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
+	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-assethash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-recoveryhash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
+	})
+	c.Check(logBuf.String(), Matches, fmt.Sprintf(`.* cannot remove unused boot asset shim:%s: .* permission denied\n`, shimHash))
 }
 
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -545,7 +546,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 	return nil
 }
 
-func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) error {
+func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) {
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
 	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
 	changedAssets := o.changedAssets
@@ -555,10 +556,11 @@ func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) error {
 		changedAssets = o.seedChangedAssets
 	}
 
+	if len(*trustedAssets) == 0 {
+		return
+	}
+
 	for _, changed := range changedAssets {
-		if *trustedAssets == nil {
-			return nil
-		}
 		hashList, ok := (*trustedAssets)[changed.name]
 		if !ok || len(hashList) == 0 {
 			// not tracked already, nothing to do
@@ -575,16 +577,16 @@ func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) error {
 				delete(*trustedAssets, changed.name)
 			}
 		} else {
+			// asset updates are appended to the list
 			(*trustedAssets)[changed.name] = hashList[:1]
 		}
 		if !isAssetHashTrackedInMap(otherTrustedAssets, changed.name, changed.hash) {
 			// asset revision is not used used elsewhere, we can remove it from the cache
 			if err := o.cache.Remove(changed.blName, changed.name, changed.hash); err != nil {
-				return fmt.Errorf("cannot remove unused boot asset %v:%v: %v", changed.name, changed.hash, err)
+				logger.Noticef("cannot remove unused boot asset %v:%v: %v", changed.name, changed.hash, err)
 			}
 		}
 	}
-	return nil
 }
 
 // Canceled is called when the update has been canceled, or if changes
@@ -596,13 +598,10 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return nil
 	}
 	for _, isRecovery := range []bool{false, true} {
-		if err := o.canceledUpdate(isRecovery); err != nil {
-			// XXX: should this be a log instead?
-			return err
-		}
+		o.canceledUpdate(isRecovery)
 	}
 
-	if err := o.modeenv.WriteTo(""); err != nil {
+	if err := o.modeenv.Write(); err != nil {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
