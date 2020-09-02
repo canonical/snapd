@@ -497,14 +497,9 @@ func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 		return nil, fmt.Errorf("not a recovery bootloader")
 	}
 
-	trustedAssets, err := g.TrustedAssets()
-	if err != nil {
-		return nil, err
-	}
-
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(trustedAssets)+1)
-	for _, ta := range trustedAssets {
+	chain := make([]BootFile, 0, len(recoveryModeTrustedAssets)+1)
+	for _, ta := range recoveryModeTrustedAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
 	// add recovery kernel to the recovery chain
@@ -524,14 +519,9 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 		return nil, fmt.Errorf("run mode bootloader must be grub")
 	}
 
-	trustedAssets, err := g.TrustedAssets()
-	if err != nil {
-		return nil, err
-	}
-
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(trustedAssets)+len(runModeTrustedAssets)+1)
-	for _, ta := range trustedAssets {
+	chain := make([]BootFile, 0, len(recoveryModeTrustedAssets)+len(runModeTrustedAssets)+1)
+	for _, ta := range recoveryModeTrustedAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
 	for _, ta := range runModeTrustedAssets {
