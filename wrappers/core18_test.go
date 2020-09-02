@@ -42,6 +42,10 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
+	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
@@ -53,6 +57,11 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		// user services
 		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
+		// D-Bus configuration
+		{"usr/share/dbus-1/session.d/snapd.session-services.conf", "<busconfig/>"},
+		{"usr/share/dbus-1/system.d/snapd.system-services.conf", "<busconfig/>"},
+		// Extra non-snapd D-Bus config that shouldn't be copied
+		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
 	})
 
 	return info
@@ -148,9 +157,18 @@ WantedBy=snapd.service
 		// check that snapd.session-agent.socket is created
 		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"),
 		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket",
+	}, {
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"),
+		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"),
+		"<busconfig/>",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
+
+	// Non-snapd D-Bus config is not copied
+	c.Check(filepath.Join(dirs.SnapDBusSystemPolicyDir, "io.netplan.Netplan.conf"), testutil.FileAbsent)
 
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -202,6 +220,8 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
@@ -257,6 +277,8 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 		{filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"), "from-snapd"},
 		// extra unit not present in core snap
 		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
 	}
@@ -329,4 +351,21 @@ func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
 
 	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
 	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
+}
+
+func (s *servicesTestSuite) TestDeriveSnapdDBusConfig(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(info)
+	c.Assert(err, IsNil)
+	c.Check(sessionContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.session-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/session.d/snapd.session-services.conf"),
+		},
+	})
+	c.Check(systemContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.system-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/system.d/snapd.system-services.conf"),
+		},
+	})
 }

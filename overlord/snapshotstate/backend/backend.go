@@ -31,7 +31,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -60,6 +62,9 @@ var (
 	dirNames                = (*os.File).Readdirnames
 	backendOpen             = Open
 	backendSnapshotFromFile = snapshotFromFilename
+	timeNow                 = time.Now
+
+	usersForUsernames = usersForUsernamesImpl
 )
 
 // Flags encompasses extra flags for snapshots backend Save.
@@ -169,6 +174,50 @@ func snapshotFromFilename(f string) (*client.Snapshot, error) {
 	return &r.Snapshot, nil
 }
 
+// EstimateSnapshotSize calculates estimated size of the snapshot.
+func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
+	var total uint64
+	calculateSize := func(path string, finfo os.FileInfo, err error) error {
+		if finfo.Mode().IsRegular() {
+			total += uint64(finfo.Size())
+		}
+		return err
+	}
+
+	visitDir := func(dir string) error {
+		exists, isDir, err := osutil.DirExists(dir)
+		if err != nil {
+			return err
+		}
+		if !(exists && isDir) {
+			return nil
+		}
+		return filepath.Walk(dir, calculateSize)
+	}
+
+	for _, dir := range []string{si.DataDir(), si.CommonDataDir()} {
+		if err := visitDir(dir); err != nil {
+			return 0, err
+		}
+	}
+
+	users, err := usersForUsernames(usernames)
+	if err != nil {
+		return 0, err
+	}
+	for _, usr := range users {
+		if err := visitDir(si.UserDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+	}
+
+	// XXX: we could use a typical compression factor here
+	return total, nil
+}
+
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *Flags) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
@@ -187,7 +236,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Revision: si.Revision,
 		Version:  si.Version,
 		Epoch:    si.Epoch,
-		Time:     time.Now(),
+		Time:     timeNow(),
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
@@ -446,4 +495,161 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 		}
 	}
 	return snaps, nil
+}
+
+type exportMetadata struct {
+	Format int       `json:"format"`
+	Date   time.Time `json:"date"`
+	Files  []string  `json:"files"`
+}
+
+type SnapshotExport struct {
+	// open snapshot files
+	snapshotFiles []*os.File
+
+	// remember setID mostly for nicer errors
+	setID uint64
+
+	// cached size, needs to be calculated with CalculateSize
+	size int64
+}
+
+// NewSnapshotExport will return a SnapshotExport structure. It must be
+// Close()ed after use to avoid leaking file descriptors.
+func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, err error) {
+	var snapshotFiles []*os.File
+
+	defer func() {
+		// cleanup any open FDs if anything goes wrong
+		if err != nil {
+			for _, f := range snapshotFiles {
+				f.Close()
+			}
+		}
+	}()
+
+	// Open all files first and keep the file descriptors
+	// open. The caller should have locked the state so that no
+	// delete/change snapshot operations can happen while the
+	// files are getting opened.
+	err = Iter(ctx, func(reader *Reader) error {
+		if reader.SetID == setID {
+			// Duplicate the file descriptor of the reader we were handed as
+			// Iter() closes those as soon as this unnamed returns. We
+			// re-package the file descriptor into snapshotFiles below.
+			fd, err := syscall.Dup(int(reader.Fd()))
+			if err != nil {
+				return fmt.Errorf("cannot duplicate descriptor: %v", err)
+			}
+			f := os.NewFile(uintptr(fd), reader.Name())
+			if f == nil {
+				return fmt.Errorf("cannot open file from descriptor %d", fd)
+			}
+			snapshotFiles = append(snapshotFiles, f)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot export snapshot %v: %v", setID, err)
+	}
+	if len(snapshotFiles) == 0 {
+		return nil, fmt.Errorf("no snapshot data found for %v", setID)
+	}
+
+	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID}
+
+	// ensure we never leak FDs even if the user does not call close
+	runtime.SetFinalizer(se, (*SnapshotExport).Close)
+
+	return se, nil
+}
+
+// Init will calculate the snapshot size. This can take some time
+// so it should be called without any locks. The SnapshotExport
+// keeps the FDs open so even files moved/deleted will be found.
+func (se *SnapshotExport) Init() error {
+	// Export once into a dummy writer so that we can set the size
+	// of the export. This is then used to set the Content-Length
+	// in the response correctly.
+	//
+	// Note that the size of the generated tar could change if the
+	// time switches between this export and the export we stream
+	// to the client to a time after the year 2242. This is unlikely
+	// but a known issue with this approach here.
+	var sz osutil.Sizer
+	if err := se.StreamTo(&sz); err != nil {
+		return fmt.Errorf("cannot calculcate the size for %v: %s", se.setID, err)
+	}
+	se.size = sz.Size()
+	return nil
+}
+
+func (se *SnapshotExport) Size() int64 {
+	return se.size
+}
+
+func (se *SnapshotExport) Close() {
+	for _, f := range se.snapshotFiles {
+		f.Close()
+	}
+	se.snapshotFiles = nil
+}
+
+func (se *SnapshotExport) StreamTo(w io.Writer) error {
+	// write out a tar
+	var files []string
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+	for _, snapshotFile := range se.snapshotFiles {
+		stat, err := snapshotFile.Stat()
+		if err != nil {
+			return err
+		}
+		if !stat.Mode().IsRegular() {
+			// should never happen
+			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
+		}
+		if _, err := snapshotFile.Seek(0, 0); err != nil {
+			return fmt.Errorf("cannot seek on %v: %v", stat.Name(), err)
+		}
+		hdr, err := tar.FileInfoHeader(stat, "")
+		if err != nil {
+			return fmt.Errorf("symlink: %v", stat.Name())
+		}
+		if err = tw.WriteHeader(hdr); err != nil {
+			return fmt.Errorf("cannot write header for %v: %v", stat.Name(), err)
+		}
+		if _, err := io.Copy(tw, snapshotFile); err != nil {
+			return fmt.Errorf("cannot write data for %v: %v", stat.Name(), err)
+		}
+
+		files = append(files, path.Base(snapshotFile.Name()))
+	}
+
+	// write the metadata last, then the client can use that to
+	// validate the archive is complete
+	meta := exportMetadata{
+		Format: 1,
+		Date:   timeNow(),
+		Files:  files,
+	}
+	metaDataBuf, err := json.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("cannot marshal meta-data: %v", err)
+	}
+	hdr := &tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "export.json",
+		Size:     int64(len(metaDataBuf)),
+		Mode:     0640,
+		ModTime:  timeNow(),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if _, err := tw.Write(metaDataBuf); err != nil {
+		return err
+	}
+
+	return nil
 }

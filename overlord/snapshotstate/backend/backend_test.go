@@ -819,3 +819,159 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		f.Close()
 	}
 }
+func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	snapData := []string{
+		"/var/snap/foo/7/somedatadir",
+		"/var/snap/foo/7/otherdata",
+		"/var/snap/foo/7",
+		"/var/snap/foo/common",
+		"/var/snap/foo/common/a",
+		"/home/user1/snap/foo/7/somedata",
+		"/home/user1/snap/foo/common",
+	}
+	var data []byte
+	var expected int
+	for _, d := range snapData {
+		data = append(data, 0)
+		expected += len(data)
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(s.root, d, "somfile"), data, 0644), check.IsNil)
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(expected))
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	snapData := []string{
+		"/var/snap/foo/common",
+		"/var/snap/foo/7",
+		"/home/user1/snap/foo/7",
+		"/home/user1/snap/foo/common",
+	}
+	for _, d := range snapData {
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(0))
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
+	var gotUsernames []string
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		gotUsernames = usernames
+		return nil, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	_, err := backend.EstimateSnapshotSize(info, []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsernames, check.DeepEquals, []string{"user1", "user2"})
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo:      snap.SideInfo{Revision: snap.R(7)},
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(0))
+}
+func (s *snapshotSuite) TestExportTwice(c *check.C) {
+	// use mocking done in snapshotSuite.SetUpTest
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(42),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	// create a snapshot
+	shID := uint64(12)
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
+
+	// num_files + export.json + footer
+	expectedSize := int64(4*512 + 1024 + 2*512)
+	// do on export at the start of the epoch
+	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
+	defer restore()
+	// export once
+	buf := bytes.NewBuffer(nil)
+	ctx := context.Background()
+	se, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	err = se.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+
+	// and again to ensure size does not change when exported again
+	//
+	// Note that moving beyond year 2242 will change the tar format
+	// used by the go internal tar and that will make the size actually
+	// change.
+	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
+	defer restore()
+	se2, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se2.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se2.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	buf.Reset()
+	err = se2.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+}
+
+func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
+	se, err := backend.NewSnapshotExport(context.Background(), 5)
+	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
+	c.Assert(se, check.IsNil)
+}

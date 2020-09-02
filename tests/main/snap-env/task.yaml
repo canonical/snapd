@@ -55,7 +55,8 @@ execute: |
     MATCH "^SNAP_INSTANCE_NAME=$NAME$"                                    < snap-vars.txt
     # parallel-installs: empty if none is set
     MATCH "^SNAP_INSTANCE_KEY=$INSTANCE_KEY$"                             < snap-vars.txt
-    test "$(wc -l < snap-vars.txt)" -eq 14
+    MATCH "^SNAP_REAL_HOME=/root$"                                        < snap-vars.txt
+    test "$(wc -l < snap-vars.txt)" -eq 15
 
     echo "Enure that XDG environment variables are what we expect"
     # parallel-installs: xdg directory is instance specific

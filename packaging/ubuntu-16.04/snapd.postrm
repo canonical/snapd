@@ -107,6 +107,10 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/systemd/user/snapd.session-agent.service
     rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
 
+    # dbus activation configuration
+    rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+    rm -f /etc/dbus-1/system.d/snapd.system-services.conf
+
     # generated readme files
     rm -f "/snap/README"
 
@@ -130,6 +134,12 @@ if [ "$1" = "purge" ]; then
         fi
         find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
+    fi
+
+    # inside containers we have a generator that creates a bind mount to /snap
+    if [ -e /run/systemd/container ]; then
+        echo "Unmount /snap inside a container"
+        umount /snap || true
     fi
 
     echo "Removing extra snap-confine apparmor rules"

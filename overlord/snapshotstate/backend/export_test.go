@@ -165,3 +165,18 @@ func MockCreateExportFile(filename string, exportJSON bool, withDir bool) error 
 
 	return nil
 }
+func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (restore func()) {
+	old := usersForUsernames
+	usersForUsernames = f
+	return func() {
+		usersForUsernames = old
+	}
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = f
+	return func() {
+		timeNow = oldTimeNow
+	}
+}

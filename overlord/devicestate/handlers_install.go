@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -111,23 +112,23 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if useEncryption {
-		fdeDir := "var/lib/snapd/device/fde"
-		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
-			if err := os.MkdirAll(p, 0755); err != nil {
-				return err
-			}
-		}
 
+	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	// get a nice nil interface by default
+	var installObserver gadget.ContentObserver
+	if useEncryption {
 		bopts.Encrypt = true
-		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
+
+		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
+		if err != nil && err != boot.ErrObserverNotApplicable {
+			return fmt.Errorf("cannot setup asset install observer: %v", err)
+		}
+		if err == nil {
+			installObserver = trustedInstallObserver
+		}
 	}
 
 	// run the create partition code
@@ -135,10 +136,16 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts)
+		err = installRun(gadgetDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
+	}
+
+	if trustedInstallObserver != nil {
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
 	}
 
 	// keep track of the model we installed
@@ -171,7 +178,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
+	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 

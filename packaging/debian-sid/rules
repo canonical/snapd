@@ -143,6 +143,8 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
+	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
+
 	# exclude certain parts that won't be used by debian
 	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | xargs rm -f
 	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(install_dummy\.go|options\.go)'| xargs rm -f
@@ -220,6 +222,9 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
+
 	dh_install
 
 override_dh_install-arch:
@@ -236,6 +241,10 @@ override_dh_install-arch:
 	fi
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# bootloader assets generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the

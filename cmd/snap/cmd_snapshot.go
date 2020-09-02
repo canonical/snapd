@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -43,6 +44,7 @@ var (
 	shortCheckHelp          = i18n.G("Check a snapshot")
 	shortRestoreHelp        = i18n.G("Restore a snapshot")
 	shortImportSnapshotHelp = i18n.G("Import a snapshot")
+	shortExportSnapshotHelp = i18n.G("Export a snapshot")
 )
 
 var longSavedHelp = i18n.G(`
@@ -102,6 +104,10 @@ restriction may be lifted in the future.
 var longImportSnapshotHelp = i18n.G(`
 Import an exported snapshot file to the system. The snapshot is imported
 with a new snapshot ID and can be restored using the restore command.
+`)
+
+var longExportSnapshotHelp = i18n.G(`
+Export a snapshot to the given filename.
 `)
 
 type savedCmd struct {
@@ -391,7 +397,7 @@ func init() {
 			},
 		})
 
-	cmdImport := addCommand("import-snapshot",
+	addCommand("import-snapshot",
 		shortImportSnapshotHelp,
 		longImportSnapshotHelp,
 		func() flags.Commander {
@@ -403,7 +409,25 @@ func init() {
 				desc: i18n.G("The filename of the snapshot set to import"),
 			},
 		})
-	cmdImport.hidden = true
+
+	addCommand("export-snapshot",
+		shortExportSnapshotHelp,
+		longExportSnapshotHelp,
+		func() flags.Commander {
+			return &exportSnapshotCmd{}
+		}, nil, []argDesc{
+			{
+				name: "<id>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("Set id of snapshot to export"),
+			},
+			{
+				// TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+				name: i18n.G("<filename>"),
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The filename of the export"),
+			},
+		})
 }
 
 type importSnapshotCmd struct {
@@ -428,6 +452,58 @@ func (x *importSnapshotCmd) Execute([]string) error {
 	}
 
 	fmt.Fprintf(Stdout, "Imported snapshot with %d snaps as snapshot ID %d\n", len(importSet.Snaps), importSet.ID)
+	return nil
+}
 
+type exportSnapshotCmd struct {
+	clientMixin
+	Positional struct {
+		ID       snapshotID `positional-arg-name:"<id>"`
+		Filename string     `long:"filename"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *exportSnapshotCmd) Execute([]string) (err error) {
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
+
+	r, expectedSize, err := x.client.SnapshotExport(setID)
+	if err != nil {
+		return err
+	}
+
+	filename := x.Positional.Filename
+	f, err := os.Create(filename + ".part")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	defer func() {
+		if err != nil {
+			os.Remove(filename + ".part")
+		}
+	}()
+
+	// Pre-allocate the disk space for the snapshot, if the file system supports this.
+	if err := maybeReserveDiskSpace(f, expectedSize); err != nil {
+		return fmt.Errorf(i18n.G("cannot reserve disk space for snapshot: %v"), err)
+	}
+
+	n, err := io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	if n != expectedSize {
+		return fmt.Errorf(i18n.G("unexpected size, got: %v but wanted %v"), n, expectedSize)
+	}
+
+	if err := os.Rename(filename+".part", filename); err != nil {
+		return err
+	}
+
+	// TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
+	fmt.Fprintf(Stdout, i18n.G("Exported snapshot #%s into %q\n"), x.Positional.ID, x.Positional.Filename)
 	return nil
 }

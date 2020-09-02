@@ -154,6 +154,14 @@ func MockBackendImport(f func(context.Context, uint64, io.Reader) (int64, []stri
 	}
 }
 
+func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error)) (restore func()) {
+	old := backendEstimateSnapshotSize
+	backendEstimateSnapshotSize = f
+	return func() {
+		backendEstimateSnapshotSize = old
+	}
+}
+
 func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, error)) (restore func()) {
 	old := configGetSnapConfig
 	configGetSnapConfig = f

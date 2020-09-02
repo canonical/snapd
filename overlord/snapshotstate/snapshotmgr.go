@@ -400,6 +400,7 @@ func delayedCrossMgrInit() {
 	// hook automatic snapshots into snapstate logic
 	snapstate.AutomaticSnapshot = AutomaticSnapshot
 	snapstate.AutomaticSnapshotExpiration = AutomaticSnapshotExpiration
+	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
 func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {

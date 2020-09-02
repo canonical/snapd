@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -192,4 +193,26 @@ func (client *Client) SnapshotImport(body io.Reader) (SnapshotImportSet, error) 
 	}
 
 	return importSet, nil
+}
+
+// SnapshotExport streams the requested snapshot set.
+//
+// The return value includes the length of the returned stream.
+func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
+	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	if rsp.StatusCode != 200 {
+		defer rsp.Body.Close()
+
+		var r response
+		specificErr := r.err(client, rsp.StatusCode)
+		if err != nil {
+			return nil, 0, specificErr
+		}
+		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
+	}
+
+	return rsp.Body, rsp.ContentLength, nil
 }

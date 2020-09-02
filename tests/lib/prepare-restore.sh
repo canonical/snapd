@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/journalctl.sh
-. "$TESTSLIB/journalctl.sh"
-
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -399,7 +396,77 @@ prepare_project() {
             ;;
     esac
 
-    install_pkg_dependencies
+    restart_logind=
+    restart_networkd=
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+        restart_logind=maybe
+        restart_networkd=maybe
+    fi
+
+
+    # Try installing package dependencies. Because we pull in some systemd
+    # development packages we can easily pull in a whole systemd upgrade. Most
+    # of the time that's okay but, well, not always.
+    if ! install_pkg_dependencies; then
+        # If this failed, maybe systemd-networkd got busted during the 245-246
+        # upgrade? If so we can just restart it and try again.
+        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
+        if [ "$restart_networkd" = maybe ]; then
+            systemctl reset-failed systemd-networkd.service
+            systemctl try-restart systemd-networkd.service
+            install_pkg_dependencies
+        fi
+    fi
+
+    if [ "$restart_logind" = maybe ]; then
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+            restart_logind=yes
+        else
+            restart_logind=
+        fi
+    fi
+
+    # Work around systemd / Debian bug interaction. We are installing
+    # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
+    # behind systemd-logind.service from the old version. This is tracked as
+    # Debian bug https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=919509 and
+    # it really affects Desktop systems where Wayland/X don't like logind from
+    # ever being restarted.
+    #
+    # As a workaround we tried to restart logind ourselves but this caused
+    # another issue.  Restarted logind, as of systemd v245, forgets about the
+    # root session and subsequent loginctl enable-linger root, loginctl
+    # disable-linger stops the running systemd --user for the root session,
+    # along with other services like session bus.
+    #
+    # In consequence all the code that restarts logind for one reason or
+    # another is coalesced below and ends with REBOOT. This ensures that after
+    # rebooting, we have an up-to-date, working logind and that the initial
+    # session used by spread is tracked.
+    if ! loginctl enable-linger test; then
+        if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+            mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+            mkdir -p /var/lib/systemd/linger
+            test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+            restart_logind=yes
+        fi
+    fi
+    loginctl disable-linger test || true
+
+    # FIXME: In an ideal world we'd just do this:
+    #   systemctl daemon-reload
+    #   systemctl restart systemd-logind.service
+    # But due to this issue, restarting systemd-logind is unsafe.
+    # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
+    if [ "$restart_logind" = yes ]; then
+        echo "logind upgraded, reboot required"
+        REBOOT
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -537,7 +604,7 @@ prepare_suite_each() {
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
-    start_new_journalctl_log
+    "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
         echo "Install the snaps profiler snap"
@@ -550,7 +617,7 @@ prepare_suite_each() {
         fi
     fi
     # Check if journalctl is ready to run the test
-    check_journalctl_ready
+    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -590,7 +657,7 @@ restore_suite_each() {
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
             cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
-        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user

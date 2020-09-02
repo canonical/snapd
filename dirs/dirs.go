@@ -91,9 +91,14 @@ var (
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapDesktopIconsDir string
-	SnapBusPolicyDir    string
 
-	SnapModeenvFile string
+	SnapDBusSessionPolicyDir   string
+	SnapDBusSystemPolicyDir    string
+	SnapDBusSessionServicesDir string
+	SnapDBusSystemServicesDir  string
+
+	SnapModeenvFile   string
+	SnapBootAssetsDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -109,8 +114,6 @@ var (
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
-
-	PidsCgroupDir string
 
 	SnapshotsDir string
 
@@ -209,6 +212,11 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapdStateDir returns the path to /var/lib/snapd dir under rootdir.
+func SnapdStateDir(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir)
+}
+
 // SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
 func SnapBlobDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "snaps")
@@ -238,6 +246,12 @@ func FeaturesDirUnder(rootdir string) string {
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// SnapBootAssetsDirUnder returns the path to boot assets directory under a
+// rootdir.
+func SnapBootAssetsDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "boot-assets")
 }
 
 // AddRootDirCallback registers a callback for whenever the global root
@@ -317,6 +331,7 @@ func SetRootDir(rootdir string) {
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
+	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -330,7 +345,13 @@ func SetRootDir(rootdir string) {
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
-	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+
+	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
+	// Use 'dbus-1/services' and `dbus-1/system-services' to mirror
+	// '/usr/share/dbus-1' hierarchy.
+	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
+	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
 
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
@@ -375,7 +396,6 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")

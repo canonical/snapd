@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"io/ioutil"
 	"net/url"
 	"strings"
 	"time"
@@ -167,5 +168,41 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
+	}
+}
+
+func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
+	type tableT struct {
+		content string
+		status  int
+	}
+
+	table := []tableT{
+		{"Hello World!", 200},
+		{"", 400},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %q", i, t.content)
+
+		cs.contentLength = int64(len(t.content))
+		cs.rsp = t.content
+		cs.status = t.status
+
+		r, size, err := cs.cli.SnapshotExport(42)
+		if t.status == 200 {
+			c.Assert(err, check.IsNil, comm)
+			c.Assert(cs.countingCloser.closeCalled, check.Equals, 0)
+		} else {
+			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
+			c.Assert(cs.countingCloser.closeCalled, check.Equals, 1)
+		}
+		c.Assert(size, check.Equals, int64(len(t.content)), comm)
+
+		if t.status == 200 {
+			buf, err := ioutil.ReadAll(r)
+			c.Assert(err, check.IsNil)
+			c.Assert(string(buf), check.Equals, t.content)
+		}
 	}
 }

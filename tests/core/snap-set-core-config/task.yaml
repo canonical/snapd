@@ -29,7 +29,10 @@ restore: |
         systemctl enable rsyslog.service
         systemctl start rsyslog.service
     fi
-
+    if [ -e current-timezone ]; then
+        timedatectl set-timezone "$(cat current-timezone)"
+    fi
+ 
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
 
 execute: |
@@ -89,6 +92,8 @@ execute: |
         exit 1
     fi
 
+
+    rm -f /var/lib/console-conf/complete
     echo "Check that 'service.console-conf.disable' handling works"
     # start some instances of console-conf
     systemctl start console-conf@tty1
@@ -132,3 +137,9 @@ execute: |
     snap unset system system.kernel.printk.console-loglevel
     not test -e /etc/sysctl.d/99-snapd.conf
     sysctl -n kernel.printk|MATCH "^4\s+"
+
+    echo "setting the timezone works"
+    cat /etc/timezone > current-timezone
+    snap set system system.timezone=Europe/Malta
+    MATCH "Europe/Malta" /etc/timezone
+    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Malta"

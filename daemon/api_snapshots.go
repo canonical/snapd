@@ -42,6 +42,11 @@ var snapshotCmd = &Command{
 	POST:     changeSnapshots,
 }
 
+var snapshotExportCmd = &Command{
+	Path: "/v2/snapshots/{id}/export",
+	GET:  getSnapshotExport,
+}
+
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	var setID uint64
@@ -162,4 +167,35 @@ func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respo
 
 	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
 	return SyncResponse(result, nil)
+}
+
+// getSnapshotExport streams an archive containing an export of existing snapshots.
+//
+// The snapshots are re-packaged into a single uncompressed tar archive and
+// internally contain multiple zip files.
+func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	vars := muxVars(r)
+	sid := vars["id"]
+	setID, err := strconv.ParseUint(sid, 10, 64)
+	if err != nil {
+		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
+	}
+
+	export, err := snapshotExport(context.TODO(), setID)
+	if err != nil {
+		return BadRequest("cannot export %v: %v", setID, err)
+	}
+	// init (size calculation) can be slow so drop the lock
+	st.Unlock()
+	err = export.Init()
+	st.Lock()
+	if err != nil {
+		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
+	}
+
+	return &snapshotExportResponse{SnapshotExport: export}
 }

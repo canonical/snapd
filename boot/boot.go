@@ -113,9 +113,12 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 // bootloaderOptionsForDeviceKernel returns a set of bootloader options that
 // enable correct kernel extraction and removal for given device
 func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	if !dev.HasModeenv() {
+		return nil
+	}
+	// find the run-mode bootloader with its kernel support for UC20
 	return &bootloader.Options{
-		// unified extractable kernel if in uc20 mode
-		ExtractedRunKernelImage: dev.HasModeenv(),
+		Role: bootloader.RoleRunMode,
 	}
 }
 
@@ -171,7 +174,7 @@ type bootState interface {
 	// the status of the trying snap.
 	// Note that the error could be only specific to the try snap, in which case
 	// curSnap may still be non-nil and valid. Callers concerned with robustness
-	// should always inspect a non-nil error with IsTrySnapError, and use
+	// should always inspect a non-nil error with isTrySnapError, and use
 	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
@@ -353,7 +356,7 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: should the recovery partition stay around as RW during run
 	// mode all the time?

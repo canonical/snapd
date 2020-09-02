@@ -39,12 +39,14 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -719,7 +721,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	conn, err := dbus.SessionBus()
+	conn, err := dbusutil.SessionBus()
 	if err != nil {
 		return err
 	}
@@ -1077,6 +1079,70 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return env.ForExecEscapeUnsafe(snapenv.PreservedUnsafePrefix)
 	}
 
+	// Systemd automatically places services under a unique cgroup encoding the
+	// security tag, but for apps and hooks we need to create a transient scope
+	// with similar purpose ourselves.
+	//
+	// The way this happens is as follows:
+	//
+	// 1) Services are implemented using systemd service units. Starting a
+	// unit automatically places it in a cgroup named after the service unit
+	// name. Snapd controls the name of the service units thus indirectly
+	// controls the cgroup name.
+	//
+	// 2) Non-services, including hooks, are started inside systemd
+	// transient scopes. Scopes are a systemd unit type that are defined
+	// programmatically and are meant for groups of processes started and
+	// stopped by an _arbitrary process_ (ie, not systemd). Systemd
+	// requires that each scope is given a unique name. We employ a scheme
+	// where random UUID is combined with the name of the security tag
+	// derived from snap application or hook name. Multiple concurrent
+	// invocations of "snap run" will use distinct UUIDs.
+	//
+	// Transient scopes allow launched snaps to integrate into
+	// the systemd design. See:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	//
+	// Programs running as root, like system-wide services and programs invoked
+	// using tools like sudo are placed under system.slice. Programs running as
+	// a non-root user are placed under user.slice, specifically in a scope
+	// specific to a logind session.
+	//
+	// This arrangement allows for proper accounting and control of resources
+	// used by snap application processes of each type.
+	//
+	// For more information about systemd cgroups, including unit types, see:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	_, appName := snap.SplitSnapApp(snapApp)
+	needsTracking := true
+	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
+		// If we are running a service app then we do not need to use
+		// application tracking. Services, both in the system and user scope,
+		// do not need tracking because systemd already places them in a
+		// tracking cgroup, named after the systemd unit name, and those are
+		// sufficient to identify both the snap name and the app name.
+		needsTracking = false
+	}
+	// Allow using the session bus for all apps but not for hooks.
+	allowSessionBus := hook == ""
+	// Track, or confirm existing tracking from systemd.
+	var trackingErr error
+	if needsTracking {
+		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
+		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
+	} else {
+		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
+	}
+	if trackingErr != nil {
+		if trackingErr != cgroup.ErrCannotTrackProcess {
+			return trackingErr
+		}
+		// If we cannot track the process then log a debug message.
+		// TODO: if we could, create a warning. Currently this is not possible
+		// because only snapd can create warnings, internally.
+		logger.Debugf("snapd cannot track the started application")
+		logger.Debugf("snap refreshes will not be postponed by this process")
+	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
@@ -1089,3 +1155,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
 }
+
+var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
+var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking
