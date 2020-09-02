@@ -609,7 +609,7 @@ WantedBy=multi-user.target
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"--root", "", "enable", "snap-snapname-x1.mount"},
+		{"enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
 	})
 }

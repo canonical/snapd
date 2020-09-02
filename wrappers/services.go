@@ -144,7 +144,7 @@ func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err
 	var enabled []string
 	var userEnabled []string
 
-	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	systemSysd := systemd.New("", systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	disableEnabledServices := func() {
@@ -204,7 +204,7 @@ type StartServicesFlags struct {
 // are services. Service units will be started in the order provided by the
 // caller.
 func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
-	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	systemSysd := systemd.New("", systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	cli := client.New()
 
@@ -467,6 +467,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		toEnable = append(toEnable, app)
 	}
 
+	// this is no-op when preseeding because of empty toEnable list
 	disableEnabledServices, err = enableServices(toEnable, inter)
 	if err != nil {
 		return err
@@ -492,7 +493,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 // the first boot of a pre-seeded image with service files already in place but not enabled.
 // XXX: it should go away once services are fixed and enabled on start.
 func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New("", systemd.SystemMode, inter)
 	for _, app := range s.Apps {
 		if app.IsService() {
 			svcName := app.ServiceName()
@@ -512,7 +513,7 @@ type StopServicesFlags struct {
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
 func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New("", systemd.SystemMode, inter)
 	if flags == nil {
 		flags = &StopServicesFlags{}
 	}
@@ -567,7 +568,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 // ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
 func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New("", systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current
 	// systemd state of the snaps

@@ -353,22 +353,42 @@ func (s *systemd) DaemonReexec() error {
 }
 
 func (s *systemd) Enable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+	} else {
+		_, err = s.systemctl("enable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	} else {
+		_, err = s.systemctl("unmask", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Disable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+	} else {
+		_, err = s.systemctl("disable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Mask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	} else {
+		_, err = s.systemctl("mask", serviceName)
+	}
 	return err
 }
 
@@ -544,7 +564,12 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	} else {
+		_, err = s.systemctl("is-enabled", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
