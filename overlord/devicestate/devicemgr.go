@@ -992,7 +992,10 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-var ErrUnsupportedAction = errors.New("unsupported action")
+var (
+	ErrUnsupportedAction      = errors.New("unsupported action")
+	ErrAlreadyInRequestedMode = errors.New("already in requested mode")
+)
 
 // Reboot triggers a reboot into the given systemLabel and mode.
 //
@@ -1025,7 +1028,17 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemLabel = currentSys.System
 	}
 
-	return m.doSystemAction(systemLabel, SystemAction{Mode: mode})
+	err := m.doSystemAction(systemLabel, SystemAction{Mode: mode})
+	// system already in the requested mode, just reboot
+	if err == ErrAlreadyInRequestedMode {
+		logger.Noticef("restarting system")
+
+		m.state.Lock()
+		m.state.RequestRestart(state.RestartSystemNow)
+		m.state.Unlock()
+		return nil
+	}
+	return err
 }
 
 // RequestSystemAction request provided system to be run in a given mode. A
@@ -1035,7 +1048,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
-	return m.doSystemAction(systemLabel, action)
+	if err := m.doSystemAction(systemLabel, action); err != nil && err != ErrAlreadyInRequestedMode {
+		return err
+	}
+	return nil
 }
 
 func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) error {
@@ -1077,7 +1093,7 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
 		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
-			return nil
+			return ErrAlreadyInRequestedMode
 		}
 	case "install":
 		// requesting system actions in install mode does not make sense atm

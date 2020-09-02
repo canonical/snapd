@@ -748,14 +748,17 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 	})
 	s.state.Unlock()
 
-	// XXX: should this error instead with something like
-	//      ErrAlreadyInRequestedMode
+	// we are already in "run" mode so this should just reboot
 	err := s.mgr.Reboot("", "run")
 	c.Assert(err, IsNil)
 
-	// XXX: no restarts requested because the system is already in
-	// run mode for the current system
-	c.Check(s.restartRequests, HasLen, 0)
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_mode":   "",
+		"snapd_recovery_system": "",
+	})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
