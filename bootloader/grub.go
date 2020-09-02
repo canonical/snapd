@@ -464,14 +464,14 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 }
 
 var (
-	recoveryModeTrustedAssets = []string{
+	grubRecoveryModeTrustedAssets = []string{
 		// recovery mode shim EFI binary
 		"EFI/boot/bootx64.efi",
 		// recovery mode grub EFI binary
 		"EFI/boot/grubx64.efi",
 	}
 
-	runModeTrustedAssets = []string{
+	grubRunModeTrustedAssets = []string{
 		// run mode grub EFI binary
 		"EFI/boot/grubx64.efi",
 	}
@@ -485,9 +485,9 @@ func (g *grub) TrustedAssets() ([]string, error) {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
-		return recoveryModeTrustedAssets, nil
+		return grubRecoveryModeTrustedAssets, nil
 	}
-	return runModeTrustedAssets, nil
+	return grubRunModeTrustedAssets, nil
 }
 
 // RecoveryBootChain returns the load chain for recovery modes.
@@ -498,8 +498,8 @@ func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 	}
 
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(recoveryModeTrustedAssets)+1)
-	for _, ta := range recoveryModeTrustedAssets {
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
 	// add recovery kernel to the recovery chain
@@ -520,11 +520,11 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 	}
 
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(recoveryModeTrustedAssets)+len(runModeTrustedAssets)+1)
-	for _, ta := range recoveryModeTrustedAssets {
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+len(grubRunModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
-	for _, ta := range runModeTrustedAssets {
+	for _, ta := range grubRunModeTrustedAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRunMode))
 	}
 	// add kernel to the boot chain
