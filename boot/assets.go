@@ -463,7 +463,7 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	if o.modeenv.deepEqual(modeenvBefore) {
 		return true, nil
 	}
-	if err := o.modeenv.WriteTo(""); err != nil {
+	if err := o.modeenv.Write(); err != nil {
 		return false, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 	return true, nil
@@ -532,7 +532,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 		delete(*trustedAssets, assetName)
 	}
 
-	if err := o.modeenv.WriteTo(""); err != nil {
+	if err := o.modeenv.Write(); err != nil {
 		return false, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
