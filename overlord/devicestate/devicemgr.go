@@ -594,8 +594,6 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
 	// attached to a device via a USB drive and inject code onto the device.
 
-	// TODO: expand the scope to run on any device with a gadget, so i.e.
-	//       classic devices connected to a brand store also have this run?
 	if seeded && !release.OnClassic {
 		opts := &sysconfig.CloudInitRestrictOptions{}
 
@@ -622,7 +620,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// cloud-init errored, so we give the device admin / developer a few
 			// minutes to reboot the machine to re-run cloud-init and try again,
 			// otherwise we will disable cloud-init permanently
-			// initialize
+
+			// initialize the time we first saw cloud-init in error state
 			if m.cloudInitErrorAttemptStart == nil {
 				// save the time we started the attempt to restrict
 				now := timeNow()
@@ -693,11 +692,11 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			actionMsg = "disabled permanently"
 		case "restrict":
 			// log different messages depending on what datasource was used
-			if res.Datasource == "NoCloud" {
+			if res.DataSource == "NoCloud" {
 				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
 			} else {
 				// all other datasources just log that we limited it to that datasource
-				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.Datasource)
+				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)

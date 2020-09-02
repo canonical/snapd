@@ -80,7 +80,7 @@ func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bloader, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, opts)
 	c.Assert(err, IsNil)
@@ -115,7 +115,7 @@ func makeSnapFilesOnInitramfsUbuntuData(c *C, comment CommentInterface, snaps ..
 	}
 }
 
-func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
+func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 	// make some snap infos we will use in the tests
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
@@ -133,16 +133,17 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 	kernelT := snap.TypeKernel
 
 	tt := []struct {
-		m           *boot.Modeenv
-		expectedM   *boot.Modeenv
-		typs        []snap.Type
-		kernel      snap.PlaceInfo
-		trykernel   snap.PlaceInfo
-		blvars      map[string]string
-		snapsToMake []snap.PlaceInfo
-		expected    map[snap.Type]snap.PlaceInfo
-		errPattern  string
-		comment     string
+		m              *boot.Modeenv
+		expectedM      *boot.Modeenv
+		typs           []snap.Type
+		kernel         snap.PlaceInfo
+		trykernel      snap.PlaceInfo
+		blvars         map[string]string
+		snapsToMake    []snap.PlaceInfo
+		expected       map[snap.Type]snap.PlaceInfo
+		errPattern     string
+		comment        string
+		expRebootPanic string
 	}{
 		//
 		// default paths
@@ -181,29 +182,13 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel2},
 			comment:     "successful kernel upgrade path",
 		},
-		// kernel upgrade path, but uses fallback due to untrusted kernel from modeenv
-		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
-			kernel:      kernel1,
-			trykernel:   kernel2,
-			typs:        []snap.Type{kernelT},
-			blvars:      map[string]string{"kernel_status": boot.TryingStatus},
-			snapsToMake: []snap.PlaceInfo{kernel1, kernel2},
-			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			comment:     "fallback kernel upgrade path, due to modeenv untrusted try kernel",
-		},
-		// kernel upgrade path, but uses fallback due to try kernel file not existing
-		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
-			kernel:      kernel1,
-			trykernel:   kernel2,
-			typs:        []snap.Type{kernelT},
-			blvars:      map[string]string{"kernel_status": boot.TryingStatus},
-			snapsToMake: []snap.PlaceInfo{kernel1},
-			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			comment:     "fallback kernel upgrade path, due to try kernel file not existing",
-		},
-		// kernel upgrade path, but uses fallback due to default kernel_status
+		// extraneous kernel extracted/set, but kernel_status is default,
+		// so the bootloader will ignore that and boot the default kernel
+		// note that this test case is a bit ambiguous as we don't actually know
+		// in the initramfs that the bootloader actually booted the default
+		// kernel, we are just assuming that the bootloader implementation in
+		// the real world is robust enough to only boot the try kernel if and
+		// only if kernel_status is not DefaultStatus
 		{
 			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
 			kernel:      kernel1,
@@ -214,21 +199,49 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
 			comment:     "fallback kernel upgrade path, due to kernel_status empty (default)",
 		},
-		// kernel upgrade path, but uses fallback due to invalid kernel_status
+
+		//
+		// unhappy reboot fallback kernel paths
+		//
+
+		// kernel upgrade path, but reboots to fallback due to untrusted kernel from modeenv
 		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
-			kernel:      kernel1,
-			trykernel:   kernel2,
-			typs:        []snap.Type{kernelT},
-			blvars:      map[string]string{"kernel_status": boot.TryStatus},
-			snapsToMake: []snap.PlaceInfo{kernel1, kernel2},
-			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			comment:     "fallback kernel upgrade path, due to kernel_status wrong",
+			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
+			kernel:         kernel1,
+			trykernel:      kernel2,
+			typs:           []snap.Type{kernelT},
+			blvars:         map[string]string{"kernel_status": boot.TryingStatus},
+			snapsToMake:    []snap.PlaceInfo{kernel1, kernel2},
+			expRebootPanic: "reboot due to modeenv untrusted try kernel",
+			comment:        "fallback kernel upgrade path, due to modeenv untrusted try kernel",
+		},
+		// kernel upgrade path, but reboots to fallback due to try kernel file not existing
+		{
+			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			kernel:         kernel1,
+			trykernel:      kernel2,
+			typs:           []snap.Type{kernelT},
+			blvars:         map[string]string{"kernel_status": boot.TryingStatus},
+			snapsToMake:    []snap.PlaceInfo{kernel1},
+			expRebootPanic: "reboot due to try kernel file not existing",
+			comment:        "fallback kernel upgrade path, due to try kernel file not existing",
+		},
+		// kernel upgrade path, but reboots to fallback due to invalid kernel_status
+		{
+			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			kernel:         kernel1,
+			trykernel:      kernel2,
+			typs:           []snap.Type{kernelT},
+			blvars:         map[string]string{"kernel_status": boot.TryStatus},
+			snapsToMake:    []snap.PlaceInfo{kernel1, kernel2},
+			expRebootPanic: "reboot due to kernel_status wrong",
+			comment:        "fallback kernel upgrade path, due to kernel_status wrong",
 		},
 
 		//
-		// unhappy kernel paths
+		// unhappy initramfs fail kernel paths
 		//
+
 		// fallback kernel not trusted in modeenv
 		{
 			m:           &boot.Modeenv{Mode: "run"},
@@ -537,6 +550,14 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 
 			comment := Commentf("[%s] %s", tbl.name, t.comment)
 
+			// we use a panic to simulate a reboot
+			if t.expRebootPanic != "" {
+				r := boot.MockInitramfsReboot(func() error {
+					panic(t.expRebootPanic)
+				})
+				cleanups = append(cleanups, r)
+			}
+
 			bootloader.Force(bl)
 			cleanups = append(cleanups, func() { bootloader.Force(nil) })
 
@@ -551,6 +572,13 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 
 			if t.blvars != nil {
 				c.Assert(bl.SetBootVars(t.blvars), IsNil, comment)
+				cleanBootVars := make(map[string]string, len(t.blvars))
+				for k := range t.blvars {
+					cleanBootVars[k] = ""
+				}
+				cleanups = append(cleanups, func() {
+					c.Assert(bl.SetBootVars(cleanBootVars), IsNil, comment)
+				})
 			}
 
 			if len(t.snapsToMake) != 0 {
@@ -570,12 +598,17 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 			c.Assert(err, IsNil, comment)
 
-			mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
-			if t.errPattern != "" {
-				c.Assert(err, ErrorMatches, t.errPattern, comment)
+			if t.expRebootPanic != "" {
+				f := func() { boot.InitramfsRunModeSelectSnapsToMount(t.typs, m) }
+				c.Assert(f, PanicMatches, t.expRebootPanic, comment)
 			} else {
-				c.Assert(err, IsNil, comment)
-				c.Assert(mountSnaps, DeepEquals, t.expected, comment)
+				mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
+				if t.errPattern != "" {
+					c.Assert(err, ErrorMatches, t.errPattern, comment)
+				} else {
+					c.Assert(err, IsNil, comment)
+					c.Assert(mountSnaps, DeepEquals, t.expected, comment)
+				}
 			}
 
 			// check that the modeenv changed as expected

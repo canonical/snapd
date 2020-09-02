@@ -22,6 +22,7 @@ package backend
 import (
 	"os"
 	"os/user"
+	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -101,5 +102,13 @@ func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (re
 	usersForUsernames = f
 	return func() {
 		usersForUsernames = old
+	}
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = f
+	return func() {
+		timeNow = oldTimeNow
 	}
 }

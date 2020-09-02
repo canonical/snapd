@@ -345,12 +345,21 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 	if ps.Role != SystemSeed && ps.Role != SystemBoot {
 		return nil, nil
 	}
+	// TODO:UC20: this code should no longer be needed when we use
+	// the updater interface from boot, in particular we shouldn't
+	// try to find a bootloader from this place, we don't have
+	// quite enough info not to guess
+
 	// the assets are within the system-boot or system-seed partition, set
 	// the right flags so that files are looked for using their paths inside
 	// the partition
+	role := bootloader.RoleRecovery
+	if ps.Role == SystemBoot {
+		role = bootloader.RoleRunMode
+	}
 	opts := &bootloader.Options{
-		Recovery:    ps.Role == SystemSeed,
-		NoSlashBoot: ps.Role == SystemBoot,
+		Role:        role,
+		NoSlashBoot: true,
 	}
 	bl, err := bootloader.Find(mountPoint, opts)
 	if err != nil {
@@ -367,8 +376,6 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 		// assets
 		return nil, nil
 	}
-	// TODO:UC20: this should no longer be checked when we use the updater
-	// interface from boot
 	managed, err := mbl.IsCurrentlyManaged()
 	if err != nil {
 		return nil, err

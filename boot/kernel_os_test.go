@@ -477,9 +477,11 @@ func (s *ubootSuite) forceUbootBootloader(c *C) {
 func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 	bootloader.Force(nil)
 
-	// to find the uboot bootloader we need to pass in NoSlashBoot because
-	// that's where the gadget assets get installed to
+	// for the uboot bootloader InstallBootConfig we pass in
+	// NoSlashBoot because that's where the gadget assets get
+	// installed to
 	installOpts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
 		NoSlashBoot: true,
 	}
 
@@ -505,10 +507,9 @@ func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 	err = os.Rename(fn, targetFile)
 	c.Assert(err, IsNil)
 
-	// however when finding the bootloader, since we want it to show up as the
-	// "runtime" bootloader, just use ExtractedRunKernelImage
+	// find the run mode bootloader under /boot
 	runtimeOpts := &bootloader.Options{
-		ExtractedRunKernelImage: true,
+		Role: bootloader.RoleRunMode,
 	}
 
 	bloader, err := bootloader.Find("", runtimeOpts)

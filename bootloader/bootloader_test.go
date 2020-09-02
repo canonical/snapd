@@ -110,7 +110,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 			name:       "uboot boot.scr",
 			gadgetFile: "uboot.conf",
 			sysFile:    "/uboot/ubuntu/boot.sel",
-			opts:       &bootloader.Options{NoSlashBoot: true},
+			opts:       &bootloader.Options{Role: bootloader.RoleRecovery},
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
 		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
@@ -128,10 +128,10 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	recoveryOpts := &bootloader.Options{
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	systemBootOpts := &bootloader.Options{
-		ExtractedRunKernelImage: true,
+		Role: bootloader.RoleRunMode,
 	}
 	defaultRecoveryGrubAsset := assets.Internal("grub-recovery.cfg")
 	c.Assert(defaultRecoveryGrubAsset, NotNil)
@@ -240,18 +240,25 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	}{
 		{name: "grub", sysFile: "/boot/grub/grub.cfg", expName: "grub"},
 		{
-			// native hierarchy
+			// native run partition layout
 			name: "grub", sysFile: "/EFI/ubuntu/grub.cfg",
-			opts:    &bootloader.Options{NoSlashBoot: true},
+			opts:    &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			expName: "grub",
 		},
+		{
+			// recovery layout
+			name: "grub", sysFile: "/EFI/ubuntu/grub.cfg",
+			opts:    &bootloader.Options{Role: bootloader.RoleRecovery},
+			expName: "grub",
+		},
+
 		// traditional uboot.env - the uboot.env file needs to be non-empty
 		{name: "uboot.env", sysFile: "/boot/uboot/uboot.env", expName: "uboot"},
 		// boot.sel variant
 		{
 			name:    "uboot boot.scr",
 			sysFile: "/uboot/ubuntu/boot.sel",
-			opts:    &bootloader.Options{NoSlashBoot: true},
+			opts:    &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			expName: "uboot",
 		},
 		{name: "androidboot", sysFile: "/boot/androidboot/androidboot.env", expName: "androidboot"},
@@ -283,7 +290,8 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		expName    string
 	}{
 		{name: "grub", gadgetFile: "grub.conf", expName: "grub"},
-		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{NoSlashBoot: true}, expName: "grub"},
+		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true}, expName: "grub"},
+		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRecovery}, expName: "grub"},
 		{name: "uboot", gadgetFile: "uboot.conf", expName: "uboot"},
 		{name: "androidboot", gadgetFile: "androidboot.conf", expName: "androidboot"},
 		{name: "lk", gadgetFile: "lk.conf", expName: "lk"},
