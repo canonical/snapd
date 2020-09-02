@@ -484,9 +484,8 @@ func (g *grub) TrustedAssets() ([]string, error) {
 	}, nil
 }
 
-// RecoveryBootChain returns the chain of recovery mode boot files for the
-// specified recovery system and kernel. This function should be called
-// only for the recovery bootloader.
+// RecoveryBootChain returns the load chain for recovery modes.
+// It should be called on a RoleRecovery bootloader.
 func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 	if !g.recovery {
 		return nil, fmt.Errorf("not a recovery bootloader")
@@ -508,9 +507,9 @@ func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 	return chain, nil
 }
 
-// BootChain returns the chain of run mode boot files for the specified run
-// mode bootloader and kernel. This function should be called only for the
-// recovery bootloader.
+// BootChain returns the load chain for run mode.
+// It should be called on a RoleRecovery bootloader passing the
+// RoleRunMode bootloader.
 func (g *grub) BootChain(runBl TrustedAssetsBootloader, kernelPath string) ([]BootFile, error) {
 	if !g.recovery {
 		return nil, fmt.Errorf("not a recovery bootloader")

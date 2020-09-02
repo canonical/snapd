@@ -193,10 +193,13 @@ type TrustedAssetsBootloader interface {
 	// order of loading during the boot.
 	TrustedAssets() ([]string, error)
 
-	// RecoveryBootChain returns the chain of recovery mode boot files.
+	// RecoveryBootChain returns the load chain for recovery modes.
+	// It should be called on a RoleRecovery bootloader.
 	RecoveryBootChain(kernelPath string) ([]BootFile, error)
 
-	// RecoveryBootChain returns the chain of run mode boot files.
+	// BootChain returns the load chain for run mode.
+	// It should be called on a RoleRecovery bootloader passing the
+	// RoleRunMode bootloader.
 	BootChain(runBl TrustedAssetsBootloader, kernelPath string) ([]BootFile, error)
 }
 
