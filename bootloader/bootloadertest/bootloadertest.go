@@ -442,12 +442,14 @@ type MockTrustedAssetsBootloader struct {
 	TrustedAssetsErr   error
 	TrustedAssetsCalls int
 
-	RecoveryBootChainList  []bootloader.BootFile
-	RecoveryBootChainErr   error
-	RecoveryBootChainCalls int
-	BootChainList          []bootloader.BootFile
-	BootChainErr           error
-	BootChainCalls         int
+	RecoveryBootChainList []bootloader.BootFile
+	RecoveryBootChainErr  error
+	BootChainList         []bootloader.BootFile
+	BootChainErr          error
+
+	RecoveryBootChainCalls []string
+	BootChainRunBl         []bootloader.Bootloader
+	BootChainKernelPath    []string
 }
 
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
@@ -462,12 +464,13 @@ func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
 }
 
 func (b *MockTrustedAssetsBootloader) RecoveryBootChain(kernelPath string) ([]bootloader.BootFile, error) {
-	b.RecoveryBootChainCalls++
+	b.RecoveryBootChainCalls = append(b.RecoveryBootChainCalls, kernelPath)
 	return b.RecoveryBootChainList, b.RecoveryBootChainErr
 }
 
 func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, kernelPath string) ([]bootloader.BootFile, error) {
-	b.BootChainCalls++
+	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
+	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
 	return b.BootChainList, b.BootChainErr
 }
 
