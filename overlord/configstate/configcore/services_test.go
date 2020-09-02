@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type servicesSuite struct {
@@ -94,7 +92,6 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
-		{"console-conf", "getty@*"},
 	} {
 		s.systemctlArgs = nil
 
@@ -115,16 +112,6 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
 			})
-		case "console-conf":
-			consoleConfCanary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-			_, err := os.Stat(consoleConfCanary)
-			c.Assert(err, IsNil)
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"restart", srv, "--all"},
-				{"restart", "serial-getty@*", "--all"},
-				{"restart", "serial-console-conf@*", "--all"},
-				{"restart", "console-conf@*", "--all"},
-			})
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "disable", srv},
@@ -134,54 +121,6 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			})
 		}
 	}
-}
-
-func (s *servicesSuite) TestConfigureConsoleConfEnableIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	// pretend that console-conf is disabled
-	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-	err := os.MkdirAll(filepath.Dir(canary), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
-	c.Assert(err, IsNil)
-
-	// now enable it
-	err = configcore.Run(&mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"service.console-conf.disable": false,
-		},
-	})
-	c.Assert(err, IsNil)
-	// ensure it got fully enabled
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"restart", "getty@*", "--all"},
-		{"restart", "serial-getty@*", "--all"},
-		{"restart", "serial-console-conf@*", "--all"},
-		{"restart", "console-conf@*", "--all"},
-	})
-	// and that the canary file is no longer there
-	c.Assert(canary, testutil.FileAbsent)
-}
-
-func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabled(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	// Note that we have no
-	//        /var/lib/console-conf/complete
-	// file. So console-conf is already enabled
-	err := configcore.Run(&mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"service.console-conf.disable": false,
-		},
-	})
-	c.Assert(err, IsNil)
-	// because it was not enabled before no need to restart anything
-	c.Check(s.systemctlArgs, HasLen, 0)
 }
 
 func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
