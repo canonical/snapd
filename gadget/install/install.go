@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -167,17 +168,17 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}
 
 	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
-	loadChain := []string{
+	loadChain := []bootloader.BootFile{
 		// the path to the shim EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
 		// the path to the recovery grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
 		// the path to the run mode grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
 	}
 	if options.KernelPath != "" {
 		// the path to the kernel EFI binary
-		loadChain = append(loadChain, options.KernelPath)
+		loadChain = append(loadChain, bootloader.NewBootFile("", options.KernelPath, bootloader.RoleRunMode))
 	}
 
 	// Get the expected kernel command line for the system that is currently being installed
@@ -202,7 +203,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 			{
 				Model:          options.Model,
 				KernelCmdlines: kernelCmdlines,
-				EFILoadChains:  [][]string{loadChain},
+				EFILoadChains:  [][]bootloader.BootFile{loadChain},
 			},
 		},
 		KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
