@@ -1078,12 +1078,12 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
-	defer restore()
-
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", true)
 	tr.Commit()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
