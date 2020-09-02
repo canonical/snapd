@@ -473,6 +473,24 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 	}
 }
 
+// InsufficientSpace is an error responder used when an operation cannot
+// be performed due to low disk space.
+func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
+	value := map[string]interface{}{
+		"snap-names": dserr.Snaps,
+		"change-kind": dserr.ChangeKind,
+	}
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: dserr.Error(),
+			Kind: client.ErrorKindInsufficientSpace,
+			Value: value,
+		},
+		Status: 409,
+	}
+}
+
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
 func AppNotFound(format string, v ...interface{}) Response {
@@ -569,6 +587,8 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 		case *snapstate.SnapNotClassicError:
 			kind = client.ErrorKindSnapNotClassic
 			snapName = err.Snap
+		case *snapstate.InsufficientSpaceError:
+			return InsufficientSpace(err)
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout
