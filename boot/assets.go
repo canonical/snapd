@@ -232,7 +232,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 
 	if o.blName == "" {
 		// we have no information about the bootloader yet
-		bl, err := bootloader.ForGadget(o.gadgetDir, root, &bootloader.Options{NoSlashBoot: true})
+		bl, err := bootloader.ForGadget(o.gadgetDir, root, &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true})
 		if err != nil {
 			return false, fmt.Errorf("cannot find bootloader: %v", err)
 		}
@@ -274,8 +274,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 // recovery bootloader located inside a given root directory.
 func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
 	bl, err := bootloader.Find(recoveryRootDir, &bootloader.Options{
-		NoSlashBoot: true,
-		Recovery:    true,
+		Role: bootloader.RoleRecovery,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot identify recovery system bootloader: %v", err)
@@ -376,6 +375,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	case gadget.SystemBoot:
 		if o.bootBootloader == nil {
 			o.bootBootloader, o.bootTrustedAssets, err = findMaybeTrustedAssetsBootloader(root, &bootloader.Options{
+				Role:        bootloader.RoleRunMode,
 				NoSlashBoot: true,
 			})
 			if err != nil {
@@ -387,8 +387,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	case gadget.SystemSeed:
 		if o.seedBootloader == nil {
 			o.seedBootloader, o.seedTrustedAssets, err = findMaybeTrustedAssetsBootloader(root, &bootloader.Options{
-				NoSlashBoot: true,
-				Recovery:    true,
+				Role: bootloader.RoleRecovery,
 			})
 			if err != nil {
 				return false, err

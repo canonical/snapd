@@ -246,10 +246,17 @@ type CloudInitRestrictionResult struct {
 }
 
 // CloudInitRestrictOptions are options for how to restrict cloud-init with
-// RestrictCloudInit. ForceDisable will force disabling cloud-init even if it is
-// in an active/running or errored state.
+// RestrictCloudInit.
 type CloudInitRestrictOptions struct {
+	// ForceDisable will force disabling cloud-init even if it is
+	// in an active/running or errored state.
 	ForceDisable bool
+
+	// DisableNoCloud modifies the behavior to whole-sale disable cloud-init,
+	// if the datasource detected is NoCloud, if the datasource detected is
+	// anything other than NoCloud then it is merely restricted as described in
+	// the doc-comment on RestrictCloudInit.
+	DisableNoCloud bool
 }
 
 // RestrictCloudInit will limit the operations of cloud-init on subsequent boots
@@ -336,7 +343,16 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 		// USB drive inserted by an attacker with label CIDATA will defeat
 		// security measures on Ubuntu Core, so with the additional fs_label
 		// spec, we disable that import.
-		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+
+		// Note that on UC20, we will also specify DisableNoCloud, to disable
+		// cloud-init even after the first boot
+		if opts.DisableNoCloud {
+			// change the action taken to disable
+			res.Action = "disable"
+			err = DisableCloudInit(dirs.GlobalRootDir)
+		} else {
+			err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+		}
 	default:
 		// all other datasources that are not NoCloud will be restricted to only
 		// allow this specific datasource to prevent an attack via NoCloud for

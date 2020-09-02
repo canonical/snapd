@@ -45,7 +45,10 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
-			blOpts := &bootloader.Options{NoSlashBoot: true}
+			blOpts := &bootloader.Options{
+				Role:        bootloader.RoleRunMode,
+				NoSlashBoot: true,
+			}
 			blDir := InitramfsUbuntuBootDir
 			bs := &bootState20Kernel{
 				blDir:  blDir,
@@ -73,7 +76,7 @@ func EnsureNextBootToRunMode(systemLabel string) error {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
