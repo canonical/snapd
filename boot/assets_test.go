@@ -1586,8 +1586,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 }
 
 func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) {
-	// make sure that trying to remove the file from cache will no break the
-	// cancellation
+	// make sure that trying to remove the file from cache will not break
+	// the cancellation
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()
