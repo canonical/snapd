@@ -49,21 +49,25 @@ type grub struct {
 
 	uefiRunKernelExtraction bool
 	recovery                bool
-	native                  bool
+	nativePartionLayout     bool
 }
 
 // newGrub create a new Grub bootloader object
 func newGrub(rootdir string, opts *Options) Bootloader {
 	g := &grub{rootdir: rootdir}
-	if opts != nil && (opts.Recovery || opts.NoSlashBoot) {
+	if opts != nil {
+		// Set the flag to extract the run kernel, only
+		// for UC20 run mode.
+		// Both UC16/18 and the recovery mode of UC20 load
+		// the kernel directly from snaps.
+		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
+		g.recovery = opts.Role == RoleRecovery
+		g.nativePartionLayout = opts.NoSlashBoot || g.recovery
+	}
+	if g.nativePartionLayout {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"
-	}
-	if opts != nil {
-		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
-		g.recovery = opts.Recovery
-		g.native = opts.NoSlashBoot
 	}
 
 	return g
@@ -107,11 +111,11 @@ func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
 }
 
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
-	if opts != nil && opts.Recovery {
+	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
 		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
-	if opts != nil && opts.ExtractedRunKernelImage {
+	if opts != nil && opts.Role == RoleRunMode {
 		// install managed boot config that can handle kernel.efi
 		return g.installManagedBootConfig(gadgetDir)
 	}
@@ -353,9 +357,10 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) UpdateBootConfig(opts *Options) error {
+	// XXX: do we need to take opts here?
 	bootScriptName := "grub.cfg"
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	if opts != nil && opts.Recovery {
+	if opts != nil && opts.Role == RoleRecovery {
 		// use the recovery asset when asked to do so
 		bootScriptName = "grub-recovery.cfg"
 	}
@@ -462,8 +467,8 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 // the bootloader's rootdir that are measured in the boot process in the
 // order of loading during the boot.
 func (g *grub) TrustedAssets() ([]string, error) {
-	if !g.native {
-		return nil, fmt.Errorf("internal error: trusted assets called without native hierarchy")
+	if !g.nativePartionLayout {
+		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
 		return []string{
