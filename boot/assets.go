@@ -577,7 +577,7 @@ func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) {
 				delete(*trustedAssets, changed.name)
 			}
 		} else {
-			// asset updates are appended to the list
+			// asset updates were appended to the list
 			(*trustedAssets)[changed.name] = hashList[:1]
 		}
 		if !isAssetHashTrackedInMap(otherTrustedAssets, changed.name, changed.hash) {
