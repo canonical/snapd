@@ -418,9 +418,9 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        snap pack pc-gadget/ "$NESTED_IMAGES_DIR"
+                        snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
-                        GADGET_SNAP=$(ls "$NESTED_IMAGES_DIR"/pc_*.snap)
+                        GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
                         rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
