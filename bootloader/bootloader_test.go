@@ -240,7 +240,7 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	}{
 		{name: "grub", sysFile: "/boot/grub/grub.cfg", expName: "grub"},
 		{
-			// native hierarchy
+			// native run partition layout
 			name: "grub", sysFile: "/EFI/ubuntu/grub.cfg",
 			opts:    &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			expName: "grub",

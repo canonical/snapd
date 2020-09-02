@@ -1012,7 +1012,7 @@ boot script
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
 }
 
-func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
+func (s *grubTestSuite) TestTrustedAssetsNativePartitionLayout(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
 	opts := &bootloader.Options{NoSlashBoot: true}
@@ -1049,7 +1049,7 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	c.Assert(ok, Equals, true)
 
 	ta, err := tab.TrustedAssets()
-	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native hierarchy")
+	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native host-partition layout")
 	c.Check(ta, IsNil)
 }
 

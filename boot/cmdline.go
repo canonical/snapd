@@ -139,7 +139,7 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 	if mode != ModeRun && mode != ModeRecover {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
-	// get a bootloader under a native root directory
+	// get the run mode bootloader under the native run partition layout
 	opts := &bootloader.Options{
 		Role:        bootloader.RoleRunMode,
 		NoSlashBoot: true,
