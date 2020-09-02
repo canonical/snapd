@@ -94,7 +94,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
-	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -118,9 +117,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installObserver gadget.ContentInstallObserver
 	if useEncryption {
 		bopts.Encrypt = true
-		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
-		bopts.Model = deviceCtx.Model()
-		bopts.SystemLabel = modeEnv.RecoverySystem
 
 		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
 		if err != nil && err != boot.ErrObserverNotApplicable {
