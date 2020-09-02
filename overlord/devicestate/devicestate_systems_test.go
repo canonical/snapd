@@ -674,6 +674,7 @@ func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
 		"snapd_recovery_system": "",
 		"snapd_recovery_mode":   "",
 	})
+	c.Check(s.mockLogger.String(), Matches, `.*: rebooting system\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
@@ -697,6 +698,7 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.mockLogger.String(), Matches, `.*: reboot into system "20191119" for "Reinstall"\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
@@ -713,6 +715,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 	for _, mode := range []string{"recover", "install"} {
 		s.restartRequests = nil
 		s.bootloader.BootVars = make(map[string]string)
+		s.mockLogger.Reset()
 
 		err := s.mgr.Reboot("", mode)
 		c.Assert(err, IsNil)
@@ -724,6 +727,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		c.Check(s.mockLogger.String(), Matches, `.*: reboot into system "20191119" for ".*"\n`)
 	}
 }
 
@@ -762,6 +766,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToRun(c *C) {
 		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: reboot into system "%s" for "Run normally"\n`, s.mockedSystemSeeds[0].label))
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
@@ -788,6 +793,7 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		"snapd_recovery_system": "",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: reboot into system "%s" for "Run normally"\n`, s.mockedSystemSeeds[0].label))
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
@@ -817,5 +823,6 @@ func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 
 		c.Check(s.restartRequests, HasLen, 0)
+		c.Check(s.mockLogger.String(), Equals, "")
 	}
 }

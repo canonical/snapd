@@ -992,10 +992,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-var (
-	ErrUnsupportedAction      = errors.New("unsupported action")
-	ErrAlreadyInRequestedMode = errors.New("already in requested mode")
-)
+var ErrUnsupportedAction = errors.New("unsupported action")
 
 // Reboot triggers a reboot into the given systemLabel and mode.
 //
@@ -1013,7 +1010,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		m.state.Lock()
 		defer m.state.Unlock()
 
-		logger.Noticef("restarting system")
+		logger.Noticef("rebooting system")
 		m.state.RequestRestart(state.RestartSystemNow)
 		return nil
 	}
@@ -1028,17 +1025,20 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemLabel = currentSys.System
 	}
 
-	err := m.doSystemAction(systemLabel, SystemAction{Mode: mode})
-	// system already in the requested mode, just reboot
-	if err == ErrAlreadyInRequestedMode {
-		logger.Noticef("restarting system")
-
+	triggeredReboot, sysAction, err := m.switchToLabelAndMode(systemLabel, mode)
+	if err != nil {
+		return err
+	}
+	// even if we are already in the right mode we restart here as
+	// this is what the user requested
+	logger.Noticef("reboot into system %q for %q", systemLabel, sysAction.Title)
+	if !triggeredReboot {
 		m.state.Lock()
 		m.state.RequestRestart(state.RestartSystemNow)
 		m.state.Unlock()
 		return nil
 	}
-	return err
+	return nil
 }
 
 // RequestSystemAction request provided system to be run in a given mode. A
@@ -1048,15 +1048,19 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
-	if err := m.doSystemAction(systemLabel, action); err != nil && err != ErrAlreadyInRequestedMode {
+	triggeredReboot, sysAction, err := m.switchToLabelAndMode(systemLabel, action.Mode)
+	if err != nil {
 		return err
+	}
+	if triggeredReboot {
+		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
 	}
 	return nil
 }
 
-func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) error {
+func (m *DeviceManager) switchToLabelAndMode(systemLabel, mode string) (triggeredReboot bool, sysAction *SystemAction, err error) {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
-		return err
+		return false, nil, err
 	}
 
 	systemMode := m.SystemMode()
@@ -1066,23 +1070,22 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		// XXX: should we wrap this instead return a naked stat error?
-		return err
+		return false, nil, err
 	}
 	system, err := systemFromSeed(systemLabel, currentSys)
 	if err != nil {
-		return fmt.Errorf("cannot load seed system: %v", err)
+		return false, nil, fmt.Errorf("cannot load seed system: %v", err)
 	}
 
-	var sysAction *SystemAction
 	for _, act := range system.Actions {
-		if action.Mode == act.Mode {
+		if mode == act.Mode {
 			sysAction = &act
 			break
 		}
 	}
 	if sysAction == nil {
 		// XXX: provide more context here like what mode was requested?
-		return ErrUnsupportedAction
+		return false, nil, ErrUnsupportedAction
 	}
 
 	// XXX: requested mode is valid; only current system has 'run' and
@@ -1093,18 +1096,18 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
 		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
-			return ErrAlreadyInRequestedMode
+			return false, sysAction, nil
 		}
 	case "install":
 		// requesting system actions in install mode does not make sense atm
 		//
 		// TODO:UC20: maybe factory hooks will be able to something like
 		// this?
-		return ErrUnsupportedAction
+		return false, sysAction, ErrUnsupportedAction
 	default:
 		// probably test device manager mocking problem, or also potentially
 		// missing modeenv
-		return fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
+		return false, sysAction, fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
 	}
 
 	m.state.Lock()
@@ -1112,17 +1115,15 @@ func (m *DeviceManager) doSystemAction(systemLabel string, action SystemAction) 
 
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
 	if err != nil {
-		return err
+		return false, sysAction, err
 	}
 
-	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
-		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
-			systemLabel, action.Mode, err)
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode); err != nil {
+		return false, sysAction, fmt.Errorf("cannot set device to boot into system %q in mode %q: %v", systemLabel, mode, err)
 	}
 
-	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
 	m.state.RequestRestart(state.RestartSystemNow)
-	return nil
+	return true, sysAction, nil
 }
 
 // implement storecontext.Backend
