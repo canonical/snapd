@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -61,4 +62,12 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsM
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
+}
+
+func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
+	old := secbootSealKey
+	secbootSealKey = f
+	return func() {
+		secbootSealKey = old
+	}
 }
