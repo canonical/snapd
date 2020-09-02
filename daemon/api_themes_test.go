@@ -21,7 +21,9 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
 
@@ -145,7 +147,7 @@ func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	c.Check(themePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []string{"gtk-theme-foo-bar", "gtk-theme-foo"})
 }
 
-func (s *themesSuite) TestCheckThemeStatusForType(c *C) {
+func (s *themesSuite) TestGetThemeStatusForType(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -166,7 +168,7 @@ func (s *themesSuite) TestCheckThemeStatusForType(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]*snap.Info)
 
-	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
+	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Installed":   themeInstalled,
@@ -177,7 +179,7 @@ func (s *themesSuite) TestCheckThemeStatusForType(c *C) {
 	c.Check(toInstall["gtk-theme-available"], NotNil)
 }
 
-func (s *themesSuite) TestCheckThemeStatusForTypeStripsSuffixes(c *C) {
+func (s *themesSuite) TestGetThemeStatusForTypeStripsSuffixes(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -192,7 +194,7 @@ func (s *themesSuite) TestCheckThemeStatusForTypeStripsSuffixes(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]*snap.Info)
 
-	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
+	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Yaru-dark": themeAvailable,
@@ -201,7 +203,30 @@ func (s *themesSuite) TestCheckThemeStatusForTypeStripsSuffixes(c *C) {
 	c.Check(toInstall["gtk-theme-yaru"], NotNil)
 }
 
-func (s *themesSuite) TestCheckThemeStatusForTypeReturnsErrors(c *C) {
+func (s *themesSuite) TestGetThemeStatusForTypeIgnoresUnstable(c *C) {
+	s.daemon(c)
+
+	s.available = map[string]*snap.Info{
+		"gtk-theme-yaru": {
+			SuggestedName: "gtk-theme-yaru",
+			SideInfo: snap.SideInfo{
+				Channel: "edge",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	toInstall := make(map[string]*snap.Info)
+
+	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
+	c.Check(err, IsNil)
+	c.Check(status, DeepEquals, map[string]themeStatus{
+		"Yaru": themeUnavailable,
+	})
+	c.Check(toInstall, HasLen, 0)
+}
+
+func (s *themesSuite) TestGetThemeStatusForTypeReturnsErrors(c *C) {
 	s.daemon(c)
 
 	s.err = errors.New("store error")
@@ -209,8 +234,132 @@ func (s *themesSuite) TestCheckThemeStatusForTypeReturnsErrors(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]*snap.Info)
 
-	status, err := checkThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
+	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
 	c.Check(err, Equals, s.err)
 	c.Check(status, IsNil)
 	c.Check(toInstall, HasLen, 0)
+}
+
+func (s *themesSuite) TestGetThemeStatus(c *C) {
+	s.daemon(c)
+	s.mockSnap(c, `name: snap1
+version: 42
+slots:
+  gtk-3-themes:
+    interface: content
+    content: gtk-3-themes
+    source:
+      read:
+       - $SNAP/share/themes/Foo-gtk
+  icon-themes:
+    interface: content
+    content: icon-themes
+    source:
+      read:
+       - $SNAP/share/icons/Foo-icons
+  sound-themes:
+    interface: content
+    content: sound-themes
+    source:
+      read:
+       - $SNAP/share/sounds/Foo-sounds`)
+	s.available = map[string]*snap.Info{
+		"gtk-theme-bar": {
+			SuggestedName: "gtk-theme-bar",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"icon-theme-bar": {
+			SuggestedName: "icon-theme-bar",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"sound-theme-bar": {
+			SuggestedName: "sound-theme-bar",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+	}
+
+	ctx := context.Background()
+	status, toInstall, err := getThemeStatus(ctx, themesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	c.Check(err, IsNil)
+	c.Check(status.GtkThemes, DeepEquals, map[string]themeStatus{
+		"Foo-gtk": themeInstalled,
+		"Bar-gtk": themeAvailable,
+		"Baz-gtk": themeUnavailable,
+	})
+	c.Check(status.IconThemes, DeepEquals, map[string]themeStatus{
+		"Foo-icons": themeInstalled,
+		"Bar-icons": themeAvailable,
+		"Baz-icons": themeUnavailable,
+	})
+	c.Check(status.SoundThemes, DeepEquals, map[string]themeStatus{
+		"Foo-sounds": themeInstalled,
+		"Bar-sounds": themeAvailable,
+		"Baz-sounds": themeUnavailable,
+	})
+	c.Check(toInstall, HasLen, 3)
+	c.Check(toInstall["gtk-theme-bar"], NotNil)
+	c.Check(toInstall["icon-theme-bar"], NotNil)
+	c.Check(toInstall["sound-theme-bar"], NotNil)
+}
+
+func (s *themesSuite) TestThemesCmd(c *C) {
+	c.Check(themesCmd.GET, NotNil)
+	c.Check(themesCmd.POST, NotNil)
+	c.Check(themesCmd.PUT, IsNil)
+
+	c.Check(themesCmd.Path, Equals, "/v2/themes")
+
+	s.daemon(c)
+	s.available = map[string]*snap.Info{
+		"gtk-theme-foo": {
+			SuggestedName: "gtk-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"icon-theme-foo": {
+			SuggestedName: "icon-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"sound-theme-foo": {
+			SuggestedName: "sound-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/v2/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
+	rec := httptest.NewRecorder()
+	themesCmd.GET(themesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, IsNil)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"gtk-themes": map[string]interface{}{
+				"Foo-gtk": "available",
+				"Bar":     "unavailable",
+			},
+			"icon-themes": map[string]interface{}{
+				"Foo-icons": "available",
+			},
+			"sound-themes": map[string]interface{}{
+				"Foo-sounds": "available",
+			},
+		},
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+	})
 }

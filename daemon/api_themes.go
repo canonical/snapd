@@ -52,6 +52,12 @@ const (
 	themeUnavailable themeStatus = "unavailable"
 )
 
+type themeStatusResponse struct {
+	GtkThemes   map[string]themeStatus `json:"gtk-themes"`
+	IconThemes  map[string]themeStatus `json:"icon-themes"`
+	SoundThemes map[string]themeStatus `json:"sound-themes"`
+}
+
 func getInstalledThemes(d *Daemon) (gtkThemes, iconThemes, soundThemes []string, err error) {
 	infos := d.overlord.InterfaceManager().Repository().Info(&interfaces.InfoOptions{
 		Names: []string{"content"},
@@ -111,7 +117,7 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
-func checkThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]*snap.Info) (map[string]themeStatus, error) {
+func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]*snap.Info) (map[string]themeStatus, error) {
 	status := make(map[string]themeStatus, len(themes))
 
 	for _, theme := range themes {
@@ -142,29 +148,35 @@ func checkThemeStatusForType(ctx context.Context, theStore snapstate.StoreServic
 	return status, nil
 }
 
-func checkThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (gtkStatus, iconStatus, soundStatus map[string]themeStatus, toInstall map[string]*snap.Info, err error) {
+func getThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, toInstall map[string]*snap.Info, err error) {
 	installedGtk, installedIcon, installedSound, err := getInstalledThemes(c.d)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return themeStatusResponse{}, nil, err
 	}
 
 	theStore := getStore(c)
 	toInstall = make(map[string]*snap.Info)
-	if gtkStatus, err = checkThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, toInstall); err != nil {
-		return nil, nil, nil, nil, err
+	if status.GtkThemes, err = getThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, toInstall); err != nil {
+		return themeStatusResponse{}, nil, err
 	}
-	if iconStatus, err = checkThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, toInstall); err != nil {
-		return nil, nil, nil, nil, err
+	if status.IconThemes, err = getThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, toInstall); err != nil {
+		return themeStatusResponse{}, nil, err
 	}
-	if soundStatus, err = checkThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, toInstall); err != nil {
-		return nil, nil, nil, nil, err
+	if status.SoundThemes, err = getThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, toInstall); err != nil {
+		return themeStatusResponse{}, nil, err
 	}
 
-	return gtkStatus, iconStatus, soundStatus, toInstall, nil
+	return status, toInstall, nil
 }
 
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
-	//ctx := store.WithClientUserAgent(r.Context(), r)
+	ctx := store.WithClientUserAgent(r.Context(), r)
 
-	return SyncResponse([]string{"TBD"}, nil)
+	q := r.URL.Query()
+	status, _, err := getThemeStatus(ctx, c, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
+	if err != nil {
+		return InternalError("cannot get theme status: %s", err)
+	}
+
+	return SyncResponse(status, nil)
 }
