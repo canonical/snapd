@@ -80,9 +80,9 @@ func installCloudInitCfgDir(src, targetdir string) error {
 	return nil
 }
 
-// installUnifiedCloudInitCfg installs a single cloud-init config file to the
-// cloud config dir as "ubuntu-core-cloud_91.cfg".
-func installUnifiedCloudInitCfg(src, targetdir string) error {
+// installGadgetCloudInitCfg installs a single cloud-init config file from the
+// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg".
+func installGadgetCloudInitCfg(src, targetdir string) error {
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
@@ -97,31 +97,40 @@ func configureCloudInit(opts *Options) (err error) {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
 
-	// TODO: too naive to just re-use GadgetDir here automatically?
+	// first check if cloud-init should be disallowed entirely
+	if !opts.AllowCloudInit {
+		if err := DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+			return err
+		}
+	}
+
+	// next check if there is a gadget cloud.conf to install
 	gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
 	if osutil.FileExists(gadgetCloudConf) {
 		// then copy / install the gadget config and return without considering
 		// CloudInitSrcDir
-		if err := installUnifiedCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	// it's valid to not set CloudInitSrcDir, in this case cloud-init may pick
-	// up dynamic metadata and userdata from NoCloud sources such as a CD-ROM
-	// drive with label CIDATA, etc.
+	// TODO:UC20: implement filtering of files from src when specified via a
+	//            specific Options for i.e. signed grade and MAAS, etc.
+
+	// finally check if there is a cloud-init src dir we should copy config
+	// files from
+
 	if opts.CloudInitSrcDir != "" {
 		if err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
 			return err
 		}
 	}
 
-	if !opts.AllowCloudInit {
-		if err := DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir)); err != nil {
-			return err
-		}
-	}
+	// it's valid to have not set CloudInitSrcDir and not have a gadget
+	// cloud.conf, in this case cloud-init may pick up dynamic metadata and
+	// userdata from NoCloud sources such as a CD-ROM drive with label CIDATA,
+	// etc. during first-boot
 
 	return nil
 }

@@ -70,7 +70,8 @@ func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any
-// configuration needed from e.g. the gadget or for cloud-init.
+// configuration needed from e.g. the gadget or for cloud-init (and also for
+// cloud-init from the gadget).
 func ConfigureRunSystem(opts *Options) error {
 	if err := configureCloudInit(opts); err != nil {
 		return err
