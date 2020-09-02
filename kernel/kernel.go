@@ -32,6 +32,8 @@ import (
 type Asset struct {
 	// TODO: we may make this an (optional) map at some point in
 	//       the future to select what things should be updated.
+	//
+	// Update set to true indicates that assets shall be updated.
 	Update  bool     `yaml:"update,omitempty"`
 	Content []string `yaml:"content,omitempty"`
 }
