@@ -1084,11 +1084,9 @@ func (s *grubTestSuite) TestBootChains(c *C) {
 	tab, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
-	tab2, ok := g2.(bootloader.TrustedAssetsBootloader)
-	c.Assert(ok, Equals, true)
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
 
-	chain, err := tab.BootChain(tab2, "kernel.snap")
+	chain, err := tab.BootChain(g2, "kernel.snap")
 	c.Assert(err, IsNil)
 	c.Assert(chain, DeepEquals, []bootloader.BootFile{
 		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
@@ -1105,9 +1103,7 @@ func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
 	c.Assert(ok, Equals, true)
 
 	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
-	tab2, ok := g2.(bootloader.TrustedAssetsBootloader)
-	c.Assert(ok, Equals, true)
 
-	_, err := tab.BootChain(tab2, "kernel.snap")
+	_, err := tab.BootChain(g2, "kernel.snap")
 	c.Assert(err, ErrorMatches, "not a recovery bootloader")
 }

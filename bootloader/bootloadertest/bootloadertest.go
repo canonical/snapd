@@ -466,7 +466,7 @@ func (b *MockTrustedAssetsBootloader) RecoveryBootChain(kernelPath string) ([]bo
 	return b.RecoveryBootChainList, b.RecoveryBootChainErr
 }
 
-func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.TrustedAssetsBootloader, kernelPath string) ([]bootloader.BootFile, error) {
+func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, kernelPath string) ([]bootloader.BootFile, error) {
 	b.BootChainCalls++
 	return b.BootChainList, b.BootChainErr
 }

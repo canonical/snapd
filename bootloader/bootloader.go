@@ -200,7 +200,7 @@ type TrustedAssetsBootloader interface {
 	// BootChain returns the load chain for run mode.
 	// It should be called on a RoleRecovery bootloader passing the
 	// RoleRunMode bootloader.
-	BootChain(runBl TrustedAssetsBootloader, kernelPath string) ([]BootFile, error)
+	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
