@@ -32,14 +32,10 @@ import (
 var installRun = install.Run
 
 type cmdCreatePartitions struct {
-	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt              bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KeyFile              string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
-	RecoveryKeyFile      string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
-	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
-	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
-	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
-	ModelPath            string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
+	Mount      bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt    bool   `long:"encrypt" description:"Encrypt the data partition"`
+	KernelPath string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
+	ModelPath  string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -85,14 +81,10 @@ func main() {
 		}
 	}
 	options := install.Options{
-		Mount:                   args.Mount,
-		Encrypt:                 args.Encrypt,
-		KeyFile:                 args.KeyFile,
-		RecoveryKeyFile:         args.RecoveryKeyFile,
-		TPMLockoutAuthFile:      args.TPMLockoutAuthFile,
-		TPMPolicyUpdateDataFile: args.PolicyUpdateDataFile,
-		KernelPath:              args.KernelPath,
-		Model:                   model,
+		Mount:      args.Mount,
+		Encrypt:    args.Encrypt,
+		KernelPath: args.KernelPath,
+		Model:      model,
 	}
 	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
 	if err != nil {

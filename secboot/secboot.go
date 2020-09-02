@@ -26,19 +26,20 @@ package secboot
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 )
 
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
 	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]string
+	EFILoadChains [][]bootloader.BootFile
 	// The kernel command line
 	KernelCmdlines []string
 }
 
 type SealKeyParams struct {
-	// The snap model
+	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
 	// The path to store the sealed key file
 	KeyFile string
