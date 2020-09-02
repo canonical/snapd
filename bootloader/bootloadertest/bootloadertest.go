@@ -441,6 +441,13 @@ type MockTrustedAssetsBootloader struct {
 	TrustedAssetsList  []string
 	TrustedAssetsErr   error
 	TrustedAssetsCalls int
+
+	RecoveryBootChainList  []bootloader.BootFile
+	RecoveryBootChainErr   error
+	RecoveryBootChainCalls int
+	BootChainList          []bootloader.BootFile
+	BootChainErr           error
+	BootChainCalls         int
 }
 
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
@@ -455,22 +462,13 @@ func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
 }
 
 func (b *MockTrustedAssetsBootloader) RecoveryBootChain(kernelPath string) ([]bootloader.BootFile, error) {
-	chain := []bootloader.BootFile{
-		bootloader.NewBootFile("", "recovery-asset-1", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "recovery-asset-2", bootloader.RoleRecovery),
-		bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRecovery),
-	}
-	return chain, nil
+	b.RecoveryBootChainCalls++
+	return b.RecoveryBootChainList, b.RecoveryBootChainErr
 }
 
 func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.TrustedAssetsBootloader, kernelPath string) ([]bootloader.BootFile, error) {
-	chain := []bootloader.BootFile{
-		bootloader.NewBootFile("", "recovery-asset-1", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "recovery-asset-2", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "run-mode-asset-1", bootloader.RoleRunMode),
-		bootloader.NewBootFile(kernelPath, "kernel.efi", bootloader.RoleRunMode),
-	}
-	return chain, nil
+	b.BootChainCalls++
+	return b.BootChainList, b.BootChainErr
 }
 
 // MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
