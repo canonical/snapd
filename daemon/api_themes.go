@@ -203,6 +203,9 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	_, toInstall, err := getThemeStatus(ctx, c, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
+	if err != nil {
+		return InternalError("cannot get theme status: %s", err)
+	}
 
 	if len(toInstall) == 0 {
 		return BadRequest("no snaps to install")
