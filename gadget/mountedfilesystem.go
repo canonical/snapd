@@ -678,21 +678,13 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 }
 
 func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	willBeWritten, originalDataPath, err := f.backupOrCheckpointFile(dstRoot, source, target, preserveInDst, backupDir)
+	change, err := f.backupOrCheckpointFile(dstRoot, source, target, preserveInDst, backupDir)
 	if err != nil {
 		return err
 	}
-	if willBeWritten {
-		srcPath := f.entrySourcePath(source)
+	if change != nil {
 		dstPath, _ := f.entryDestPaths(dstRoot, source, target, backupDir)
-		data := &ContentChange{
-			// content of the new data
-			After: srcPath,
-			// this is the original data that was present before the
-			// update or "" if the file did not exist
-			Before: originalDataPath,
-		}
-		if err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, dstPath, data); err != nil {
+		if err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, dstPath, change); err != nil {
 			return fmt.Errorf("cannot observe pending file write %v\n", err)
 		}
 	}
@@ -703,10 +695,9 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 // target location under the provided destination root directory. When both
 // files are identical, creates a stamp that allows the update to skip the file.
 // When content of the new file is different, a backup of the original file is
-// created. Returns a flag indicating whether a file will be written during an
-// update pass and if true, a path to a file containing the original (backed up)
-// data, which can be empty if the file did not exist previously.
-func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (willWrite bool, originalDataPath string, err error) {
+// created. Returns a content change if a file will be written by the update
+// pass.
+func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (change *ContentChange, err error) {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
@@ -714,24 +705,36 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
 
+	changeWithBackup := &ContentChange{
+		// content of the new data
+		After: srcPath,
+		// this is the original data that was present before the
+		// update
+		Before: backupName,
+	}
+	changeNewFile := &ContentChange{
+		// content of the new data
+		After: srcPath,
+	}
+
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(dstPath) {
-		return false, "", fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
+		return nil, fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
 	}
 
 	if !osutil.FileExists(dstPath) {
 		// destination does not exist and will be created when writing
 		// the udpate, no need for backup
-		return true, "", nil
+		return changeNewFile, nil
 	}
 
 	if osutil.FileExists(backupName) {
 		// file already checked and backed up
-		return true, backupName, nil
+		return changeWithBackup, nil
 	}
 	if osutil.FileExists(sameStamp) {
 		// file already checked, same as the update, move on
-		return false, "", nil
+		return nil, nil
 	}
 	// TODO: correctly identify new files that were written by a partially
 	// executed update pass
@@ -740,17 +743,17 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		// file is to be preserved, create a relevant stamp
 		if !osutil.FileExists(dstPath) {
 			// preserve, but does not exist, will be written anyway
-			return true, "", nil
+			return changeNewFile, nil
 		}
 		if osutil.FileExists(preserveStamp) {
 			// already stamped
-			return false, "", nil
+			return nil, nil
 		}
 		// make a stamp
 		if err := makeStamp(preserveStamp); err != nil {
-			return false, "", fmt.Errorf("cannot create preserve stamp: %v", err)
+			return nil, fmt.Errorf("cannot create preserve stamp: %v", err)
 		}
-		return false, "", nil
+		return nil, nil
 	}
 
 	// try to find out whether the update and the existing file are
@@ -758,13 +761,13 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 	orig, err := os.Open(dstPath)
 	if err != nil {
-		return false, "", fmt.Errorf("cannot open destination file: %v", err)
+		return nil, fmt.Errorf("cannot open destination file: %v", err)
 	}
 
 	// backup of the original content
 	backup, err := newStampFile(backupName)
 	if err != nil {
-		return false, "", fmt.Errorf("cannot create backup file: %v", err)
+		return nil, fmt.Errorf("cannot create backup file: %v", err)
 	}
 	// becomes a backup copy or a noop if canceled
 	defer backup.Commit()
@@ -776,14 +779,14 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	_, err = io.Copy(backup, htr)
 	if err != nil {
 		backup.Cancel()
-		return false, "", fmt.Errorf("cannot backup original file: %v", err)
+		return nil, fmt.Errorf("cannot backup original file: %v", err)
 	}
 
 	// digest of the update
 	updateDigest, _, err := osutil.FileDigest(srcPath, crypto.SHA1)
 	if err != nil {
 		backup.Cancel()
-		return false, "", fmt.Errorf("cannot checksum update file: %v", err)
+		return nil, fmt.Errorf("cannot checksum update file: %v", err)
 	}
 	// digest of the currently present data
 	origDigest := origHash.Sum(nil)
@@ -793,17 +796,17 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		// mark that files are identical and update can be skipped, no
 		// backup is needed
 		if err := makeStamp(sameStamp); err != nil {
-			return false, "", fmt.Errorf("cannot create a checkpoint file: %v", err)
+			return nil, fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
 
 		// makes the deferred commit a noop
 		backup.Cancel()
-		return false, "", nil
+		return nil, nil
 	}
 
 	// update will overwrite existing file, a backup copy is created on
 	// Commit()
-	return true, backupName, nil
+	return changeWithBackup, nil
 }
 
 func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
