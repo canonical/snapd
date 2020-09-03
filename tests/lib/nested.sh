@@ -531,7 +531,7 @@ nested_create_cloud_init_config() {
 EOF
 }
 
-nested_configure_cloud_init_on_core20_vm() {}
+nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
     nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
 
