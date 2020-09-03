@@ -56,6 +56,14 @@ func MockSbAddEFISecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile
 	}
 }
 
+func MockSbAddEFIBootManagerProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error) (restore func()) {
+	old := sbAddEFIBootManagerProfile
+	sbAddEFIBootManagerProfile = f
+	return func() {
+		sbAddEFIBootManagerProfile = old
+	}
+}
+
 func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error) (restore func()) {
 	old := sbAddSystemdEFIStubProfile
 	sbAddSystemdEFIStubProfile = f

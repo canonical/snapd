@@ -54,6 +54,7 @@ var (
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
+	sbAddEFIBootManagerProfile       = sb.AddEFIBootManagerProfile
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
@@ -327,11 +328,12 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	for _, modelParams := range params.ModelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
-		// Add EFI secure boot policy profile
 		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
 		if err != nil {
 			return fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
+
+		// Add EFI secure boot policy profile
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
@@ -343,6 +345,15 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+		}
+
+		// Add EFI boot manager profile
+		bootManagerParams := sb.EFIBootManagerProfileParams{
+			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+			LoadSequences: loadSequences,
+		}
+		if err := sbAddEFIBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
+			return fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
