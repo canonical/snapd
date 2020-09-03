@@ -979,6 +979,9 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 
 func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) {
 	root := c.MkDir()
+	rootSeed := c.MkDir()
+	d := c.MkDir()
+	backups := c.MkDir()
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -989,12 +992,22 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := ioutil.WriteFile(filepath.Join(root, "asset"), data, 0644)
-	c.Assert(err, IsNil)
+	// file exists in both run and seed bootloader rootdirs
+	c.Assert(ioutil.WriteFile(filepath.Join(root, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(rootSeed, "asset"), data, 0644), IsNil)
+	// and in the gadget
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "asset"), data, 0644), IsNil)
+	// would be listed as Before
+	c.Assert(ioutil.WriteFile(filepath.Join(backups, "asset.backup"), data, 0644), IsNil)
+
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = ioutil.WriteFile(filepath.Join(root, "shim"), shim, 0644)
-	c.Assert(err, IsNil)
+	// only exists in seed bootloader rootdir
+	c.Assert(ioutil.WriteFile(filepath.Join(rootSeed, "shim"), shim, 0644), IsNil)
+	// and in the gadget
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644), IsNil)
+	// would be listed as Before
+	c.Assert(ioutil.WriteFile(filepath.Join(backups, "shim.backup"), data, 0644), IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
 	// mock some files in cache
@@ -1005,7 +1018,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 		"asset-newhash",
 		"other-asset-newotherhash",
 	} {
-		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err := ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1027,27 +1040,40 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 			"other-asset": {"newotherhash"},
 		},
 	}
-	err = m.WriteTo("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	// TODO: provide Before/After
 	_, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "asset",
-		&gadget.ContentChange{})
+		&gadget.ContentChange{
+			After:  filepath.Join(d, "asset"),
+			Before: filepath.Join(backups, "asset.backup"),
+		})
 	c.Assert(err, IsNil)
 	_, err = obs.Observe(gadget.ContentRollback, mockRunBootStruct, root, "shim",
-		&gadget.ContentChange{})
+		&gadget.ContentChange{
+			After: filepath.Join(d, "shim"),
+			// no before content, new file
+		})
 	c.Assert(err, IsNil)
 	// the list of trusted assets was asked once for the boot bootloader
 	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 	// observe the recovery struct
-	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "shim",
-		&gadget.ContentChange{})
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "shim",
+		&gadget.ContentChange{
+			After:  filepath.Join(d, "shim"),
+			Before: filepath.Join(backups, "shim.backup"),
+		})
 	c.Assert(err, IsNil)
-	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "asset",
-		&gadget.ContentChange{})
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "asset",
+		&gadget.ContentChange{
+			After:  filepath.Join(d, "asset"),
+			Before: filepath.Join(backups, "asset.backup"),
+		})
 	c.Assert(err, IsNil)
-	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, root, "nested/other-asset",
-		&gadget.ContentChange{})
+	_, err = obs.Observe(gadget.ContentRollback, mockSeedStruct, rootSeed, "nested/other-asset",
+		&gadget.ContentChange{
+			After: filepath.Join(d, "asset"),
+		})
 	c.Assert(err, IsNil)
 	// and once again for the recovery bootloader
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
