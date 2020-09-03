@@ -22,11 +22,16 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var installRun = install.Run
@@ -45,6 +50,19 @@ const (
 	short = "Create missing partitions for the device"
 	long  = ""
 )
+
+type simpleObserver struct {
+	encryptionKey secboot.EncryptionKey
+}
+
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
+	fmt.Printf("observing %s\n", relativeTarget)
+	return true, nil
+}
+
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
+	o.encryptionKey = key
+}
 
 func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
@@ -70,12 +88,42 @@ func main() {
 		panic(err)
 	}
 
+	obs := &simpleObserver{}
+
 	options := install.Options{
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
+	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
+	}
+
+	if args.Encrypt {
+		loadChain := []bootloader.BootFile{
+			// the path to the shim EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
+			// the path to the recovery grub EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
+			// the path to the run mode grub EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+		}
+
+		sealKeyParams := secboot.SealKeyParams{
+			ModelParams: []*secboot.SealKeyModelParams{
+				{
+					KernelCmdlines: []string{"cmdline"},
+					EFILoadChains:  [][]bootloader.BootFile{loadChain},
+				},
+			},
+
+			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
+			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
+		}
+
+		if err := secboot.SealKey(obs.encryptionKey, &sealKeyParams); err != nil {
+			panic(err)
+		}
 	}
 }
