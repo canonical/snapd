@@ -81,33 +81,33 @@ execute: |
   nested_start_classic_vm
 
   echo "Waiting for firstboot seeding to finish"
-  nested_execute "sudo snap wait system seed.loaded"
-  nested_execute "snap changes" | MATCH "Done .+ Initialize system state"
+  nested_exec "sudo snap wait system seed.loaded"
+  nested_exec "snap changes" | MATCH "Done .+ Initialize system state"
 
   echo "Checking that the system-key after first boot is the same as that from preseeding"
   # note, this doesn't actually test the functionality, but acts as a canary:
   # the test is run against a vm image with ubuntu release matching that from spread host;
   # system-key check can fail if the nested vm image differs too much from the spread host system,
   # e.g. when the list of apparmor features differs due to significant kernel update.
-  nested_execute "cat /var/lib/snapd/system-key" > system-key.real
+  nested_exec "cat /var/lib/snapd/system-key" > system-key.real
   diff -u -w system-key.real system-key.preseeded
 
-  nested_execute "snap debug seeding" | MATCH "preseeded:\s+true"
-  nested_execute "snap debug seeding" | MATCH "seeded:\s+true"
+  nested_exec "snap debug seeding" | MATCH "preseeded:\s+true"
+  nested_exec "snap debug seeding" | MATCH "seeded:\s+true"
   # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
   # break if the preseeding takes more than 60s and golang formats the 
   # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  nested_execute "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  nested_execute "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+  nested_exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+  nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
   # we should not have had any system-key difference as per above, so we 
   # shouldn't output the preseed system-key or the seed-restart-system-key
-  nested_execute "snap debug seeding" | NOMATCH "preseed-system-key:"
-  nested_execute "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+  nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
+  nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
 
   echo "Checking that lxd snap is operational"
-  nested_execute "snap list" | not MATCH "broken"
-  nested_execute "snap services" | MATCH "lxd.activate +enabled +inactive"
-  nested_execute "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
-  nested_execute "sudo lxd init --auto"
-  nested_execute "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+  nested_exec "snap list" | not MATCH "broken"
+  nested_exec "snap services" | MATCH "lxd.activate +enabled +inactive"
+  nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+  nested_exec "sudo lxd init --auto"
+  nested_exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"

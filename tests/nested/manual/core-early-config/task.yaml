@@ -58,14 +58,14 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    nested_execute "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     echo "Test that rsyslog was disabled early."
     # early config is witnessed by install hook of the pc gadget
-    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    nested_execute "test -L /etc/systemd/system/rsyslog.service"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    nested_exec "test -L /etc/systemd/system/rsyslog.service"
 
     # timezone is set
-    nested_execute "cat /etc/timezone" | MATCH "Europe/Malta"
-    nested_execute "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
+    nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"

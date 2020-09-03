@@ -8,26 +8,26 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     # wait for the system to be seeded first
-    nested_execute "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
     # The install command could cause a ssh break, so || true is used
     # and then we check the installation was completed successfully
-    nested_execute "sudo snap install test-snapd-sh" || true
+    nested_exec "sudo snap install test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
-    nested_execute "snap list" | MATCH test-snapd-sh
+    nested_exec "snap list" | MATCH test-snapd-sh
 
     echo "Ensure 'snap find' works"
-    nested_execute "snap find test-snapd-sh" | MATCH ^test-snapd-sh
+    nested_exec "snap find test-snapd-sh" | MATCH ^test-snapd-sh
 
     echo "Ensure 'snap info' works"
-    nested_execute "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
+    nested_exec "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
 
     echo "Ensure 'snap remove' works"
     # The install command could cause a ssh break, so || true is used
     # and then we check the removal was completed successfully
-    nested_execute "sudo snap remove test-snapd-sh" || true
+    nested_exec "sudo snap remove test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    not nested_execute "snap list test-snapd-sh"
+    not nested_exec "snap list test-snapd-sh"

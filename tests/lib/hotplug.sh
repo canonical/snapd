@@ -29,12 +29,12 @@ hotplug_del_dev2() {
 check_slot_not_present() {
     SLOT_NAME="$1"
     for _ in $(seq 10); do
-        if ! nested_execute "snap connections system" | MATCH ":$SLOT_NAME"; then
+        if ! nested_exec "snap connections system" | MATCH ":$SLOT_NAME"; then
             break
         fi
         sleep 1
     done
-    if nested_execute "snap connections system" | MATCH ":$SLOT_NAME "; then
+    if nested_exec "snap connections system" | MATCH ":$SLOT_NAME "; then
         echo "slot $SLOT_NAME shouldn't be present anymore"
         exit 1
     fi
@@ -44,65 +44,65 @@ check_slot_not_present() {
 check_slot_present() {
     SLOT_NAME="$1"
     for _ in $(seq 10); do
-        if nested_execute "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"; then
+        if nested_exec "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"; then
             break
         fi
         sleep 1
     done
-    nested_execute "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"
+    nested_exec "snap connections system" | MATCH "serial-port .* - .* :$SLOT_NAME"
 }
 
 # Check that given slot has hotplug-gone=true, meaning the device was unplugged but there are connections remembered for it
 check_slot_gone() {
     SLOT_NAME="$1"
-    nested_execute 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "true"
+    nested_exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "true"
 }
 
 # Check that given slot has hotplug-gone=false, meaning the device is plugged
 check_slot_not_gone() {
     SLOT_NAME="$1"
-    nested_execute 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "false"
+    nested_exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"hotplug-gone\"]" /var/lib/snapd/state.json' | MATCH "false"
 }
 
 # Check that given slot has no record in "hotplug-slots" map in the state
 check_slot_not_present_in_state() {
     SLOT_NAME="$1"
-    nested_execute 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"] // \"missing\"" /var/lib/snapd/state.json' | MATCH "missing"
+    nested_exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"] // \"missing\"" /var/lib/snapd/state.json' | MATCH "missing"
 }
 
 check_slot_device_path() {
     SLOT_NAME="$1"
     DEVICE_PATH="$2"
-    nested_execute 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"static-attrs\"].path" /var/lib/snapd/state.json' | MATCH "$DEVICE_PATH"
+    nested_exec 'sudo jq -r ".data[\"hotplug-slots\"][\"'"$SLOT_NAME"'\"][\"static-attrs\"].path" /var/lib/snapd/state.json' | MATCH "$DEVICE_PATH"
 }
 
 # Check that given slot is connected to the serial-port-hotplug snap, per 'snap connections' output
 check_slot_connected() {
     SLOT_NAME="$1"
     for _ in $(seq 10); do
-        if nested_execute "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"; then
+        if nested_exec "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"; then
             break
         fi
         sleep 1
     done
-    nested_execute "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"
+    nested_exec "snap connections" | MATCH "serial-port .*serial-port-hotplug:serial-port .*$SLOT_NAME"
 }
 
 # Check that apparmor profile allows rw access to given device path.
 verify_apparmor_profile() {
     DEVPATH=$1
     for _ in $(seq 10); do
-        if nested_execute "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"; then
+        if nested_exec "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"; then
             break
         fi
         sleep 1
     done
-    nested_execute "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"
+    nested_exec "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"
 }
 
 wait_for_all_changes() {
     for _ in $(seq 10); do
-        if ! nested_execute "snap changes" | MATCH "Doing"; then
+        if ! nested_exec "snap changes" | MATCH "Doing"; then
             break
         fi
         sleep 1

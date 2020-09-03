@@ -35,7 +35,7 @@ debug: |
         cat snapd-before-reboot.logs
     fi
     echo "logs from current nested VM boot snapd"
-    nested_execute "sudo journalctl -e --no-pager -u snapd" || true
+    nested_exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -50,7 +50,7 @@ execute: |
 
 
     # wait for done seeding
-    nested_execute "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
@@ -62,7 +62,7 @@ execute: |
             nested_copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
-            nested_execute "sudo snap install core-from-snapd-deb.snap --dangerous"
+            nested_exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
             nested_wait_for_no_ssh
@@ -74,7 +74,7 @@ execute: |
             nested_copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
-            nested_execute "sudo snap install snapd-from-deb.snap --dangerous"
+            nested_exec "sudo snap install snapd-from-deb.snap --dangerous"
         fi
     fi
 
@@ -92,7 +92,7 @@ execute: |
     # not have been triggered. 
 
     echo "Waiting for cloud-init..."
-    nested_execute "cloud-init status --wait"
+    nested_exec "cloud-init status --wait"
 
     # TODO: is there a better thing we can wait for here instead? maybe the log
     # message from snapd directly via journalctl ?
@@ -101,16 +101,16 @@ execute: |
 
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
-    nested_execute "cloud-init status" | MATCH "status: disabled"
-    nested_execute "test -f /etc/cloud/cloud-init.disabled"
-    nested_execute "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    nested_exec "cloud-init status" | MATCH "status: disabled"
+    nested_exec "test -f /etc/cloud/cloud-init.disabled"
+    nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
     # save snapd logs before continuing as the logs are not persistent
-    nested_execute "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+    nested_exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    nested_execute "sudo shutdown -h now" || true
+    nested_exec "sudo shutdown -h now" || true
     nested_wait_for_no_ssh
 
     # now if we reboot and add a cloud-init drive, it will not be imported onto
@@ -134,14 +134,14 @@ execute: |
     # it is "done" or at least steady before ensuring that the attacker-user was
     # not created.
     echo "Waiting for cloud-init..."
-    nested_execute "cloud-init status --wait"
+    nested_exec "cloud-init status --wait"
 
     # the attacker-user should not have been created
     echo "The cloud-init user was not created"
-    nested_execute "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+    nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
     # cloud-init should still be disabled
     echo "cloud-init is still disabled"
-    nested_execute "cloud-init status" | MATCH "status: disabled"
-    nested_execute "test -f /etc/cloud/cloud-init.disabled"
-    nested_execute "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    nested_exec "cloud-init status" | MATCH "status: disabled"
+    nested_exec "test -f /etc/cloud/cloud-init.disabled"
+    nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

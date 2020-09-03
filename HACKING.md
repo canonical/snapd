@@ -231,8 +231,8 @@ which is created following the rules defined for the test.
 
 The nested tests are executed using spread tool. See the following examples using the qemu and google backends.
 
-    . qemu: spread qemu-nested:ubuntu-20.04-64:tests/nested/core20/tpm
-    . google: spread google-nested:ubuntu-20.04-64:tests/nested/core20/tpm
+    . `qemu: spread qemu-nested:ubuntu-20.04-64:tests/nested/core20/tpm`
+    . `google: spread google-nested:ubuntu-20.04-64:tests/nested/core20/tpm`
 
 The nested system in all the cases is selected based on the host system. The folloing lines show the relation between host and nested systemd (same applies for classic nested tests):
 

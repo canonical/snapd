@@ -33,32 +33,32 @@ execute: |
         exit 0
     fi
 
-    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
-    nested_execute "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
+    nested_exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
     if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! nested_execute "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
+    while ! nested_exec "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
         sleep 1
     done
-    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
     # sanity check, no refresh should be done here but the command shouldn't fail
-    nested_execute "sudo snap refresh"
-    nested_execute "sudo snap revert core" || true
+    nested_exec "sudo snap refresh"
+    nested_exec "sudo snap revert core" || true
 
     if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! nested_execute "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
-    nested_execute "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
-    nested_execute "ifconfig" | MATCH eth0
+    while ! nested_exec "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    nested_exec "ifconfig" | MATCH eth0
 
 
-    nested_execute "sudo snap refresh"
-    nested_execute "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
+    nested_exec "sudo snap refresh"
+    nested_exec "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"

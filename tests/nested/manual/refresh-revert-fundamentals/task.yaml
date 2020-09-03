@@ -59,7 +59,7 @@ restore: |
 debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    nested_execute "snap changes" || true
+    nested_exec "snap changes" || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -72,9 +72,9 @@ execute: |
     FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
     TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
-    nested_execute "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
     # The snap is refreshed
-    REFRESH_ID=$(nested_execute "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
+    REFRESH_ID=$(nested_exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -82,8 +82,8 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            nested_execute "snap watch $REFRESH_ID" || true
-            nested_execute "sudo reboot" || true
+            nested_exec "snap watch $REFRESH_ID" || true
+            nested_exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
@@ -93,23 +93,23 @@ execute: |
     nested_wait_for_ssh
 
     # Check the new version of the snaps is correct after the system reboot
-    nested_execute "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     # We check the change is completed
     case "$SNAP" in
         pc-kernel|core20)
             for _ in $(seq 10); do
-                if nested_execute "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
+                if nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
                     break
                 fi
                 sleep 1
             done
-            nested_execute "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
             ;;
     esac
 
     # The snap is reverted
-    REVERT_ID=$(nested_execute "sudo snap revert --no-wait $SNAP")
+    REVERT_ID=$(nested_exec "sudo snap revert --no-wait $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -117,8 +117,8 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            nested_execute "snap watch $REVERT_ID" || true
-            nested_execute "sudo reboot" || true
+            nested_exec "snap watch $REVERT_ID" || true
+            nested_exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
@@ -128,17 +128,17 @@ execute: |
     nested_wait_for_ssh
 
     # Check the version of the snaps after the revert is correct
-    nested_execute "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     # We check the change is completed
     case "$SNAP" in
         pc-kernel|core20)
             for _ in $(seq 10); do
-                if nested_execute "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
+                if nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
                     break
                 fi
                 sleep 1
             done
-            nested_execute "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
             ;;
     esac

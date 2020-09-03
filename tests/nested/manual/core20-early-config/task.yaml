@@ -45,29 +45,29 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    nested_execute "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     # sanity - check that defaults were applied; note this doesn't guarantee
     # that defaults were applied early - that is checked further down.
     echo "Sanity check of the gadget defaults"
-    nested_execute "sudo snap get system service.rsyslog.disable" | MATCH "true"
-    nested_execute "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
-    nested_execute "sudo snap get system system.power-key-action" | MATCH "ignore"
-    nested_execute "sudo snap get system system.disable-backlight-service" | MATCH "true"
+    nested_exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
+    nested_exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+    nested_exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+    nested_exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
-    nested_execute "test -L /etc/systemd/system/rsyslog.service"
-    nested_execute "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-    nested_execute "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
-    nested_execute "test -L /etc/systemd/system/systemd-backlight@.service"
+    nested_exec "test -L /etc/systemd/system/rsyslog.service"
+    nested_exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
+    nested_exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+    nested_exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
     echo "Test that defaults were applied early."
     # early config is witnessed by install hook of the pc gadget. Note we can
     # only check rsyslog/backlight symlinks as other core settings cannot be
     # inspected from install hook of the gadget.
-    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
     # timezone is set
-    nested_execute "cat /etc/timezone" | MATCH "Europe/Malta"
-    nested_execute "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    nested_execute "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
+    nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"

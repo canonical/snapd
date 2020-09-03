@@ -23,7 +23,7 @@ nested_wait_for_ssh() {
     retry=400
     wait=1
 
-    while ! nested_execute true; do
+    while ! nested_exec true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
@@ -38,7 +38,7 @@ nested_wait_for_no_ssh() {
     retry=200
     wait=1
 
-    while nested_execute true; do
+    while nested_exec true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for no ssh. Aborting!"
@@ -49,17 +49,17 @@ nested_wait_for_no_ssh() {
 }
 
 nested_prepare_ssh() {
-    nested_execute "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-    nested_execute "echo test:ubuntu | sudo chpasswd"
-    nested_execute "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    nested_exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+    nested_exec "echo test:ubuntu | sudo chpasswd"
+    nested_exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
     # Check we can connect with the new test user and make sudo
-    nested_execute_as test ubuntu "sudo true"
+    nested_exec_as test ubuntu "sudo true"
 
-    nested_execute "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
-    nested_execute "echo external:ubuntu | sudo chpasswd"
-    nested_execute "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
+    nested_exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    nested_exec "echo external:ubuntu | sudo chpasswd"
+    nested_exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
-    nested_execute_as external ubuntu "sudo true"
+    nested_exec_as external ubuntu "sudo true"
 }
 
 nested_create_assertions_disk() {
@@ -90,7 +90,7 @@ nested_create_assertions_disk() {
     sudo kpartx -d "$ASSERTIONS_DISK"
 }
 
-nested_get_qemu_for_nested_vm() {
+nested_qemu_name() {
     case "${NESTED_ARCHITECTURE:-amd64}" in
     amd64)
         command -v qemu-system-x86_64
@@ -183,7 +183,7 @@ nested_is_nested_system() {
 }
 
 nested_is_core_system() {
-    if [ -z "${NESTED_TYPE-}" ]; then
+    if [ -z "${NESTED_TYPE:-}" ]; then
         echo "Variable NESTED_TYPE not defined."
         return 1
     fi
@@ -192,7 +192,7 @@ nested_is_core_system() {
 }
 
 nested_is_classic_system() {
-    if [ -z "${NESTED_TYPE-}" ]; then
+    if [ -z "${NESTED_TYPE:-}" ]; then
         echo "Variable NESTED_TYPE not defined."
         return 1
     fi
@@ -221,22 +221,22 @@ nested_refresh_to_new_core() {
     else
         echo "Refreshing the core/snapd snap"
         if nested_is_classic_nested_system; then
-            nested_execute "sudo snap refresh core --${NEW_CHANNEL}"
-            nested_execute "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            nested_exec "sudo snap refresh core --${NEW_CHANNEL}"
+            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
         if nested_is_core_18_system || nested_is_core_20_system; then
-            nested_execute "sudo snap refresh snapd --${NEW_CHANNEL}"
-            nested_execute "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            nested_exec "sudo snap refresh snapd --${NEW_CHANNEL}"
+            nested_exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            CHANGE_ID=$(nested_execute "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
+            CHANGE_ID=$(nested_exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             nested_wait_for_no_ssh
             nested_wait_for_ssh
             # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
-            nested_execute "snap watch $CHANGE_ID"
-            nested_execute "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            nested_exec "snap watch $CHANGE_ID"
+            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
 }
@@ -447,9 +447,9 @@ nested_create_core_vm() {
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
         if nested_is_core_20_system; then
-            nested_configure_cloud_init_core_vm_uc20 "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         else
-            nested_configure_cloud_init_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         fi
     else
         nested_create_assertions_disk
@@ -460,7 +460,7 @@ nested_create_core_vm() {
     nested_compress_image "$IMAGE_NAME"
 }
 
-nested_configure_cloud_init_core_vm() {
+nested_configure_cloud_init_on_core_vm() {
     local IMAGE=$1
     nested_create_cloud_init_data "$NESTED_ASSETS_DIR/user-data" "$NESTED_ASSETS_DIR/meta-data"
 
@@ -531,7 +531,7 @@ nested_create_cloud_init_config() {
 EOF
 }
 
-nested_configure_cloud_init_core_vm_uc20() {
+nested_configure_cloud_init_on_core20_vm() {}
     local IMAGE=$1
     nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
 
@@ -566,7 +566,7 @@ nested_force_start_vm() {
 nested_start_core_vm_unit() {
     local QEMU CURRENT_IMAGE
     CURRENT_IMAGE=$1
-    QEMU=$(nested_get_qemu_for_nested_vm)
+    QEMU=$(nested_qemu_name)
 
     # Now qemu parameters are defined
 
@@ -750,7 +750,7 @@ nested_start_core_vm() {
 }
 
 nested_shutdown() {
-    nested_execute "sudo shutdown now" || true
+    nested_exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
@@ -797,7 +797,7 @@ nested_create_classic_vm() {
 
 nested_start_classic_vm() {
     local IMAGE QEMU IMAGE_NAME
-    QEMU="$(nested_get_qemu_for_nested_vm)"
+    QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
@@ -875,7 +875,7 @@ nested_execute() {
     sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
 }
 
-nested_execute_as() {
+nested_exec_as() {
     local USER="$1"
     local PWD="$2"
     shift 2
@@ -915,11 +915,11 @@ nested_del_device() {
 
 nested_get_core_revision_for_channel() {
     local CHANNEL=$1
-    nested_execute "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
+    nested_exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_get_core_revision_installed() {
-    nested_execute "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+    nested_exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_fetch_spread() {
