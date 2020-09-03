@@ -316,7 +316,7 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) SetEncryptionKey(key secboot.EncryptionKey) {
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
 	o.encryptionKey = key
 }
 

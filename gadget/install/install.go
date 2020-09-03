@@ -166,7 +166,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentInst
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	observer.SetEncryptionKey(key)
+	observer.ChosenEncryptionKey(key)
 
 	return nil
 }

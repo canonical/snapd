@@ -79,9 +79,9 @@ type ContentObserver interface {
 
 type ContentInstallObserver interface {
 	ContentObserver
-	// SetEncryptionKey stores the encrypted data partition key to be sealed
+	// ChosenEncryptionKey stores the encrypted data partition key to be sealed
 	// at the end of the installation process.
-	SetEncryptionKey(secboot.EncryptionKey)
+	ChosenEncryptionKey(secboot.EncryptionKey)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a

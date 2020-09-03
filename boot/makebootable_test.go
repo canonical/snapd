@@ -454,7 +454,7 @@ version: 5.0
 		for i := range myKey {
 			myKey[i] = byte(i)
 		}
-		obs.SetEncryptionKey(myKey)
+		obs.ChosenEncryptionKey(myKey)
 
 		// set mock key sealing
 		sealKeyCalls := 0
