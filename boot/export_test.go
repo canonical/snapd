@@ -73,3 +73,16 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 		secbootSealKey = old
 	}
 }
+
+func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
+	ta := &trackedAsset{
+		blName: blName,
+		name:   assetName,
+		hash:   hash,
+	}
+	if !recovery {
+		o.changedAssets = append(o.changedAssets, ta)
+	} else {
+		o.seedChangedAssets = append(o.seedChangedAssets, ta)
+	}
+}
