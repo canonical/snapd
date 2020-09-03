@@ -699,6 +699,13 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 	return nil
 }
 
+// backupOrCheckpointFile analyzes a given source file from the gadget and a
+// target location under the provided destination root directory. When both
+// files are identical, creates a stamp that allows the update to skip the file.
+// When content of the new file is different, a backup of the original file is
+// created. Returns a flag indicating whether a file will be written during an
+// update pass and if true, a path to a file containing the original (backed up)
+// data, which can be empty if the file did not exist previously.
 func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (willWrite bool, originalDataPath string, err error) {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
@@ -724,7 +731,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	}
 	if osutil.FileExists(sameStamp) {
 		// file already checked, same as the update, move on
-		return false, dstPath, nil
+		return false, "", nil
 	}
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
@@ -735,13 +742,13 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		}
 		if osutil.FileExists(preserveStamp) {
 			// already stamped
-			return false, dstPath, nil
+			return false, "", nil
 		}
 		// make a stamp
 		if err := makeStamp(preserveStamp); err != nil {
 			return false, "", fmt.Errorf("cannot create preserve stamp: %v", err)
 		}
-		return false, dstPath, nil
+		return false, "", nil
 	}
 
 	// try to find out whether the update and the existing file are
@@ -789,7 +796,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 		// makes the deferred commit a noop
 		backup.Cancel()
-		return false, dstPath, nil
+		return false, "", nil
 	}
 
 	// update will overwrite existing file, a backup copy is created on
