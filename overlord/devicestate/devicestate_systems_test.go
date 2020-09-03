@@ -53,7 +53,7 @@ type mockedSystemSeed struct {
 type deviceMgrSystemsSuite struct {
 	deviceMgrBaseSuite
 
-	mockLogger        *bytes.Buffer
+	logbuf            *bytes.Buffer
 	mockedSystemSeeds []mockedSystemSeed
 }
 
@@ -201,7 +201,7 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
-	s.mockLogger = logbuf
+	s.logbuf = logbuf
 	s.AddCleanup(restore)
 }
 
@@ -340,7 +340,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, `.*: restarting into system "20191119" for action "Install"\n`)
+	c.Check(s.logbuf.String(), Matches, `.*: restarting into system "20191119" for action "Install"\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
@@ -360,7 +360,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 	sadModes := []string{"install", "recover"}
 
 	for _, mode := range append(happyModes, sadModes...) {
-		s.mockLogger.Reset()
+		s.logbuf.Reset()
 
 		c.Logf("checking mode: %q", mode)
 		// non run modes use modeenv
@@ -395,7 +395,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 		// should never restart
 		c.Check(s.restartRequests, HasLen, 0)
 		// no log output
-		c.Check(s.mockLogger.String(), Equals, "")
+		c.Check(s.logbuf.String(), Equals, "")
 	}
 }
 
@@ -409,7 +409,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingSameConflict(c *C) {
 	s.state.Unlock()
 
 	for _, mode := range []string{"run", "install", "recover"} {
-		s.mockLogger.Reset()
+		s.logbuf.Reset()
 
 		c.Logf("checking mode: %q", mode)
 		modeenv := boot.Modeenv{
@@ -427,7 +427,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingSameConflict(c *C) {
 		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
 		c.Assert(err, ErrorMatches, "cannot request system action, system is seeding")
 		// no log output
-		c.Check(s.mockLogger.String(), Equals, "")
+		c.Check(s.logbuf.String(), Equals, "")
 	}
 }
 
@@ -463,7 +463,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingDifferentNoConflict(c *C) {
 		"snapd_recovery_system": otherLabel,
 		"snapd_recovery_mode":   "install",
 	})
-	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action "Install"\n`, otherLabel))
+	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action "Install"\n`, otherLabel))
 }
 
 func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []string, label string) {
@@ -482,8 +482,8 @@ func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []strin
 		s.bootloader.BootVars = map[string]string{}
 
 		// TODO: also test correct action string logging
-		c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action ".*"\n`, label))
-		s.mockLogger.Reset()
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action ".*"\n`, label))
+		s.logbuf.Reset()
 	}
 }
 
@@ -538,7 +538,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeErrInBoot(c *C) {
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": no can do`)
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
@@ -546,14 +546,14 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBadMode(c *C) {
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"})
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
@@ -564,7 +564,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, "cannot load seed system: cannot load assertions: .*")
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
@@ -572,13 +572,13 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": system mode is unsupported`)
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestActionNoLabel(c *C) {
 	err := s.mgr.RequestSystemAction("", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, "internal error: system label is unset")
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
@@ -599,7 +599,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "recover"})
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestInstallForOther(c *C) {
@@ -658,7 +658,7 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, ".*/seed/systems/20191119: no such file or directory")
-	c.Check(s.mockLogger.String(), Equals, "")
+	c.Check(s.logbuf.String(), Equals, "")
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
@@ -674,7 +674,7 @@ func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
 		"snapd_recovery_system": "",
 		"snapd_recovery_mode":   "",
 	})
-	c.Check(s.mockLogger.String(), Matches, `.*: rebooting system\n`)
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
@@ -698,7 +698,7 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
@@ -715,7 +715,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 	for _, mode := range []string{"recover", "install"} {
 		s.restartRequests = nil
 		s.bootloader.BootVars = make(map[string]string)
-		s.mockLogger.Reset()
+		s.logbuf.Reset()
 
 		err := s.mgr.Reboot("", mode)
 		c.Assert(err, IsNil)
@@ -727,7 +727,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-		c.Check(s.mockLogger.String(), Matches, `.*: rebooting into system "20191119" in ".*" mode\n`)
+		c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in ".*" mode\n`)
 	}
 }
 
@@ -766,7 +766,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToRun(c *C) {
 		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "run" mode\n`, s.mockedSystemSeeds[0].label))
+	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "run" mode\n`, s.mockedSystemSeeds[0].label))
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
@@ -793,7 +793,7 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		"snapd_recovery_system": "",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-	c.Check(s.mockLogger.String(), Matches, `.*: rebooting system\n`)
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
@@ -823,6 +823,7 @@ func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 
 		c.Check(s.restartRequests, HasLen, 0)
-		c.Check(s.mockLogger.String(), Equals, "")
+		c.Check(s.logbuf.String(), Equals, "")
 	}
+	c.Check(s.logbuf.String(), Equals, "")
 }
