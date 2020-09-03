@@ -733,6 +733,8 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		// file already checked, same as the update, move on
 		return false, "", nil
 	}
+	// TODO: correctly identify new files that were written by a partially
+	// executed update pass
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
 		// file is to be preserved, create a relevant stamp
