@@ -31,7 +31,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -145,7 +144,7 @@ func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err
 	var userEnabled []string
 
 	systemSysd := systemd.New(systemd.SystemMode, inter)
-	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 
 	disableEnabledServices := func() {
 		for _, srvName := range enabled {
@@ -205,7 +204,7 @@ type StartServicesFlags struct {
 // caller.
 func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
 	systemSysd := systemd.New(systemd.SystemMode, inter)
-	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	cli := client.New()
 
 	systemServices := make([]string, 0, len(apps))
@@ -372,7 +371,8 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 	// TODO: remove once services get enabled on start and not when created.
 	preseeding := opts.Preseeding
 
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	// note, sysd is not used when preseeding
+	sysd := systemd.New(systemd.SystemMode, inter)
 	var written []string
 	var writtenSystem, writtenUser bool
 	var disableEnabledServices func()
@@ -597,8 +597,8 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
-	systemSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	var removedSystem, removedUser bool
 
 	for _, app := range s.Apps {
@@ -1226,7 +1226,7 @@ type RestartServicesFlags struct {
 
 // Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
 func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 
 	for _, srv := range svcs {
 		// they're *supposed* to be all services, but checking doesn't hurt

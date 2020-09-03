@@ -34,13 +34,13 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 	if preseed {
 		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
-		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, meter)
+		sysd = systemd.New(systemd.SystemMode, meter)
 	}
 	_, err := sysd.AddMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
 	return err
 }
 
 func removeMountUnit(mountDir string, meter progress.Meter) error {
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, meter)
+	sysd := systemd.New(systemd.SystemMode, meter)
 	return sysd.RemoveMountUnitFile(mountDir)
 }

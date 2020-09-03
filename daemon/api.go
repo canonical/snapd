@@ -2399,7 +2399,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)

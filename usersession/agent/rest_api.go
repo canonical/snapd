@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -195,6 +194,6 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
+	sysd := systemd.New(systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
 }

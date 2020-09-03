@@ -124,7 +124,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
-	c.Check(s.sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
+	c.Check(s.sysdLog[0], DeepEquals, []string{"disable", filepath.Base(svcFile)})
 	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
@@ -139,7 +139,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
+		{"--user", "--global", "enable", filepath.Base(svcFile)},
 		{"--user", "daemon-reload"},
 	})
 
@@ -164,7 +164,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)},
+		{"--user", "--global", "disable", filepath.Base(svcFile)},
 		{"--user", "daemon-reload"},
 	})
 }
@@ -650,7 +650,7 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", s.tempdir, "is-enabled", filepath.Base(svcFile)},
+		{"--user", "--global", "is-enabled", filepath.Base(svcFile)},
 		{"--user", "start", filepath.Base(svcFile)},
 	})
 }
@@ -902,9 +902,9 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name}, // this one fails
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
+		{"--user", "--global", "enable", svc1Name},
+		{"--user", "--global", "enable", svc2Name}, // this one fails
+		{"--user", "--global", "disable", svc1Name},
 		{"--user", "daemon-reload"},
 	})
 }
@@ -955,11 +955,11 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name},
+		{"--user", "--global", "enable", svc1Name},
+		{"--user", "--global", "enable", svc2Name},
 		{"--user", "daemon-reload"}, // this one fails
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc2Name},
+		{"--user", "--global", "disable", svc1Name},
+		{"--user", "--global", "disable", svc2Name},
 		{"--user", "daemon-reload"}, // so does this one :-)
 	})
 }
@@ -1209,8 +1209,8 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc1Name},
-		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc2Name},
+		{"--user", "--global", "is-enabled", svc1Name},
+		{"--user", "--global", "is-enabled", svc2Name},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
 		// session agent attempts to stop the non-failed services
@@ -1519,7 +1519,7 @@ func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
 		{"is-enabled", svc1Name},
 		{"enable", svc2Sock},
 		{"start", svc2Sock},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc3Sock},
+		{"--user", "--global", "enable", svc3Sock},
 		{"--user", "start", svc3Sock},
 		{"start", svc1Name},
 	}, Commentf("calls: %v", s.sysdLog))
@@ -1552,7 +1552,7 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 		{"is-enabled", svc1Name},
 		{"enable", svc2Timer},
 		{"start", svc2Timer},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc3Timer},
+		{"--user", "--global", "enable", svc3Timer},
 		{"--user", "start", svc3Timer},
 		{"start", svc1Name},
 	}, Commentf("calls: %v", s.sysdLog))
