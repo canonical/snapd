@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -463,6 +463,20 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
+var (
+	grubRecoveryModeTrustedAssets = []string{
+		// recovery mode shim EFI binary
+		"EFI/boot/bootx64.efi",
+		// recovery mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}
+
+	grubRunModeTrustedAssets = []string{
+		// run mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}
+)
+
 // TrustedAssets returns the list of relative paths to assets inside
 // the bootloader's rootdir that are measured in the boot process in the
 // order of loading during the boot.
@@ -471,15 +485,50 @@ func (g *grub) TrustedAssets() ([]string, error) {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
-		return []string{
-			// recovery mode shim EFI binary
-			"EFI/boot/bootx64.efi",
-			// recovery mode grub EFI binary
-			"EFI/boot/grubx64.efi",
-		}, nil
+		return grubRecoveryModeTrustedAssets, nil
 	}
-	return []string{
-		// run mode grub EFI binary
-		"EFI/boot/grubx64.efi",
-	}, nil
+	return grubRunModeTrustedAssets, nil
+}
+
+// RecoveryBootChain returns the load chain for recovery modes.
+// It should be called on a RoleRecovery bootloader.
+func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	// add recovery kernel to the recovery chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
+
+	return chain, nil
+}
+
+// BootChain returns the load chain for run mode.
+// It should be called on a RoleRecovery bootloader passing the
+// RoleRunMode bootloader.
+func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+	if runBl.Name() != "grub" {
+		return nil, fmt.Errorf("run mode bootloader must be grub")
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+len(grubRunModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	for _, ta := range grubRunModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRunMode))
+	}
+	// add kernel to the boot chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
+
+	return chain, nil
 }
