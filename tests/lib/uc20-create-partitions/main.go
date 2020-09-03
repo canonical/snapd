@@ -55,8 +55,7 @@ type simpleObserver struct {
 	encryptionKey secboot.EncryptionKey
 }
 
-func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
-	fmt.Printf("observing %s\n", relativeTarget)
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (bool, error) {
 	return true, nil
 }
 
