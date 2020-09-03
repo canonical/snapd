@@ -1678,12 +1678,32 @@ func (s *SnapOpSuite) TestInstallInsufficientSpace(c *check.C) {
 				}}`)
 	})
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
 	c.Check(err, check.ErrorMatches, `cannot install "foo" due to low disk space`)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapOpSuite) TestRefreshInsufficientSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-space",
+				"value": {
+					"snap-names": ["foo"],
+					"change-kind": "refresh"
+				},
+				"status-code": 409
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
+	c.Check(err, check.ErrorMatches, `cannot refresh "foo" due to low disk space`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
 
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	s.srv.total = 3
