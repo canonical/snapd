@@ -99,9 +99,7 @@ func configureCloudInit(opts *Options) (err error) {
 
 	// first check if cloud-init should be disallowed entirely
 	if !opts.AllowCloudInit {
-		if err := DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir)); err != nil {
-			return err
-		}
+		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
 
 	// next check if there is a gadget cloud.conf to install

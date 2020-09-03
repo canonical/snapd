@@ -76,8 +76,8 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		TargetRootDir:  boot.InstallHostWritableDir,
 		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
 
@@ -97,6 +97,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	}
 
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
 	})
@@ -115,8 +116,9 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	c.Assert(err, IsNil)
 
 	err = sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		TargetRootDir: boot.InstallHostWritableDir,
-		GadgetDir:     gadgetDir,
+		AllowCloudInit: true,
+		GadgetDir:      gadgetDir,
+		TargetRootDir:  boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
 
@@ -138,9 +140,10 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	c.Assert(err, IsNil)
 
 	err = sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
-		TargetRootDir:   boot.InstallHostWritableDir,
 		GadgetDir:       gadgetDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
 
