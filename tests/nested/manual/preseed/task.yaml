@@ -5,7 +5,7 @@ description: |
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -13,20 +13,34 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-  create_nested_classic_vm
-  mkdir -p "$IMAGE_MOUNTPOINT"
+
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
-  CLOUD_IMAGE=$(get_nested_classic_image_path)
-  mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
+
+  # install the snapd deb from spread so we are using the same version to 
+  # validate the seed as well as call preseed, etc. 
+  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+  # create a VM and mount a cloud image
+  create_nested_classic_vm
+  mkdir -p "$IMAGE_MOUNTPOINT"
+  IMAGE_DIR="$(get_image_dir)"
+  IMAGE_NAME=$(get_image_name classic)
+  mount_ubuntu_image "$IMAGE_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
 
   # on 20.04 snapd from the deb is newer than snapd from seeds;
   # this is not a sensible scenario for preseeding but since
   # we're cheating and preseeding images that were not meant to be
   # preseeded in their current state, we need to inject newer snapd
   # into seeds/ to make snap-preseed and the test happy.
-  inject_snapd_into_seeds "$IMAGE_MOUNTPOINT"
+
+  # add snapd from this branch into the seed
+  repack_snapd_deb_into_snapd_snap "$PWD"
+  mv snapd-from-deb.snap snapd.snap
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
@@ -42,6 +56,7 @@ restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+  cleanup_nested_env
 
 execute: |
   #shellcheck source=tests/lib/nested.sh
@@ -49,8 +64,8 @@ execute: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  echo "Running pre-seeeding"
-  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
+  echo "Running pre-seeding"
+  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
 
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
@@ -77,6 +92,19 @@ execute: |
   # e.g. when the list of apparmor features differs due to significant kernel update.
   execute_remote "cat /var/lib/snapd/system-key" > system-key.real
   diff -u -w system-key.real system-key.preseeded
+
+  execute_remote "snap debug seeding" | MATCH "preseeded:\s+true"
+  execute_remote "snap debug seeding" | MATCH "seeded:\s+true"
+  # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
+  # break if the preseeding takes more than 60s and golang formats the 
+  # time.Duration as "1m2.03s", etc. but for now this should be good enough
+  execute_remote "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+  execute_remote "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+
+  # we should not have had any system-key difference as per above, so we 
+  # shouldn't output the preseed system-key or the seed-restart-system-key
+  execute_remote "snap debug seeding" | NOMATCH "preseed-system-key:"
+  execute_remote "snap debug seeding" | NOMATCH "seed-restart-system-key:"
 
   echo "Checking that lxd snap is operational"
   execute_remote "snap list" | not MATCH "broken"

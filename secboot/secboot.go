@@ -25,28 +25,21 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
-	"path/filepath"
-
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
-)
-
-var (
-	// for mocking by tests
-	devDiskByLabelDir = "/dev/disk/by-label"
+	"github.com/snapcore/snapd/bootloader"
 )
 
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
 	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]string
+	EFILoadChains [][]bootloader.BootFile
 	// The kernel command line
 	KernelCmdlines []string
 }
 
 type SealKeyParams struct {
-	// The snap model
+	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
 	// The path to store the sealed key file
 	KeyFile string
@@ -54,12 +47,4 @@ type SealKeyParams struct {
 	TPMPolicyUpdateDataFile string
 	// The path to the lockout authorization file (only relevant for TPM)
 	TPMLockoutAuthFile string
-}
-
-func isDeviceEncrypted(name string) (ok bool, encdev string) {
-	encdev = filepath.Join(devDiskByLabelDir, name+"-enc")
-	if osutil.FileExists(encdev) {
-		return true, encdev
-	}
-	return false, ""
 }

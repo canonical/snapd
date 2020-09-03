@@ -574,3 +574,98 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 		"type":        "error",
 	})
 }
+
+func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
+	restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		c.Fatalf("request reboot should not get called")
+		return nil
+	})
+	defer restore()
+
+	body := `{"action":"reboot"}`
+	url := "/v2/systems"
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 401)
+}
+
+func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		systemLabel, mode string
+	}{
+		{"", ""},
+		{"20200101", ""},
+		{"", "recover"},
+		{"20200101", "recover"},
+	} {
+		called := 0
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+			called++
+			c.Check(dm, check.NotNil)
+			c.Check(systemLabel, check.Equals, tc.systemLabel)
+			c.Check(mode, check.Equals, tc.mode)
+			return nil
+		})
+		defer restore()
+
+		body := fmt.Sprintf(`{"action":"reboot", "mode":"%s"}`, tc.mode)
+		url := "/v2/systems"
+		if tc.systemLabel != "" {
+			url += "/" + tc.systemLabel
+		}
+		s.vars = map[string]string{"label": tc.systemLabel}
+		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+		rec := httptest.NewRecorder()
+		systemsActionCmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 200)
+		c.Check(called, check.Equals, 1)
+	}
+}
+
+func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		rebootErr        error
+		expectedHttpCode int
+		expectedErr      string
+	}{
+		{fmt.Errorf("boom"), 500, "boom"},
+		{os.ErrNotExist, 404, `requested seed system "" does not exist`},
+		{devicestate.ErrUnsupportedAction, 400, `requested action is not supported by system ""`},
+	} {
+		called := 0
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+			called++
+			return tc.rebootErr
+		})
+		defer restore()
+
+		body := fmt.Sprintf(`{"action":"reboot"}`)
+		url := "/v2/systems"
+		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+		rec := httptest.NewRecorder()
+		systemsActionCmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, tc.expectedHttpCode)
+		c.Check(called, check.Equals, 1)
+
+		var rspBody map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+		c.Check(err, check.IsNil)
+		c.Check(rspBody["status-code"], check.Equals, float64(tc.expectedHttpCode))
+		result := rspBody["result"].(map[string]interface{})
+		c.Check(result["message"], check.Equals, tc.expectedErr)
+	}
+}

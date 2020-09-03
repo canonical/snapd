@@ -49,6 +49,8 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.RobustMountNamespaceUpdates.String(), Equals, "robust-mount-namespace-updates")
 	c.Check(features.UserDaemons.String(), Equals, "user-daemons")
 	c.Check(features.DbusActivation.String(), Equals, "dbus-activation")
+	c.Check(features.HiddenSnapFolder.String(), Equals, "hidden-snap-folder")
+	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -72,6 +74,8 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsExported(), Equals, true)
 	c.Check(features.UserDaemons.IsExported(), Equals, false)
 	c.Check(features.DbusActivation.IsExported(), Equals, false)
+	c.Check(features.HiddenSnapFolder.IsExported(), Equals, true)
+	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -104,6 +108,8 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.HiddenSnapFolder.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
@@ -111,6 +117,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.RefreshAppAwareness.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness")
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.RobustMountNamespaceUpdates.ControlFile(), Equals, "/var/lib/snapd/features/robust-mount-namespace-updates")
+	c.Check(features.HiddenSnapFolder.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

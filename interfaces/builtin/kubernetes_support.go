@@ -63,7 +63,7 @@ capability sys_resource,
 
 capability dac_override,
 
-/usr/bin/systemd-run Cxr -> systemd_run,
+/{,usr/}bin/systemd-run Cxr -> systemd_run,
 /run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
@@ -72,19 +72,37 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   /{,usr/}bin/systemd-run rm,
   owner @{PROC}/@{pid}/stat r,
   owner @{PROC}/@{pid}/environ r,
-  @{PROC}/cmdline r,
-  @{PROC}/sys/kernel/osrelease r,
-  @{PROC}/1/sched r,
+  @{PROC}/cmdline r,  # proc_cmdline()
 
   # setsockopt()
   capability net_admin,
 
-  # ptrace 'trace' is coarse and not required for using the systemd private
-  # socket, and while the child profile omits 'capability sys_ptrace', skip
-  # for now since it isn't strictly required.
-  ptrace read peer=unconfined,
-  deny ptrace trace peer=unconfined,
+  # systemd-run's detect_container() looks at several files to determine if it
+  # is running in a container.
+  @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
+  /run/systemd/container r,
+
+  # kubelet calls 'systemd-run --scope true' to determine if systemd is
+  # available and usable for calling certain mount commands under transient
+  # units as part of its lifecycle management. This requires ptrace 'read' on
+  # unconfined since systemd-run will call its detect_container() which will
+  # try to read /proc/1/environ. This is mediated via PTRACE_MODE_READ when
+  # run within kubelet's namespace.
+  ptrace (read) peer=unconfined,
   /run/systemd/private rw,
+
+  # kubelet calling 'systemd-run --scope true' triggers this when kubelet is
+  # run in a nested container (eg, under lxd).
+  @{PROC}/1/cmdline r,
+
+  # Ubuntu's ptrace patchset before (at least) 20.04 did not correctly evaluate
+  # PTRACE_MODE_READ and policy required 'trace' instead of 'read'.
+  # (LP: #1890848). This child profile doesn't have 'capability sys_ptrace', so
+  # continue to allow this historic 'trace' rule on unconfined (which systemd
+  # runs as) since systemd-run won't be able to ptrace this snap's processes.
+  # This can be dropped once LP: #1890848 is fixed.
+  ptrace (trace) peer=unconfined,
 
   /{,usr/}bin/true ixr,
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,usr/}bin/true ixr,
@@ -106,6 +124,14 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
+
+# kubelet can be configured to use the systemd cgroup driver which moves
+# container processes into systemd-managed cgroups. This is now the recommended
+# configuration since it provides a single cgroup manager (systemd) in an
+# effort to achieve consistent views of resources.
+/sys/fs/cgroup/*/systemd/{,system.slice/} rw,          # create missing dirs
+/sys/fs/cgroup/*/systemd/system.slice/** r,
+/sys/fs/cgroup/*/systemd/system.slice/cgroup.procs w,
 
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
@@ -142,8 +168,13 @@ mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
-deny /run/mount/utab rw,
+deny /run/mount/utab{,.lock} rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+
+# When fsGroup is set, the pod's volume will be recursively chowned with the
+# setgid bit set on directories so new files will be owned by the fsGroup. See
+# kubernetes pkg/volume/volume_linux.go:changeFilePermission()
+capability fsetid,
 `
 
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
@@ -151,7 +182,7 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   capability sys_admin,
   /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
-  deny /run/mount/utab rw,
+  deny /run/mount/utab{,.lock} rw,
 
   # For mounting volume subPaths
   mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
@@ -163,11 +194,20 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # virtio vda-vdz, 1-63 partitions
   mount /dev/vd[a-z]{[1-9],[1-5][0-9],6[0-3]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+
   # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
-  # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
-  # kubelet peer process from this child profile. Note, this child profile
-  # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
-  # ptrace this snap's processes.
+  # /proc/.../fd/N) which triggers a ptrace 'read' denial on the parent
+  # kubelet peer process from this child profile due to PTRACE_MODE_READ (man
+  # ptrace) checks.
+  ptrace (read) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
+
+  # Ubuntu's ptrace patchset before (at least) 20.04 did not correctly evaluate
+  # PTRACE_MODE_READ and policy required 'trace' instead of 'read'.
+  # (LP: #1890848). This child profile doesn't have 'capability sys_ptrace', so
+  # continue to allow this historic 'trace' rule on kubelet (our parent peer)
+  # since systemd-run won't be able to ptrace this snap's processes (kubelet
+  # would also need a corresponding tracedby rule). This can be dropped once
+  # LP: #1890848 is fixed.
   ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
@@ -197,6 +237,11 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# When fsGroup is set, the pod's volume will be recursively chowned with the
+# setgid bit set on directories so new files will be owned by the fsGroup. See
+# kubernetes pkg/volume/volume_linux.go:changeFilePermission()
+fchownat
 `
 
 var kubernetesSupportConnectedPlugUDevKubelet = []string{

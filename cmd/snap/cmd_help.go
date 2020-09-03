@@ -216,7 +216,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "create-cohort", "reboot"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "create-cohort", "recovery", "reboot"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),

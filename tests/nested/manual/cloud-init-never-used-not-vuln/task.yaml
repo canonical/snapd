@@ -126,7 +126,7 @@ execute: |
     # is awkward to modify programmatically, so instead this will just re-create
     # the same systemd unit with different args
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    start_nested_core_vm_unit
+    start_nested_core_vm_unit "$(get_current_image)"
 
     # cloud-init should not actually run, since it was disabled, but in case the
     # test fails, for a better error, we will wait for cloud-init to report that

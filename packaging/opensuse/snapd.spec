@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.45.2
+Version:        2.46
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -134,6 +134,7 @@ Requires:       apparmor-profiles
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
+Requires:       system-user-daemon
 
 # Old versions of xdg-document-portal can expose data belonging to
 # other confied apps.  Older OpenSUSE releases are unlikely to change,

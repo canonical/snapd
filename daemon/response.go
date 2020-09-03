@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -66,7 +67,7 @@ type resp struct {
 	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
-func (r *resp) transmitMaintenance(kind errorKind, message string) {
+func (r *resp) transmitMaintenance(kind client.ErrorKind, message string) {
 	r.Maintenance = &errorResult{
 		Kind:    kind,
 		Message: message,
@@ -145,61 +146,13 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Write(bs)
 }
 
-type errorKind string
-
-const (
-	errorKindTwoFactorRequired = errorKind("two-factor-required")
-	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
-	errorKindLoginRequired     = errorKind("login-required")
-	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
-	errorKindAuthCancelled     = errorKind("auth-cancelled")
-	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
-	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
-	errorKindPaymentDeclined   = errorKind("payment-declined")
-	errorKindPasswordPolicy    = errorKind("password-policy")
-
-	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
-	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
-	errorKindSnapNotFound          = errorKind("snap-not-found")
-	errorKindAppNotFound           = errorKind("app-not-found")
-	errorKindSnapLocal             = errorKind("snap-local")
-	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
-
-	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
-	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
-	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
-
-	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
-
-	errorKindNotSnap = errorKind("snap-not-a-snap")
-
-	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
-	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
-	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
-	errorKindSnapNotClassic         = errorKind("snap-not-classic")
-
-	errorKindBadQuery = errorKind("bad-query")
-
-	errorKindNetworkTimeout      = errorKind("network-timeout")
-	errorKindDNSFailure          = errorKind("dns-failure")
-	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
-
-	errorKindConfigNoSuchOption = errorKind("option-not-found")
-
-	errorKindDaemonRestart = errorKind("daemon-restart")
-	errorKindSystemRestart = errorKind("system-restart")
-
-	errorKindAssertionNotFound = errorKind("assertion-not-found")
-
-	errorKindUnsuccessful = errorKind("unsuccessful")
-)
-
 type errorValue interface{}
 
 type errorResult struct {
-	Message string     `json:"message"` // note no omitempty
-	Kind    errorKind  `json:"kind,omitempty"`
-	Value   errorValue `json:"value,omitempty"`
+	Message string `json:"message"` // note no omitempty
+	// Kind is the error kind. See client/errors.go
+	Kind  client.ErrorKind `json:"kind,omitempty"`
+	Value errorValue       `json:"value,omitempty"`
 }
 
 // SyncResponse builds a "sync" response from the given result.
@@ -240,7 +193,7 @@ func makeErrorResponder(status int) errorResponder {
 			res.Message = fmt.Sprintf(format, v...)
 		}
 		if status == 401 {
-			res.Kind = errorKindLoginRequired
+			res.Kind = client.ErrorKindLoginRequired
 		}
 		return &resp{
 			Type:   ResponseTypeError,
@@ -296,6 +249,20 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}
+}
+
+// A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
+type snapshotExportResponse struct {
+	*snapshotstate.SnapshotExport
+}
+
+// ServeHTTP from the Response interface
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	if err := s.StreamTo(w); err != nil {
+		logger.Debugf("cannot export snapshot: %v", err)
+	}
+	s.Close()
 }
 
 // A fileResponse 's ServeHTTP method serves the file
@@ -425,7 +392,7 @@ func SnapNotFound(snapName string, err error) Response {
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: err.Error(),
-			Kind:    errorKindSnapNotFound,
+			Kind:    client.ErrorKindSnapNotFound,
 			Value:   snapName,
 		},
 		Status: 404,
@@ -438,7 +405,7 @@ func SnapNotFound(snapName string, err error) Response {
 // channel when this channel is empty).
 func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
 	var value interface{} = snapName
-	kind := errorKindSnapRevisionNotAvailable
+	kind := client.ErrorKindSnapRevisionNotAvailable
 	msg := rnaErr.Error()
 	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
 		thisArch := arch.DpkgArchitecture()
@@ -464,10 +431,10 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 		// the error kind whether there was anything at all
 		// available for this architecture
 		if archOK {
-			kind = errorKindSnapChannelNotAvailable
+			kind = client.ErrorKindSnapChannelNotAvailable
 			msg = "no snap revision on specified channel"
 		} else {
-			kind = errorKindSnapArchitectureNotAvailable
+			kind = client.ErrorKindSnapArchitectureNotAvailable
 			msg = "no snap revision on specified architecture"
 		}
 		values["releases"] = releases
@@ -499,7 +466,7 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: cce.Error(),
-			Kind:    errorKindSnapChangeConflict,
+			Kind:    client.ErrorKindSnapChangeConflict,
 			Value:   value,
 		},
 		Status: 409,
@@ -511,7 +478,7 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 func AppNotFound(format string, v ...interface{}) Response {
 	res := &errorResult{
 		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindAppNotFound,
+		Kind:    client.ErrorKindAppNotFound,
 	}
 	return &resp{
 		Type:   ResponseTypeError,
@@ -525,7 +492,7 @@ func AppNotFound(format string, v ...interface{}) Response {
 func AuthCancelled(format string, v ...interface{}) Response {
 	res := &errorResult{
 		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindAuthCancelled,
+		Kind:    client.ErrorKindAuthCancelled,
 	}
 	return &resp{
 		Type:   ResponseTypeError,
@@ -539,7 +506,7 @@ func AuthCancelled(format string, v ...interface{}) Response {
 func InterfacesUnchanged(format string, v ...interface{}) Response {
 	res := &errorResult{
 		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindInterfacesUnchanged,
+		Kind:    client.ErrorKindInterfacesUnchanged,
 	}
 	return &resp{
 		Type:   ResponseTypeError,
@@ -549,7 +516,7 @@ func InterfacesUnchanged(format string, v ...interface{}) Response {
 }
 
 func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
-	var kind errorKind
+	var kind client.ErrorKind
 	var snapName string
 
 	switch err {
@@ -565,9 +532,9 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 			return InternalError("store.SnapNotFound with %d snaps", len(snaps))
 		}
 	case store.ErrNoUpdateAvailable:
-		kind = errorKindSnapNoUpdateAvailable
+		kind = client.ErrorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
-		kind = errorKindSnapLocal
+		kind = client.ErrorKindSnapLocal
 	default:
 		handled := true
 		switch err := err.(type) {
@@ -583,28 +550,28 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
 			}
 		case *snap.AlreadyInstalledError:
-			kind = errorKindSnapAlreadyInstalled
+			kind = client.ErrorKindSnapAlreadyInstalled
 			snapName = err.Snap
 		case *snap.NotInstalledError:
-			kind = errorKindSnapNotInstalled
+			kind = client.ErrorKindSnapNotInstalled
 			snapName = err.Snap
 		case *snapstate.ChangeConflictError:
 			return SnapChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
-			kind = errorKindSnapNeedsDevMode
+			kind = client.ErrorKindSnapNeedsDevMode
 			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicError:
-			kind = errorKindSnapNeedsClassic
+			kind = client.ErrorKindSnapNeedsClassic
 			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicSystemError:
-			kind = errorKindSnapNeedsClassicSystem
+			kind = client.ErrorKindSnapNeedsClassicSystem
 			snapName = err.Snap
 		case *snapstate.SnapNotClassicError:
-			kind = errorKindSnapNotClassic
+			kind = client.ErrorKindSnapNotClassic
 			snapName = err.Snap
 		case net.Error:
 			if err.Timeout() {
-				kind = errorKindNetworkTimeout
+				kind = client.ErrorKindNetworkTimeout
 			} else {
 				handled = false
 			}
