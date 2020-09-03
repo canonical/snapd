@@ -103,3 +103,25 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 	}
 	return nil
 }
+
+// DoSystemReboot issues a request to reboot into the given label/mode
+func (client *Client) DoSystemReboot(systemLabel, mode string) error {
+	// verification is done by the backend
+
+	req := struct {
+		Action string `json:"action"`
+		Mode   string `json:"mode"`
+	}{
+		Action: "reboot",
+		Mode:   mode,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return err
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
+		return xerrors.Errorf("cannot request system action: %v", err)
+	}
+	return nil
+}
