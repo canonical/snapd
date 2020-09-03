@@ -54,6 +54,10 @@ const fpgaConnectedPlugAppArmor = `
 /sys/kernel/config/device-tree/overlays/full{,1}/path rw,
 `
 
+var fpgaConnectedPlugUDev = []string{
+	`SUBSYSTEM=="misc", KERNEL=="fpga[0-9]*"`,
+}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "fpga",
@@ -62,5 +66,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  fpgaBaseDeclarationSlots,
 		connectedPlugAppArmor: fpgaConnectedPlugAppArmor,
+		connectedPlugUDev:     fpgaConnectedPlugUDev,
 	})
 }
