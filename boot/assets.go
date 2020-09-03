@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -336,9 +337,11 @@ type TrustedAssetsUpdateObserver struct {
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
+	changedAssets     []*trackedAsset
 
 	seedBootloader    bootloader.Bootloader
 	seedTrustedAssets []string
+	seedChangedAssets []*trackedAsset
 
 	modeenv *Modeenv
 }
@@ -434,9 +437,14 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	}
 
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
+	changedAssets := &o.changedAssets
 	if recovery {
 		trustedAssets = &o.modeenv.CurrentTrustedRecoveryBootAssets
+		changedAssets = &o.seedChangedAssets
 	}
+	// keep track of the change for cancellation purpose
+	*changedAssets = append(*changedAssets, ta)
+
 	if !isAssetAlreadyTracked(*trustedAssets, ta) {
 		if *trustedAssets == nil {
 			*trustedAssets = bootAssetsMap{}
@@ -455,7 +463,7 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	if o.modeenv.deepEqual(modeenvBefore) {
 		return true, nil
 	}
-	if err := o.modeenv.WriteTo(""); err != nil {
+	if err := o.modeenv.Write(); err != nil {
 		return false, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 	return true, nil
@@ -524,7 +532,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 		delete(*trustedAssets, assetName)
 	}
 
-	if err := o.modeenv.WriteTo(""); err != nil {
+	if err := o.modeenv.Write(); err != nil {
 		return false, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
@@ -538,11 +546,66 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 	return nil
 }
 
+func (o *TrustedAssetsUpdateObserver) canceledUpdate(recovery bool) {
+	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
+	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
+	changedAssets := o.changedAssets
+	if recovery {
+		trustedAssets = &o.modeenv.CurrentTrustedRecoveryBootAssets
+		otherTrustedAssets = o.modeenv.CurrentTrustedBootAssets
+		changedAssets = o.seedChangedAssets
+	}
+
+	if len(*trustedAssets) == 0 {
+		return
+	}
+
+	for _, changed := range changedAssets {
+		hashList, ok := (*trustedAssets)[changed.name]
+		if !ok || len(hashList) == 0 {
+			// not tracked already, nothing to do
+			continue
+		}
+		if len(hashList) == 1 {
+			currentAssetHash := hashList[0]
+			if currentAssetHash != changed.hash {
+				// assets list has already been trimmed, nothing
+				// to do
+				continue
+			} else {
+				// asset was newly added
+				delete(*trustedAssets, changed.name)
+			}
+		} else {
+			// asset updates were appended to the list
+			(*trustedAssets)[changed.name] = hashList[:1]
+		}
+		if !isAssetHashTrackedInMap(otherTrustedAssets, changed.name, changed.hash) {
+			// asset revision is not used used elsewhere, we can remove it from the cache
+			if err := o.cache.Remove(changed.blName, changed.name, changed.hash); err != nil {
+				logger.Noticef("cannot remove unused boot asset %v:%v: %v", changed.name, changed.hash, err)
+			}
+		}
+	}
+}
+
 // Canceled is called when the update has been canceled, or if changes
 // were written and the update has been reverted.
 func (o *TrustedAssetsUpdateObserver) Canceled() error {
+	if o.modeenv == nil {
+		// modeenv wasn't even loaded yet, meaning none of the boot
+		// assets was updated
+		return nil
+	}
+	for _, isRecovery := range []bool{false, true} {
+		o.canceledUpdate(isRecovery)
+	}
+
+	if err := o.modeenv.Write(); err != nil {
+		return fmt.Errorf("cannot write modeeenv: %v", err)
+	}
+
 	// TODO:UC20:
-	// - drop unused assets and update modeenv if needed
 	// - reseal with a given state of modeenv
 	return nil
 }
