@@ -185,20 +185,13 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 		return nil
 	}
 
-	// find the bootloader and ensure it's an extracted run kernel image
-	// bootloader
-
+	// find the run-mode bootloader
 	var opts *bootloader.Options
 	if ks20.blOpts != nil {
 		opts = ks20.blOpts
 	} else {
-		// we want extracted run kernel images for uc20
-		// TODO:UC20: the name of this flag is now confusing, as it is being
-		//            slightly abused to tell the uboot bootloader to just look
-		//            in a different directory, even when we don't have an
-		//            actual extracted kernel image for that impl
 		opts = &bootloader.Options{
-			ExtractedRunKernelImage: true,
+			Role: bootloader.RoleRunMode,
 		}
 	}
 	bl, err := bootloader.Find(ks20.blDir, opts)
@@ -317,31 +310,37 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeenv) (sn snap.PlaceInfo, err error) {
 	// first do the generic choice of which snap to use
 	first, second, err := genericInitramfsSelectSnap(ks20, modeenv, TryingStatus, "kernel")
-	if err != nil {
+	if err != nil && err != errTrySnapFallback {
 		return nil, err
+	}
+
+	if err == errTrySnapFallback {
+		// this should not actually return, it should immediately reboot
+		return nil, initramfsReboot()
 	}
 
 	// now validate the chosen kernel snap against the modeenv CurrentKernel's
 	// setting
-
-	// always try the first and fallback to the second if we fail
 	if strutil.ListContains(modeenv.CurrentKernels, first.Filename()) {
 		return first, nil
 	}
 
-	// first isn't trusted, so if we expected a fallback then use it
+	// if we didn't trust the first kernel in the modeenv, and second is set as
+	// a fallback, that means we booted a try kernel which is the first kernel,
+	// but we need to fallback to the second kernel, but we can't do that in the
+	// initramfs, we need to reboot so the bootloader boots the fallback kernel
+	// for us
+
 	if second != nil {
-		if strutil.ListContains(modeenv.CurrentKernels, second.Filename()) {
-			// TODO:UC20: actually we really shouldn't be falling back here at
-			//            all - if the kernel we booted isn't mountable in the
-			//            initramfs, we should trigger a reboot so that we boot
-			//            the fallback kernel and then mount that one when we
-			//            get back to the initramfs again
-			return second, nil
-		}
+		// this should not actually return, it should immediately reboot
+		return nil, initramfsReboot()
 	}
 
-	// no fallback expected, so first snap _is_ the fallback and isn't trusted!
+	// no fallback expected, so first snap _is_ the only kernel and isn't
+	// trusted!
+	// since we have nothing to fallback to, we don't issue a reboot and will
+	// instead just fail the systemd unit in the initramfs for an operator to
+	// debug/fix
 	return nil, fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", first.Filename())
 }
 
@@ -439,7 +438,8 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount(modeenv *Modeenv)
 	// whether the chosen snap is a try snap or not, if it is then we process
 	// the modeenv in the "try" -> "trying" case
 	first, second, err := genericInitramfsSelectSnap(bs20, modeenv, TryStatus, "base")
-	if err != nil {
+	// errTrySnapFallback is handled manually by inspecting second below
+	if err != nil && err != errTrySnapFallback {
 		return nil, err
 	}
 
@@ -594,29 +594,32 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 		// just log that we had issues with the try snap and continue with
 		// using the normal snap
 		logger.Noticef("unable to process try %s snap: %v", typeString, err)
-		return curSnap, nil, nil
+		return curSnap, nil, errTrySnapFallback
 	}
 	if snapTryStatus != expectedTryStatus {
 		// the status is unexpected, log if its value is invalid and continue
 		// with the normal snap
+		fallbackErr := errTrySnapFallback
 		switch snapTryStatus {
-		case TryStatus, DefaultStatus, TryingStatus:
+		case DefaultStatus:
+			fallbackErr = nil
+		case TryStatus, TryingStatus:
 		default:
 			logger.Noticef("\"%s_status\" has an invalid setting: %q", typeString, snapTryStatus)
 		}
-		return curSnap, nil, nil
+		return curSnap, nil, fallbackErr
 	}
 	// then we are trying a snap update and there should be a try snap
 	if trySnap == nil {
 		// it is unexpected when there isn't one
 		logger.Noticef("try-%[1]s snap is empty, but \"%[1]s_status\" is \"trying\"", typeString)
-		return curSnap, nil, nil
+		return curSnap, nil, errTrySnapFallback
 	}
 	trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), trySnap.Filename())
 	if !osutil.FileExists(trySnapPath) {
 		// or when the snap file does not exist
 		logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
-		return curSnap, nil, nil
+		return curSnap, nil, errTrySnapFallback
 	}
 
 	// we have a try snap and everything appears in order
