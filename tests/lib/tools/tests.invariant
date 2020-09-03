@@ -87,10 +87,11 @@ check_stray_dbus_daemon() {
 				skipped_system=1
 				continue
 			fi
-			# Ignore dbus-daemon running the session of the "external" user.
-			# This may happen when testing a core device using the ad-hoc
-			# backend. This user is never used by tests explicitly.
-			if [ "$(stat -c %U "/proc/$pid")" = "external" ]; then
+			# Ignore dbus-daemon running the sessions of the "external" or "gdm" users.
+			# This may happen when testing a core device or a desktop instance using the
+			# ad-hoc backend. These users are never used by tests explicitly.
+			pid_user="$(stat -c %U "/proc/$pid")"
+			if [ "$pid_user" = "external" ] || [ "$pid_user" = "gdm" ]; then
 				continue
 			fi
 			# Report stray dbus-daemon.

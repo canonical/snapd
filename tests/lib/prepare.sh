@@ -219,8 +219,8 @@ EOF
 }
 
 prepare_classic() {
-    # Skip building snapd when REUSE_SNAPD is set to 1
-    if [ "$REUSE_SNAPD" != 1 ]; then
+    # Skip building snapd when REUSE_SNAPD is set to 1 or it is external backend
+    if [ "$REUSE_SNAPD" != 1 ] && [ "$SPREAD_BACKEND" != external ] ; then
         distro_install_build_snapd
     fi
 
