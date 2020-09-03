@@ -728,7 +728,7 @@ nested_start_core_vm() {
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
+        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
@@ -927,7 +927,7 @@ nested_get_core_revision_installed() {
 }
 
 nested_fetch_spread() {
-    if ! [ -f "$NESTED_WORK_DIR/spread" ]; then
+    if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
         curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
         # make sure spread really exists

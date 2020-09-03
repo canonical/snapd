@@ -28,7 +28,7 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" == "$NESTED_CORE_REFRESH_CHANNEL" ]; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]; then
         echo "This test need to start from beta/candidate/stable channel"
         exit 0
     fi
