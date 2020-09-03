@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -80,6 +81,15 @@ func (s *FpgaInterfaceSuite) TestAppArmorSpec(c *C) {
 		`/dev/fpga[0-9]* rw`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
 		`/sys/class/fpga_manager/fpga[0-9]*/{name,state,status} r,`)
+}
+
+func (s *FpgaInterfaceSuite) TestUDevSpec(c *C) {
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# fpga
+SUBSYSTEM=="misc", KERNEL=="fpga[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *FpgaInterfaceSuite) TestStaticInfo(c *C) {
