@@ -99,14 +99,14 @@ execute: |
     fi
     if [ "$console_conf_disabled" = "true" ]; then
         not snap set system service.console-conf.disable=false 2>stderr
-        MATCH "console-conf can only be changed via the gadget default configuration" < stderr
+        MATCH "cannot toggle console-conf at runtime, but only initially via gadget defaults" < stderr
         # and the console-conf complete file is unchanged
         test -e /var/lib/console-conf/complete
         # but setting to again (without changing) is fine
         snap set system service.console-conf.disable=true
     elif [ "$console_conf_disabled" = "false" ]; then
         not snap set system service.console-conf.disable=true 2>stderr
-        MATCH "console-conf can only be changed via the gadget default configuration" < stderr
+        MATCH "cannot toggle console-conf at runtime, but only initially via gadget defaults" < stderr
         # and the console-conf complete file is unchanged
         not test -e /var/lib/console-conf/complete
         # but setting to again (without changing) is fine

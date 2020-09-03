@@ -173,7 +173,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 			"service.console-conf.disable": false,
 		},
 	})
-	c.Assert(err, ErrorMatches, "console-conf can only be changed via the gadget default configuration")
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
@@ -190,7 +190,7 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 			"service.console-conf.disable": true,
 		},
 	})
-	c.Assert(err, ErrorMatches, "console-conf can only be changed via the gadget default configuration")
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C) {

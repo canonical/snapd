@@ -91,7 +91,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 // switchDisableConsoleConfService handles the special case of
 // disabling/enabling console-conf on core devices.
 //
-// Note that this option can only be changed via gadget-defaults.
+// Note that this option can only be changed via gadget defaults.
 // It is not possible to tune this at runtime
 func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
 	consoleConfDisabled := "/var/lib/console-conf/complete"
@@ -100,7 +100,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 	if opts == nil {
 		hasDisabledFile := osutil.FileExists(filepath.Join(dirs.GlobalRootDir, consoleConfDisabled))
 		if disabled != hasDisabledFile {
-			return fmt.Errorf("console-conf can only be changed via the gadget default configuration")
+			return fmt.Errorf("cannot toggle console-conf at runtime, but only initially via gadget defaults")
 		}
 		return nil
 	}
