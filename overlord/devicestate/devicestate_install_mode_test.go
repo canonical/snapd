@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -263,20 +262,13 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
-			Mount:                   true,
-			Encrypt:                 true,
-			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			RecoveryKeyFile:         filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/recovery.key"),
-			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
-			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
-			KernelPath:              filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
-			Model:                   mockModel,
-			SystemLabel:             "20191218",
+			Mount:       true,
+			Encrypt:     true,
+			KernelPath:  filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:       mockModel,
+			SystemLabel: "20191218",
 		})
 
-		// directories were ensured
-		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
-		c.Assert(osutil.IsDirectory(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde")), Equals, true)
 		// inteface is not nil
 		c.Assert(sealingObserver, NotNil)
 		// we expect a very specific type

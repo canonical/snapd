@@ -337,6 +337,17 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
 		},
+		{
+			comment:             "nocloud uc20 done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
 		// the two cases for lxd and multipass are effectively the same, but as
 		// the largest known users of cloud-init w/ UC, we leave them as
 		// separate test cases for their different cloud-init status.json
@@ -356,6 +367,28 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDatasource:          "NoCloud",
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
+		},
+		{
+			comment:             "nocloud uc20 multipass done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:             "nocloud uc20 seed lxd done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: lxdNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
 		},
 	}
 

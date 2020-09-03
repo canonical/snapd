@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -436,27 +436,29 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 type preseedBaseSuite struct {
 	deviceMgrBaseSuite
 
-	// TODO: use this in deviceMgrBaseSuite itself
-	testutil.BaseTest
-
 	cmdUmount    *testutil.MockCmd
 	cmdSystemctl *testutil.MockCmd
 }
 
 func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
-	s.BaseTest.SetUpTest(c)
-
-	s.AddCleanup(snapdenv.MockPreseeding(preseed))
+	r := snapdenv.MockPreseeding(preseed)
 
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
 	s.deviceMgrBaseSuite.SetUpTest(c)
+
+	// can use cleanup only after having called base SetUpTest
+	s.AddCleanup(r)
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"build-id":"abcde"}`))
 	c.Assert(interfaces.WriteSystemKey(), IsNil)
 
 	s.cmdUmount = testutil.MockCommand(c, "umount", "")
 	s.cmdSystemctl = testutil.MockCommand(c, "systemctl", "")
+	s.AddCleanup(func() {
+		s.cmdUmount.Restore()
+		s.cmdSystemctl.Restore()
+	})
 
 	st := s.state
 	st.Lock()
@@ -477,13 +479,6 @@ apps:
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-}
-
-func (s *preseedBaseSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.deviceMgrBaseSuite.TearDownTest(c)
-	s.cmdUmount.Restore()
-	s.cmdSystemctl.Restore()
 }
 
 // TODO: rename preesed mode to just preseeding as much as possible,
