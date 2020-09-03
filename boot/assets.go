@@ -225,7 +225,7 @@ type TrustedAssetsInstallObserver struct {
 // of the secure boot.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
+func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
 	if affectedStruct.Role != gadget.SystemBoot {
 		// only care about system-boot
 		return true, nil
@@ -252,7 +252,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		// not one of the trusted assets
 		return true, nil
 	}
-	ta, err := o.cache.Add(realSource, o.blName, filepath.Base(relativeTarget))
+	ta, err := o.cache.Add(data.After, o.blName, filepath.Base(relativeTarget))
 	if err != nil {
 		return false, err
 	}
@@ -368,7 +368,7 @@ func findMaybeTrustedAssetsBootloader(root string, opts *bootloader.Options) (fo
 // the bootloader binary which is measured as part of the secure boot.
 //
 // Implements gadget.ContentUpdateObserver.
-func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
 	var whichBootloader bootloader.Bootloader
 	var whichAssets []string
 	var err error
@@ -416,22 +416,22 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	}
 	switch op {
 	case gadget.ContentUpdate:
-		return o.observeUpdate(whichBootloader, isRecovery, root, realSource, relativeTarget)
+		return o.observeUpdate(whichBootloader, isRecovery, root, relativeTarget, data)
 	case gadget.ContentRollback:
-		return o.observeRollback(whichBootloader, isRecovery, root, realSource, relativeTarget)
+		return o.observeRollback(whichBootloader, isRecovery, root, relativeTarget, data)
 	default:
 		// we only care about update and rollback actions
 		return false, nil
 	}
 }
 
-func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, realSource, relativeTarget string) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
 		return false, fmt.Errorf("cannot copy modeenv: %v", err)
 	}
 
-	ta, err := o.cache.Add(realSource, bl.Name(), filepath.Base(relativeTarget))
+	ta, err := o.cache.Add(data.After, bl.Name(), filepath.Base(relativeTarget))
 	if err != nil {
 		return false, err
 	}
@@ -469,7 +469,7 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	return true, nil
 }
 
-func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, realSource, relativeTarget string) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
 	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
 	if recovery {
