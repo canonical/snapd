@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
@@ -268,7 +268,6 @@ nested_cleanup_env() {
     rm -rf "$NESTED_ASSETS_DIR"
     rm -rf "$NESTED_LOGS_DIR"
     rm -rf "$NESTED_IMAGES_DIR"/*.img
-    nested_prepare_env
 }
 
 nested_get_image_name() {
@@ -699,7 +698,7 @@ nested_get_current_image_name() {
 }
 
 nested_start_core_vm() {
-    local CURRENT_IMAGE IMAGE_NAME
+    local CURRENT_IMAGE CURRENT_NAME
     CURRENT_NAME="$(nested_get_current_image_name)"
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$CURRENT_NAME"
 
@@ -712,6 +711,7 @@ nested_start_core_vm() {
         # Some tests however need to force stop and restart the VM with different
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
+        local IMAGE_NAME
         IMAGE_NAME="$(nested_get_image_name core)"
         if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ] && ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
@@ -733,7 +733,7 @@ nested_start_core_vm() {
             nested_prepare_ssh
             sync
 
-            # compress the current image if it a generic image
+            # compress the current image if it is a generic image
             if nested_is_generic_image; then
                 # Stop the current image and compress it
                 nested_shutdown
