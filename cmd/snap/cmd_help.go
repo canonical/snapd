@@ -212,7 +212,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
-		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
+		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget", "export-snapshot", "import-snapshot"},
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
