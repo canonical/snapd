@@ -21,16 +21,19 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -40,7 +43,7 @@ var (
 		Path:   "/v2/themes",
 		UserOK: true,
 		GET:    checkThemes,
-		POST:   tbd,
+		POST:   installThemes,
 	}
 )
 
@@ -117,7 +120,7 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
-func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]*snap.Info) (map[string]themeStatus, error) {
+func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]bool) (map[string]themeStatus, error) {
 	status := make(map[string]themeStatus, len(themes))
 
 	for _, theme := range themes {
@@ -137,7 +140,7 @@ func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService,
 				// channel.
 				if info.Channel == "stable" {
 					status[theme] = themeAvailable
-					toInstall[name] = info
+					toInstall[name] = true
 				}
 				break
 			} else if err != store.ErrSnapNotFound {
@@ -148,30 +151,34 @@ func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService,
 	return status, nil
 }
 
-func getThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, toInstall map[string]*snap.Info, err error) {
+func getThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, toInstall []string, err error) {
 	installedGtk, installedIcon, installedSound, err := getInstalledThemes(c.d)
 	if err != nil {
 		return themeStatusResponse{}, nil, err
 	}
 
 	theStore := getStore(c)
-	toInstall = make(map[string]*snap.Info)
-	if status.GtkThemes, err = getThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, toInstall); err != nil {
+	candidates := make(map[string]bool)
+	if status.GtkThemes, err = getThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.IconThemes, err = getThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, toInstall); err != nil {
+	if status.IconThemes, err = getThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.SoundThemes, err = getThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, toInstall); err != nil {
+	if status.SoundThemes, err = getThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
+	toInstall = make([]string, 0, len(candidates))
+	for pkg := range candidates {
+		toInstall = append(toInstall, pkg)
+	}
+	sort.Strings(toInstall)
 
 	return status, toInstall, nil
 }
 
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	ctx := store.WithClientUserAgent(r.Context(), r)
-
 	q := r.URL.Query()
 	status, _, err := getThemeStatus(ctx, c, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
 	if err != nil {
@@ -179,4 +186,57 @@ func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(status, nil)
+}
+
+type themeInstallReq struct {
+	GtkThemes   []string `json:"gtk-themes"`
+	IconThemes  []string `json:"icon-themes"`
+	SoundThemes []string `json:"sound-themes"`
+}
+
+func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
+	decoder := json.NewDecoder(r.Body)
+	var req themeInstallReq
+	if err := decoder.Decode(&req); err != nil {
+		return BadRequest("cannot decode request body: %v", err)
+	}
+
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	_, toInstall, err := getThemeStatus(ctx, c, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
+
+	if len(toInstall) == 0 {
+		return BadRequest("no snaps to install")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
+	installed, tasksets, err := snapstateInstallMany(st, toInstall, userID)
+	if err != nil {
+		return InternalError("cannot install themes: %s", err)
+	}
+	var summary string
+	switch len(toInstall) {
+	case 1:
+		summary = fmt.Sprintf(i18n.G("Install snap %q"), toInstall[0])
+	default:
+		quoted := strutil.Quoted(toInstall)
+		summary = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
+	}
+
+	var chg *state.Change
+	if len(tasksets) == 0 {
+		chg = st.NewChange("install-themes", summary)
+		chg.SetStatus(state.DoneStatus)
+	} else {
+		chg = newChange(st, "install-themes", summary, tasksets, installed)
+		ensureStateSoon(st)
+	}
+	chg.Set("api-data", map[string]interface{}{"snap-names": installed})
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

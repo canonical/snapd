@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,7 +29,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -57,13 +61,14 @@ func (s *themesSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *a
 	return nil, s.err
 }
 
-func (s *themesSuite) daemon(c *C) {
-	s.apiBaseSuite.daemon(c)
+func (s *themesSuite) daemon(c *C) *Daemon {
+	d := s.apiBaseSuite.daemon(c)
 
-	st := s.d.overlord.State()
+	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, s)
+	return d
 }
 
 func (s *themesSuite) TestGetInstalledThemes(c *C) {
@@ -166,7 +171,7 @@ func (s *themesSuite) TestGetThemeStatusForType(c *C) {
 	}
 
 	ctx := context.Background()
-	toInstall := make(map[string]*snap.Info)
+	toInstall := make(map[string]bool)
 
 	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
 	c.Check(err, IsNil)
@@ -192,7 +197,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeStripsSuffixes(c *C) {
 	}
 
 	ctx := context.Background()
-	toInstall := make(map[string]*snap.Info)
+	toInstall := make(map[string]bool)
 
 	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
 	c.Check(err, IsNil)
@@ -216,7 +221,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeIgnoresUnstable(c *C) {
 	}
 
 	ctx := context.Background()
-	toInstall := make(map[string]*snap.Info)
+	toInstall := make(map[string]bool)
 
 	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
 	c.Check(err, IsNil)
@@ -232,7 +237,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeReturnsErrors(c *C) {
 	s.err = errors.New("store error")
 
 	ctx := context.Background()
-	toInstall := make(map[string]*snap.Info)
+	toInstall := make(map[string]bool)
 
 	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
 	c.Check(err, Equals, s.err)
@@ -302,10 +307,7 @@ slots:
 		"Bar-sounds": themeAvailable,
 		"Baz-sounds": themeUnavailable,
 	})
-	c.Check(toInstall, HasLen, 3)
-	c.Check(toInstall["gtk-theme-bar"], NotNil)
-	c.Check(toInstall["icon-theme-bar"], NotNil)
-	c.Check(toInstall["sound-theme-bar"], NotNil)
+	c.Check(toInstall, DeepEquals, []string{"gtk-theme-bar", "icon-theme-bar", "sound-theme-bar"})
 }
 
 func (s *themesSuite) TestThemesCmd(c *C) {
@@ -362,4 +364,75 @@ func (s *themesSuite) TestThemesCmd(c *C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
+}
+
+func (s *themesSuite) daemonWithIfaceMgr(c *C) *Daemon {
+	d := s.apiBaseSuite.daemonWithOverlordMock(c)
+
+	st := d.overlord.State()
+	runner := d.overlord.TaskRunner()
+	hookMgr, err := hookstate.Manager(st, runner)
+	c.Assert(err, IsNil)
+	d.overlord.AddManager(hookMgr)
+	ifaceMgr, err := ifacestate.Manager(st, hookMgr, runner, nil, nil)
+	c.Assert(err, IsNil)
+	d.overlord.AddManager(ifaceMgr)
+	d.overlord.AddManager(runner)
+	c.Assert(d.overlord.StartUp(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
+	return d
+}
+
+func (s *themesSuite) TestThemesCmdPost(c *C) {
+	s.daemonWithIfaceMgr(c)
+
+	s.available = map[string]*snap.Info{
+		"gtk-theme-foo": {
+			SuggestedName: "gtk-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"icon-theme-foo": {
+			SuggestedName: "icon-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+		"sound-theme-foo": {
+			SuggestedName: "sound-theme-foo",
+			SideInfo: snap.SideInfo{
+				Channel: "stable",
+			},
+		},
+	}
+	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		t := s.NewTask("fake-theme-install", "Theme install")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	buf := bytes.NewBufferString(`{"gtk-themes":["Foo-gtk"],"icon-themes":["Foo-icons"],"sound-themes":["Foo-sounds"]}`)
+	req := httptest.NewRequest("POST", "/v2/themes", buf)
+	rec := httptest.NewRecorder()
+	themesCmd.POST(themesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 202)
+
+	var rsp resp
+	err := json.Unmarshal(rec.Body.Bytes(), &rsp)
+	c.Assert(err, IsNil)
+	c.Check(rsp.Type, Equals, ResponseTypeAsync)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Kind(), Equals, "install-themes")
+	c.Check(chg.Summary(), Equals, `Install snaps "gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"`)
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"})
 }
