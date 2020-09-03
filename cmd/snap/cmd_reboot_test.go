@@ -31,7 +31,7 @@ import (
 
 func (s *SnapSuite) TestRebootHelp(c *C) {
 	msg := `Usage:
-  snap.test reboot [reboot-OPTIONS] <label>
+  snap.test reboot [reboot-OPTIONS] [<label>]
 
 The reboot command reboots the system into a particular mode of the selected
 recovery system.
@@ -62,6 +62,11 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 
 		n++
 	})
+
+	// XXX: add tests for:
+	//      reboot --recover
+	//      reboot 20200101
+	// The server side will work out if the request is valid
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
@@ -79,10 +84,6 @@ func (s *SnapSuite) TestRebootUnhappy(c *C) {
 		args   []string
 		errStr string
 	}{
-		{
-			args:   []string{"reboot", "20200101"},
-			errStr: "Please specify a mode, see --help",
-		},
 		{
 			args:   []string{"reboot", "--run", "--recover", "20200101"},
 			errStr: "Please specify a single mode",

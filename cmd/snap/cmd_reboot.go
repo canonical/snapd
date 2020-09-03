@@ -32,7 +32,7 @@ type cmdReboot struct {
 	clientMixin
 	Positional struct {
 		Label string
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true"`
 
 	RunMode     bool `long:"run"`
 	InstallMode bool `long:"install"`
@@ -83,9 +83,6 @@ func (x *cmdReboot) modeFromCommandline() (*client.SystemAction, error) {
 		}
 		action.Mode = arg.mode
 	}
-	if action.Mode == "" {
-		return nil, fmt.Errorf("Please specify a mode, see --help")
-	}
 
 	return &action, nil
 }
@@ -101,9 +98,22 @@ func (x *cmdReboot) Execute(args []string) error {
 	}
 
 	if err := x.client.DoSystemAction(x.Positional.Label, action); err != nil {
-		return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
+		if x.Positional.Label != "" {
+			return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
+		}
+		return fmt.Errorf("cannot reboot: %v", err)
 	}
 
-	fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, action.Mode)
+	switch {
+	case x.Positional.Label != "" && action.Mode != "":
+		fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, action.Mode)
+	case x.Positional.Label != "":
+		fmt.Fprintf(Stdout, "Reboot into %q\n", x.Positional.Label)
+	case action.Mode != "":
+		fmt.Fprintf(Stdout, "Reboot into mode %q\n", action.Mode)
+	default:
+		fmt.Fprintf(Stdout, "Reboot")
+	}
+
 	return nil
 }
