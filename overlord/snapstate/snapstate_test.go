@@ -1115,7 +1115,7 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, featureFlag, automatic
 	return err
 }
 
-func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckDisabledWhenNoSnapshot(c *C) {
+func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckDoesNothingWhenNoSnapshot(c *C) {
 	featureFlag := true
 	snapshot := false
 	err := s.testRemoveDiskSpaceCheck(c, featureFlag, snapshot)
