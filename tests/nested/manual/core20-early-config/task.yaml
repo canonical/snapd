@@ -70,3 +70,7 @@ execute: |
     execute_remote "cat /etc/timezone" | MATCH "Europe/Malta"
     execute_remote "readlink -f /etc/localtime" | MATCH "Europe/Malta"
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+
+    # check console-conf disabled
+    execute_remote "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+
