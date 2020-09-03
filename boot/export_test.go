@@ -51,6 +51,8 @@ var (
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
+
+	SealKeyToModeenv = sealKeyToModeenv
 )
 
 type BootAssetsMap = bootAssetsMap
