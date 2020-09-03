@@ -24,7 +24,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -65,8 +64,9 @@ func init() {
 	})
 }
 
-func (x *cmdReboot) modeFromCommandline() (*client.SystemAction, error) {
-	var action client.SystemAction
+func (x *cmdReboot) modeFromCommandline() (string, error) {
+	var mode string
+
 	for _, arg := range []struct {
 		enabled bool
 		mode    string
@@ -78,13 +78,13 @@ func (x *cmdReboot) modeFromCommandline() (*client.SystemAction, error) {
 		if !arg.enabled {
 			continue
 		}
-		if action.Mode != "" {
-			return nil, fmt.Errorf("Please specify a single mode")
+		if mode != "" {
+			return "", fmt.Errorf("Please specify a single mode")
 		}
-		action.Mode = arg.mode
+		mode = arg.mode
 	}
 
-	return &action, nil
+	return mode, nil
 }
 
 func (x *cmdReboot) Execute(args []string) error {
@@ -92,12 +92,12 @@ func (x *cmdReboot) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	action, err := x.modeFromCommandline()
+	mode, err := x.modeFromCommandline()
 	if err != nil {
 		return err
 	}
 
-	if err := x.client.DoSystemAction(x.Positional.Label, action); err != nil {
+	if err := x.client.DoSystemReboot(x.Positional.Label, mode); err != nil {
 		if x.Positional.Label != "" {
 			return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
 		}
@@ -105,12 +105,12 @@ func (x *cmdReboot) Execute(args []string) error {
 	}
 
 	switch {
-	case x.Positional.Label != "" && action.Mode != "":
-		fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, action.Mode)
+	case x.Positional.Label != "" && mode != "":
+		fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, mode)
 	case x.Positional.Label != "":
 		fmt.Fprintf(Stdout, "Reboot into %q\n", x.Positional.Label)
-	case action.Mode != "":
-		fmt.Fprintf(Stdout, "Reboot into mode %q\n", action.Mode)
+	case mode != "":
+		fmt.Fprintf(Stdout, "Reboot into mode %q\n", mode)
 	default:
 		fmt.Fprintf(Stdout, "Reboot")
 	}

@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -55,6 +56,9 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 			c.Check(r.Method, Equals, "POST")
 			c.Check(r.URL.Path, Equals, "/v2/systems/20200101")
 			c.Check(r.URL.RawQuery, Equals, "")
+			body, err := ioutil.ReadAll(r.Body)
+			c.Check(err, IsNil)
+			c.Check(string(body), Equals, `{"action":"reboot","mode":"recover"}`+"\n")
 			fmt.Fprintln(w, `{"type": "sync", "result": {}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
