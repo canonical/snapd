@@ -238,7 +238,7 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
-	// restore := disks.MockMountPointDisksToPartionMapping()
+	// restore := disks.MockMountPointDisksToPartitionMapping()
 	// defer restore()
 
 	mockDiskWithEncDev := &disks.MockDiskMapping{
