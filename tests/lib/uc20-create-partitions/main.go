@@ -32,10 +32,8 @@ import (
 var installRun = install.Run
 
 type cmdCreatePartitions struct {
-	Mount      bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt    bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KernelPath string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
-	ModelPath  string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
+	Mount   bool `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt bool `long:"encrypt" description:"Encrypt the data partition"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -72,19 +70,9 @@ func main() {
 		panic(err)
 	}
 
-	var model *asserts.Model
-	if args.ModelPath != "" {
-		var err error
-		model, err = readModel(args.ModelPath)
-		if err != nil {
-			panic(fmt.Sprintf("cannot load model: %v", err))
-		}
-	}
 	options := install.Options{
-		Mount:      args.Mount,
-		Encrypt:    args.Encrypt,
-		KernelPath: args.KernelPath,
-		Model:      model,
+		Mount:   args.Mount,
+		Encrypt: args.Encrypt,
 	}
 	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
 	if err != nil {
