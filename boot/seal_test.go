@@ -45,14 +45,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		sealErr error
 		err     string
 	}{
-		{
-			// happy case
-		},
-		{
-			// seal error
-			sealErr: errors.New("seal error"),
-			err:     "cannot seal the encryption key: seal error",
-		},
+		{sealErr: nil, err: ""},
+		{sealErr: errors.New("seal error"), err: "cannot seal the encryption key: seal error"},
 	} {
 		tmpDir := c.MkDir()
 		dirs.SetRootDir(tmpDir)
