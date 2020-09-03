@@ -107,10 +107,9 @@ func configureCloudInit(opts *Options) (err error) {
 	if osutil.FileExists(gadgetCloudConf) {
 		// then copy / install the gadget config and return without considering
 		// CloudInitSrcDir
-		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
-			return err
-		}
-		return nil
+		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
+		// and the gadget cloud.conf so returning here may be wrong
+		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
 	}
 
 	// TODO:UC20: implement filtering of files from src when specified via a
@@ -120,15 +119,13 @@ func configureCloudInit(opts *Options) (err error) {
 	// files from
 
 	if opts.CloudInitSrcDir != "" {
-		if err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
-			return err
-		}
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
 	}
 
-	// it's valid to have not set CloudInitSrcDir and not have a gadget
-	// cloud.conf, in this case cloud-init may pick up dynamic metadata and
-	// userdata from NoCloud sources such as a CD-ROM drive with label CIDATA,
-	// etc. during first-boot
+	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
+	// a gadget cloud.conf, in this case cloud-init may pick up dynamic metadata
+	// and userdata from NoCloud sources such as a CD-ROM drive with label
+	// CIDATA, etc. during first-boot
 
 	return nil
 }
