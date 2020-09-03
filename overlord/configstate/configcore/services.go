@@ -160,7 +160,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	}
 
 	// some services are special

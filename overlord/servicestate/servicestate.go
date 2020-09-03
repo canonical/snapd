@@ -133,7 +133,7 @@ func NewStatusDecorator(rep interface {
 	Notify(string)
 }) *StatusDecorator {
 	return &StatusDecorator{
-		sysd: systemd.New(dirs.GlobalRootDir, systemd.SystemMode, rep),
+		sysd: systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, rep),
 	}
 }
 

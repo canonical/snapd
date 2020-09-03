@@ -137,7 +137,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
 		return err
@@ -383,7 +383,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
 	if err != nil {
@@ -451,7 +451,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 // deployed in the filesystem as part of snapd snap installation. This should
 // only be executed as part of a controlled undo path.
 func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	// list user service and socket units present in the snapd snap
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
@@ -558,7 +558,7 @@ func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	if err := undoSnapdDbusConfigOnCore(s); err != nil {
 		return err

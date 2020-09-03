@@ -144,8 +144,8 @@ func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err
 	var enabled []string
 	var userEnabled []string
 
-	systemSysd := systemd.New("", systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	disableEnabledServices := func() {
 		for _, srvName := range enabled {
@@ -204,8 +204,8 @@ type StartServicesFlags struct {
 // are services. Service units will be started in the order provided by the
 // caller.
 func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
-	systemSysd := systemd.New("", systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	cli := client.New()
 
 	systemServices := make([]string, 0, len(apps))
@@ -372,7 +372,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 	// TODO: remove once services get enabled on start and not when created.
 	preseeding := opts.Preseeding
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	var written []string
 	var writtenSystem, writtenUser bool
 	var disableEnabledServices func()
@@ -493,7 +493,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 // the first boot of a pre-seeded image with service files already in place but not enabled.
 // XXX: it should go away once services are fixed and enabled on start.
 func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
-	sysd := systemd.New("", systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 	for _, app := range s.Apps {
 		if app.IsService() {
 			svcName := app.ServiceName()
@@ -513,7 +513,7 @@ type StopServicesFlags struct {
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
 func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.New("", systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 	if flags == nil {
 		flags = &StopServicesFlags{}
 	}
@@ -568,7 +568,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 // ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
 func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
-	sysd := systemd.New("", systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current
 	// systemd state of the snaps
@@ -597,8 +597,8 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
-	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	systemSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var removedSystem, removedUser bool
 
 	for _, app := range s.Apps {
@@ -1226,7 +1226,7 @@ type RestartServicesFlags struct {
 
 // Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
 func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	for _, srv := range svcs {
 		// they're *supposed* to be all services, but checking doesn't hurt

@@ -270,9 +270,15 @@ type reporter interface {
 	Notify(string)
 }
 
-// New returns a Systemd that uses the given rootDir
-func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+// NewUnderRoot returns a Systemd that uses the given rootDir
+func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+}
+
+// New returns a Systemd that uses the default root directory and omits
+// --root argument when executing systemctl.
+func New(mode InstanceMode, rep reporter) Systemd {
+	return &systemd{mode: mode, reporter: rep}
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where

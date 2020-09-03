@@ -195,6 +195,6 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
 }
