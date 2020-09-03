@@ -1076,7 +1076,6 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	system, err := systemFromSeed(systemLabel, currentSys)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
-
 	}
 
 	var sysAction *SystemAction
