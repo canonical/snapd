@@ -768,23 +768,23 @@ func (s *secbootSuite) TestResealKey(c *C) {
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
-		{tpmEnabled: true, missingFile: true, expectedErr: "file .*/file.efi does not exist"},
+		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*/file.efi does not exist"},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
 	} {
-		mockEFI := filepath.Join(c.MkDir(), "file.efi")
+		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
 		if !tc.missingFile {
-			err := ioutil.WriteFile(mockEFI, nil, 0644)
+			err := ioutil.WriteFile(mockEFI.Path, nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
 		myParams := &secboot.ResealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
-					EFILoadChains:  [][]string{{mockEFI}},
+					EFILoadChains:  [][]bootloader.BootFile{{mockEFI}},
 					KernelCmdlines: []string{"cmdline"},
 					Model:          &asserts.Model{},
 				},
@@ -796,7 +796,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		sequences := []*sb.EFIImageLoadEvent{
 			{
 				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI),
+				Image:  sb.FileEFIImage(mockEFI.Path),
 			},
 		}
 

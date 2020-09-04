@@ -372,9 +372,9 @@ func buildPCRProtectionProfile(numModels int, modelParams []*SealKeyModelParams)
 		modelProfile := sb.NewPCRProtectionProfile()
 
 		// Add EFI secure boot policy profile
-		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
+		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
-			return fmt.Errorf("cannot build EFI image load sequences: %v", err)
+			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
