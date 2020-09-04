@@ -358,6 +358,73 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 	}
 }
 
+func (s *sealSuite) TestRunModeKernelsFromModeenv(c *C) {
+	for _, tc := range []struct {
+		kernels []string
+		k1      string
+		k2      string
+		err     string
+	}{
+		{
+			kernels: []string{"pc-kernel_1.snap"},
+			k1:      "/var/lib/snapd/snaps/pc-kernel_1.snap",
+			k2:      "/var/lib/snapd/snaps/pc-kernel_1.snap",
+		},
+		{
+			kernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+			k1:      "/var/lib/snapd/snaps/pc-kernel_1.snap",
+			k2:      "/var/lib/snapd/snaps/pc-kernel_2.snap",
+		},
+		{
+			kernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap", "pc-kernel_3.snap"},
+			err:     "invalid number of kernels in modeenv",
+		},
+		{
+			kernels: []string{},
+			err:     "invalid number of kernels in modeenv",
+		},
+	} {
+		modeenv := &boot.Modeenv{CurrentKernels: tc.kernels}
+		k1, k2, err := boot.RunModeKernelsFromModeenv(modeenv)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+			continue
+		}
+		c.Assert(k1, Equals, tc.k1)
+		c.Assert(k2, Equals, tc.k2)
+	}
+}
+
+func (s *sealSuite) TestCachedAssetPathnames(c *C) {
+	assetsMap := boot.BootAssetsMap{
+		"foo":  []string{"foo-hash-1"},
+		"bar":  []string{"bar-hash-1", "bar-hash-2"},
+		"baz":  []string{"baz-hash-1", "baz-hash-2", "baz-hash-3"},
+		"quux": []string{},
+	}
+
+	p1, p2, err := boot.CachedAssetPathnames("bootloader", "foo", assetsMap)
+	c.Assert(err, IsNil)
+	c.Assert(p1, Equals, "/var/lib/snapd/boot-assets/bootloader/foo-foo-hash-1")
+	c.Assert(p2, Equals, "/var/lib/snapd/boot-assets/bootloader/foo-foo-hash-1")
+
+	p1, p2, err = boot.CachedAssetPathnames("bootloader", "bar", assetsMap)
+	c.Assert(err, IsNil)
+	c.Assert(p1, Equals, "/var/lib/snapd/boot-assets/bootloader/bar-bar-hash-1")
+	c.Assert(p2, Equals, "/var/lib/snapd/boot-assets/bootloader/bar-bar-hash-2")
+
+	_, _, err = boot.CachedAssetPathnames("bootloader", "baz", assetsMap)
+	c.Assert(err, ErrorMatches, "invalid number of hashes for asset baz in modeenv")
+
+	_, _, err = boot.CachedAssetPathnames("bootloader", "quux", assetsMap)
+	c.Assert(err, ErrorMatches, "invalid number of hashes for asset quux in modeenv")
+
+	_, _, err = boot.CachedAssetPathnames("bootloader", "quuux", assetsMap)
+	c.Assert(err, ErrorMatches, "cannot find asset quuux in modeenv")
+}
+
 func createMockGrubCfg(baseDir string) error {
 	cfg := filepath.Join(baseDir, "EFI/ubuntu/grub.cfg")
 	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {

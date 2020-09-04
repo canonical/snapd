@@ -55,9 +55,11 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	SealKeyToModeenv         = sealKeyToModeenv
-	RecoverModeLoadSequences = recoverModeLoadSequences
-	RunModeLoadSequences     = runModeLoadSequences
+	SealKeyToModeenv          = sealKeyToModeenv
+	RecoverModeLoadSequences  = recoverModeLoadSequences
+	RunModeLoadSequences      = runModeLoadSequences
+	RunModeKernelsFromModeenv = runModeKernelsFromModeenv
+	CachedAssetPathnames      = cachedAssetPathnames
 )
 
 type BootAssetsMap = bootAssetsMap

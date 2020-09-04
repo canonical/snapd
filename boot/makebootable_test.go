@@ -767,6 +767,17 @@ version: 5.0
 	}
 	obs.ChosenEncryptionKey(myKey)
 
+	// set a mock recovery kernel
+	readSystemEssentialCalls := 0
+	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		readSystemEssentialCalls++
+		kernelSnap := &seed.Snap{
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+		}
+		return model, []*seed.Snap{kernelSnap}, nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeyCalls := 0
 	restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
@@ -775,12 +786,26 @@ version: 5.0
 		c.Assert(params.ModelParams, HasLen, 1)
 		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
-			// run mode load sequence
 			{
-				bootloader.NewBootFile("", filepath.Join(rootdir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(rootdir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(rootdir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-				bootloader.NewBootFile("", filepath.Join(rootdir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
+				bootloader.NewBootFile("", filepath.Join(rootdir,
+					"var/lib/snapd/boot-assets/grub/bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"),
+					bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(rootdir,
+					"var/lib/snapd/boot-assets/grub/grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"),
+					bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(rootdir,
+					"var/lib/snapd/boot-assets/grub/grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"),
+					bootloader.RoleRunMode),
+				bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode),
+			},
+			{
+				bootloader.NewBootFile("", filepath.Join(rootdir,
+					"var/lib/snapd/boot-assets/grub/bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"),
+					bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(rootdir,
+					"var/lib/snapd/boot-assets/grub/grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"),
+					bootloader.RoleRecovery),
+				bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 			},
 		})
 		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
