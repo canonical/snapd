@@ -38,18 +38,22 @@ type Request struct {
 	Label string
 	// Path is the path of the file, as seen by the process triggering the request.
 	Path string
-
+	// Permission is the opaque permission that is being requested.
+	Permission interface{}
 	// YesNo is a channel for writing the response.
 	YesNo chan bool
 }
 
 func newRequest(n *Notifier, msg *apparmor.MsgNotificationFile) *Request {
+	var perm interface{}
 	return &Request{
 		n: n,
 
 		Pid:   msg.Pid,
 		Label: msg.Label,
 		Path:  msg.Name,
+
+		Permission: perm,
 
 		YesNo: make(chan bool, 1),
 	}
