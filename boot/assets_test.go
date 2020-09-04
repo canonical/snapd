@@ -625,30 +625,17 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
+	// observe an update where some of the assets exist and some are new
+
 	d := c.MkDir()
+	backups := c.MkDir()
 	root := c.MkDir()
 
-	m := boot.Modeenv{
-		Mode: "run",
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"asset-hash"},
-			"shim":  {"shim-hash"},
-		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recovery-asset-hash"},
-		},
-	}
-	err := m.WriteTo("")
+	// try to arrange the backups like the updater would do it
+	before := []byte("before")
+	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
+	err := ioutil.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
 	c.Assert(err, IsNil)
-
-	tab := s.bootloaderWithTrustedAssets(c, []string{
-		"asset",
-		"nested/other-asset",
-		"shim",
-	})
-
-	// we get an observer for UC20
-	obs := s.uc20UpdateObserver(c)
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -660,8 +647,34 @@ func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
 	c.Assert(err, IsNil)
 
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {beforeHash},
+			"shim":  {"shim-hash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {beforeHash},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{
+		"asset",
+		"nested/other-asset",
+		"shim",
+	})
+
+	// we get an observer for UC20
+	obs := s.uc20UpdateObserver(c)
+
 	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+		&gadget.ContentChange{
+			After: filepath.Join(d, "foobar"),
+			// original content would get backed up by the updater
+			Before: filepath.Join(backups, "asset.backup"),
+		})
 	c.Assert(err, IsNil)
 	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
@@ -673,7 +686,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
-		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+		&gadget.ContentChange{
+			After: filepath.Join(d, "foobar"),
+			// original content
+			Before: filepath.Join(backups, "asset.backup"),
+		})
 	c.Assert(err, IsNil)
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "nested/other-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
@@ -683,6 +700,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
 	// all files are in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", beforeHash)),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
@@ -690,11 +708,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMocked(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"asset-hash", dataHash},
+		"asset": {beforeHash, dataHash},
 		"shim":  {"shim-hash", shimHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset":       {"recovery-asset-hash", dataHash},
+		"asset":       {beforeHash, dataHash},
 		"shim":        {shimHash},
 		"other-asset": {dataHash},
 	})
@@ -933,6 +951,9 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+		&gadget.ContentChange{Before: filepath.Join(d, "before"), After: filepath.Join(d, "foobar")})
+	c.Assert(err, ErrorMatches, `cannot open asset file: .*/before: no such file or directory`)
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot open asset file: .*/foobar: no such file or directory`)
@@ -975,6 +996,89 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, ErrorMatches, `cannot reuse asset name "asset"`)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
+	//observe an update in a scenario when a mid-gadget-update reboot
+	//happened and we have successfully booted with new assets only, but the
+	//update is incomplete and gets started again
+
+	d := c.MkDir()
+	backups := c.MkDir()
+	root := c.MkDir()
+
+	// try to arrange the backups like the updater would do it
+	before := []byte("before")
+	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
+	err := ioutil.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
+	c.Assert(err, IsNil)
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+
+	// pretend we rebooted mid update and have successfully booted with the
+	// new assets already, the old asset may have been dropped from the cache already
+	cache := boot.NewTrustedAssetsCache(dirs.SnapBootAssetsDir)
+	_, err = cache.Add(filepath.Join(d, "foobar"), "trusted", "asset")
+	c.Assert(err, IsNil)
+	// file is in the cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+	})
+	// and similarly, only the new asset in modeenv
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.bootloaderWithTrustedAssets(c, []string{
+		"asset",
+	})
+
+	// we get an observer for UC20
+	obs := s.uc20UpdateObserver(c)
+
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+		&gadget.ContentChange{
+			After: filepath.Join(d, "foobar"),
+			// original content would get backed up by the updater
+			Before: filepath.Join(backups, "asset.backup"),
+		})
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+		&gadget.ContentChange{
+			After: filepath.Join(d, "foobar"),
+			// original content
+			Before: filepath.Join(backups, "asset.backup"),
+		})
+	c.Assert(err, IsNil)
+
+	// all files are in cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", beforeHash)),
+	})
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		// original asset is restored, listed first
+		"asset": {beforeHash, dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		// same here
+		"asset": {beforeHash, dataHash},
+	})
 }
 
 func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) {
