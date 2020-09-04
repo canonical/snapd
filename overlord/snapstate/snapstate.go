@@ -825,8 +825,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 				return nil, &InsufficientSpaceError{
-					Path:  path,
-					Snaps: []string{info.InstanceName()},
+					Path:       path,
+					Snaps:      []string{info.InstanceName()},
 					ChangeKind: "install",
 				}
 			}
