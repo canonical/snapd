@@ -691,13 +691,12 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		// or if we installed cloud-init configuration from the gadget
 		if model.Grade() != asserts.ModelGradeUnset {
 			// look for cloud.conf in the installed gadget snap
-			gadget := model.Gadget()
-			if gadget == "" {
-				// catastrophic error, we have a grade set but no gadget in the
-				// model?
-				return fmt.Errorf("internal error: model assertion has a grade of %s, but does not have a gadget", model.Grade())
+			deviceCtx, err := DeviceCtx(m.state, nil, nil)
+			if err != nil {
+				return err
 			}
-			gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
+
+			gadgetInfo, err := snapstate.GadgetInfo(m.state, deviceCtx)
 			if err != nil {
 				return err
 			}
