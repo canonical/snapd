@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -701,8 +700,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 				return err
 			}
 
-			cloudGadgetConf := filepath.Join(gadgetInfo.MountDir(), "cloud.conf")
-			if !osutil.FileExists(cloudGadgetConf) {
+			if !sysconfig.HasGadgetCloudConf(gadgetInfo.MountDir()) {
 				// no gadget cloud conf so disable cloud-init if it's not
 				// NoCloud
 				opts.DisableNoCloud = true

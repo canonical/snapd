@@ -46,12 +46,11 @@ var (
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
-	case osutil.FileExists(gadgetCloudConf):
+	case sysconfig.HasGadgetCloudConf(gadgetDir):
 		// this is implicitly handled by ConfigureRunSystem when it configures
 		// cloud-init if none of the other options are set, so just break here
 		opts.AllowCloudInit = true
