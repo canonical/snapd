@@ -32,6 +32,10 @@ execute: |
     echo $(du -s --block-size=1048576 "$TMPFSMOUNT" | awk '{print $1}')
   }
 
+  echo "Enabling experimental disk space checks"
+  snap set system experimental.check-disk-space-install=true
+  snap set system experimental.check-disk-space-remove=true
+
   echo "Snap download fails with little disk space"
   NEWSIZE=$(expr $(get_disk_usage) + 1)
   resize "${NEWSIZE}M"
