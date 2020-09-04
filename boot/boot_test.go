@@ -1449,7 +1449,7 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
 	c.Assert(err, IsNil)
 
-	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Recovery: true})
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(err, IsNil)
 
 	blvars, err := bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")

@@ -172,19 +172,25 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
+type mockContentChange struct {
+	path   string
+	change *gadget.ContentChange
+}
+
 type mockWriteObserver struct {
-	content        map[string][][]string
+	content        map[string][]*mockContentChange
 	observeErr     error
 	expectedStruct *gadget.LaidOutStructure
 	c              *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
 	if m.content == nil {
-		m.content = make(map[string][][]string)
+		m.content = make(map[string][]*mockContentChange)
 	}
-	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.content[targetRootDir] = append(m.content[targetRootDir],
+		&mockContentChange{path: relativeTargetPath, change: data})
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
 	return true, m.observeErr
@@ -256,9 +262,12 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
-			c.Assert(obs.content, DeepEquals, map[string][][]string{
+			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
 				filepath.Join(mockMountpoint, "2"): {
-					{filepath.Join(s.gadgetRoot, "grubx64.efi"), "EFI/boot/grubx64.efi"},
+					{
+						path:   "EFI/boot/grubx64.efi",
+						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},
+					},
 				},
 			})
 		}

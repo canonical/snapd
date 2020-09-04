@@ -159,7 +159,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -288,11 +288,11 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
+		// Bootloader for run mode
+		Role: bootloader.RoleRunMode,
 		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
+		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
-		// Bootloader that supports kernel asset extraction
-		ExtractedRunKernelImage: true,
 	}
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
@@ -366,7 +366,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	opts = &bootloader.Options{
 		// let the bootloader know we will be touching the recovery
 		// partition
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {

@@ -17,8 +17,6 @@
  *
  */
 
-// XXX: not a great fit for osutil but we have no ioutil and even if we
-// did the name ioutil is taken so we would need something else.
 package osutil
 
 type Sizer struct {

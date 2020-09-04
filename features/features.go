@@ -53,6 +53,13 @@ const (
 	DbusActivation
 	// HiddenSnapFolder moves ~/snap to ~/.snapdata.
 	HiddenSnapFolder
+	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
+	CheckDiskSpaceRemove
+	// CheckDiskSpaceInstall controls free disk space check on snap install.
+	CheckDiskSpaceInstall
+	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
+	CheckDiskSpaceRefresh
+
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -83,6 +90,10 @@ var featureNames = map[SnapdFeature]string{
 	DbusActivation: "dbus-activation",
 
 	HiddenSnapFolder: "hidden-snap-folder",
+
+	CheckDiskSpaceRemove:  "check-disk-space-remove",
+	CheckDiskSpaceInstall: "check-disk-space-install",
+	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

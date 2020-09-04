@@ -28,6 +28,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
+var (
+	EFIImageFromBootFile = efiImageFromBootFile
+)
+
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
 	sbConnectToDefaultTPM = f
