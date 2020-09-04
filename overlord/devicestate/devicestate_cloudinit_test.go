@@ -558,7 +558,7 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 
 	// and 1 call to restrict
 	c.Assert(restrictCalls, Equals, 1)
