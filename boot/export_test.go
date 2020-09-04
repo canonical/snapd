@@ -52,7 +52,9 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	SealKeyToModeenv = sealKeyToModeenv
+	SealKeyToModeenv         = sealKeyToModeenv
+	RecoverModeLoadSequences = recoverModeLoadSequences
+	RunModeLoadSequences     = runModeLoadSequences
 )
 
 type BootAssetsMap = bootAssetsMap

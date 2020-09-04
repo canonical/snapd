@@ -21,6 +21,7 @@ package boot_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -60,6 +61,16 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		modeenv := &boot.Modeenv{
 			RecoverySystem: "20200825",
+			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+
+			CurrentTrustedBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1"},
+			},
+
+			CurrentKernels: []string{"pc-kernel_500.snap"},
 		}
 
 		// set encryption key
@@ -77,12 +88,20 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 1)
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+			cachedir := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub")
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
+				// run mode load sequence
 				{
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
+					bootloader.NewBootFile("", filepath.Join(cachedir, "bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(cachedir, "grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(cachedir, "grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode),
+					bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode),
+				},
+				// recover mode load sequence
+				{
+					bootloader.NewBootFile("", filepath.Join(cachedir, "bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(cachedir, "grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/seed/snaps/pc-kernel_1.snap"), "kernel.efi", bootloader.RoleRecovery),
 				},
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
@@ -103,10 +122,255 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}
 }
 
+func (s *sealSuite) TestRecoverModeLoadSequences(c *C) {
+	for _, tc := range []struct {
+		assetsMap         boot.BootAssetsMap
+		recoverySystem    string
+		undefinedKernel   bool
+		expectedSequences [][]string
+		err               string
+	}{
+		{
+			// transition sequences
+			recoverySystem: "20200825",
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedSequences: [][]string{
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+				},
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-2",
+					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+				},
+			},
+		},
+		{
+			// non-transition sequence
+			recoverySystem: "20200825",
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedSequences: [][]string{
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+				},
+			},
+		},
+		{
+			// kernel not defined in grubenv
+			undefinedKernel: true,
+			recoverySystem:  "20200825",
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			err: `cannot determine kernel for recovery system "20200825"`,
+		},
+		{
+			// unspecified recovery system
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			err: "recovery system is not defined in modeenv",
+		},
+		{
+			// invalid recovery system
+			recoverySystem: "0",
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			err: `cannot determine kernel for recovery system "0"`,
+		},
+	} {
+		tmpDir := c.MkDir()
+
+		var kernel string
+		if !tc.undefinedKernel {
+			kernel = "/snaps/pc-kernel_1.snap"
+		}
+		err := createMockRecoverySystem(tmpDir, "20200825", kernel)
+		c.Assert(err, IsNil)
+
+		err = createMockGrubCfg(tmpDir)
+		c.Assert(err, IsNil)
+
+		bl, err := bootloader.Find(tmpDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+		c.Assert(err, IsNil)
+
+		modeenv := &boot.Modeenv{
+			RecoverySystem:                   tc.recoverySystem,
+			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
+		}
+
+		sequences, err := boot.RecoverModeLoadSequences(bl, modeenv)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Assert(sequences, DeepEquals, tc.expectedSequences)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
+func (s *sealSuite) TestRunModeLoadSequences(c *C) {
+	for _, tc := range []struct {
+		recoveryAssetsMap boot.BootAssetsMap
+		assetsMap         boot.BootAssetsMap
+		kernels           []string
+		recoverySystem    string
+		expectedSequences [][]string
+		err               string
+	}{
+		{
+			// transition sequences with new system bootloader
+			recoverySystem: "20200825",
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1", "run-grub-hash-2"},
+			},
+			kernels: []string{"pc-kernel_500.snap"},
+			expectedSequences: [][]string{
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
+					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+				},
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2",
+					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+				},
+			},
+		},
+		{
+			// transition sequences with new kernel
+			recoverySystem: "20200825",
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1"},
+			},
+			kernels: []string{"pc-kernel_500.snap", "pc-kernel_501.snap"},
+			expectedSequences: [][]string{
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
+					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+				},
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
+					"/var/lib/snapd/snaps/pc-kernel_501.snap",
+				},
+			},
+		},
+		{
+			// no transition sequence
+			recoverySystem: "20200825",
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1"},
+			},
+			kernels: []string{"pc-kernel_500.snap"},
+			expectedSequences: [][]string{
+				{
+					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
+					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
+					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+				},
+			},
+		},
+		{
+			// no run mode assets
+			recoverySystem: "20200825",
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			err: "cannot find asset grubx64.efi in modeenv",
+		},
+		{
+			// no kernels listed in modeenv
+			recoverySystem: "20200825",
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1"},
+			},
+			err: "invalid number of kernels in modeenv",
+		},
+	} {
+		tmpDir := c.MkDir()
+
+		err := createMockRecoverySystem(tmpDir, "20200825", "/snaps/pc-kernel_1.snap")
+		c.Assert(err, IsNil)
+
+		err = createMockGrubCfg(tmpDir)
+		c.Assert(err, IsNil)
+
+		rbl, err := bootloader.Find(tmpDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+		c.Assert(err, IsNil)
+
+		bl, err := bootloader.Find(tmpDir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
+		c.Assert(err, IsNil)
+
+		modeenv := &boot.Modeenv{
+			RecoverySystem:                   tc.recoverySystem,
+			CurrentTrustedRecoveryBootAssets: tc.recoveryAssetsMap,
+			CurrentTrustedBootAssets:         tc.assetsMap,
+			CurrentKernels:                   tc.kernels,
+		}
+
+		sequences, err := boot.RunModeLoadSequences(rbl, bl, modeenv)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Assert(sequences, DeepEquals, tc.expectedSequences)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func createMockGrubCfg(baseDir string) error {
 	cfg := filepath.Join(baseDir, "EFI/ubuntu/grub.cfg")
 	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
 		return err
 	}
 	return ioutil.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+}
+
+func createMockRecoverySystem(seedDir, sysLabel, kernel string) error {
+	recoverySystemDir := filepath.Join(seedDir, "systems", sysLabel)
+	if err := os.MkdirAll(recoverySystemDir, 0755); err != nil {
+		return err
+	}
+	envData := make([]byte, 1024)
+	copy(envData, []byte(fmt.Sprintf("# GRUB Environment Block\nsnapd_recovery_kernel=%v\n", kernel)))
+	return ioutil.WriteFile(filepath.Join(recoverySystemDir, "grubenv"), envData, 0644)
 }
