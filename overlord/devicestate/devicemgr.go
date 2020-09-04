@@ -1038,9 +1038,10 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
 }
 
-// RequestSystemAction request provided system to be run in a given mode. A
-// system reboot will be requested when the request can be successfully carried
-// out.
+// RequestSystemAction requests the provided system to be run in a
+// given mode as specified by action.
+// A system reboot will be requested when the request can be
+// successfully carried out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
@@ -1057,7 +1058,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 // switchToSystemAndMode switches to given systemLabel and mode.
 // If the systemLabel and mode are the same as current, it calls
-// sameSysteAndMode. If successful otherwise it calls switched. Both
+// sameSystemAndMode. If successful otherwise it calls switched. Both
 // are called with the state lock held.
 func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
@@ -1065,7 +1066,11 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	}
 
 	systemMode := m.SystemMode()
-	// XXX: why do we ignore the error here?
+	// ignore the error to be robust in scenarios that
+	// dont' stricly require currentSys to be carried through.
+	// make sure that currentSys == nil does not break
+	// the code below!
+	// TODO: should we log the error?
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
