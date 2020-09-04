@@ -700,6 +700,9 @@ Hiding:
 }
 
 func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -804,7 +807,7 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		essSeed20, ok := seed20.(seed.EssentialMetaLoaderSeed)
 		c.Assert(ok, Equals, true)
 
-		err = essSeed20.LoadAssertions(s.db, s.commitTo)
+		err = essSeed20.LoadAssertions(nil, nil)
 		c.Assert(err, IsNil)
 
 		err = essSeed20.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
@@ -822,6 +825,14 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		c.Check(runSnaps, HasLen, 0)
 
 		unhide()
+
+		// test short-cut helper as well
+		mod, essSnaps, err := seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings)
+		c.Assert(err, IsNil)
+		c.Check(mod.BrandID(), Equals, "my-brand")
+		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(essSnaps, HasLen, len(t.expected))
+		c.Check(essSnaps, DeepEquals, t.expected)
 	}
 }
 

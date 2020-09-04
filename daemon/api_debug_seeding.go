@@ -34,20 +34,20 @@ type seedingInfo struct {
 	Preseeded bool `json:"preseeded,omitempty"`
 
 	// PreseedStartTime is when snap-preseed was started.
-	PreseedStartTime time.Time `json:"preseed-start-time,omitempty"`
+	PreseedStartTime *time.Time `json:"preseed-start-time,omitempty"`
 
 	// PreseedTime is when snap-preseed work finished (i.e. before firstboot).
-	PreseedTime time.Time `json:"preseed-time,omitempty"`
+	PreseedTime *time.Time `json:"preseed-time,omitempty"`
 
 	// SeedStartTime is when traditional seeding started (when not preseeding).
-	SeedStartTime time.Time `json:"seed-start-time,omitempty"`
+	SeedStartTime *time.Time `json:"seed-start-time,omitempty"`
 
 	// SeedRestartTime is when seeding was started after first boot of preseeded
 	// image.
-	SeedRestartTime time.Time `json:"seed-restart-time,omitempty"`
+	SeedRestartTime *time.Time `json:"seed-restart-time,omitempty"`
 
 	// SeedTime is when seeding finished.
-	SeedTime time.Time `json:"seed-time,omitempty"`
+	SeedTime *time.Time `json:"seed-time,omitempty"`
 
 	// PreseedSystemKey is the system-key that was created during preseeding
 	// (when snap-preseed was ran).
@@ -56,6 +56,11 @@ type seedingInfo struct {
 	// SeedRestartSystemKey is the system-key that was created on first boot of the
 	// preseeded image.
 	SeedRestartSystemKey interface{} `json:"seed-restart-system-key,omitempty"`
+
+	// SeedError is set if no seed change succeeded yet and at
+	// least one was in error. It is set to the error of the
+	// oldest known in error one.
+	SeedError string `json:"seed-error,omitempty"`
 }
 
 func getSeedingInfo(st *state.State) Response {
@@ -68,22 +73,6 @@ func getSeedingInfo(st *state.State) Response {
 		return InternalError(err.Error())
 	}
 
-	var preseedStartTime, preseedTime, seedStartTime, seedRestartTime, seedTime time.Time
-	for _, t := range []struct {
-		name string
-		tm   *time.Time
-	}{
-		{"preseed-start-time", &preseedStartTime},
-		{"preseed-time", &preseedTime},
-		{"seed-start-time", &seedStartTime},
-		{"seed-restart-time", &seedRestartTime},
-		{"seed-time", &seedTime},
-	} {
-		if err := st.Get(t.name, t.tm); err != nil && err != state.ErrNoState {
-			return InternalError(err.Error())
-		}
-	}
-
 	var preseedSysKey, seedRestartSysKey interface{}
 	if err := st.Get("preseed-system-key", &preseedSysKey); err != nil && err != state.ErrNoState {
 		return InternalError(err.Error())
@@ -92,20 +81,51 @@ func getSeedingInfo(st *state.State) Response {
 		return InternalError(err.Error())
 	}
 
-	// XXX: consistency & sanity checks, e.g. if preseeded, then need to have
-	// preseed-start-time, preseeded-time, preseed-system-key etc?
+	var seedError string
+	var seedErrorChangeTime time.Time
+	if !seeded {
+		for _, chg := range st.Changes() {
+			if chg.Kind() != "seed" && !chg.IsReady() {
+				continue
+			}
+			if err := chg.Err(); err != nil {
+				if seedErrorChangeTime.IsZero() || chg.SpawnTime().Before(seedErrorChangeTime) {
+					seedError = chg.Err().Error()
+					seedErrorChangeTime = chg.SpawnTime()
+				}
+			}
+		}
+	}
 
 	data := &seedingInfo{
 		Seeded:               seeded,
+		SeedError:            seedError,
 		Preseeded:            preseeded,
 		PreseedSystemKey:     preseedSysKey,
 		SeedRestartSystemKey: seedRestartSysKey,
-		PreseedStartTime:     preseedStartTime,
-		PreseedTime:          preseedTime,
-		SeedStartTime:        seedStartTime,
-		SeedRestartTime:      seedRestartTime,
-		SeedTime:             seedTime,
 	}
+
+	for _, t := range []struct {
+		name   string
+		destTm **time.Time
+	}{
+		{"preseed-start-time", &data.PreseedStartTime},
+		{"preseed-time", &data.PreseedTime},
+		{"seed-start-time", &data.SeedStartTime},
+		{"seed-restart-time", &data.SeedRestartTime},
+		{"seed-time", &data.SeedTime},
+	} {
+		var tm time.Time
+		if err := st.Get(t.name, &tm); err != nil && err != state.ErrNoState {
+			return InternalError(err.Error())
+		}
+		if !tm.IsZero() {
+			*t.destTm = &tm
+		}
+	}
+
+	// XXX: consistency & sanity checks, e.g. if preseeded, then need to have
+	// preseed-start-time, preseeded-time, preseed-system-key etc?
 
 	return SyncResponse(data, nil)
 }

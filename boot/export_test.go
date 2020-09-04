@@ -40,3 +40,38 @@ type Trivial = trivial
 func (m *Modeenv) WasRead() bool {
 	return m.read
 }
+
+func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
+	return m.deepEqual(m2)
+}
+
+var (
+	MarshalModeenvEntryTo        = marshalModeenvEntryTo
+	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
+
+	NewTrustedAssetsCache = newTrustedAssetsCache
+)
+
+type BootAssetsMap = bootAssetsMap
+type TrackedAsset = trackedAsset
+
+func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+	return o.currentTrustedBootAssetsMap()
+}
+
+func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+	return o.currentTrustedRecoveryBootAssetsMap()
+}
+
+func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
+	ta := &trackedAsset{
+		blName: blName,
+		name:   assetName,
+		hash:   hash,
+	}
+	if !recovery {
+		o.changedAssets = append(o.changedAssets, ta)
+	} else {
+		o.seedChangedAssets = append(o.seedChangedAssets, ta)
+	}
+}

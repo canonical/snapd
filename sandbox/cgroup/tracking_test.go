@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -45,20 +44,16 @@ func enableFeatures(c *C, ff ...features.SnapdFeature) {
 	}
 }
 
-type trackingSuite struct {
-	restoreTimeSleep func()
-}
+type trackingSuite struct{}
 
 var _ = Suite(&trackingSuite{})
 
 func (s *trackingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	s.restoreTimeSleep = cgroup.MockTimeSleep(func(d time.Duration) {})
 }
 
 func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.restoreTimeSleep()
 }
 
 // CreateTransientScopeForTracking is a no-op when refresh app awareness is off
@@ -71,7 +66,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C)
 	defer restore()
 
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, false)
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Check(err, IsNil)
 }
 
@@ -107,7 +102,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	})
 	defer restore()
 
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Check(err, IsNil)
 }
 
@@ -140,7 +135,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 	defer restore()
 
 	// Create a transient scope and see it fail according to how doCreateTransientScope is rigged.
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot create transient scope for testing")
 
 	// Calling StartTransientUnit fails with org.freedesktop.DBus.UnknownMethod error.
@@ -152,7 +147,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 
 	// Calling StartTransientUnit fails with org.freedesktop.DBus.Spawn.ChildExited error.
@@ -166,7 +161,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process and because we are
 	// not root, we do not attempt to fall back to the system bus.
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
@@ -218,7 +213,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process and but because we were
 	// root we attempted to fall back to the system bus.
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, IsNil)
 }
 
@@ -259,7 +254,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
@@ -302,7 +297,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
@@ -347,8 +342,54 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process even though
 	// the DBus call has returned no error.
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
+}
+
+func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Hand out stub connections to both the system and session bus. Remember
+	// the identity of the system bus to that we can verify access later.
+	// Neither is really used here but they must appear to be available.
+	systemBus, err := dbustest.StubConnection()
+	c.Assert(err, IsNil)
+	restore := dbusutil.MockConnections(func() (*dbus.Conn, error) { return systemBus, nil }, dbustest.StubConnection)
+	defer restore()
+
+	// Pretend we are a root user. All hooks execute as root.
+	restore = cgroup.MockOsGetuid(0)
+	defer restore()
+
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+
+	// Pretend that attempting to create a transient scope succeeds.  Measure
+	// the bus used and the unit name provided by the caller.  Note that the
+	// call was made on the system bus, as requested by TrackingOptions below.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		c.Assert(conn, Equals, systemBus)
+		c.Assert(unitName, Equals, "snap.pkg.app."+uuid+".scope")
+		return nil
+	})
+	defer restore()
+
+	// Rig the cgroup analyzer to indicate successful tracking.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "snap.pkg.app." + uuid + ".scope", nil
+	})
+	defer restore()
+
+	// Create a transient scope and see it succeed.
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", &cgroup.TrackingOptions{AllowSessionBus: false})
+	c.Assert(err, IsNil)
 }
 
 func checkAndRespondToStartTransientUnit(c *C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {
@@ -585,53 +626,4 @@ func (s *trackingSuite) TestConfirmSystemdServiceTrackingSad(c *C) {
 	// With the cgroup path faked as above, tracking is not effective.
 	err := cgroup.ConfirmSystemdServiceTracking("snap.pkg.app")
 	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
-}
-
-func (s *trackingSuite) TestCreateTransientScopeForTrackingDelayedBehavior(c *C) {
-	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
-	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, true)
-	// Pretend we are a non-root user so that session bus is used.
-	restore := cgroup.MockOsGetuid(12345)
-	defer restore()
-	// Pretend our PID is this value.
-	restore = cgroup.MockOsGetpid(312123)
-	defer restore()
-	// Rig the random UUID generator to return this value.
-	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
-	defer restore()
-	// Replace interactions with DBus so that only session bus is available and responds with our logic.
-	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
-	c.Assert(err, IsNil)
-	restore = dbusutil.MockOnlySessionBusAvailable(conn)
-	defer restore()
-
-	// Replace the time.Sleep() function. It will count elapsed time without really sleeping.
-	var sleepDuration time.Duration
-	restore = cgroup.MockTimeSleep(func(d time.Duration) {
-		sleepDuration += d
-	})
-	defer restore()
-
-	// Replace the cgroup analyzer function.
-	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		if sleepDuration < 50*time.Millisecond {
-			return "/unrelated", nil
-		}
-		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
-	})
-	defer restore()
-
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
-	c.Check(err, IsNil)
-
-	// Ensure we virtually slept for a while.
-	c.Assert(sleepDuration >= 50*time.Millisecond, Equals, true)
 }

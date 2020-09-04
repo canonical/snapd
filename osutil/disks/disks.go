@@ -50,7 +50,7 @@ var (
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
-// MockMountPointDisksToPartionMapping, but we can't just assign
+// MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
 // the former returns a *disk, the latter returns a Disk, and as such they can't
 // be assigned to each other
@@ -67,17 +67,25 @@ type Options struct {
 }
 
 // Disk is a single physical disk device that contains partitions.
+// TODO:UC20: add function to get some properties like an associated /dev node
+//            for a disk for better user error reporting, i.e. /dev/vda3 is much
+//            more helpful than 252:3
 type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition
 	// matching the specified filesystem label on the disk. Note that for
 	// non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
+	// If the filesystem label was not found on the disk, and no other errors
+	// were encountered, a FilesystemLabelNotFoundError will be returned.
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
 	// and mountpoints found when the disk was identified with
 	// DiskFromMountPoint.
+	// TODO:UC20: make this function return what a Disk of where the mount point
+	//            is actually from if it is not from the same disk for better
+	//            error reporting
 	MountPointIsFromDisk(string, *Options) (bool, error)
 
 	// Dev returns the string "major:minor" number for the disk device.
@@ -309,6 +317,20 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
+// FilesystemLabelNotFoundError is an error where the specified label was not
+// found on the disk.
+type FilesystemLabelNotFoundError struct {
+	Label string
+}
+
+var (
+	_ = error(FilesystemLabelNotFoundError{})
+)
+
+func (e FilesystemLabelNotFoundError) Error() string {
+	return fmt.Sprintf("filesystem label %q not found", e.Label)
+}
+
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	encodedLabel := BlkIDEncodeLabel(label)
 	// if we haven't found the partitions for this disk yet, do that now
@@ -379,7 +401,7 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return partuuid, nil
 	}
 
-	return "", fmt.Errorf("couldn't find label %q", label)
+	return "", FilesystemLabelNotFoundError{Label: label}
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {

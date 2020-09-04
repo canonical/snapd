@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
@@ -107,6 +108,15 @@ unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 # Also allow cgroup writes to kubernetes pods
 /sys/fs/cgroup/*/kubepods/ rw,
 /sys/fs/cgroup/*/kubepods/** rw,
+
+# containerd can also be configured to use the systemd cgroup driver via
+# plugins.cri.systemd_cgroup = true which moves container processes into
+# systemd-managed cgroups. This is now the recommended configuration since it
+# provides a single cgroup manager (systemd) in an effort to achieve consistent
+# views of resources.
+/sys/fs/cgroup/*/systemd/{,system.slice/} rw,          # create missing dirs
+/sys/fs/cgroup/*/systemd/system.slice/** r,
+/sys/fs/cgroup/*/systemd/system.slice/cgroup.procs w,
 
 # Allow tracing ourself (especially the "runc" process we create)
 ptrace (trace) peer=@{profile_name},
@@ -613,9 +623,9 @@ ptrace (read, trace) peer=unconfined,
 /dev/** mrwkl,
 @{PROC}/** mrwkl,
 
-# When kubernetes drives docker, it creates files in the container at arbitrary
-# locations.
-/** wl,
+# When kubernetes drives docker/containerd, it creates and runs files in the
+# container at arbitrary locations (eg, via pivot_root).
+/** rwlix,
 `
 
 const dockerSupportPrivilegedSecComp = `
@@ -651,6 +661,14 @@ var (
 func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.SetControlsDeviceCgroup()
 
+	return nil
+}
+
+func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+	if err := spec.AddModule("overlay"); err != nil {
+		return err
+	}
 	return nil
 }
 

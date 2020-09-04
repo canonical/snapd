@@ -8,12 +8,13 @@ environment:
     # this is for how nested.sh sets up the initial user, we will control
     # cloud-init for the test through -cdrom with users created through
     # system-user assertions to ensure that we are testing the right things
-    USE_CLOUD_INIT: false
+    NESTED_USE_CLOUD_INIT: false
     # this variant ensures that existing images without the fix are no longer
     # vulnerable after refreshing to a version of snapd with the fix
-    BUILD_FROM_CURRENT/refresh: false
+    NESTED_BUILD_FROM_CURRENT/refresh: false
     # this variant ensures that new images with the fix are not vulnerable
-    BUILD_FROM_CURRENT/firstboot: true
+    NESTED_BUILD_FROM_CURRENT/firstboot: true
+    NESTED_IMAGE_ID: cloud-init-nocloud-$NESTED_BUILD_FROM_CURRENT
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -34,16 +35,16 @@ prepare: |
 
     # first boot will use seed1 to create the normal-user in addition to the 
     # system-user assertion
-    PARAM_CD="-cdrom $(pwd)/seed1.iso"
+    NESTED_PARAM_CD="-cdrom $(pwd)/seed1.iso"
 
-    create_nested_core_vm
-    start_nested_core_vm
+    nested_create_core_vm
+    nested_start_core_vm
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-    cleanup_nested_env
+    nested_destroy_vm
+    nested_cleanup_env
 
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
@@ -51,7 +52,7 @@ debug: |
         cat snapd-before-reboot.logs
     fi
     echo "logs from current nested VM boot snapd"
-    execute_remote "sudo journalctl -e --no-pager -u snapd" || true
+    nested_exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -66,37 +67,37 @@ execute: |
     # the legitimate cloud-init user is the normal-user user
 
     # wait for cloud-init to finish importing the first seed
-    execute_remote "sudo cloud-init status --wait"
+    nested_exec "sudo cloud-init status --wait"
 
     echo "The initial cloud-init user was created"
-    execute_remote "cat /var/lib/extrausers/passwd" | MATCH normal-user
+    nested_exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
     # wait for snap seeding to be done
-    execute_remote "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
-    if [ "$BUILD_FROM_CURRENT" = "false" ]; then
+    if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
         echo "Refreshing to a version of snapd with the fix"
         if is_core_16_nested_system; then
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
-            copy_remote "$PWD/core-from-snapd-deb.snap"
+            nested_copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
-            execute_remote "sudo snap install core-from-snapd-deb.snap --dangerous"
+            nested_exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
-            wait_for_no_ssh
-            wait_for_ssh        
+            nested_wait_for_no_ssh
+            nested_wait_for_ssh        
         else
             # build the snapd snap for this run
             repack_snapd_deb_into_snapd_snap "$PWD"
-            copy_remote "$PWD/snapd-from-deb.snap"
+            nested_copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
-            execute_remote "sudo snap install snapd-from-deb.snap --dangerous"
+            nested_exec "sudo snap install snapd-from-deb.snap --dangerous"
         fi
     fi
 
@@ -112,7 +113,7 @@ execute: |
     # action that we can test for.
 
     echo "Waiting for cloud-init..."
-    execute_remote "cloud-init status --wait"
+    nested_exec "cloud-init status --wait"
 
     # TODO: is there a better thing we can wait for here instead? maybe the log
     # message from snapd directly via journalctl ?
@@ -121,24 +122,24 @@ execute: |
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
-    execute_remote "cloud-init status" | MATCH "status: done"
-    execute_remote "test ! -f /etc/cloud/cloud-init.disabled"
-    execute_remote "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    nested_exec "cloud-init status" | MATCH "status: done"
+    nested_exec "test ! -f /etc/cloud/cloud-init.disabled"
+    nested_exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
     # save snapd logs before continuing as the logs are not persistent
-    execute_remote "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+    nested_exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    execute_remote "sudo shutdown -h now" || true
-    wait_for_no_ssh
+    nested_exec "sudo shutdown -h now" || true
+    nested_wait_for_no_ssh
 
     # now if we reboot and add a cloud-init drive, it will not be imported onto
     # the system
-    force_stop_nested_vm
+    nested_force_stop_vm
 
     # add the second, attacker cloud-init drive as a CD-ROM drive
-    PARAM_CD="-cdrom $(pwd)/seed2.iso"
+    NESTED_PARAM_CD="-cdrom $(pwd)/seed2.iso"
 
     # start the unit so that it re-uses the existing drive and doesn't re-setup
     # ssh
@@ -147,19 +148,19 @@ execute: |
     # is awkward to modify programmatically, so instead this will just re-create
     # the same systemd unit with different args
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    start_nested_core_vm_unit
+    nested_start_core_vm_unit "$NESTED_IMAGES_DIR/$(nested_get_current_image_name)"
 
     # cloud-init will actually still run because it was not disabled and we
     # provided a cloud-init drive but importantly, it will not import the drive,
     # so wait for cloud-init to settle down before continuing
     echo "Waiting for cloud-init..."
-    execute_remote "cloud-init status --wait"
+    nested_exec "cloud-init status --wait"
 
     # the attacker-user should not have been created
     echo "The cloud-init attacker user was not created"
-    execute_remote "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+    nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
     echo "cloud-init is still restricted"
-    execute_remote "cloud-init status" | MATCH "status: done"
-    execute_remote "test ! -f /etc/cloud/cloud-init.disabled"
-    execute_remote "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    nested_exec "cloud-init status" | MATCH "status: done"
+    nested_exec "test ! -f /etc/cloud/cloud-init.disabled"
+    nested_exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

@@ -652,6 +652,20 @@ func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 			if !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}
+		case entry.OptBool("bind") && entry.XSnapdKind() == "file":
+			// Bind mounted files are detached. If a bind mounted file open or
+			// mapped into a process as a library, then attempting to unmount
+			// it will result in EBUSY.
+			//
+			// This can happen when a snap has a service, for example one using
+			// a library mounted via a bind mount and an absent content
+			// connection. Subsequent connection of the content connection will
+			// trigger re-population of the mount namespace, which will start
+			// by tearing down the existing file bind-mount. To prevent this,
+			// detach the mount instead.
+			if !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
 		}
 		// Unmount all changes that were not eliminated.
 		changes = append(changes, &Change{Action: Unmount, Entry: entry})

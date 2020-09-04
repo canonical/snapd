@@ -24,6 +24,8 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var _ = Suite(&seedingDebugSuite{})
@@ -90,9 +92,126 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 		Preseeded:            true,
 		PreseedSystemKey:     "foo",
 		SeedRestartSystemKey: "bar",
-		PreseedStartTime:     preseedStartTime,
-		PreseedTime:          preseedTime,
-		SeedRestartTime:      seedRestartTime,
-		SeedTime:             seedTime,
+		PreseedStartTime:     &preseedStartTime,
+		PreseedTime:          &preseedTime,
+		SeedRestartTime:      &seedRestartTime,
+		SeedTime:             &seedTime,
+	})
+}
+
+func (s *seedingDebugSuite) TestSeedingDebugSeededNoTimes(c *C) {
+	seedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:07Z")
+	c.Assert(err, IsNil)
+
+	st := s.d.overlord.State()
+	st.Lock()
+
+	// only set seed-time and seeded
+	st.Set("seed-time", seedTime)
+	st.Set("seeded", true)
+
+	st.Unlock()
+
+	data := s.getSeedingDebug(c)
+	c.Check(data, DeepEquals, &seedingInfo{
+		Seeded:   true,
+		SeedTime: &seedTime,
+	})
+}
+
+func (s *seedingDebugSuite) TestSeedingDebugPreseededStillSeeding(c *C) {
+	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
+	c.Assert(err, IsNil)
+	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
+	c.Assert(err, IsNil)
+
+	st := s.d.overlord.State()
+	st.Lock()
+
+	st.Set("preseeded", true)
+	st.Set("seeded", false)
+
+	st.Set("preseed-system-key", "foo")
+	st.Set("seed-restart-system-key", "bar")
+
+	st.Set("preseed-start-time", preseedStartTime)
+	st.Set("seed-restart-time", seedRestartTime)
+
+	st.Set("preseed-time", preseedTime)
+
+	st.Unlock()
+
+	data := s.getSeedingDebug(c)
+	c.Check(data, DeepEquals, &seedingInfo{
+		Seeded:               false,
+		Preseeded:            true,
+		PreseedSystemKey:     "foo",
+		SeedRestartSystemKey: "bar",
+		PreseedStartTime:     &preseedStartTime,
+		PreseedTime:          &preseedTime,
+		SeedRestartTime:      &seedRestartTime,
+	})
+}
+
+func (s *seedingDebugSuite) TestSeedingDebugPreseededSeedError(c *C) {
+	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
+	c.Assert(err, IsNil)
+	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
+	c.Assert(err, IsNil)
+
+	st := s.d.overlord.State()
+	st.Lock()
+
+	st.Set("preseeded", true)
+	st.Set("seeded", false)
+
+	st.Set("preseed-system-key", "foo")
+	st.Set("seed-restart-system-key", "bar")
+
+	st.Set("preseed-start-time", preseedStartTime)
+	st.Set("seed-restart-time", seedRestartTime)
+
+	st.Set("preseed-time", preseedTime)
+
+	chg1 := st.NewChange("seed", "tentative 1")
+	t11 := st.NewTask("seed task", "t11")
+	t12 := st.NewTask("seed task", "t12")
+	chg1.AddTask(t11)
+	chg1.AddTask(t12)
+	t11.SetStatus(state.UndoneStatus)
+	t11.Errorf("t11: undone")
+	t12.SetStatus(state.ErrorStatus)
+	t12.Errorf("t12: fail")
+
+	// ensure different spawn time
+	time.Sleep(50 * time.Millisecond)
+	chg2 := st.NewChange("seed", "tentative 2")
+	t21 := st.NewTask("seed task", "t21")
+	chg2.AddTask(t21)
+	t21.SetStatus(state.ErrorStatus)
+	t21.Errorf("t21: error")
+
+	chg3 := st.NewChange("seed", "tentative 3")
+	t31 := st.NewTask("seed task", "t31")
+	chg3.AddTask(t31)
+	t31.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+
+	data := s.getSeedingDebug(c)
+	c.Check(data, DeepEquals, &seedingInfo{
+		Seeded:               false,
+		Preseeded:            true,
+		PreseedSystemKey:     "foo",
+		SeedRestartSystemKey: "bar",
+		PreseedStartTime:     &preseedStartTime,
+		PreseedTime:          &preseedTime,
+		SeedRestartTime:      &seedRestartTime,
+		SeedError: `cannot perform the following tasks:
+- t12 (t12: fail)`,
 	})
 }

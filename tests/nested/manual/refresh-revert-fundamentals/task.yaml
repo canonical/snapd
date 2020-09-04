@@ -1,0 +1,144 @@
+summary: Refresh and revert the fundamental snaps for uc20
+
+description: |
+    This test validates the fundamental snaps can be refreshed
+    and reverted to the new snaps published to edge channel.
+
+systems: [ubuntu-20.04-*]
+
+environment:
+    NESTED_CORE_CHANNEL: beta
+    NESTED_CORE_REFRESH_CHANNEL: edge
+    NESTED_BUILD_SNAPD_FROM_CURRENT: false
+    NESTED_USE_CLOUD_INIT: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_ENABLE_TPM: true
+
+    SNAP/kernel: pc-kernel
+    TRACK/kernel: 20
+
+    SNAP/gadget: pc    
+    TRACK/gadget: 20
+
+    SNAP/snapd: snapd
+    TRACK/snapd: latest
+
+    SNAP/base: core20
+    TRACK/base: latest
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    
+    FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+
+    if [ "$FROM_REV" = "$TO_REV" ]; then
+        echo "Initial and target revisions are the same, skipping..."
+        touch skip.test
+        exit
+    fi
+
+    nested_create_core_vm
+    nested_start_core_vm
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    if [ -f skip.test ]; then
+        rm -f skip.test
+        exit
+    fi
+
+    nested_destroy_vm
+    nested_cleanup_env
+
+    rm -f "$NESTED_IMAGES_DIR/ubuntu-core.img"
+
+debug: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_exec "snap changes" || true
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    if [ -f skip.test ]; then
+        exit
+    fi
+
+    FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
+    # The snap is refreshed
+    REFRESH_ID=$(nested_exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
+
+    case "$SNAP" in
+        snapd|pc)
+            # We manually reboot even after snapd refresh to ensure that if
+            # resealing took place we are still able to boot
+            # The following commands could fails in case the connection is suddenly
+            # stopped because of the reboot in the nested machine
+            nested_exec "snap watch $REFRESH_ID" || true
+            nested_exec "sudo reboot" || true
+            ;;
+        pc-kernel|core20)
+            # don't manually reboot, wait for automatic snapd reboot
+            ;;
+    esac
+    nested_wait_for_no_ssh
+    nested_wait_for_ssh
+
+    # Check the new version of the snaps is correct after the system reboot
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+
+    # We check the change is completed
+    case "$SNAP" in
+        pc-kernel|core20)
+            for _ in $(seq 10); do
+                if nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
+                    break
+                fi
+                sleep 1
+            done
+            nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            ;;
+    esac
+
+    # The snap is reverted
+    REVERT_ID=$(nested_exec "sudo snap revert --no-wait $SNAP")
+
+    case "$SNAP" in
+        snapd|pc)
+            # we manually reboot even after snapd refresh to ensure that if
+            # resealing took place we are still able to boot
+            # The following commands could fails in case the connection is suddenly
+            # stopped because of the reboot in the nested machine
+            nested_exec "snap watch $REVERT_ID" || true
+            nested_exec "sudo reboot" || true
+            ;;
+        pc-kernel|core20)
+            # don't manually reboot, wait for automatic snapd reboot
+            ;;
+    esac
+    nested_wait_for_no_ssh
+    nested_wait_for_ssh
+
+    # Check the version of the snaps after the revert is correct
+    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+
+    # We check the change is completed
+    case "$SNAP" in
+        pc-kernel|core20)
+            for _ in $(seq 10); do
+                if nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
+                    break
+                fi
+                sleep 1
+            done
+            nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            ;;
+    esac

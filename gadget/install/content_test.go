@@ -172,26 +172,52 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
+type mockContentChange struct {
+	path   string
+	change *gadget.ContentChange
+}
+
+type mockWriteObserver struct {
+	content        map[string][]*mockContentChange
+	observeErr     error
+	expectedStruct *gadget.LaidOutStructure
+	c              *C
+}
+
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	if m.content == nil {
+		m.content = make(map[string][]*mockContentChange)
+	}
+	m.content[targetRootDir] = append(m.content[targetRootDir],
+		&mockContentChange{path: relativeTargetPath, change: data})
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
+	return true, m.observeErr
+}
+
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
+		observeErr error
 		err        string
 	}{
 		{
 			mountErr:   nil,
 			unmountErr: nil,
 			err:        "",
-		},
-		{
+		}, {
 			mountErr:   errors.New("mount error"),
 			unmountErr: nil,
 			err:        "cannot mount filesystem .*: mount error",
-		},
-		{
+		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
 			err:        "unmount error",
+		}, {
+			observeErr: errors.New("observe error"),
+			err:        "cannot create filesystem image: cannot write filesystem content of source:grubx64.efi: cannot observe file write: observe error",
 		},
 	} {
 		mockMountpoint := c.MkDir()
@@ -219,8 +245,12 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 				},
 			},
 		}
-
-		err := install.WriteContent(&m, s.gadgetRoot)
+		obs := &mockWriteObserver{
+			c:              c,
+			observeErr:     tc.observeErr,
+			expectedStruct: &m.LaidOutStructure,
+		}
+		err := install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -232,6 +262,14 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
+			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
+				filepath.Join(mockMountpoint, "2"): {
+					{
+						path:   "EFI/boot/grubx64.efi",
+						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},
+					},
+				},
+			})
 		}
 	}
 }
@@ -254,7 +292,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 		},
 	}
 
-	err = install.WriteContent(&m, s.gadgetRoot)
+	err = install.WriteContent(&m, s.gadgetRoot, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)

@@ -93,7 +93,7 @@ type SnapBootSelect_v1 struct {
 	Reboot_reason [SNAP_NAME_MAX_LEN]byte
 
 	/**
-	 * Matrix for mapping of boot img partion to installed kernel snap revision
+	 * Matrix for mapping of boot img partition to installed kernel snap revision
 	 *
 	 * First column represents boot image partition label (e.g. boot_a,boot_b )
 	 *   value are static and should be populated at gadget built time
@@ -134,7 +134,7 @@ type SnapBootSelect_v1 struct {
 	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
 
 	/**
-	 * gadget assets: Matrix for mapping of gadget asset partions
+	 * gadget assets: Matrix for mapping of gadget asset partitions
 	 * Optional boot asset tracking, based on bootloader support
 	 * Some boot chains support A/B boot assets for increased robustness
 	 * example being A/B TrustExecutionEnvironment

@@ -28,6 +28,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
+var (
+	EFIImageFromBootFile = efiImageFromBootFile
+)
+
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
 	sbConnectToDefaultTPM = f
@@ -123,14 +127,6 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, mod
 	sbMeasureSnapModelToTPM = f
 	return func() {
 		sbMeasureSnapModelToTPM = old
-	}
-}
-
-func MockDevDiskByLabelDir(f string) (restore func()) {
-	old := devDiskByLabelDir
-	devDiskByLabelDir = f
-	return func() {
-		devDiskByLabelDir = old
 	}
 }
 

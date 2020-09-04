@@ -54,13 +54,13 @@ type BootableSet struct {
 // rootdir points to an image filesystem (UC 16/18), image recovery
 // filesystem (UC20 at prepare-image time) or ephemeral system (UC20
 // install mode).
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
-		return makeBootable20RunMode(model, rootdir, bootWith)
+		return makeBootable20RunMode(model, rootdir, bootWith, sealer)
 	}
 	return makeBootable20(model, rootdir, bootWith)
 }
@@ -159,7 +159,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -225,7 +225,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
@@ -255,10 +255,27 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	// replicate the boot assets cache in host's writable
+	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
+	}
+
+	var currentTrustedBootAssets bootAssetsMap
+	var currentTrustedRecoveryBootAssets bootAssetsMap
+	if sealer != nil {
+		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
+		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
+	}
+	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
-		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
+		RecoverySystem: recoverySystemLabel,
+		// default to the system we were installed from
+		CurrentRecoverySystems:           []string{recoverySystemLabel},
+		CurrentTrustedBootAssets:         currentTrustedBootAssets,
+		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
+		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
@@ -271,11 +288,11 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
+		// Bootloader for run mode
+		Role: bootloader.RoleRunMode,
 		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
+		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
-		// Bootloader that supports kernel asset extraction
-		ExtractedRunKernelImage: true,
 	}
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
@@ -349,7 +366,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	opts = &bootloader.Options{
 		// let the bootloader know we will be touching the recovery
 		// partition
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {

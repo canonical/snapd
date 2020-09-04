@@ -21,14 +21,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type cloudInitSuite struct {
+type cloudInitBaseSuite struct {
 	deviceMgrBaseSuite
-	mockLogger *bytes.Buffer
+	logbuf *bytes.Buffer
+}
+
+type cloudInitSuite struct {
+	cloudInitBaseSuite
 }
 
 var _ = Suite(&cloudInitSuite{})
 
-func (s *cloudInitSuite) SetUpTest(c *C) {
+func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
 	// undo the cloud-init mocking from deviceMgrBaseSuite, since here we
@@ -44,8 +48,12 @@ func (s *cloudInitSuite) SetUpTest(c *C) {
 	st.Unlock()
 
 	logbuf, r := logger.MockLogger()
-	s.mockLogger = logbuf
+	s.logbuf = logbuf
 	s.AddCleanup(r)
+
+	// mock /etc/cloud on writable
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
+	c.Assert(err, IsNil)
 }
 
 func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
@@ -156,7 +164,9 @@ func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
+	statusCalls := 0
 	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
 	defer r()
@@ -169,6 +179,37 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedDoesNothing(c *C) {
 
 	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+}
+
+func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
+	// write a cloud-init restriction file
+	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
+	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(disableFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock cloud-init command, but make it always fail, it shouldn't be called
+	// as cloud-init.disabled should tell sysconfig to never consult cloud-init
+	// directly
+	cmd := testutil.MockCommand(c, "cloud-init", `
+echo "unexpected call to cloud-init with args $*"
+exit 1`)
+	defer cmd.Restore()
+
+	r := devicestate.MockRestrictCloudInit(func(sysconfig.CloudInitState, *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		c.Error("EnsureCloudInitRestricted should not have restricted cloud-init when already disabled")
+		return sysconfig.CloudInitRestrictionResult{}, fmt.Errorf("broken")
+	})
+	defer r()
+
+	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.logbuf.String(), Equals, "")
+
+	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
 func (s *cloudInitSuite) TestCloudInitAlreadyDisabledDoesNothing(c *C) {
@@ -200,7 +241,7 @@ exit 1`)
 	err = devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockLogger.String(), Equals, "")
+	c.Assert(s.logbuf.String(), Equals, "")
 
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
@@ -227,8 +268,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitUntriggered)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{Action: "disable"}, nil
 	})
@@ -242,16 +284,12 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
 
 	c.Assert(restrictCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitDoneRestricts(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -273,18 +311,19 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 			Action:     "restrict",
 		}, nil
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -292,17 +331,13 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 
 	// and 1 call to restrict
 	c.Assert(restrictCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitDoneProperCloudRestricts(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -324,18 +359,19 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was GCE
-			Datasource: "GCE",
+			DataSource: "GCE",
 			Action:     "restrict",
 		}, nil
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -343,17 +379,13 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
 
 	// only called restrict once
 	c.Assert(restrictCalls, Equals, 1)
 }
 
 func (s *cloudInitSuite) TestCloudInitRunningEnsuresUntilNotRunning(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -391,22 +423,23 @@ fi`, cloudInitScriptStateFile))
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it
 		return sysconfig.CloudInitRestrictionResult{
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 			Action:     "restrict",
 		}, nil
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// no log messages while we wait for the transition
-	c.Assert(s.mockLogger.String(), Equals, "")
+	c.Assert(s.logbuf.String(), Equals, "")
 
 	// should not have called to restrict
 	c.Assert(restrictCalls, Equals, 0)
@@ -430,14 +463,10 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message that it was disabled
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisables(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -459,8 +488,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitErrored)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -494,7 +524,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called restrict
@@ -506,8 +536,8 @@ fi`)
 	})
 
 	// a message about error state for the operator to try to fix
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
+	s.logbuf.Reset()
 
 	// make sure the time accounting is correct
 	c.Assert(timeCalls, Equals, 2)
@@ -530,14 +560,10 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// and a new message about being disabled permanently
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisablesFasterEnsure(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -559,8 +585,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitErrored)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -602,7 +629,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called restrict
@@ -614,8 +641,8 @@ fi`)
 	})
 
 	// a message about error state for the operator to try to fix
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
+	s.logbuf.Reset()
 
 	// make sure the time accounting is correct
 	c.Assert(timeCalls, Equals, 2)
@@ -640,14 +667,10 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// and a new message about being disabled permanently
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisables(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -669,8 +692,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitEnabled)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -701,7 +725,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to disable
@@ -716,7 +740,7 @@ fi`)
 	c.Assert(timeCalls, Equals, 2)
 
 	// no messages while it waits until the timeout
-	c.Assert(s.mockLogger.String(), Equals, ``)
+	c.Assert(s.logbuf.String(), Equals, ``)
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see additional calls to cloud-init status, which continues to always
@@ -738,17 +762,13 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisablesFasterEnsures(c *C) {
 	// same test as TestCloudInitTakingTooLongDisables, but with a faster
 	// re-ensure cycle to ensure that if we get scheduled to run Ensure() sooner
 	// than expected everything still works
-
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
 
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
@@ -771,8 +791,9 @@ fi`)
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitEnabled)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, true)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: true,
+		})
 		// we would have disabled it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
@@ -803,7 +824,7 @@ fi`)
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to disable
@@ -818,7 +839,7 @@ fi`)
 	c.Assert(timeCalls, Equals, 2)
 
 	// no messages while it waits until the timeout
-	c.Assert(s.mockLogger.String(), Equals, ``)
+	c.Assert(s.logbuf.String(), Equals, ``)
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see additional calls to cloud-init status, which continues to always
@@ -840,14 +861,10 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitErrorOnceAllowsFixing(c *C) {
-	// mock /etc/cloud on writable
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "cloud"), 0755)
-	c.Assert(err, IsNil)
-
 	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
 	// restricted yet and thus it should then check to see if it was manually
 	// disabled
@@ -884,13 +901,14 @@ fi`, cloudInitScriptStateFile))
 	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		c.Assert(opts.ForceDisable, Equals, false)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			ForceDisable: false,
+		})
 		// we would have restricted it
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "restrict",
 			// pretend it was NoCloud
-			Datasource: "NoCloud",
+			DataSource: "NoCloud",
 		}, nil
 	})
 	defer r()
@@ -912,7 +930,7 @@ fi`, cloudInitScriptStateFile))
 	})
 	defer r()
 
-	err = devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
 	// should not have called to restrict
@@ -927,8 +945,8 @@ fi`, cloudInitScriptStateFile))
 	})
 
 	// a message about being in error
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes`)
+	s.logbuf.Reset()
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see an additional call to cloud-init status, which now returns done and
@@ -947,5 +965,5 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(restrictCalls, Equals, 1)
 
 	// we now have a message about restricting
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,11 +23,13 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -434,24 +436,29 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 type preseedBaseSuite struct {
 	deviceMgrBaseSuite
 
-	// TODO: use this in deviceMgrBaseSuite itself
-	testutil.BaseTest
-
 	cmdUmount    *testutil.MockCmd
 	cmdSystemctl *testutil.MockCmd
 }
 
 func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
-	s.BaseTest.SetUpTest(c)
-
-	s.AddCleanup(snapdenv.MockPreseeding(preseed))
+	r := snapdenv.MockPreseeding(preseed)
 
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
+	// can use cleanup only after having called base SetUpTest
+	s.AddCleanup(r)
+
+	s.AddCleanup(interfaces.MockSystemKey(`{"build-id":"abcde"}`))
+	c.Assert(interfaces.WriteSystemKey(), IsNil)
+
 	s.cmdUmount = testutil.MockCommand(c, "umount", "")
 	s.cmdSystemctl = testutil.MockCommand(c, "systemctl", "")
+	s.AddCleanup(func() {
+		s.cmdUmount.Restore()
+		s.cmdSystemctl.Restore()
+	})
 
 	st := s.state
 	st.Lock()
@@ -474,12 +481,6 @@ apps:
 	})
 }
 
-func (s *preseedBaseSuite) TearDownTest(c *C) {
-	s.deviceMgrBaseSuite.TearDownTest(c)
-	s.cmdUmount.Restore()
-	s.cmdSystemctl.Restore()
-}
-
 // TODO: rename preesed mode to just preseeding as much as possible,
 // preseed mode souns like a UC20 system mode but is just a snapd mode
 // but preseed snapd mode is a mouthful
@@ -498,6 +499,12 @@ func (s *preseedModeSuite) TearDownTest(c *C) {
 }
 
 func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -518,6 +525,18 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	var preseeded bool
 	c.Check(t.Get("preseeded", &preseeded), IsNil)
 	c.Check(preseeded, Equals, true)
+
+	c.Assert(st.Get("preseeded", &preseeded), IsNil)
+	c.Check(preseeded, Equals, true)
+
+	var systemKey map[string]interface{}
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("preseed-system-key", &systemKey), IsNil)
+	c.Check(systemKey["build-id"], Equals, "abcde")
+
+	var preseededTime time.Time
+	c.Assert(st.Get("preseed-time", &preseededTime), IsNil)
+	c.Check(preseededTime.Equal(now), Equals, true)
 
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
@@ -540,6 +559,12 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 }
 
 func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
+	now := time.Now()
+	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
+
 	called := false
 	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
@@ -551,6 +576,13 @@ func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
 	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var preseedStartTime time.Time
+	c.Assert(s.state.Get("preseed-start-time", &preseedStartTime), IsNil)
+	c.Check(preseedStartTime.Equal(now), Equals, true)
 }
 
 type preseedDoneSuite struct {
@@ -586,6 +618,18 @@ func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(s.cmdUmount.Calls(), HasLen, 0)
 	c.Check(s.restartRequests, HasLen, 0)
+
+	var systemKey map[string]interface{}
+	// in real world preseed-system-key would be present at this point because
+	// mark-preseeded would be run twice (before & after preseeding); this is
+	// not the case in this test.
+	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
+	c.Check(systemKey["build-id"], Equals, "abcde")
+
+	var seedRestartTime time.Time
+	c.Assert(st.Get("seed-restart-time", &seedRestartTime), IsNil)
+	c.Check(seedRestartTime.Equal(devicestate.StartTime()), Equals, true)
 
 	c.Check(s.cmdSystemctl.Calls(), DeepEquals, [][]string{
 		{"systemctl", "--root", dirs.GlobalRootDir, "enable", "snap.test-snap.srv.service"},
