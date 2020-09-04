@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	secbootSealKey = secboot.SealKey
+	secbootSealKey   = secboot.SealKey
+	secbootResealKey = secboot.ResealKey
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -98,6 +99,70 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 
 	if err := secbootSealKey(key, &sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
+	}
+
+	return nil
+}
+
+// ResealKeyToModeenv reseals the supplied key to the parameters specified
+// in modeenv.
+func ResealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
+	// Build the recover mode load sequences
+	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
+	}
+
+	recoverModeChains, err := recoverModeLoadSequences(rbl, modeenv)
+	if err != nil {
+		return fmt.Errorf("cannot build recover mode load sequences: %v", err)
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the bootloader: %v", err)
+	}
+
+	runModeChains, err := runModeLoadSequences(rbl, bl, modeenv)
+	if err != nil {
+		return fmt.Errorf("cannot build run mode load sequences: %v", err)
+	}
+
+	// TODO:UC20: retrieve command lines from modeenv, the format is still TBD
+	// Get the expected kernel command line for the system that is currently being installed
+	cmdline, err := ComposeCandidateCommandLine(model)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kernel command line: %v", err)
+	}
+	// Get the expected kernel command line of the recovery system we're installing from
+	recoveryCmdline, err := ComposeRecoveryCommandLine(model, modeenv.RecoverySystem)
+	if err != nil {
+		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+	}
+	kernelCmdlines := []string{
+		cmdline,
+		recoveryCmdline,
+	}
+
+	resealKeyParams := secboot.ResealKeyParams{
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				Model:          model,
+				KernelCmdlines: kernelCmdlines,
+				EFILoadChains:  append(runModeChains, recoverModeChains...),
+			},
+		},
+		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+	}
+
+	if err := secbootResealKey(&resealKeyParams); err != nil {
+		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
 	return nil
