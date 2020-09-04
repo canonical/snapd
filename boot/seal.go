@@ -155,27 +155,11 @@ func recoverModeLoadSequences(rbl bootloader.Bootloader, modeenv *Modeenv) ([][]
 // kernelPathForRecoverySystem validates the kernel for the specified
 // recovery system and returns the path to the kernel snap.
 func kernelPathForRecoverySystem(recoverySystem string) (string, error) {
-	systemSeed, err := seed.Open(dirs.SnapSeedDir, recoverySystem)
+	perf := timings.New(nil)
+	_, snaps, err := seed.ReadSystemEssential(dirs.SnapSeedDir, recoverySystem, []snap.Type{snap.TypeKernel}, perf)
 	if err != nil {
 		return "", err
 	}
-	seed20, ok := systemSeed.(seed.EssentialMetaLoaderSeed)
-	if !ok {
-		return "", fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
-	}
-
-	// load assertions into a temporary database
-	if err := seed20.LoadAssertions(nil, nil); err != nil {
-		return "", err
-	}
-
-	// load and verify the kernel metadata
-	perf := timings.New(nil)
-	if err := seed20.LoadEssentialMeta([]snap.Type{snap.TypeKernel}, perf); err != nil {
-		return "", err
-	}
-
-	snaps := seed20.EssentialSnaps()
 	if len(snaps) != 1 {
 		return "", fmt.Errorf("cannot obtain recovery kernel snap")
 	}
