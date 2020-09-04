@@ -48,6 +48,11 @@ execute: |
     f2="$(tar -tf "${SET_ID}_export-2.snapshot" )"
     test "$f1" = "$f2"
 
+    # and is importable
+    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | cut -dD -f2 | cut -b 2- )
+    # and is valid
+    snap check-snapshot "$RESTORE_ID"
+
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
 

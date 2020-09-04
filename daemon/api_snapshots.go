@@ -155,14 +155,9 @@ func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respo
 	defer r.Body.Close()
 
 	st := c.d.overlord.State()
-	setID, snapNames, writtenSize, err := snapshotImport(context.TODO(), st, r.Body)
+	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
 	if err != nil {
 		return BadRequest(err.Error())
-	}
-
-	if r.ContentLength != writtenSize {
-		msg := fmt.Sprintf("content-length does not match the written size: %d is not %d", r.ContentLength, writtenSize)
-		return BadRequest(msg)
 	}
 
 	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
