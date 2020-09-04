@@ -2794,8 +2794,8 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	diskSpaceErr := err.(*snapstate.ErrInsufficientSpace)
-	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform operation for the following snaps: some-snap`)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 }
@@ -3191,11 +3191,31 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
-	diskSpaceErr := err.(*snapstate.ErrInsufficientSpace)
-	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform operation for the following snaps: one, two`)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
+	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", false)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {

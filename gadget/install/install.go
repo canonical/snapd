@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -52,10 +53,6 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) error {
-	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
-		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
-	}
-
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -94,11 +91,11 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	if options.KeyFile != "" {
-		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	for _, keyFile := range sealedKeyFiles {
+		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
 		}
-
 	}
 
 	created, err := createMissingPartitions(diskLayout, lv)
@@ -157,23 +154,31 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		return nil
 	}
 
+	// ensure directories
+	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
 	// Write the recovery key
-	if err := rkey.Save(options.RecoveryKeyFile); err != nil {
+	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
+	if err := rkey.Save(recoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
 	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
-	loadChain := []string{
+	loadChain := []bootloader.BootFile{
 		// the path to the shim EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
 		// the path to the recovery grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
 		// the path to the run mode grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
+		bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
 	}
 	if options.KernelPath != "" {
 		// the path to the kernel EFI binary
-		loadChain = append(loadChain, options.KernelPath)
+		loadChain = append(loadChain, bootloader.NewBootFile("", options.KernelPath, bootloader.RoleRunMode))
 	}
 
 	// Get the expected kernel command line for the system that is currently being installed
@@ -198,12 +203,12 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 			{
 				Model:          options.Model,
 				KernelCmdlines: kernelCmdlines,
-				EFILoadChains:  [][]string{loadChain},
+				EFILoadChains:  [][]bootloader.BootFile{loadChain},
 			},
 		},
-		KeyFile:                 options.KeyFile,
-		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
-		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
+		KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
+		TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
 	}
 
 	if err := secboot.SealKey(key, &sealKeyParams); err != nil {

@@ -20,6 +20,13 @@ var cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
 
 var ErrCannotTrackProcess = errors.New("cannot track application process")
 
+// TrackingOptions control how tracking, based on systemd transient scope, operates.
+type TrackingOptions struct {
+	// AllowSessionBus controls if CreateTransientScopeForTracking will
+	// consider using the session bus for making the request.
+	AllowSessionBus bool
+}
+
 // CreateTransientScopeForTracking puts the current process in a transient scope.
 //
 // To quote systemd documentation about scope units:
@@ -30,9 +37,13 @@ var ErrCannotTrackProcess = errors.New("cannot track application process")
 //
 // Scope names must be unique, a randomly generated UUID is appended to the
 // security tag, further suffixed with the string ".scope".
-func CreateTransientScopeForTracking(securityTag string) error {
+func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) error {
 	if !features.RefreshAppAwareness.IsEnabled() {
 		return nil
+	}
+	if opts == nil {
+		// Retain original semantics when not explicitly configured otherwise.
+		opts = &TrackingOptions{AllowSessionBus: true}
 	}
 	logger.Debugf("creating transient scope %s", securityTag)
 
@@ -44,11 +55,23 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
 	uid := osGetuid()
-	// TODO: change this logic so that CreateTransientScope for hooks is always
-	// using system bus and doesn't even attempt to use the session bus.
-	isSessionBus, conn, err := sessionOrMaybeSystemBus(uid)
-	if err != nil {
-		return ErrCannotTrackProcess
+	// Depending on options, we may use the session bus instead of the system
+	// bus. In addition, when uid == 0 we may fall back from using the session
+	// bus to the system bus.
+	var isSessionBus bool
+	var conn *dbus.Conn
+	var err error
+	if opts.AllowSessionBus {
+		isSessionBus, conn, err = sessionOrMaybeSystemBus(uid)
+		if err != nil {
+			return ErrCannotTrackProcess
+		}
+	} else {
+		isSessionBus = false
+		conn, err = dbusutil.SystemBus()
+		if err != nil {
+			return ErrCannotTrackProcess
+		}
 	}
 
 	// We ask the kernel for a random UUID. We need one because each transient

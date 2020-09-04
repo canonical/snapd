@@ -19,4 +19,29 @@ execute: |
     echo "and has the expected size"
     execute_remote "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
     echo "and has the expected owner and permissions"
-    execute_remote "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$' 
+    execute_remote "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
+
+    # grab modeenv content
+    execute_remote "cat /var/lib/snapd/modeenv" > modeenv
+    # and checksums
+    boot_grub_sha3="$(execute_remote "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_sha3="$(execute_remote "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_sha3="$(execute_remote "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+
+    # modeenv entries look like this:
+    # current_trusted_boot_assets={"grubx64.efi":["2e03571ce08de6cdde8a0ad80db8777c411af66073b795e514ad365da842920c9d50eaa0c3b45e878b9c8723cb22e0df"]}
+    # current_trusted_recovery_boot_assets={"bootx64.efi":["53298e526f5e073a4c60eb97f7af5eb016453efb8b813ce52b2c434d839a764767f1aeb0f39c745b15d045df8c35836c"],"grubx64.efi":["2e03571ce08de6cdde8a0ad80db8777c411af66073b795e514ad365da842920c9d50eaa0c3b45e878b9c8723cb22e0df"]}
+
+    # check that assets are listed in modeenv, for ubuntu-boot bootloader
+    grep current_trusted_boot_assets= < modeenv  | MATCH "\"grubx64.efi\":\[\"$boot_grub_sha3\"\]"
+    # and the recovery ubuntu-seed bootloader
+    grep current_trusted_recovery_boot_assets= < modeenv  | MATCH "\"grubx64.efi\":\[\"$seed_grub_sha3\"\]"
+    grep current_trusted_recovery_boot_assets= < modeenv  | MATCH "\"bootx64.efi\":\[\"$seed_shim_sha3\"\]"
+
+    # make sure that files exist too
+    execute_remote "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | \
+        "$TESTSLIB"/tools/sha3-384 | MATCH "^$boot_grub_sha3\$"
+    execute_remote "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | \
+        "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_grub_sha3\$"
+    execute_remote "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
+        "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_shim_sha3\$"

@@ -34,6 +34,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -817,4 +818,61 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 	sz, err := backend.EstimateSnapshotSize(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
+}
+func (s *snapshotSuite) TestExportTwice(c *check.C) {
+	// use mocking done in snapshotSuite.SetUpTest
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(42),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	// create a snapshot
+	shID := uint64(12)
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
+
+	// num_files + export.json + footer
+	expectedSize := int64(4*512 + 1024 + 2*512)
+	// do on export at the start of the epoch
+	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
+	defer restore()
+	// export once
+	buf := bytes.NewBuffer(nil)
+	ctx := context.Background()
+	se, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	err = se.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+
+	// and again to ensure size does not change when exported again
+	//
+	// Note that moving beyond year 2242 will change the tar format
+	// used by the go internal tar and that will make the size actually
+	// change.
+	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
+	defer restore()
+	se2, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se2.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se2.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	buf.Reset()
+	err = se2.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+}
+
+func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
+	se, err := backend.NewSnapshotExport(context.Background(), 5)
+	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
+	c.Assert(se, check.IsNil)
 }
