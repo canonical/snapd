@@ -630,7 +630,11 @@ start_nested_core_vm_unit(){
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
-            if ! snap list swtpm-mvo; then
+            if snap list swtpm-mvo; then
+                # reset the tpm state
+                rm /var/snap/swtpm-mvo/current/tpm2-00.permall
+                snap restart swtpm-mvo
+            else
                 snap install swtpm-mvo --beta
             fi
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"

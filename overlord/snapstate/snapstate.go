@@ -870,28 +870,35 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
-	// check if there is enough disk space for requested snaps and their
-	// prerequisites.
-	snapInfos := make([]*snap.Info, len(installs))
-	for i, sar := range installs {
-		snapInfos[i] = sar.Info
-	}
-	totalSize, err := installSize(st, snapInfos, userID)
-	if err != nil {
+	tr := config.NewTransaction(st)
+	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
+	if err != nil && !config.IsNoOption(err) {
 		return nil, nil, err
 	}
-
-	requiredSpace := safetyMarginDiskSpace(totalSize)
-	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-			return nil, nil, &InsufficientSpaceError{
-				Path:       path,
-				Snaps:      toInstall,
-				ChangeKind: "install",
-			}
+	if checkDiskSpaceInstall {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		snapInfos := make([]*snap.Info, len(installs))
+		for i, sar := range installs {
+			snapInfos[i] = sar.Info
 		}
-		return nil, nil, err
+		totalSize, err := installSize(st, snapInfos, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      toInstall,
+					ChangeKind: "install",
+				}
+			}
+			return nil, nil, err
+		}
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
