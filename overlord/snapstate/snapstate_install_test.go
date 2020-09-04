@@ -2792,6 +2792,10 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
@@ -2808,6 +2812,10 @@ func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
