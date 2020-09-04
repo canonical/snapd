@@ -43,18 +43,9 @@ prepare: |
     nested_start_core_vm
 
 restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     if [ -f skip.test ]; then
         rm -f skip.test
-        exit
     fi
-
-    nested_destroy_vm
-    nested_cleanup_env
-
-    rm -f "$NESTED_IMAGES_DIR/ubuntu-core.img"
 
 debug: |
     #shellcheck source=tests/lib/nested.sh

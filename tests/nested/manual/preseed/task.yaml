@@ -55,7 +55,6 @@ restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
-  nested_cleanup_env
 
 execute: |
   #shellcheck source=tests/lib/nested.sh

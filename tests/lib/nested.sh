@@ -268,6 +268,7 @@ nested_cleanup_env() {
     rm -rf "$NESTED_ASSETS_DIR"
     rm -rf "$NESTED_LOGS_DIR"
     rm -rf "$NESTED_IMAGES_DIR"/*.img
+    rm -rf "$(nested_get_extra_snaps_path)"
 }
 
 nested_get_image_name() {
@@ -702,6 +703,9 @@ nested_start_core_vm() {
     CURRENT_NAME="$(nested_get_current_image_name)"
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$CURRENT_NAME"
 
+    # Create the logs directory used for the vm
+    mkdir -p "$NESTED_LOGS_DIR"
+
     # In case the current image already exists, it needs to be reused and in that
     # case is neither required to copy the base image nor prepare the ssh
     if [ ! -f "$CURRENT_IMAGE" ]; then
@@ -803,6 +807,9 @@ nested_start_classic_vm() {
     local IMAGE QEMU IMAGE_NAME
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
+
+    # Create the logs directory used for the vm
+    mkdir -p "$NESTED_LOGS_DIR"
 
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
         nested_uncompress_image "$IMAGE_NAME"
