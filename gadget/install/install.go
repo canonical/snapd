@@ -51,7 +51,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentInstallObserver) error {
+func Run(gadgetRoot, device string, options Options, observer SystemInstallObserver) error {
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}

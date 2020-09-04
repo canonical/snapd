@@ -19,9 +19,21 @@
 
 package install
 
+import (
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
+)
+
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
 	// Encrypt the data partition
 	Encrypt bool
+}
+
+type SystemInstallObserver interface {
+	gadget.ContentObserver
+	// ChosenEncryptionKey stores the encrypted data partition key to be sealed
+	// at the end of the installation process.
+	ChosenEncryptionKey(secboot.EncryptionKey)
 }
