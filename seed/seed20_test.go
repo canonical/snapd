@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -224,8 +224,7 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	err = seed20.LoadAssertions(nil, nil)
 	c.Assert(err, IsNil)
 
-	model, err := seed20.Model()
-	c.Assert(err, IsNil)
+	model := seed20.Model()
 	c.Check(model.Model(), Equals, "my-model")
 	c.Check(model.Base(), Equals, "core20")
 
