@@ -431,13 +431,27 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	}
 }
 
-func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (bool, error) {
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
 		return false, fmt.Errorf("cannot copy modeenv: %v", err)
 	}
 
-	ta, err := o.cache.Add(data.After, bl.Name(), filepath.Base(relativeTarget))
+	// we may be running after a mid-update reboot, where a successful boot
+	// would have trimmed the tracked assets hash lists to contain only the
+	// asset we booted with
+
+	var taBefore *trackedAsset
+	if change.Before != "" {
+		// make sure that the original copy is present in the cache if
+		// it existed
+		taBefore, err = o.cache.Add(change.Before, bl.Name(), filepath.Base(relativeTarget))
+		if err != nil {
+			return false, err
+		}
+	}
+
+	ta, err := o.cache.Add(change.After, bl.Name(), filepath.Base(relativeTarget))
 	if err != nil {
 		return false, err
 	}
@@ -451,10 +465,19 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	// keep track of the change for cancellation purpose
 	*changedAssets = append(*changedAssets, ta)
 
+	if *trustedAssets == nil {
+		*trustedAssets = bootAssetsMap{}
+	}
+
+	if taBefore != nil && !isAssetAlreadyTracked(*trustedAssets, taBefore) {
+		// make sure that the boot asset that was was in the filesystem
+		// before the update, is properly tracked until either a
+		// successful boot or the update is canceled
+		// the original asset hash is listed first
+		(*trustedAssets)[taBefore.name] = append([]string{taBefore.hash}, (*trustedAssets)[taBefore.name]...)
+	}
+
 	if !isAssetAlreadyTracked(*trustedAssets, ta) {
-		if *trustedAssets == nil {
-			*trustedAssets = bootAssetsMap{}
-		}
 		if len((*trustedAssets)[ta.name]) > 1 {
 			// we expect at most 2 different blobs for a given asset
 			// name, the current one and one that will be installed
