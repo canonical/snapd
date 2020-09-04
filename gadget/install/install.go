@@ -166,7 +166,9 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	observer.ChosenEncryptionKey(key)
+	if observer != nil {
+		observer.ChosenEncryptionKey(key)
+	}
 
 	return nil
 }
