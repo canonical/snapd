@@ -28,11 +28,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type sealSuite struct {
@@ -81,9 +85,21 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		model := makeMockUC20Model()
 
+		// set recovery kernel
+		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+			if label != "20200825" {
+				return nil, nil, fmt.Errorf("invalid system seed label: %q", label)
+			}
+			kernelSnap := &seed.Snap{
+				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+			}
+			return model, []*seed.Snap{kernelSnap}, nil
+		})
+		defer restore()
+
 		// set mock key sealing
 		sealKeyCalls := 0
-		restore := boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
+		restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
 			sealKeyCalls++
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 1)
@@ -101,7 +117,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				{
 					bootloader.NewBootFile("", filepath.Join(cachedir, "bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
 					bootloader.NewBootFile("", filepath.Join(cachedir, "grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
-					bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/seed/snaps/pc-kernel_1.snap"), "kernel.efi", bootloader.RoleRecovery),
+					bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 				},
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
@@ -113,9 +129,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		err = boot.SealKeyToModeenv(myKey, model, modeenv)
-		c.Assert(sealKeyCalls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
+			c.Assert(sealKeyCalls, Equals, 1)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -127,7 +143,7 @@ func (s *sealSuite) TestRecoverModeLoadSequences(c *C) {
 		assetsMap         boot.BootAssetsMap
 		recoverySystem    string
 		undefinedKernel   bool
-		expectedSequences [][]string
+		expectedSequences [][]bootloader.BootFile
 		err               string
 	}{
 		{
@@ -137,16 +153,16 @@ func (s *sealSuite) TestRecoverModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedSequences: [][]string{
+			expectedSequences: [][]bootloader.BootFile{
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 				},
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-2",
-					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-2", bootloader.RoleRecovery),
+					bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 				},
 			},
 		},
@@ -157,52 +173,39 @@ func (s *sealSuite) TestRecoverModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedSequences: [][]string{
+			expectedSequences: [][]bootloader.BootFile{
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 				},
 			},
 		},
 		{
-			// kernel not defined in grubenv
-			undefinedKernel: true,
-			recoverySystem:  "20200825",
-			assetsMap: boot.BootAssetsMap{
-				"grubx64.efi": []string{"grub-hash-1"},
-				"bootx64.efi": []string{"shim-hash-1"},
-			},
-			err: `cannot determine kernel for recovery system "20200825"`,
-		},
-		{
-			// unspecified recovery system
-			assetsMap: boot.BootAssetsMap{
-				"grubx64.efi": []string{"grub-hash-1"},
-				"bootx64.efi": []string{"shim-hash-1"},
-			},
-			err: "recovery system is not defined in modeenv",
-		},
-		{
-			// invalid recovery system
+			// invalid recovery system label
 			recoverySystem: "0",
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			err: `cannot determine kernel for recovery system "0"`,
+			err: `invalid system seed label: "0"`,
 		},
 	} {
 		tmpDir := c.MkDir()
 
-		var kernel string
-		if !tc.undefinedKernel {
-			kernel = "/snaps/pc-kernel_1.snap"
-		}
-		err := createMockRecoverySystem(tmpDir, "20200825", kernel)
-		c.Assert(err, IsNil)
+		// set recovery kernel
+		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+			if label != "20200825" {
+				return nil, nil, fmt.Errorf("invalid system seed label: %q", label)
+			}
+			kernelSnap := &seed.Snap{
+				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+			}
+			return nil, []*seed.Snap{kernelSnap}, nil
+		})
+		defer restore()
 
-		err = createMockGrubCfg(tmpDir)
+		err := createMockGrubCfg(tmpDir)
 		c.Assert(err, IsNil)
 
 		bl, err := bootloader.Find(tmpDir, &bootloader.Options{Role: bootloader.RoleRecovery})
@@ -229,7 +232,7 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 		assetsMap         boot.BootAssetsMap
 		kernels           []string
 		recoverySystem    string
-		expectedSequences [][]string
+		expectedSequences [][]bootloader.BootFile
 		err               string
 	}{
 		{
@@ -243,18 +246,18 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"run-grub-hash-1", "run-grub-hash-2"},
 			},
 			kernels: []string{"pc-kernel_500.snap"},
-			expectedSequences: [][]string{
+			expectedSequences: [][]bootloader.BootFile{
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
-					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1", bootloader.RoleRunMode),
+					bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode),
 				},
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2",
-					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2", bootloader.RoleRunMode),
+					bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode),
 				},
 			},
 		},
@@ -269,18 +272,18 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"run-grub-hash-1"},
 			},
 			kernels: []string{"pc-kernel_500.snap", "pc-kernel_501.snap"},
-			expectedSequences: [][]string{
+			expectedSequences: [][]bootloader.BootFile{
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
-					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1", bootloader.RoleRunMode),
+					bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode),
 				},
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
-					"/var/lib/snapd/snaps/pc-kernel_501.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1", bootloader.RoleRunMode),
+					bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_501.snap", "kernel.efi", bootloader.RoleRunMode),
 				},
 			},
 		},
@@ -295,12 +298,12 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"run-grub-hash-1"},
 			},
 			kernels: []string{"pc-kernel_500.snap"},
-			expectedSequences: [][]string{
+			expectedSequences: [][]bootloader.BootFile{
 				{
-					"/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1",
-					"/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1",
-					"/var/lib/snapd/snaps/pc-kernel_500.snap",
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1", bootloader.RoleRecovery),
+					bootloader.NewBootFile("", "/var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1", bootloader.RoleRunMode),
+					bootloader.NewBootFile("/var/lib/snapd/snaps/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode),
 				},
 			},
 		},
@@ -311,7 +314,8 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			err: "cannot find asset grubx64.efi in modeenv",
+			kernels: []string{"pc-kernel_500.snap"},
+			err:     "cannot find asset grubx64.efi in modeenv",
 		},
 		{
 			// no kernels listed in modeenv
@@ -328,10 +332,7 @@ func (s *sealSuite) TestRunModeLoadSequences(c *C) {
 	} {
 		tmpDir := c.MkDir()
 
-		err := createMockRecoverySystem(tmpDir, "20200825", "/snaps/pc-kernel_1.snap")
-		c.Assert(err, IsNil)
-
-		err = createMockGrubCfg(tmpDir)
+		err := createMockGrubCfg(tmpDir)
 		c.Assert(err, IsNil)
 
 		rbl, err := bootloader.Find(tmpDir, &bootloader.Options{Role: bootloader.RoleRecovery})
@@ -363,14 +364,4 @@ func createMockGrubCfg(baseDir string) error {
 		return err
 	}
 	return ioutil.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
-}
-
-func createMockRecoverySystem(seedDir, sysLabel, kernel string) error {
-	recoverySystemDir := filepath.Join(seedDir, "systems", sysLabel)
-	if err := os.MkdirAll(recoverySystemDir, 0755); err != nil {
-		return err
-	}
-	envData := make([]byte, 1024)
-	copy(envData, []byte(fmt.Sprintf("# GRUB Environment Block\nsnapd_recovery_kernel=%v\n", kernel)))
-	return ioutil.WriteFile(filepath.Join(recoverySystemDir, "grubenv"), envData, 0644)
 }

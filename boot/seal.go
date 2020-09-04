@@ -34,6 +34,8 @@ import (
 
 var (
 	secbootSealKey = secboot.SealKey
+
+	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
 // sealKeyToModeenv seals the supplied key to the parameters specified
@@ -156,7 +158,7 @@ func recoverModeLoadSequences(rbl bootloader.Bootloader, modeenv *Modeenv) ([][]
 // recovery system and returns the path to the kernel snap.
 func kernelPathForRecoverySystem(recoverySystem string) (string, error) {
 	perf := timings.New(nil)
-	_, snaps, err := seed.ReadSystemEssential(dirs.SnapSeedDir, recoverySystem, []snap.Type{snap.TypeKernel}, perf)
+	_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, recoverySystem, []snap.Type{snap.TypeKernel}, perf)
 	if err != nil {
 		return "", err
 	}
