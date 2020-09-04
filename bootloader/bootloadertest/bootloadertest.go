@@ -55,6 +55,7 @@ type MockBootloader struct {
 // ensure MockBootloader(s) implement the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
+var _ bootloader.TrustedAssetsBootloader = (*MockTrustedAssetsBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 var _ bootloader.ManagedAssetsBootloader = (*MockManagedAssetsBootloader)(nil)
@@ -440,6 +441,15 @@ type MockTrustedAssetsBootloader struct {
 	TrustedAssetsList  []string
 	TrustedAssetsErr   error
 	TrustedAssetsCalls int
+
+	RecoveryBootChainList []bootloader.BootFile
+	RecoveryBootChainErr  error
+	BootChainList         []bootloader.BootFile
+	BootChainErr          error
+
+	RecoveryBootChainCalls []string
+	BootChainRunBl         []bootloader.Bootloader
+	BootChainKernelPath    []string
 }
 
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
@@ -451,6 +461,17 @@ func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
 	b.TrustedAssetsCalls++
 	return b.TrustedAssetsList, b.TrustedAssetsErr
+}
+
+func (b *MockTrustedAssetsBootloader) RecoveryBootChain(kernelPath string) ([]bootloader.BootFile, error) {
+	b.RecoveryBootChainCalls = append(b.RecoveryBootChainCalls, kernelPath)
+	return b.RecoveryBootChainList, b.RecoveryBootChainErr
+}
+
+func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, kernelPath string) ([]bootloader.BootFile, error) {
+	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
+	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
+	return b.BootChainList, b.BootChainErr
 }
 
 // MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the

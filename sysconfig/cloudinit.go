@@ -54,7 +54,11 @@ func DisableCloudInit(rootDir string) error {
 	return nil
 }
 
-func installCloudInitCfg(src, targetdir string) error {
+// installCloudInitCfgDir installs glob cfg files from the source directory to
+// the cloud config dir. For installing single files from anywhere with any
+// name, use installUnifiedCloudInitCfg
+func installCloudInitCfgDir(src, targetdir string) error {
+	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
 		return err
@@ -76,21 +80,54 @@ func installCloudInitCfg(src, targetdir string) error {
 	return nil
 }
 
-// TODO:UC20: - allow cloud.conf coming from the gadget
-//            - think about if/what cloud-init means on "secured" models
+// installGadgetCloudInitCfg installs a single cloud-init config file from the
+// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg".
+func installGadgetCloudInitCfg(src, targetdir string) error {
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
+	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
+	return osutil.CopyFile(src, configFile, 0)
+}
+
 func configureCloudInit(opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
 
-	switch opts.CloudInitSrcDir {
-	case "":
-		// disable cloud-init by default using the writable dir
-		err = DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
-	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+	// first check if cloud-init should be disallowed entirely
+	if !opts.AllowCloudInit {
+		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
-	return err
+
+	// next check if there is a gadget cloud.conf to install
+	gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
+	if osutil.FileExists(gadgetCloudConf) {
+		// then copy / install the gadget config and return without considering
+		// CloudInitSrcDir
+		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
+		// and the gadget cloud.conf so returning here may be wrong
+		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+	}
+
+	// TODO:UC20: implement filtering of files from src when specified via a
+	//            specific Options for i.e. signed grade and MAAS, etc.
+
+	// finally check if there is a cloud-init src dir we should copy config
+	// files from
+
+	if opts.CloudInitSrcDir != "" {
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+	}
+
+	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
+	// a gadget cloud.conf, in this case cloud-init may pick up dynamic metadata
+	// and userdata from NoCloud sources such as a CD-ROM drive with label
+	// CIDATA, etc. during first-boot
+
+	return nil
 }
 
 // CloudInitState represents the various cloud-init states

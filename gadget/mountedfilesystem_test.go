@@ -244,25 +244,36 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 	c.Assert(err, ErrorMatches, `source is not a directory`)
 }
 
+type mockContentChange struct {
+	path   string
+	change *gadget.ContentChange
+}
+
 type mockWriteObserver struct {
-	content        map[string][][]string
+	content        map[string][]*mockContentChange
 	observeErr     error
 	expectedStruct *gadget.LaidOutStructure
 	c              *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	m.c.Assert(data, NotNil)
 	m.c.Assert(op, Equals, gadget.ContentWrite, Commentf("unexpected operation %v", op))
 	if m.content == nil {
-		m.content = make(map[string][][]string)
+		m.content = make(map[string][]*mockContentChange)
 	}
-	m.c.Check(osutil.FileExists(sourcePath) && !osutil.IsDirectory(sourcePath), Equals, true,
-		Commentf("path %q does not exist or is not a directory", sourcePath))
+	// the file with content that will be written must exist
+	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
+		Commentf("path %q does not exist or is a directory", data.After))
+	// all files are treated as new by the writer
+	m.c.Check(data.Before, Equals, "")
 	m.c.Check(filepath.IsAbs(relativeTargetPath), Equals, false,
 		Commentf("target path %q is absolute", relativeTargetPath))
 
-	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.content[targetRootDir] = append(m.content[targetRootDir],
+		&mockContentChange{path: relativeTargetPath, change: data})
+
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
 	return true, m.observeErr
@@ -336,23 +347,39 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	c.Assert(osutil.IsDirectory(filepath.Join(outDir, "empty-dir")), Equals, true)
 
 	// verify observer was notified of writes for files only
-	c.Assert(obs.content, DeepEquals, map[string][][]string{
+	c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
-			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
-			{filepath.Join(s.dir, "bar"), "bar-name"},
+			{"foo-dir/foo", &gadget.ContentChange{After: filepath.Join(s.dir, "foo")}},
+			{"bar-name", &gadget.ContentChange{After: filepath.Join(s.dir, "bar")}},
 
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
-			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
+			{"nested-dir/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
+			{"nested-dir/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
+			{"some-dir/data", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
+			{"some-dir/empty-file", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/empty-file"),
+			}},
+			{"splash", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/splash"),
+			}},
 
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "data-copy"},
+			{"data-copy", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
 
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-copy/nested"},
+			{"nested-copy/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
+			{"nested-copy/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
 
-			{filepath.Join(s.dir, "baz"), "baz"},
+			{"baz", &gadget.ContentChange{After: filepath.Join(s.dir, "baz")}},
 		},
 	})
 }
@@ -804,30 +831,34 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 }
 
 type mockContentUpdateObserver struct {
-	contentUpdate   map[string][][]string
-	contentRollback map[string][][]string
+	contentUpdate   map[string][]*mockContentChange
+	contentRollback map[string][]*mockContentChange
 	observeErr      error
 	expectedStruct  *gadget.LaidOutStructure
 	c               *C
 }
 
 func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
 	if m.contentUpdate == nil {
-		m.contentUpdate = make(map[string][][]string)
+		m.contentUpdate = make(map[string][]*mockContentChange)
 	}
 	if m.contentRollback == nil {
-		m.contentRollback = make(map[string][][]string)
+		m.contentRollback = make(map[string][]*mockContentChange)
 	}
 
-	if op != gadget.ContentRollback || sourcePath != "" {
-		m.c.Check(osutil.FileExists(sourcePath) && !osutil.IsDirectory(sourcePath), Equals, true,
-			Commentf("path %q does not exist or is not a directory", sourcePath))
+	// the after content must always be set
+	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
+		Commentf("after reference path %q does not exist or is a directory", data.After))
+	// they may be no before content for new files
+	if data.Before != "" {
+		m.c.Check(osutil.FileExists(data.Before) && !osutil.IsDirectory(data.Before), Equals, true,
+			Commentf("before reference path %q does not exist or is a directory", data.Before))
 	}
 	m.c.Check(filepath.IsAbs(relativeTargetPath), Equals, false,
 		Commentf("target path %q is absolute", relativeTargetPath))
 
-	opData := []string{sourcePath, relativeTargetPath}
+	opData := &mockContentChange{path: relativeTargetPath, change: data}
 	switch op {
 	case gadget.ContentUpdate:
 		m.contentUpdate[targetRootDir] = append(m.contentUpdate[targetRootDir], opData)
@@ -925,13 +956,21 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 		}
 	}
 	// notified for both updated and new content
-	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+	c.Check(muo.contentUpdate, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
-			// new file
-			{filepath.Join(s.dir, "bar"), "bar-name"},
+			// bar-name is a new file
+			{"bar-name", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
 			// updates
-			{filepath.Join(s.dir, "foo"), "foo"},
-			{filepath.Join(s.dir, "foo"), "nested/foo"},
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
+			{"nested/foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/nested/foo.backup"),
+			}},
 		},
 	})
 
@@ -939,15 +978,32 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 	// we are notified of all files again
-	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+	c.Check(muo.contentUpdate, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
-			{filepath.Join(s.dir, "bar"), "bar-name"},
-			{filepath.Join(s.dir, "foo"), "foo"},
-			{filepath.Join(s.dir, "foo"), "nested/foo"},
+			// bar-name is a new file
+			{"bar-name", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
+			{"nested/foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/nested/foo.backup"),
+			}},
 			// same set of calls once more
-			{filepath.Join(s.dir, "bar"), "bar-name"},
-			{filepath.Join(s.dir, "foo"), "foo"},
-			{filepath.Join(s.dir, "foo"), "nested/foo"},
+			{"bar-name", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
+			{"nested/foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/nested/foo.backup"),
+			}},
 		},
 	})
 }
@@ -1526,7 +1582,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	}
 
 	// only notified about content getting updated
-	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+	c.Check(muo.contentUpdate, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
 			// the following files were not observed because they
 			// are the same as the ones on disk:
@@ -1534,28 +1590,60 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 			// - nested-copy/same-as-target-dir/identical
 			//
 			// we still get notified about new files:
-			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
+			{"foo-dir/foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "foo"),
+			}},
 			// in the preserve list but not present
-			{filepath.Join(s.dir, "bar"), "bar-name"},
+			{"bar-name", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
 			// boot-assets/ -> /
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical"), "nested-dir/more-nested/identical"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"), "nested-dir/same-as-target-dir/identical"},
+			{"nested-dir/more-nested/identical", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical"),
+			}},
+			{"nested-dir/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
+			{"nested-dir/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
+			{"nested-dir/same-as-target-dir/identical", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"),
+			}},
 			// in the preserve list but not present
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
-			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
+			{"some-dir/data", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
+			{"some-dir/empty-file", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/empty-file"),
+			}},
+			{"splash", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/splash"),
+			}},
 			// boot-assets/nested-dir/ -> /nested-copy/
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
+			{"nested-copy/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
 			// boot-assets -> /boot-assets-copy/
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical"), "boot-assets-copy/boot-assets/nested-dir/more-nested/identical"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "boot-assets-copy/boot-assets/nested-dir/nested"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"), "boot-assets-copy/boot-assets/nested-dir/same-as-target-dir/identical"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "boot-assets-copy/boot-assets/some-dir/data"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "boot-assets-copy/boot-assets/some-dir/empty-file"},
-			{filepath.Join(s.dir, "boot-assets/splash"), "boot-assets-copy/boot-assets/splash"},
+			{"boot-assets-copy/boot-assets/nested-dir/more-nested/identical", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical")}},
+			{"boot-assets-copy/boot-assets/nested-dir/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more")}},
+			{"boot-assets-copy/boot-assets/nested-dir/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
+			{"boot-assets-copy/boot-assets/nested-dir/same-as-target-dir/identical", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"),
+			}},
+			{"boot-assets-copy/boot-assets/some-dir/data", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
+			{"boot-assets-copy/boot-assets/some-dir/empty-file", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/empty-file"),
+			}},
+			{"boot-assets-copy/boot-assets/splash", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/splash"),
+			}},
 		},
 	})
 
@@ -1978,11 +2066,17 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	})
 
 	// only notified about content getting updated
-	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+	c.Check(muo.contentRollback, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
 			// rollback restores from the backups
-			{"", "foo"},
-			{"", "some-dir/foo"},
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "bar"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
+			{"some-dir/foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "bar"),
+				Before: filepath.Join(s.backup, "struct-0/some-dir/foo.backup"),
+			}},
 		},
 	})
 }
@@ -2143,12 +2237,21 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	// everything was removed
 	verifyDirContents(c, outDir, map[string]contentType{})
 	// new files were rolled back
-	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+	c.Check(muo.contentRollback, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
-			// rollback restores from the backups
-			{"", "foo"},
-			{"", "some-dir/bar"},
-			{"", "this/is/some/deep/nesting/bar"},
+			// files did not exist, so there was no 'before' content
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "bar"),
+				Before: "",
+			}},
+			{"some-dir/bar", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "bar"),
+				Before: "",
+			}},
+			{"this/is/some/deep/nesting/bar", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "bar"),
+				Before: "",
+			}},
 		},
 	})
 }
@@ -2262,11 +2365,15 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 	c.Assert(err, IsNil)
 	// observer would be notified that files were to be written, and so it
 	// must be notified when they would be rolled back
-	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+	c.Check(muo.contentRollback, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
 			// rollback restores from the backups
-			{"", "foo"},
-			{"", "some-dir/foo"},
+			{"foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
+			{"some-dir/foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
 		},
 	})
 }
@@ -2277,6 +2384,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 		{name: "some-dir/foo", content: "data"},
 		{name: "some-dir/nested/nested-foo", content: "data"},
 		{name: "empty-dir/"},
+		{name: "bar", content: "data"},
 	})
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
@@ -2355,19 +2463,36 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	// this one got restored
 	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "backup")
 
-	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+	c.Check(muo.contentRollback, DeepEquals, map[string][]*mockContentChange{
 		outDir: {
 			// a new file
-			{"", "bar"},
+			{"bar", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/bar"),
+			}},
 			// this file was restored from backup
-			{"", "foo"},
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "some-dir/foo"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
 			// new files till the end
-			{"", "nested/nested-foo"},
-			{"", "other-dir/bar"},
-			{"", "other-dir/foo"},
-			{"", "other-dir/nested/nested-foo"},
-			{"", "other-dir/nested/nested/nested-foo"},
-			{"", "this/is/some/deep/nesting/bar"},
+			{"nested/nested-foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/nested/nested-foo"),
+			}},
+			{"other-dir/bar", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/bar"),
+			}},
+			{"other-dir/foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/foo"),
+			}},
+			{"other-dir/nested/nested-foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/nested/nested-foo"),
+			}},
+			{"other-dir/nested/nested/nested-foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "some-dir/nested/nested-foo"),
+			}},
+			{"this/is/some/deep/nesting/bar", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
 		},
 	})
 }
@@ -2504,31 +2629,68 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"dtb.backup":                     typeFile,
 	})
 
-	// observe calls happen in the order the structure content gets analyzed
-	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+	expectedObservedContentChange := map[string][]*mockContentChange{
 		outDir: {
-			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
-			{filepath.Join(s.dir, "bar"), "bar-name"},
-			// update
-			{filepath.Join(s.dir, "boot-assets/dtb"), "dtb"},
+			{"foo-dir/foo", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "foo"),
+			}},
+			{"bar-name", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "bar"),
+			}},
+			// update with changed content
+			{"dtb", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "boot-assets/dtb"),
+				Before: filepath.Join(s.backup, "struct-0/dtb.backup"),
+			}},
 			// new files
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
-			// update
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
+			{"nested-dir/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
+			{"nested-dir/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
+			{"some-dir/data", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
 			// new files
-			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
-			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "data-copy"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/dtb"), "boot-assets-copy/boot-assets/dtb"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
-			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "boot-assets-copy/boot-assets/nested-dir/nested"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "boot-assets-copy/boot-assets/some-dir/data"},
-			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "boot-assets-copy/boot-assets/some-dir/empty-file"},
-			{filepath.Join(s.dir, "boot-assets/splash"), "boot-assets-copy/boot-assets/splash"},
+			{"some-dir/empty-file", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/empty-file"),
+			}},
+			{"splash", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/splash"),
+			}},
+			// update with changed content
+			{"data-copy", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "boot-assets/some-dir/data"),
+				Before: filepath.Join(s.backup, "struct-0/data-copy.backup"),
+			}},
+			// new files
+			{"nested-copy/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"),
+			}},
+			{"boot-assets-copy/boot-assets/dtb", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/dtb"),
+			}},
+			{"boot-assets-copy/boot-assets/nested-dir/more-nested/more", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more")},
+			},
+			{"boot-assets-copy/boot-assets/nested-dir/nested", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/nested-dir/nested"),
+			}},
+			{"boot-assets-copy/boot-assets/some-dir/data", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/data"),
+			}},
+			{"boot-assets-copy/boot-assets/some-dir/empty-file", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/some-dir/empty-file"),
+			}},
+			{"boot-assets-copy/boot-assets/splash", &gadget.ContentChange{
+				After: filepath.Join(s.dir, "boot-assets/splash"),
+			}},
 		},
-	})
+	}
+
+	// observe calls happen in the order the structure content gets analyzed
+	c.Check(muo.contentUpdate, DeepEquals, expectedObservedContentChange)
 
 	// run the update phase
 	err = rw.Update()
@@ -2592,33 +2754,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	// back to square one
 	verifyDirContents(c, outDir, originalState)
 
-	// observed source path is always empty during rollback
-	expectedObservedRollback := map[string][][]string{
-		outDir: {
-			{"", "foo-dir/foo"},
-			{"", "bar-name"},
-			{"", "dtb"},
-			{"", "nested-dir/more-nested/more"},
-			{"", "nested-dir/nested"},
-			{"", "some-dir/data"},
-			{"", "some-dir/empty-file"},
-			{"", "splash"},
-			{"", "data-copy"},
-			{"", "nested-copy/more-nested/more"},
-			{"", "boot-assets-copy/boot-assets/dtb"},
-			{"", "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
-			{"", "boot-assets-copy/boot-assets/nested-dir/nested"},
-			{"", "boot-assets-copy/boot-assets/some-dir/data"},
-			{"", "boot-assets-copy/boot-assets/some-dir/empty-file"},
-			{"", "boot-assets-copy/boot-assets/splash"},
-		},
-	}
-	c.Check(muo.contentRollback, DeepEquals, expectedObservedRollback)
+	c.Check(muo.contentRollback, DeepEquals, expectedObservedContentChange)
 	// call rollback once more, we should observe the same files again
 	muo.contentRollback = nil
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
-	c.Check(muo.contentRollback, DeepEquals, expectedObservedRollback)
+	c.Check(muo.contentRollback, DeepEquals, expectedObservedContentChange)
 	// file contents are unchanged
 	verifyDirContents(c, outDir, originalState)
 }
