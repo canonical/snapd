@@ -665,13 +665,13 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 		return u20, nil
 	}
 
-	u20.preModeenv(func() error {
+	u20.postModeenv(func() error {
 		cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
 		// drop listed assets from cache
 		for _, ta := range dropAssets {
-			// TODO ta.blName must be set!
 			err := cache.Remove(ta.blName, ta.name, ta.hash)
 			if err != nil {
+				// XXX: should this be a log instead?
 				return fmt.Errorf("cannot remove unused boot asset %v:%v: %v", ta.name, ta.hash, err)
 			}
 		}
@@ -680,6 +680,6 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	return u20, nil
 }
 
-func trustedAssetsBootState(dev Device) *bootState20BootAssets {
+func trustedAssetsBootState() *bootState20BootAssets {
 	return &bootState20BootAssets{}
 }

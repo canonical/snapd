@@ -636,9 +636,11 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
 	trustedAssetsMap := &m.CurrentTrustedBootAssets
 	otherTrustedAssetsMap := m.CurrentTrustedRecoveryBootAssets
+	whichBootloader := "run mode"
 	if opts != nil && opts.Role == bootloader.RoleRecovery {
 		trustedAssetsMap = &m.CurrentTrustedRecoveryBootAssets
 		otherTrustedAssetsMap = m.CurrentTrustedBootAssets
+		whichBootloader = "recovery"
 	}
 
 	if len(*trustedAssetsMap) == 0 {
@@ -667,8 +669,9 @@ func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts 
 			return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
 		}
 		if assetHash == "" {
-			// no trusted asset on disk, but we booted nonetheless
-
+			// no trusted asset on disk, but we booted nonetheless,
+			// at least log something
+			logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
 			// given that asset names cannot be reused, clear the
 			// boot assets map for the current bootloader
 			delete(*trustedAssetsMap, assetName)
@@ -680,12 +683,11 @@ func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts 
 		// one of these was expected during boot
 		hashList := (*trustedAssetsMap)[assetName]
 
-		// update the list of what we booted with
-		(*trustedAssetsMap)[assetName] = bootedWith
-
+		assetFound := false
 		// find out if anything needs to be dropped
 		for _, hash := range hashList {
 			if hash == assetHash {
+				assetFound = true
 				continue
 			}
 			if !isAssetHashTrackedInMap(otherTrustedAssetsMap, assetName, hash) {
@@ -697,6 +699,18 @@ func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts 
 				})
 			}
 		}
+
+		if !assetFound {
+			// unexpected, we have booted with an asset whose hash
+			// is not listed among the ones we expect
+
+			// TODO:UC20: try to restore the asset from cache
+			return nil, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
+		}
+
+		// update the list of what we booted with
+		(*trustedAssetsMap)[assetName] = bootedWith
+
 	}
 	return drop, nil
 }

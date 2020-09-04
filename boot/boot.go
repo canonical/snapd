@@ -190,10 +190,9 @@ type bootState interface {
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
-// basicBootState exposes the boot state that is not necessarily tied to a
-// particular snap, but any other type of resource that plays a role in the boot
-// process.
-type basicBootState interface {
+// successfulBootState exposes the state of resources requiring bookkeeping on a
+// successful boot.
+type successfulBootState interface {
 	// markSuccessful lazily implements marking the boot
 	// successful for the given type of resource.
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
@@ -338,7 +337,7 @@ func MarkBootSuccessful(dev Device) error {
 	}
 
 	if dev.HasModeenv() {
-		b := trustedAssetsBootState(dev)
+		b := trustedAssetsBootState()
 		var err error
 		u, err = b.markSuccessful(u)
 		if err != nil {

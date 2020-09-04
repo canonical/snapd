@@ -1964,6 +1964,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
+	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 	unexpected := []byte("unexpected")
 	unexpectedHash := "2c823b62c52e614e48faac7e8b1fbb8ff3aee4d06b6f7fe5bd7d64953162b6e9879ead4827fa19c8c9a514585ddac94c"
@@ -1984,24 +1985,18 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	}
 
 	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
-	c.Assert(err, IsNil)
-	c.Assert(newM, NotNil)
-	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {unexpectedHash},
-	})
-	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {unexpectedHash},
-	})
-	c.Check(drop, HasLen, 3)
-	for i, en := range []struct {
-		assetName, hash string
-	}{
-		{"asset", "assethash"},
-		{"asset", "recoveryassethash"},
-		{"asset", dataHash},
-	} {
-		c.Check(drop[i].Equals("trusted", en.assetName, en.hash), IsNil)
-	}
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected run mode bootloader asset "asset" hash %v`, unexpectedHash))
+	c.Assert(newM, IsNil)
+	c.Check(drop, HasLen, 0)
+
+	// make the run bootloader asset an expected one, we should still fail
+	// on the recovery bootloader asset
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+
+	newM, drop, err = boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected recovery bootloader asset "asset" hash %v`, unexpectedHash))
+	c.Assert(newM, IsNil)
+	c.Check(drop, HasLen, 0)
 }
 
 func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
