@@ -38,6 +38,16 @@ prepare: |
         fi
     fi
 
+    # XXX: on ubuntu 20.10 default printer is not set and root is not allowed
+    # to add/modify printers
+    if [[ "$SPREAD_SYSTEM" == ubuntu-20.10-* ]]; then
+        sed -i -e's/SystemGroup lpadmin$/SystemGroup lpadmin root/' /etc/cups/cups-files.conf
+        systemctl restart cups
+        # add a printer and make it default
+        lpadmin -p pdfprinter -E -v cups-pdf:/"$HOME"/PDF -U root
+        lpadmin -d pdfprinter
+    fi
+
 restore: |
     rm -rf "$HOME"/PDF "$TEST_FILE"
 
