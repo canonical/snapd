@@ -39,7 +39,9 @@ prepare: |
     fi
 
     # XXX: on ubuntu 20.10 default printer is not set and root is not allowed
-    # to add/modify printers
+    # to add/modify printers.
+    # We do not bother to restore the previous state, for now it should be
+    # generally immaterial to other tests.
     if [[ "$SPREAD_SYSTEM" == ubuntu-20.10-* ]]; then
         sed -i -e's/SystemGroup lpadmin$/SystemGroup lpadmin root/' /etc/cups/cups-files.conf
         systemctl restart cups
