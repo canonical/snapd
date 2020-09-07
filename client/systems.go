@@ -104,7 +104,8 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 	return nil
 }
 
-// DoSystemReboot issues a request to reboot into the given label/mode
+// RebootToSystem issues a request to reboot into system with the
+// given label and the given mode.
 //
 // When called without a systemLabel and without a mode it will just
 // trigger a regular reboot.
