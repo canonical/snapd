@@ -3,7 +3,7 @@ summary: Check that the core snap can be refreshed on a core device
 details: |
     This test checks that the core snap can be refreshed from an installed
     revision to a new one. It expects to find a new snap revision in the
-    channel pointed by the NEW_CORE_CHANNEL env var.
+    channel pointed by the NESTED_CORE_REFRESH_CHANNEL env var.
 
 systems: [ubuntu-16.04-64]
     
@@ -15,42 +15,47 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    INITIAL_REV="$(get_nested_core_revision_for_channel "${CORE_CHANNEL}")"
-    NEW_REV="$(get_nested_core_revision_for_channel "${NEW_CORE_CHANNEL}")"
+    INITIAL_REV="$(nested_get_core_revision_for_channel "${NESTED_CORE_CHANNEL}")"
+    NEW_REV="$(nested_get_core_revision_for_channel "${NESTED_CORE_REFRESH_CHANNEL}")"
+
+    if [ "$INITIAL_REV" = "$NEW_REV" ]; then
+        echo "Initial and target revisions are the same, skipping..."
+        exit
+    fi
 
     # Install test snap
-    execute_remote "sudo snap install test-snapd-sh"
+    nested_exec "sudo snap install test-snapd-sh"
 
     # Ensure we have a good starting place
-    execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # go to known good starting place
-    execute_remote "snap download core --${CORE_CHANNEL}"
-    execute_remote "sudo snap ack core_*.assert"
-    execute_remote "sudo snap install core_*.snap"
+    nested_exec "snap download core --${NESTED_CORE_CHANNEL}"
+    nested_exec "sudo snap ack core_*.assert"
+    nested_exec "sudo snap install core_*.snap"
 
     # Check the initial core is installed and snaps can be executed
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
 
     # Ensure test-snapd-sh works
-    execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # Refresh
-    refresh_to_new_core "$NEW_CORE_CHANNEL"
+    refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
 
     # After refresh, check new core is installed  
     test "$(get_nested_core_revision_installed)" = "${NEW_REV}"
 
     # Ensure test-snapd-sh works
-    execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # Revert core
-    execute_remote "sudo snap revert core" || true
-    wait_for_no_ssh
-    wait_for_ssh
+    nested_exec "sudo snap revert core" || true
+    nested_nested_wait_for_no_ssh
+    nested_nested_wait_for_ssh
 
     # After revert, check initial core is installed  
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
 
     # Ensure test-snapd-sh works
-    execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
