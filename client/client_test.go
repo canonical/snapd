@@ -22,6 +22,7 @@ package client_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -37,12 +38,15 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
+	testutil.BaseTest
+
 	cli           *client.Client
 	req           *http.Request
 	reqs          []*http.Request
@@ -53,13 +57,16 @@ type clientSuite struct {
 	header        http.Header
 	status        int
 	contentLength int64
-	restore       func()
+
+	countingCloser *countingCloser
 }
 
 var _ = Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *C) {
 	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
+	cs.AddCleanup(func() { os.Unsetenv(client.TestAuthFileEnvKey) })
+
 	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
@@ -72,15 +79,22 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.status = 200
 	cs.doCalls = 0
 	cs.contentLength = 0
+	cs.countingCloser = nil
 
 	dirs.SetRootDir(c.MkDir())
+	cs.AddCleanup(func() { dirs.SetRootDir("") })
 
-	cs.restore = client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
+	cs.AddCleanup(client.MockDoTimings(time.Millisecond, 100*time.Millisecond))
 }
 
-func (cs *clientSuite) TearDownTest(c *C) {
-	os.Unsetenv(client.TestAuthFileEnvKey)
-	cs.restore()
+type countingCloser struct {
+	io.Reader
+	closeCalled int
+}
+
+func (n *countingCloser) Close() error {
+	n.closeCalled++
+	return nil
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -90,8 +104,9 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	if cs.doCalls < len(cs.rsps) {
 		body = cs.rsps[cs.doCalls]
 	}
+	cs.countingCloser = &countingCloser{Reader: strings.NewReader(body)}
 	rsp := &http.Response{
-		Body:          ioutil.NopCloser(strings.NewReader(body)),
+		Body:          cs.countingCloser,
 		Header:        cs.header,
 		StatusCode:    cs.status,
 		ContentLength: cs.contentLength,

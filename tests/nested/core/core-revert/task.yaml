@@ -5,7 +5,7 @@ kill-timeout: 30m
 systems: [ubuntu-16.04-64]
 
 environment:
-    IMAGE_FILE: /tmp/work-dir/image/ubuntu-core-new.img
+    IMAGE_FILE: /tmp/work-dir/images/ubuntu-core-new.img
 
 debug: |
     systemctl stop nested-vm || true
@@ -28,37 +28,37 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$CORE_CHANNEL" == "$CORE_REFRESH_CHANNEL" ]; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]; then
         echo "This test need to start from beta/candidate/stable channel"
         exit 0
     fi
 
-    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_CHANNEL}"
-    execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
+    nested_exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
-    if ! wait_for_ssh; then
+    if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do
+    while ! nested_exec "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
         sleep 1
     done
-    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
     # sanity check, no refresh should be done here but the command shouldn't fail
-    execute_remote "sudo snap refresh"
-    execute_remote "sudo snap revert core" || true
+    nested_exec "sudo snap refresh"
+    nested_exec "sudo snap revert core" || true
 
-    if ! wait_for_ssh; then
+    if ! nested_wait_for_ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
-    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
-    execute_remote "ifconfig" | MATCH eth0
+    while ! nested_exec "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    nested_exec "ifconfig" | MATCH eth0
 
 
-    execute_remote "sudo snap refresh"
-    execute_remote "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
+    nested_exec "sudo snap refresh"
+    nested_exec "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"

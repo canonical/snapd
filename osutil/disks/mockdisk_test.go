@@ -39,7 +39,7 @@ func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingVerifiesUniqueness(c *C) {
+func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
 	// two different disks with different DevNum's
 	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
@@ -68,13 +68,13 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingVerifiesUniquenes
 	}
 
 	// mocking works
-	r := disks.MockMountPointDisksToPartionMapping(m)
+	r := disks.MockMountPointDisksToPartitionMapping(m)
 	defer r()
 
 	// changing so they have the same DevNum doesn't work though
 	d2.DevNum = "d1"
 	c.Assert(
-		func() { disks.MockMountPointDisksToPartionMapping(m) },
+		func() { disks.MockMountPointDisksToPartitionMapping(m) },
 		PanicMatches,
 		`mocked disks .* and .* have the same DevNum \(d1\) but are not the same object`,
 	)
@@ -84,11 +84,11 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingVerifiesUniquenes
 		{Mountpoint: "mount1"}: d1,
 		{Mountpoint: "mount2"}: d1,
 	}
-	r = disks.MockMountPointDisksToPartionMapping(m2)
+	r = disks.MockMountPointDisksToPartitionMapping(m2)
 	defer r()
 }
 
-func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
+func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"label1": "part1",
@@ -105,7 +105,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 		DevNum:            "d2",
 	}
 
-	r := disks.MockMountPointDisksToPartionMapping(
+	r := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: "mount1"}: d1,
 			{Mountpoint: "mount2"}: d1,
@@ -162,7 +162,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 	c.Assert(matches, Equals, false)
 }
 
-func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingDecryptedDevices(c *C) {
+func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevices(c *C) {
 	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-part",
@@ -173,7 +173,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingDecryptedDevices(
 		DevNum:            "d1",
 	}
 
-	r := disks.MockMountPointDisksToPartionMapping(
+	r := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: "/run/mnt/ubuntu-boot"}: d1,
 			{Mountpoint: "/run/mnt/ubuntu-seed"}: d1,

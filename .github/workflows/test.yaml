@@ -194,6 +194,7 @@ jobs:
         - fedora-31-64
         - fedora-32-64
         - opensuse-15.1-64
+        - opensuse-15.2-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-32
@@ -281,10 +282,10 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          export SPREAD_BUILD_SNAPD_FROM_CURRENT=true
-          export SPREAD_ENABLE_KVM=true
+          export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+          export NESTED_ENABLE_KVM=true
           if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
-              export SPREAD_ENABLE_KVM=false
+              export NESTED_ENABLE_KVM=false
           fi
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run

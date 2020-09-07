@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -44,6 +45,14 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	snapshotList = newList
 	return func() {
 		snapshotList = oldList
+	}
+}
+
+func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+	oldExport := snapshotExport
+	snapshotExport = newExport
+	return func() {
+		snapshotExport = oldExport
 	}
 }
 
@@ -99,7 +108,14 @@ func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
 	return changeSnapshots(c, r, user).(*resp)
 }
 
+func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface{} {
+	return getSnapshotExport(c, r, user)
+}
+
 var (
-	SnapshotMany = snapshotMany
-	SnapshotCmd  = snapshotCmd
+	SnapshotMany      = snapshotMany
+	SnapshotCmd       = snapshotCmd
+	SnapshotExportCmd = snapshotExportCmd
 )
+
+type SnapshotExportResponse = snapshotExportResponse

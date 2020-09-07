@@ -57,7 +57,7 @@ func checkContent(content *VolumeContent) error {
 	return nil
 }
 
-func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure, root, src, dst string) error {
+func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure, root, dst string, data *ContentChange) error {
 	if observer == nil {
 		return nil
 	}
@@ -70,7 +70,7 @@ func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure
 		}
 		relativeTarget = relative
 	}
-	_, err := observer.Observe(op, ps, root, src, relativeTarget)
+	_, err := observer.Observe(op, ps, root, relativeTarget, data)
 	return err
 }
 
@@ -191,7 +191,13 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
-	if err := observe(m.observer, ContentWrite, m.ps, volumeRoot, src, dst); err != nil {
+	data := &ContentChange{
+		// we are writing a new thing
+		Before: "",
+		// with content in this file
+		After: src,
+	}
+	if err := observe(m.observer, ContentWrite, m.ps, volumeRoot, dst, data); err != nil {
 		return fmt.Errorf("cannot observe file write: %v", err)
 	}
 	return writeFileOrSymlink(src, dst, preserveInDst)
@@ -345,12 +351,21 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 	if ps.Role != SystemSeed && ps.Role != SystemBoot {
 		return nil, nil
 	}
+	// TODO:UC20: this code should no longer be needed when we use
+	// the updater interface from boot, in particular we shouldn't
+	// try to find a bootloader from this place, we don't have
+	// quite enough info not to guess
+
 	// the assets are within the system-boot or system-seed partition, set
 	// the right flags so that files are looked for using their paths inside
 	// the partition
+	role := bootloader.RoleRecovery
+	if ps.Role == SystemBoot {
+		role = bootloader.RoleRunMode
+	}
 	opts := &bootloader.Options{
-		Recovery:    ps.Role == SystemSeed,
-		NoSlashBoot: ps.Role == SystemBoot,
+		Role:        role,
+		NoSlashBoot: true,
 	}
 	bl, err := bootloader.Find(mountPoint, opts)
 	if err != nil {
@@ -367,8 +382,6 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 		// assets
 		return nil, nil
 	}
-	// TODO:UC20: this should no longer be checked when we use the updater
-	// interface from boot
 	managed, err := mbl.IsCurrentlyManaged()
 	if err != nil {
 		return nil, err
@@ -665,21 +678,26 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 }
 
 func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
-	willBeWritten, err := f.backupOrCheckpointFile(dstRoot, source, target, preserveInDst, backupDir)
+	change, err := f.backupOrCheckpointFile(dstRoot, source, target, preserveInDst, backupDir)
 	if err != nil {
 		return err
 	}
-	if willBeWritten {
-		srcPath := f.entrySourcePath(source)
+	if change != nil {
 		dstPath, _ := f.entryDestPaths(dstRoot, source, target, backupDir)
-		if err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, srcPath, dstPath); err != nil {
+		if err := observe(f.updateObserver, ContentUpdate, f.ps, f.mountPoint, dstPath, change); err != nil {
 			return fmt.Errorf("cannot observe pending file write %v\n", err)
 		}
 	}
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (willWrite bool, err error) {
+// backupOrCheckpointFile analyzes a given source file from the gadget and a
+// target location under the provided destination root directory. When both
+// files are identical, creates a stamp that allows the update to skip the file.
+// When content of the new file is different, a backup of the original file is
+// created. Returns a content change if a file will be written by the update
+// pass.
+func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, target string, preserveInDst []string, backupDir string) (change *ContentChange, err error) {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
@@ -687,41 +705,55 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
 
+	changeWithBackup := &ContentChange{
+		// content of the new data
+		After: srcPath,
+		// this is the original data that was present before the
+		// update
+		Before: backupName,
+	}
+	changeNewFile := &ContentChange{
+		// content of the new data
+		After: srcPath,
+	}
+
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(dstPath) {
-		return false, fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
+		return nil, fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
 	}
 
 	if !osutil.FileExists(dstPath) {
 		// destination does not exist and will be created when writing
 		// the udpate, no need for backup
-		return true, nil
+		return changeNewFile, nil
 	}
 
 	if osutil.FileExists(backupName) {
 		// file already checked and backed up
-		return true, nil
+		return changeWithBackup, nil
 	}
 	if osutil.FileExists(sameStamp) {
 		// file already checked, same as the update, move on
-		return false, nil
+		return nil, nil
 	}
+	// TODO: correctly identify new files that were written by a partially
+	// executed update pass
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
 		// file is to be preserved, create a relevant stamp
 		if !osutil.FileExists(dstPath) {
 			// preserve, but does not exist, will be written anyway
-			return true, nil
+			return changeNewFile, nil
 		}
 		if osutil.FileExists(preserveStamp) {
 			// already stamped
-			return false, nil
+			return nil, nil
 		}
 		// make a stamp
 		if err := makeStamp(preserveStamp); err != nil {
-			return false, fmt.Errorf("cannot create preserve stamp: %v", err)
+			return nil, fmt.Errorf("cannot create preserve stamp: %v", err)
 		}
-		return false, nil
+		return nil, nil
 	}
 
 	// try to find out whether the update and the existing file are
@@ -729,13 +761,13 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 	orig, err := os.Open(dstPath)
 	if err != nil {
-		return false, fmt.Errorf("cannot open destination file: %v", err)
+		return nil, fmt.Errorf("cannot open destination file: %v", err)
 	}
 
 	// backup of the original content
 	backup, err := newStampFile(backupName)
 	if err != nil {
-		return false, fmt.Errorf("cannot create backup file: %v", err)
+		return nil, fmt.Errorf("cannot create backup file: %v", err)
 	}
 	// becomes a backup copy or a noop if canceled
 	defer backup.Commit()
@@ -747,14 +779,14 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	_, err = io.Copy(backup, htr)
 	if err != nil {
 		backup.Cancel()
-		return false, fmt.Errorf("cannot backup original file: %v", err)
+		return nil, fmt.Errorf("cannot backup original file: %v", err)
 	}
 
 	// digest of the update
 	updateDigest, _, err := osutil.FileDigest(srcPath, crypto.SHA1)
 	if err != nil {
 		backup.Cancel()
-		return false, fmt.Errorf("cannot checksum update file: %v", err)
+		return nil, fmt.Errorf("cannot checksum update file: %v", err)
 	}
 	// digest of the currently present data
 	origDigest := origHash.Sum(nil)
@@ -764,17 +796,17 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		// mark that files are identical and update can be skipped, no
 		// backup is needed
 		if err := makeStamp(sameStamp); err != nil {
-			return false, fmt.Errorf("cannot create a checkpoint file: %v", err)
+			return nil, fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
 
 		// makes the deferred commit a noop
 		backup.Cancel()
-		return false, nil
+		return nil, nil
 	}
 
 	// update will overwrite existing file, a backup copy is created on
 	// Commit()
-	return true, nil
+	return changeWithBackup, nil
 }
 
 func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
@@ -862,6 +894,7 @@ func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, source, target str
 }
 
 func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
+	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
 	backupName := backupPath + ".backup"
@@ -877,6 +910,12 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 		return nil
 	}
 
+	data := &ContentChange{
+		After: srcPath,
+		// original content was in the backup file
+		Before: backupName,
+	}
+
 	if osutil.FileExists(backupName) {
 		// restore backup -> destination
 		if err := writeFileOrSymlink(backupName, dstPath, nil); err != nil {
@@ -888,10 +927,12 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 		if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot remove written update: %v", err)
 		}
+		// since it's a new file, there was no original content
+		data.Before = ""
 	}
 	// avoid passing source path during rollback, the file has been restored
 	// to the disk already
-	if err := observe(f.updateObserver, ContentRollback, f.ps, f.mountPoint, "", dstPath); err != nil {
+	if err := observe(f.updateObserver, ContentRollback, f.ps, f.mountPoint, dstPath, data); err != nil {
 		return fmt.Errorf("cannot observe pending file rollback %v\n", err)
 	}
 

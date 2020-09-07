@@ -22,6 +22,7 @@ package seed
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -133,4 +134,37 @@ func Open(seedDir, label string) (Seed, error) {
 	// system if there is only one, or the lexicographically
 	// highest label one?
 	return &seed16{seedDir: seedDir}, nil
+}
+
+// ReadSystemEssential retrieves in one go information about the model
+// and essential snaps of the given types for the Core 20 recovery
+// system seed specified by seedDir and label (which cannot be empty).
+func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*Snap, error) {
+	if label == "" {
+		return nil, nil, fmt.Errorf("system label cannot be empty")
+	}
+	seed, err := Open(seedDir, label)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	seed20, ok := seed.(EssentialMetaLoaderSeed)
+	if !ok {
+		return nil, nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
+	}
+
+	// load assertions into a temporary database
+	if err := seed20.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, err
+	}
+
+	// Model always succeeds after LoadAssertions
+	mod, _ := seed20.Model()
+
+	// load and verify info about essential snaps
+	if err := seed20.LoadEssentialMeta(essentialTypes, tm); err != nil {
+		return nil, nil, err
+	}
+
+	return mod, seed20.EssentialSnaps(), nil
 }
