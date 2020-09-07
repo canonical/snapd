@@ -1642,39 +1642,39 @@ func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRemoveInsufficientSpace(c *check.C) {
+func (s *SnapOpSuite) TestRemoveInsufficientDiskSpace(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{
 			"type": "error",
 			"result": {
 				"message": "disk space error",
-				"kind": "insufficient-space",
+				"kind": "insufficient-disk-space",
 				"value": {
 					"snap-names": ["foo", "bar"],
 					"change-kind": "remove"
 				},
-				"status-code": 409
+				"status-code": 507
 				}}`)
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
-	c.Check(err, check.ErrorMatches, `(?sm)cannot remove "foo","bar" due to low disk space for automatic snapshot,.*use --purge to avoid creating a snapshot`)
+	c.Check(err, check.ErrorMatches, `(?sm)cannot remove "foo", "bar" due to low disk space for automatic snapshot,.*use --purge to avoid creating a snapshot`)
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapOpSuite) TestInstallInsufficientSpace(c *check.C) {
+func (s *SnapOpSuite) TestInstallInsufficientDiskSpace(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{
 			"type": "error",
 			"result": {
 				"message": "disk space error",
-				"kind": "insufficient-space",
+				"kind": "insufficient-disk-space",
 				"value": {
 					"snap-names": ["foo"],
 					"change-kind": "install"
 				},
-				"status-code": 409
+				"status-code": 507
 				}}`)
 	})
 
@@ -1684,18 +1684,18 @@ func (s *SnapOpSuite) TestInstallInsufficientSpace(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapOpSuite) TestRefreshInsufficientSpace(c *check.C) {
+func (s *SnapOpSuite) TestRefreshInsufficientDiskSpace(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{
 			"type": "error",
 			"result": {
 				"message": "disk space error",
-				"kind": "insufficient-space",
+				"kind": "insufficient-disk-space",
 				"value": {
 					"snap-names": ["foo"],
 					"change-kind": "refresh"
 				},
-				"status-code": 409
+				"status-code": 507
 				}}`)
 	})
 

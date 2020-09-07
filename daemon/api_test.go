@@ -7654,11 +7654,11 @@ func (s *apiSuite) TestErrToResponseInsufficentSpace(c *check.C) {
 	}
 	rsp := errToResponse(err, nil, BadRequest, "%s: %v", "ERR").(*resp)
 	c.Check(rsp, check.DeepEquals, &resp{
-		Status: 409,
+		Status: 507,
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: "specific error msg",
-			Kind:    client.ErrorKindInsufficientSpace,
+			Kind:    client.ErrorKindInsufficientDiskSpace,
 			Value: map[string]interface{}{
 				"snap-names":  []string{"foo", "bar"},
 				"change-kind": "some-change",

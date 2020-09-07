@@ -222,7 +222,7 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = i18n.G("snapd is about to reboot the system")
-	case client.ErrorKindInsufficientSpace:
+	case client.ErrorKindInsufficientDiskSpace:
 		// this error carries multiple snap names
 		usesSnapName = false
 		values, ok := err.Value.(map[string]interface{})
@@ -230,10 +230,10 @@ If you understand and want to proceed repeat the command including --classic.
 			changeKind, _ := values["change-kind"].(string)
 			snaps, _ := values["snap-names"].([]interface{})
 			snapNames := make([]string, len(snaps))
-			for i := range snaps {
-				snapNames[i] = fmt.Sprintf("%q", snaps[i])
+			for i, v := range snaps {
+				snapNames[i] = fmt.Sprint(v)
 			}
-			names := strings.Join(snapNames, ",")
+			names := strutil.Quoted(snapNames)
 			switch changeKind {
 			case "remove":
 				msg = fmt.Sprintf(i18n.G("cannot remove %s due to low disk space for automatic snapshot, use --purge to avoid creating a snapshot"), names)

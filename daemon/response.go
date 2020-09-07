@@ -476,18 +476,21 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 // InsufficientSpace is an error responder used when an operation cannot
 // be performed due to low disk space.
 func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
-	value := map[string]interface{}{
-		"snap-names":  dserr.Snaps,
-		"change-kind": dserr.ChangeKind,
+	value := map[string]interface{}{}
+	if len(dserr.Snaps) > 0 {
+		value["snap-names"] =  dserr.Snaps
+	}
+	if dserr.ChangeKind != "" {
+		value["change-kind"] = dserr.ChangeKind
 	}
 	return &resp{
 		Type: ResponseTypeError,
 		Result: &errorResult{
 			Message: dserr.Error(),
-			Kind:    client.ErrorKindInsufficientSpace,
+			Kind:    client.ErrorKindInsufficientDiskSpace,
 			Value:   value,
 		},
-		Status: 409,
+		Status: 507,
 	}
 }
 
