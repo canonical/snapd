@@ -105,7 +105,16 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 }
 
 // DoSystemReboot issues a request to reboot into the given label/mode
-func (client *Client) DoSystemReboot(systemLabel, mode string) error {
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	// verification is done by the backend
 
 	req := struct {
