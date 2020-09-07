@@ -727,7 +727,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
-		c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in ".*" mode\n`)
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "20191119" in "%s" mode\n`, mode))
 	}
 }
 

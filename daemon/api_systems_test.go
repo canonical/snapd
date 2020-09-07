@@ -601,7 +601,9 @@ func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
 	}{
 		{"", ""},
 		{"20200101", ""},
+		{"", "run"},
 		{"", "recover"},
+		{"20200101", "run"},
 		{"20200101", "recover"},
 	} {
 		called := 0

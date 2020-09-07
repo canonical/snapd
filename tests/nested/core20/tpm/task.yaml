@@ -8,25 +8,25 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     echo "Verifying tpm working on the nested vm"
-    execute_remote "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
-    execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
+    nested_exec "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
+    nested_exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
 
     echo "and secure boot is enabled on the nested vm"
-    execute_remote "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
+    nested_exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
 
     echo "and the recovery key is available"
-    execute_remote "test -e /var/lib/snapd/device/fde/recovery.key"
+    nested_exec "test -e /var/lib/snapd/device/fde/recovery.key"
     echo "and has the expected size"
-    execute_remote "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
+    nested_exec "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
     echo "and has the expected owner and permissions"
-    execute_remote "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
+    nested_exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
 
     # grab modeenv content
-    execute_remote "cat /var/lib/snapd/modeenv" > modeenv
+    nested_exec "cat /var/lib/snapd/modeenv" > modeenv
     # and checksums
-    boot_grub_sha3="$(execute_remote "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-    seed_grub_sha3="$(execute_remote "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-    seed_shim_sha3="$(execute_remote "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    boot_grub_sha3="$(nested_exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_sha3="$(nested_exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_sha3="$(nested_exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
 
     # modeenv entries look like this:
     # current_trusted_boot_assets={"grubx64.efi":["2e03571ce08de6cdde8a0ad80db8777c411af66073b795e514ad365da842920c9d50eaa0c3b45e878b9c8723cb22e0df"]}
@@ -39,9 +39,9 @@ execute: |
     grep current_trusted_recovery_boot_assets= < modeenv  | MATCH "\"bootx64.efi\":\[\"$seed_shim_sha3\"\]"
 
     # make sure that files exist too
-    execute_remote "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | \
+    nested_exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$boot_grub_sha3\$"
-    execute_remote "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | \
+    nested_exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_grub_sha3\$"
-    execute_remote "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
+    nested_exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_shim_sha3\$"

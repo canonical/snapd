@@ -3156,12 +3156,31 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
 	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", false)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {

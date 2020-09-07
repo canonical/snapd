@@ -50,7 +50,7 @@ var (
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
-// MockMountPointDisksToPartionMapping, but we can't just assign
+// MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
 // the former returns a *disk, the latter returns a Disk, and as such they can't
 // be assigned to each other
