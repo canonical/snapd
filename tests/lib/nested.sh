@@ -19,11 +19,42 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    local retry wait
-    retry=400
-    wait=1
+    nested_retry_until_success 400 1 "true"
+}
 
-    while ! nested_exec true; do
+nested_wait_for_no_ssh() {
+    nested_retry_while_success 200 1 "true"
+}
+
+nested_get_last_reboot() {
+    nested_retry_until_success 200 1 "date -u -d '$(uptime -s) seconds ago' +'%Y-%m-%dT%H:%M:%SZ'"
+}
+
+nested_wait_for_reboot() {
+    local initial_reboot="$1"
+    local retry wait last_reboot
+    retry=30
+    wait=5
+
+    last_reboot=""
+    while [ $retry -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        last_reboot="$(nested_get_last_reboot)"
+        if [[ "$last_reboot" =~ .*-.*-.*T.*:.*:.*Z ]] && [ "$last_reboot" != "$initial_reboot" ]; then
+            break
+        fi
+        sleep "$wait"
+    done
+
+    [ "$last_reboot" != "$initial_reboot" ]
+}
+
+nested_retry_while_success() {
+    local retry="$1"
+    local wait="$2"
+    shift 2
+
+    while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
@@ -33,15 +64,15 @@ nested_wait_for_ssh() {
     done
 }
 
-nested_wait_for_no_ssh() {
-    local retry wait
-    retry=200
-    wait=1
+nested_retry_until_success() {
+    local retry="$1"
+    local wait="$2"
+    shift 2
 
-    while nested_exec true; do
+    while ! nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for no ssh. Aborting!"
+            echo "Timed out waiting for ssh. Aborting!"
             return 1
         fi
         sleep "$wait"

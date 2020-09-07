@@ -65,6 +65,7 @@ execute: |
 
     nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
     # The snap is refreshed
+    INITIAL_REBOOT=$(nested_get_last_reboot)
     REFRESH_ID=$(nested_exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
@@ -80,8 +81,8 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_no_ssh
-    nested_wait_for_ssh
+    nested_wait_for_reboot "$INITIAL_REBOOT"
+    SECOND_REBOOT=$(nested_get_last_reboot)
 
     # Check the new version of the snaps is correct after the system reboot
     nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
@@ -115,8 +116,8 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_no_ssh
-    nested_wait_for_ssh
+    nested_wait_for_reboot "$INITIAL_REBOOT"
+    SECOND_REBOOT=$(nested_get_last_reboot)
 
     # Check the version of the snaps after the revert is correct
     nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
