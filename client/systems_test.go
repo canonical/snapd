@@ -176,7 +176,7 @@ func (cs *clientSuite) TestRequestSystemRebootHappy(c *check.C) {
 	    "status-code": 200,
 	    "result": {}
 	}`
-	err := cs.cli.DoSystemReboot("20201212", "install")
+	err := cs.cli.RebootToSystem("20201212", "install")
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20201212")
@@ -198,7 +198,7 @@ func (cs *clientSuite) TestRequestSystemRebootError(c *check.C) {
 	    "status-code": 500,
 	    "result": {"message": "failed"}
 	}`
-	err := cs.cli.DoSystemReboot("1234", "install")
+	err := cs.cli.RebootToSystem("1234", "install")
 	c.Assert(err, check.ErrorMatches, "cannot request system action: failed")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
