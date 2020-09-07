@@ -478,7 +478,7 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
 	value := map[string]interface{}{}
 	if len(dserr.Snaps) > 0 {
-		value["snap-names"] =  dserr.Snaps
+		value["snap-names"] = dserr.Snaps
 	}
 	if dserr.ChangeKind != "" {
 		value["change-kind"] = dserr.ChangeKind
