@@ -8,26 +8,27 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     # wait for the system to be seeded first
-    execute_remote "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
     # The install command could cause a ssh break, so || true is used
     # and then we check the installation was completed successfully
-    execute_remote "sudo snap install test-snapd-sh" || true
+    nested_exec "sudo snap install test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
-    execute_remote "snap list" | MATCH test-snapd-sh
+    nested_exec "snap list" | MATCH test-snapd-sh
 
     echo "Ensure 'snap find' works"
-    execute_remote "snap find test-snapd-sh" | MATCH ^test-snapd-sh
+    nested_exec "snap find test-snapd-sh" | MATCH ^test-snapd-sh
 
     echo "Ensure 'snap info' works"
-    execute_remote "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
+    nested_exec "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
 
     echo "Ensure 'snap remove' works"
     # The install command could cause a ssh break, so || true is used
     # and then we check the removal was completed successfully
-    execute_remote "sudo snap remove test-snapd-sh" || true
+    nested_exec "sudo snap remove test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    not execute_remote "snap list test-snapd-sh"
+    # FIXME: this is invalid use of not
+    not nested_exec "snap list test-snapd-sh"
