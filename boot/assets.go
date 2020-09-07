@@ -633,7 +633,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	return nil
 }
 
-func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
+func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
 	trustedAssetsMap := &m.CurrentTrustedBootAssets
 	otherTrustedAssetsMap := m.CurrentTrustedRecoveryBootAssets
 	whichBootloader := "run mode"
@@ -715,10 +715,10 @@ func observeSuccessfulBootWithAssetsForBootloader(m *Modeenv, root string, opts 
 	return drop, nil
 }
 
-// observeSuccessfulBootWithAssets makes not of a state of the trusted boot
-// assets after a successful boot. Returns a modified modeenv reflecting a new
-// state, and a list of assets that can be dropped from the cache.
-func observeSuccessfulBootWithAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+// observeSuccessfulBootAssets observes the state of the trusted boot assets
+// after a successful boot. Returns a modified modeenv reflecting a new state,
+// and a list of assets that can be dropped from the cache.
+func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
 	newM, err = m.Copy()
 	if err != nil {
 		return nil, nil, err
@@ -738,7 +738,7 @@ func observeSuccessfulBootWithAssets(m *Modeenv) (newM *Modeenv, drop []*tracked
 			opts: &bootloader.Options{Role: bootloader.RoleRecovery, NoSlashBoot: true},
 		},
 	} {
-		dropForBootloader, err := observeSuccessfulBootWithAssetsForBootloader(newM, bl.root, bl.opts)
+		dropForBootloader, err := observeSuccessfulBootAssetsForBootloader(newM, bl.root, bl.opts)
 		if err != nil {
 			return nil, nil, err
 		}

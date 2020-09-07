@@ -49,14 +49,14 @@ type Modeenv struct {
 	Model                  string
 	BrandID                string
 	Grade                  string
-	// CurrentTrustedBootAssets is a map of a run bootloader asset names to
+	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
 	// expected to have booted with). The second entry, if present, is the
 	// hash of an entry added when an update of the asset was being applied
 	// and will become the sole entry after a successful boot.
 	CurrentTrustedBootAssets bootAssetsMap
-	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader
+	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap

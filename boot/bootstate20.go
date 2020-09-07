@@ -638,7 +638,7 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 // non snap boot resources
 //
 
-// bootState20BootAssets implements the basicBootState interface for trusted
+// bootState20BootAssets implements the successfulBootState interface for trusted
 // boot assets UC20.
 type bootState20BootAssets struct{}
 
@@ -653,7 +653,7 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 		return update, nil
 	}
 
-	newM, dropAssets, err := observeSuccessfulBootWithAssets(u20.writeModeenv)
+	newM, dropAssets, err := observeSuccessfulBootAssets(u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful boot assets: %v", err)
 	}

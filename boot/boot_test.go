@@ -1490,9 +1490,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "nested"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested"), 0755), IsNil)
-	// only asset for ubuntu
+	// only asset for ubuntu-boot
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "nested/asset"), data, 0644), IsNil)
-	// shim and asset for seed
+	// shim and asset for ubuntu-seed
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested/asset"), data, 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
@@ -1548,7 +1548,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	})
 }
 
-func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateunexpectedAsset(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset(c *C) {
 	tab := s.bootloaderWithTrustedAssets(c, []string{"EFI/asset"})
 
 	data := []byte("foobar")

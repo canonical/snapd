@@ -1920,9 +1920,9 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
-	// only asset for ubuntu
+	// only asset for ubuntu-boot
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	// shim and asset for seed
+	// shim and asset for ubuntu-seed
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
@@ -1969,9 +1969,9 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	unexpected := []byte("unexpected")
 	unexpectedHash := "2c823b62c52e614e48faac7e8b1fbb8ff3aee4d06b6f7fe5bd7d64953162b6e9879ead4827fa19c8c9a514585ddac94c"
 
-	// asset for ubuntu
+	// asset for ubuntu-boot
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0644), IsNil)
-	// and for seed
+	// and for ubuntu-seed
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0644), IsNil)
 
 	m := &boot.Modeenv{
@@ -2010,9 +2010,9 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
-	// only asset for ubuntu
+	// only asset for ubuntu-boot
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	// shim and asset for seed
+	// shim and asset for ubuntu-seed
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
@@ -2032,6 +2032,48 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM, DeepEquals, m)
+	c.Check(drop, HasLen, 0)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloader(c *C) {
+	// observe successful boot, an unused recovery asset of a recovery
+	// bootloader is used by the ubuntu-boot bootloader, so it cannot be
+	// dropped from cache
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	maybeDrop := []byte("maybe-drop")
+	maybeDropHash := "08a99ce3af529ebbfb9a82df690007ac650635b165c3d1b416d471907fa3843270dce9cc001ea26f4afb4e0c5af05209"
+	data := []byte("foobar")
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	// ubuntu-boot booted with maybe-drop asset
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), maybeDrop, 0644), IsNil)
+
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {maybeDropHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {maybeDropHash, dataHash},
+		},
+	}
+
+	// nothing is changed
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {maybeDropHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+	// nothing get dropped, maybe-drop asset is still used by the
+	// ubuntu-boot bootloader
 	c.Check(drop, HasLen, 0)
 }
 

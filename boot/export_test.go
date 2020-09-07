@@ -53,7 +53,7 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	ObserveSuccessfulBootWithAssets = observeSuccessfulBootWithAssets
+	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 )
 
 type BootAssetsMap = bootAssetsMap
