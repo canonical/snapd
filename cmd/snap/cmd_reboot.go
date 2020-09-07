@@ -108,11 +108,11 @@ func (x *cmdReboot) Execute(args []string) error {
 	case x.Positional.Label != "" && mode != "":
 		fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, mode)
 	case x.Positional.Label != "":
-		fmt.Fprintf(Stdout, "Reboot into %q\n", x.Positional.Label)
+		fmt.Fprintf(Stdout, "Reboot into %q.\n", x.Positional.Label)
 	case mode != "":
-		fmt.Fprintf(Stdout, "Reboot into mode %q\n", mode)
+		fmt.Fprintf(Stdout, "Reboot into %q mode.\n", mode)
 	default:
-		fmt.Fprintf(Stdout, "Reboot")
+		fmt.Fprintf(Stdout, "Reboot\n")
 	}
 
 	return nil
