@@ -96,6 +96,8 @@ var (
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
+
+	SafetyMarginDiskSpace = safetyMarginDiskSpace
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

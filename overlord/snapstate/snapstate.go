@@ -1864,23 +1864,28 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
+	ts, _, err := remove(st, name, revision, flags)
+	return ts, err
+}
+
+func remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, uint64, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
+		return nil, 0, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
 	if err := CheckChangeConflict(st, name, nil); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	deviceCtx, err := DeviceCtxFromState(st, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	active := snapst.Active
@@ -1895,13 +1900,13 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				if len(snapst.Sequence) > 1 {
 					msg += " (revert first?)"
 				}
-				return nil, fmt.Errorf(msg, revision, name)
+				return nil, 0, fmt.Errorf(msg, revision, name)
 			}
 			active = false
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
+			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 
 		removeAll = len(snapst.Sequence) == 1
@@ -1909,12 +1914,12 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 	info, err := Info(st, name, revision)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// check if this is something that can be removed
 	if err := canRemove(st, info, &snapst, removeAll, deviceCtx); err != nil {
-		return nil, fmt.Errorf("snap %q is not removable: %v", name, err)
+		return nil, 0, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup
@@ -1968,6 +1973,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		prev = disconnect
 	}
 
+	var snapshotSize uint64
+
 	// 'purge' flag disables automatic snapshot for given remove op
 	if flags == nil || !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
@@ -1976,30 +1983,30 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				tr := config.NewTransaction(st)
 				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
 				if err != nil && !config.IsNoOption(err) {
-					return nil, err
+					return nil, 0, err
 				}
 				if checkDiskSpaceRemove {
-					sz, err := EstimateSnapshotSize(st, name, nil)
+					snapshotSize, err = EstimateSnapshotSize(st, name, nil)
 					if err != nil {
-						return nil, err
+						return nil, 0, err
 					}
-					requiredSpace := safetyMarginDiskSpace(sz)
+					requiredSpace := safetyMarginDiskSpace(snapshotSize)
 					path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 					if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-							return nil, &InsufficientSpaceError{
+							return nil, 0, &InsufficientSpaceError{
 								Path:       path,
 								Snaps:      []string{name},
 								ChangeKind: "remove",
 								Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
 						}
-						return nil, err
+						return nil, 0, err
 					}
 				}
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
-					return nil, err
+					return nil, 0, err
 				}
 			}
 		}
@@ -2034,7 +2041,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 
-	return full, nil
+	return full, snapshotSize, nil
 }
 
 func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
@@ -2063,18 +2070,49 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
+
+	var totalSnapshotsSize uint64
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+
 	for _, name := range names {
-		ts, err := Remove(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := remove(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
 		}
+		// individual snap remove can fail due to low disk space; we could
+		// propagate this error unchanged, but rewriting it to list
+		// all snap names provides more meaningful error mesage.
+		if _, ok := err.(*InsufficientSpaceError); ok {
+			return nil, nil, &InsufficientSpaceError{
+				Path:       path,
+				Snaps:      names,
+				ChangeKind: "remove",
+			}
+		}
 		if err != nil {
 			return nil, nil, err
 		}
+		totalSnapshotsSize += snapshotSize
 		removed = append(removed, name)
 		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
+	}
+
+	// remove() checks check-disk-space-remove feature flag, so totalSnapshotsSize
+	// will only be greater than 0 if the feature is enabled.
+	if totalSnapshotsSize > 0 {
+		requiredSpace := safetyMarginDiskSpace(totalSnapshotsSize)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      names,
+					ChangeKind: "remove",
+				}
+			}
+			return nil, nil, err
+		}
 	}
 
 	return removed, tasksets, nil
