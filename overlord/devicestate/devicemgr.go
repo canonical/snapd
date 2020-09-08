@@ -726,6 +726,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 				// all other datasources just log that we limited it to that datasource
 				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
+		default:
+			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
 
