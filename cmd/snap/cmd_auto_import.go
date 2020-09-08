@@ -317,6 +317,14 @@ func inInstallMode() bool {
 	return mode == "install"
 }
 
+func (x *cmdAutoImport) isManaged() (bool, error) {
+	sysinfo, err := x.client.SysInfo()
+	if err != nil {
+		return false, err
+	}
+	return sysinfo.Managed, nil
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -366,7 +374,20 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return err
 	}
 
-	if added1+added2 > 0 {
+	// nothing imported, no further action needed
+	if added1+added2 == 0 {
+		return nil
+	}
+
+	// only try to create users for unmanaged devices
+	isManaged, err := x.isManaged()
+	if err != nil {
+		// warn only, this is not fatal
+		fmt.Fprintf(Stderr, "cannot determine if device is managed: %v", err)
+	}
+	if isManaged {
+		fmt.Fprintf(Stderr, "device already managed\n")
+	} else {
 		return x.autoAddUsers()
 	}
 

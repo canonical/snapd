@@ -52,7 +52,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0
-	total := 2
+	total := 3
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
@@ -64,6 +64,11 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
 			n++
 		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"managed":false}}`)
+			n++
+		case 2:
 			c.Check(r.Method, Equals, "POST")
 			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
@@ -229,7 +234,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0
-	total := 2
+	total := 3
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
@@ -241,6 +246,11 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
 			n++
 		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"managed":false}}`)
+			n++
+		case 2:
 			c.Check(r.Method, Equals, "POST")
 			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
@@ -462,4 +472,57 @@ func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 	c.Check(umounts, DeepEquals, []string{
 		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
 	})
+}
+
+func (s *SnapSuite) TestAutoImportDeviceAlreadyManagedSkipsUserCreation(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	fakeAssertData := []byte("my-assertion")
+
+	n := 0
+	total := 2
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		// Note that there is no /v2/users POST step here
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/assertions")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(postData, DeepEquals, fakeAssertData)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+			n++
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"managed":true}}`)
+			n++
+		default:
+			c.Fatalf("unexpected request: %v (expected %d got %d)", r, total, n)
+		}
+
+	})
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "device already managed\n")
+	// the assertion is imported but no attempt is made to create the user
+	c.Check(logbuf.String(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
+	c.Check(n, Equals, total)
 }
