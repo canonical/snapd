@@ -169,3 +169,37 @@ func (cs *clientSuite) TestRequestSystemActionInvalid(c *check.C) {
 	err = cs.cli.DoSystemAction("1234", nil)
 	c.Assert(err, check.ErrorMatches, "cannot request an action without one")
 }
+
+func (cs *clientSuite) TestRequestSystemRebootHappy(c *check.C) {
+	cs.rsp = `{
+	    "type": "sync",
+	    "status-code": 200,
+	    "result": {}
+	}`
+	err := cs.cli.RebootToSystem("20201212", "install")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20201212")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action": "reboot",
+		"mode":   "install",
+	})
+}
+
+func (cs *clientSuite) TestRequestSystemRebootError(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	err := cs.cli.RebootToSystem("1234", "install")
+	c.Assert(err, check.ErrorMatches, "cannot request system action: failed")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}

@@ -1023,6 +1023,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /tmp/ r,
   /tmp/.snap/{,**} rw,
 
+  # snapd logger.go checks /proc/cmdline
+  @{PROC}/cmdline r,
+
 ###SNIPPETS###
 }
 `

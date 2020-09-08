@@ -3,9 +3,10 @@ summary: Test that gadget config defaults are applied early on core20.
 systems: [ubuntu-20.04-64]
 
 environment:
-    ENABLE_TPM: true
-    ENABLE_SECURE_BOOT: true
-    BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_IMAGE_ID: core20-early-config
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -14,7 +15,7 @@ prepare: |
     mkdir extra-snaps
 
     # Get the snakeoil key and cert
-    KEY_NAME=$(get_snakeoil_key)
+    KEY_NAME=$(nested_get_snakeoil_key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -26,47 +27,50 @@ prepare: |
     mkdir -p pc-gadget/meta/hooks
     cp install pc-gadget/meta/hooks/
 
-    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     snap pack pc-gadget/ extra-snaps/
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-    create_nested_core_vm
-    start_nested_core_vm
+    nested_create_core_vm
+    nested_start_core_vm
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-    cleanup_nested_env
+    nested_destroy_vm
+    nested_cleanup_env
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    execute_remote "sudo snap wait system seed.loaded"
+    nested_exec "sudo snap wait system seed.loaded"
 
     # sanity - check that defaults were applied; note this doesn't guarantee
     # that defaults were applied early - that is checked further down.
     echo "Sanity check of the gadget defaults"
-    execute_remote "sudo snap get system service.rsyslog.disable" | MATCH "true"
-    execute_remote "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
-    execute_remote "sudo snap get system system.power-key-action" | MATCH "ignore"
-    execute_remote "sudo snap get system system.disable-backlight-service" | MATCH "true"
+    nested_exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
+    nested_exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+    nested_exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+    nested_exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
-    execute_remote "test -L /etc/systemd/system/rsyslog.service"
-    execute_remote "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-    execute_remote "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
-    execute_remote "test -L /etc/systemd/system/systemd-backlight@.service"
+    nested_exec "test -L /etc/systemd/system/rsyslog.service"
+    nested_exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
+    nested_exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+    nested_exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
     echo "Test that defaults were applied early."
     # early config is witnessed by install hook of the pc gadget. Note we can
     # only check rsyslog/backlight symlinks as other core settings cannot be
     # inspected from install hook of the gadget.
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
     # timezone is set
-    execute_remote "cat /etc/timezone" | MATCH "Europe/Malta"
-    execute_remote "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
+    nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+
+    # check console-conf disabled
+    execute_remote "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"

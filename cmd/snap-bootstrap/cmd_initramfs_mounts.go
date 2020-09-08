@@ -29,6 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -104,15 +105,16 @@ func generateInitramfsMounts() error {
 		return err
 	}
 
-	mst := newInitramfsMountsState(mode, recoverySystem)
+	mst := &initramfsMountsState{
+		mode:           mode,
+		recoverySystem: recoverySystem,
+	}
 
 	switch mode {
 	case "recover":
-		// XXX: don't pass both args
-		return generateMountsModeRecover(mst, recoverySystem)
+		return generateMountsModeRecover(mst)
 	case "install":
-		// XXX: don't pass both args
-		return generateMountsModeInstall(mst, recoverySystem)
+		return generateMountsModeInstall(mst)
 	case "run":
 		return generateMountsModeRun(mst)
 	}
@@ -122,9 +124,9 @@ func generateInitramfsMounts() error {
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
+	if err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -132,7 +134,7 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	//   install mode
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: recoverySystem,
+		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
@@ -249,9 +251,9 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
-func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
+	if err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -303,7 +305,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
-		RecoverySystem: recoverySystem,
+		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
@@ -318,7 +320,8 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	// finally we need to modify the bootenv to mark the system as successful,
 	// this ensures that when you reboot from recover mode without doing
 	// anything else, you are auto-transitioned back to run mode
-	if err := boot.EnsureNextBootToRunMode(recoverySystem); err != nil {
+	// TODO:UC20: as discussed unclear we need to pass the recovery system here
+	if err := boot.EnsureNextBootToRunMode(mst.recoverySystem); err != nil {
 		return err
 	}
 
@@ -351,28 +354,31 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
 		return err
 	}
 
+	// load model and verified essential snaps metadata
+	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd}
+	model, essSnaps, err := mst.ReadEssential("", typs)
+	if err != nil {
+		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+	}
+
 	// 2.1. measure model
-	err := stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return secbootMeasureSnapModelWhenPossible(mst.Model)
+	err = stampedAction(fmt.Sprintf("%s-model-measured", mst.recoverySystem), func() error {
+		return secbootMeasureSnapModelWhenPossible(func() (*asserts.Model, error) {
+			return model, nil
+		})
 	})
 	if err != nil {
 		return err
 	}
 
 	// 2.2. (auto) select recovery system and mount seed snaps
-	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd}
-	essSnaps, err := mst.RecoverySystemEssentialSnaps("", typs)
-	if err != nil {
-		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
-	}
-
 	// TODO:UC20: do we need more cross checks here?
 	for _, essentialSnap := range essSnaps {
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
@@ -509,7 +515,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 4.4 mount snapd snap only on first boot
 	if modeEnv.RecoverySystem != "" {
 		// load the recovery system and generate mount for snapd
-		essSnaps, err := mst.RecoverySystemEssentialSnaps(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
