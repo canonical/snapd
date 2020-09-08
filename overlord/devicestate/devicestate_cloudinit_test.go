@@ -16,10 +16,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -101,27 +98,6 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 		Serial: "serial",
 	})
 
-	// always make a gadget snap, it is always needed for uc20 tests
-	si := &snap.SideInfo{
-		RealName: "pc",
-		Revision: snap.R(1),
-		SnapID:   "pcididididididididididididididid",
-	}
-
-	// create a gadget snap in snapstate
-	snapstate.Set(s.state, "pc", &snapstate.SnapState{
-		SnapType: "gadget",
-		Current:  snap.R(1),
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-	})
-
-	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
-		{"meta/gadget.yaml", "gadget yaml"},
-		{"meta/snap.yaml", `name: pc
-type: gadget`},
-	})
-
 	// create the gadget snap's mount dir
 	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
 	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
@@ -143,10 +119,8 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		// we have a gadget cloud.conf, so we don't disable even if it is
-		// NoCloud, to allow the gadget to control cloud.conf
 		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
-			DisableNoCloud: false,
+			DisableNoCloud: true,
 		})
 		// in this case, pretend it was a real cloud, so it just got restricted
 		return sysconfig.CloudInitRestrictionResult{
