@@ -30,21 +30,12 @@ import (
 	"github.com/snapcore/snapd/polkit"
 )
 
-type accessResult int
-
-const (
-	accessOK accessResult = iota
-	accessUnauthorized
-	accessForbidden
-	accessCancelled
-)
-
 var (
 	polkitCheckAuthorization = polkit.CheckAuthorization
 	checkPolkitAction        = checkPolkitActionImpl
 )
 
-func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) accessResult {
+func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Response {
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
 	if allowHeader != "" {
@@ -59,14 +50,14 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) acce
 	case nil:
 		if authorized {
 			// polkit says user is authorised
-			return accessOK
+			return nil
 		}
 	case polkit.ErrDismissed:
-		return accessCancelled
+		return AuthCancelled("cancelled")
 	default:
 		logger.Noticef("polkit error: %s", err)
 	}
-	return accessUnauthorized
+	return Unauthorized("access denied")
 }
 
 // accessChecker checks whether a particular request is allowed.
@@ -75,27 +66,27 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) acce
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
+	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
 }
 
 // requireSnapdSocket ensures the request was received via snapd.socket.
-func requireSnapdSocket(ucred *ucrednet) accessResult {
+func requireSnapdSocket(ucred *ucrednet) Response {
 	if ucred == nil {
-		return accessForbidden
+		return Forbidden("access denied")
 	}
 
 	if ucred.socket != dirs.SnapdSocket {
-		return accessForbidden
+		return Forbidden("access denied")
 	}
 
-	return accessOK
+	return nil
 }
 
 // openAccess allows requests without authentication, provided they
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	return requireSnapdSocket(ucred)
 }
 
@@ -109,17 +100,17 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if result := requireSnapdSocket(ucred); result != accessOK {
-		return result
+func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	if rsp := requireSnapdSocket(ucred); rsp != nil {
+		return rsp
 	}
 
 	if user != nil {
-		return accessOK
+		return nil
 	}
 
 	if ucred.uid == 0 {
-		return accessOK
+		return nil
 	}
 
 	// We check polkit last because it may result in the user
@@ -129,35 +120,35 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 		return checkPolkitAction(r, ucred, ac.Polkit)
 	}
 
-	return accessUnauthorized
+	return Unauthorized("access denied")
 }
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if result := requireSnapdSocket(ucred); result != accessOK {
-		return result
+func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	if rsp := requireSnapdSocket(ucred); rsp != nil {
+		return rsp
 	}
 
 	if ucred.uid == 0 {
-		return accessOK
+		return nil
 	}
-	return accessForbidden
+	return Forbidden("access denied")
 }
 
 // snapAccess allows requests from the snapd-snap.socket
 type snapAccess struct{}
 
-func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	if ucred == nil {
-		return accessForbidden
+		return Forbidden("access denied")
 	}
 
 	if ucred.socket == dirs.SnapSocket {
-		return accessOK
+		return nil
 	}
 	// FIXME: should snapctl access be allowed on the main socket?
-	return accessForbidden
+	return Forbidden("access denied")
 }

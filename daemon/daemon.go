@@ -141,17 +141,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch access.checkAccess(r, ucred, user) {
-	case accessOK:
-		// nothing
-	case accessUnauthorized:
-		Unauthorized("access denied").ServeHTTP(w, r)
-		return
-	case accessForbidden:
-		Forbidden("access denied").ServeHTTP(w, r)
-		return
-	case accessCancelled:
-		AuthCancelled("cancelled").ServeHTTP(w, r)
+	if rsp := access.checkAccess(r, ucred, user); rsp != nil {
+		rsp.ServeHTTP(w, r)
 		return
 	}
 

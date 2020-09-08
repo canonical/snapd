@@ -230,9 +230,9 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
+type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
 
-func (f accessCheckFunc) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (f accessCheckFunc) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	return f(r, ucred, user)
 }
 
@@ -242,7 +242,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil, nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -250,11 +250,11 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(ucred.pid, check.Equals, int32(100))
 		c.Check(ucred.socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return accessOK
+		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -273,12 +273,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -286,7 +286,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		c.Check(ucred.pid, check.Equals, int32(100))
 		c.Check(ucred.socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return accessOK
+		return nil
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
