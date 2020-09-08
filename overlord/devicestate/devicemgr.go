@@ -701,8 +701,9 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			}
 
 			if !sysconfig.HasGadgetCloudConf(gadgetInfo.MountDir()) {
-				// no gadget cloud conf so disable cloud-init if it's not
-				// NoCloud
+				// no gadget cloud conf, so disable cloud-init if it's NoCloud
+				// (it will be restricted for any other cloud to that specific
+				// cloud provider datasource)
 				opts.DisableNoCloud = true
 			}
 		}
