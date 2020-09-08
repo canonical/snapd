@@ -23,7 +23,7 @@ import (
 
 type cloudInitBaseSuite struct {
 	deviceMgrBaseSuite
-	mockLogger *bytes.Buffer
+	logbuf *bytes.Buffer
 }
 
 type cloudInitSuite struct {
@@ -48,7 +48,7 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	st.Unlock()
 
 	logbuf, r := logger.MockLogger()
-	s.mockLogger = logbuf
+	s.logbuf = logbuf
 	s.AddCleanup(r)
 
 	// mock /etc/cloud on writable
@@ -207,7 +207,7 @@ exit 1`)
 	err = devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockLogger.String(), Equals, "")
+	c.Assert(s.logbuf.String(), Equals, "")
 
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
@@ -241,7 +241,7 @@ exit 1`)
 	err = devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockLogger.String(), Equals, "")
+	c.Assert(s.logbuf.String(), Equals, "")
 
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
@@ -284,7 +284,7 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
 
 	c.Assert(restrictCalls, Equals, 1)
 }
@@ -331,7 +331,7 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 
 	// and 1 call to restrict
 	c.Assert(restrictCalls, Equals, 1)
@@ -379,7 +379,7 @@ fi`)
 	})
 
 	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
 
 	// only called restrict once
 	c.Assert(restrictCalls, Equals, 1)
@@ -439,7 +439,7 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(err, IsNil)
 
 	// no log messages while we wait for the transition
-	c.Assert(s.mockLogger.String(), Equals, "")
+	c.Assert(s.logbuf.String(), Equals, "")
 
 	// should not have called to restrict
 	c.Assert(restrictCalls, Equals, 0)
@@ -463,7 +463,7 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message that it was disabled
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisables(c *C) {
@@ -536,8 +536,8 @@ fi`)
 	})
 
 	// a message about error state for the operator to try to fix
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
+	s.logbuf.Reset()
 
 	// make sure the time accounting is correct
 	c.Assert(timeCalls, Equals, 2)
@@ -560,7 +560,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// and a new message about being disabled permanently
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitSteadyErrorDisablesFasterEnsure(c *C) {
@@ -641,8 +641,8 @@ fi`)
 	})
 
 	// a message about error state for the operator to try to fix
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes.*`)
+	s.logbuf.Reset()
 
 	// make sure the time accounting is correct
 	c.Assert(timeCalls, Equals, 2)
@@ -667,7 +667,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// and a new message about being disabled permanently
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisables(c *C) {
@@ -740,7 +740,7 @@ fi`)
 	c.Assert(timeCalls, Equals, 2)
 
 	// no messages while it waits until the timeout
-	c.Assert(s.mockLogger.String(), Equals, ``)
+	c.Assert(s.logbuf.String(), Equals, ``)
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see additional calls to cloud-init status, which continues to always
@@ -762,7 +762,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisablesFasterEnsures(c *C) {
@@ -839,7 +839,7 @@ fi`)
 	c.Assert(timeCalls, Equals, 2)
 
 	// no messages while it waits until the timeout
-	c.Assert(s.mockLogger.String(), Equals, ``)
+	c.Assert(s.logbuf.String(), Equals, ``)
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see additional calls to cloud-init status, which continues to always
@@ -861,7 +861,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitErrorOnceAllowsFixing(c *C) {
@@ -945,8 +945,8 @@ fi`, cloudInitScriptStateFile))
 	})
 
 	// a message about being in error
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes`)
-	s.mockLogger.Reset()
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state, will disable in 3 minutes`)
+	s.logbuf.Reset()
 
 	// we should have had a call to EnsureBefore, so if we now settle, we will
 	// see an additional call to cloud-init status, which now returns done and
@@ -965,5 +965,5 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(restrictCalls, Equals, 1)
 
 	// we now have a message about restricting
-	c.Assert(strings.TrimSpace(s.mockLogger.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
 }

@@ -99,11 +99,7 @@ type systemActionRequest struct {
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
 	var req systemActionRequest
-
 	systemLabel := muxVars(r)["label"]
-	if systemLabel == "" {
-		return BadRequest("system action requires the system label to be provided")
-	}
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&req); err != nil {
@@ -112,8 +108,45 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
-	if req.Action != "do" {
+	switch req.Action {
+	case "do":
+		return postSystemActionDo(c, systemLabel, &req)
+	case "reboot":
+		return postSystemActionReboot(c, systemLabel, &req)
+	default:
 		return BadRequest("unsupported action %q", req.Action)
+	}
+}
+
+// XXX: should deviceManager return more sensible errors here?
+//      E.g. UnsupportedActionError{systemLabel, mode}
+//           SystemDoesNotExistError{systemLabel}
+func handleSystemActionErr(err error, systemLabel string) Response {
+	if os.IsNotExist(err) {
+		return NotFound("requested seed system %q does not exist", systemLabel)
+	}
+	if err == devicestate.ErrUnsupportedAction {
+		return BadRequest("requested action is not supported by system %q", systemLabel)
+	}
+	return InternalError(err.Error())
+}
+
+// wrapped for unit tests
+var deviceManagerReboot = func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+	return dm.Reboot(systemLabel, mode)
+}
+
+func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
+	dm := c.d.overlord.DeviceManager()
+	if err := deviceManagerReboot(dm, systemLabel, req.Mode); err != nil {
+		return handleSystemActionErr(err, systemLabel)
+	}
+	return SyncResponse(nil, nil)
+}
+
+func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
 	}
 	if req.Mode == "" {
 		return BadRequest("system action requires the mode to be provided")
@@ -124,13 +157,7 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 		Mode:  req.Mode,
 	}
 	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
-		if os.IsNotExist(err) {
-			return NotFound("requested seed system %q does not exist", systemLabel)
-		}
-		if err == devicestate.ErrUnsupportedAction {
-			return BadRequest("requested action is not supported by system %q", systemLabel)
-		}
-		return InternalError(err.Error())
+		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil, nil)
 }

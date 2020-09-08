@@ -37,81 +37,23 @@ import (
 type initramfsMountsState struct {
 	mode           string
 	recoverySystem string
-
-	seed seed.EssentialMetaLoaderSeed
-}
-
-func newInitramfsMountsState(mode, recoverySystem string) *initramfsMountsState {
-	return &initramfsMountsState{
-		mode:           mode,
-		recoverySystem: recoverySystem,
-	}
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
 
-// loadSeed opens the seed and reads its assertions; it does not
-// re-open or re-read the seed when called multiple times.
-// The opened seed is available is mst.seed
-func (mst *initramfsMountsState) loadSeed(recoverySystem string) error {
-	if mst.seed != nil {
-		return nil
-	}
-
+// ReadEssential returns the model and verified essential
+// snaps from the recoverySystem. If recoverySystem is "" the
+// implied one will be used (only for modes other than run).
+func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialTypes []snap.Type) (*asserts.Model, []*seed.Snap, error) {
 	if recoverySystem == "" {
 		if mst.mode == "run" {
-			return errRunModeNoImpliedRecoverySystem
+			return nil, nil, errRunModeNoImpliedRecoverySystem
 		}
 		recoverySystem = mst.recoverySystem
 	}
 
-	systemSeed, err := seed.Open(boot.InitramfsUbuntuSeedDir, recoverySystem)
-	if err != nil {
-		return err
-	}
-
-	seed20, ok := systemSeed.(seed.EssentialMetaLoaderSeed)
-	if !ok {
-		return fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
-	}
-
-	// load assertions into a temporary database
-	if err := seed20.LoadAssertions(nil, nil); err != nil {
-		return err
-	}
-
-	mst.seed = seed20
-	return nil
-}
-
-// Model returns the verified model from the seed (only for
-// modes other than run).
-func (mst *initramfsMountsState) Model() (*asserts.Model, error) {
-	if mst.mode == "run" {
-		return nil, errRunModeNoImpliedRecoverySystem
-	}
-	if err := mst.loadSeed(""); err != nil {
-		return nil, err
-	}
-	mod, _ := mst.seed.Model()
-	return mod, nil
-}
-
-// RecoverySystemEssentialSnaps returns the verified essential
-// snaps from the recoverySystem. If recoverySystem is "" the
-// implied one will be used (only for modes other than run).
-func (mst *initramfsMountsState) RecoverySystemEssentialSnaps(recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
-	if err := mst.loadSeed(recoverySystem); err != nil {
-		return nil, err
-	}
-
-	// load and verify metadata only for the relevant essential snaps
 	perf := timings.New(nil)
-	if err := mst.seed.LoadEssentialMeta(essentialTypes, perf); err != nil {
-		return nil, err
-	}
-
-	return mst.seed.EssentialSnaps(), nil
+	return seed.ReadSystemEssential(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, perf)
 }
 
 // UnverifiedBootModel returns the unverified model from the

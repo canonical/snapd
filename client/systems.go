@@ -103,3 +103,35 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 	}
 	return nil
 }
+
+// RebootToSystem issues a request to reboot into system with the
+// given label and the given mode.
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (client *Client) RebootToSystem(systemLabel, mode string) error {
+	// verification is done by the backend
+
+	req := struct {
+		Action string `json:"action"`
+		Mode   string `json:"mode"`
+	}{
+		Action: "reboot",
+		Mode:   mode,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return err
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
+		return xerrors.Errorf("cannot request system action: %v", err)
+	}
+	return nil
+}
