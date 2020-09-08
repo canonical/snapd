@@ -43,18 +43,20 @@ func TestBoot(t *testing.T) { TestingT(t) }
 type baseBootenvSuite struct {
 	testutil.BaseTest
 
+	rootdir string
 	bootdir string
 }
 
 func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
 
-	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
+	s.bootdir = filepath.Join(s.rootdir, "boot")
 }
 
 func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
