@@ -69,7 +69,7 @@ nested_retry_until_success() {
     local wait="$2"
     shift 2
 
-    while ! nested_exec "$@"; do
+    until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
