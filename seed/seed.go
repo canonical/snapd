@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,19 +79,19 @@ type Seed interface {
 	// only on classic.
 	LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error
 
-	// Model returns the seed provided model assertion. It is an
-	// error to call Model before LoadAssertions.
-	Model() (*asserts.Model, error)
+	// Model returns the seed provided model assertion.
+	// It will panic if called before LoadAssertions.
+	Model() *asserts.Model
 
-	// Brand returns the brand information of the seed. It is an
-	// error to call Brand before LoadAssertions.
+	// Brand returns the brand information of the seed.
+	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
-	// seed, this is legitimate only on classic. It is an error to
-	// call LoadMeta before LoadAssertions.
+	// seed, this is legitimate only on classic.
+	// It will panic if called before LoadAssertions.
 	LoadMeta(tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
@@ -116,8 +116,9 @@ type EssentialMetaLoaderSeed interface {
 	// essential snaps with types in the essentialTypes set while
 	// verifying them against assertions. It can return ErrNoMeta
 	// if there is no metadata nor snaps in the seed, this is
-	// legitimate only on classic. It is an error to call LoadMeta
-	// before LoadAssertions or to mix it with LoadMeta.
+	// legitimate only on classic. It is an error to mix it with
+	// LoadMeta.
+	// It will panic if called before LoadAssertions.
 	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 }
 
@@ -158,13 +159,10 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 		return nil, nil, err
 	}
 
-	// Model always succeeds after LoadAssertions
-	mod, _ := seed20.Model()
-
 	// load and verify info about essential snaps
 	if err := seed20.LoadEssentialMeta(essentialTypes, tm); err != nil {
 		return nil, nil, err
 	}
 
-	return mod, seed20.EssentialSnaps(), nil
+	return seed20.Model(), seed20.EssentialSnaps(), nil
 }

@@ -147,9 +147,9 @@ override_dh_auto_build:
 
 	# exclude certain parts that won't be used by debian
 	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | xargs rm -f
-	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(install_dummy\.go|options\.go)'| xargs rm -f
+	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(params\.go|install_dummy\.go|options\.go)'| xargs rm -f
 	# XXX: once dh-golang understands go build tags this would not be needed
-	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(secboot_dummy\.go|secboot\.go)' | xargs rm -f
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go)' | xargs rm -f
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 

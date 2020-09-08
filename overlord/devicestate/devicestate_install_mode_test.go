@@ -176,7 +176,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brOpts install.Options
 	var installRunCalled int
 	var sealingObserver gadget.ContentObserver
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs gadget.ContentObserver) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs install.SystemInstallObserver) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -262,11 +262,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
-			Mount:       true,
-			Encrypt:     true,
-			KernelPath:  filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
-			Model:       mockModel,
-			SystemLabel: "20191218",
+			Mount:   true,
+			Encrypt: true,
 		})
 
 		// inteface is not nil
@@ -293,7 +290,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ install.SystemInstallObserver) error {
 		return fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -409,7 +406,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ install.SystemInstallObserver) error {
 		return nil
 	})
 	defer restore()

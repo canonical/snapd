@@ -660,3 +660,170 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	c.Assert(err, ErrorMatches, ".*/seed/systems/20191119: no such file or directory")
 	c.Check(s.logbuf.String(), Equals, "")
 }
+
+func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
+	err := s.mgr.Reboot("", "")
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	// requested restart
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	// but no bootloader changes
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_system": "",
+		"snapd_recovery_mode":   "",
+	})
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	err := s.mgr.Reboot("20191119", "install")
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_system": "20191119",
+		"snapd_recovery_mode":   "install",
+	})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	for _, mode := range []string{"recover", "install"} {
+		s.restartRequests = nil
+		s.bootloader.BootVars = make(map[string]string)
+		s.logbuf.Reset()
+
+		err := s.mgr.Reboot("", mode)
+		c.Assert(err, IsNil)
+
+		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+		c.Assert(err, IsNil)
+		c.Check(m, DeepEquals, map[string]string{
+			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+			"snapd_recovery_mode":   mode,
+		})
+		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "20191119" in "%s" mode\n`, mode))
+	}
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToRun(c *C) {
+	modeenv := boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: s.mockedSystemSeeds[0].label,
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	devicestate.SetSystemMode(s.mgr, "recover")
+	err = s.bootloader.SetBootVars(map[string]string{
+		"snapd_recovery_mode":   "recover",
+		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	err = s.mgr.Reboot("", "run")
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+	})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "run" mode\n`, s.mockedSystemSeeds[0].label))
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	// we are already in "run" mode so this should just reboot
+	err := s.mgr.Reboot("", "run")
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_mode":   "",
+		"snapd_recovery_system": "",
+	})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	errUnsupportedActionStr := devicestate.ErrUnsupportedAction.Error()
+	for _, tc := range []struct {
+		systemLabel, mode string
+		expectedErr       string
+	}{
+		{"", "unknown-mode", errUnsupportedActionStr},
+		{"unknown-system", "run", `stat /.*: no such file or directory`},
+		{"unknown-system", "unknown-mode", `stat /.*: no such file or directory`},
+	} {
+		s.restartRequests = nil
+		s.bootloader.BootVars = make(map[string]string)
+
+		err := s.mgr.Reboot(tc.systemLabel, tc.mode)
+		c.Assert(err, ErrorMatches, tc.expectedErr)
+
+		c.Check(s.restartRequests, HasLen, 0)
+		c.Check(s.logbuf.String(), Equals, "")
+	}
+	c.Check(s.logbuf.String(), Equals, "")
+}

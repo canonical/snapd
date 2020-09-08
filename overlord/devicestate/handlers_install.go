@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -94,7 +93,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
-	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -115,12 +113,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
-	var installObserver gadget.ContentObserver
+	var installObserver install.SystemInstallObserver
 	if useEncryption {
 		bopts.Encrypt = true
-		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
-		bopts.Model = deviceCtx.Model()
-		bopts.SystemLabel = modeEnv.RecoverySystem
 
 		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
 		if err != nil && err != boot.ErrObserverNotApplicable {

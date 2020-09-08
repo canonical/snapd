@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,21 +17,16 @@
  *
  */
 
-package install
+package daemon
 
 import (
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
-type Options struct {
-	// Also mount the filesystems after creation
-	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
-	// KernelPath is the path to the kernel to seal the keyfile to
-	KernelPath string
-	// Model is the device model to seal the keyfile to
-	Model *asserts.Model
-	// SystemLabel is the recover system label to seal the keyfile to
-	SystemLabel string
+func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) error) (restore func()) {
+	old := deviceManagerReboot
+	deviceManagerReboot = f
+	return func() {
+		deviceManagerReboot = old
+	}
 }

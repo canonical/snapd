@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,6 +55,7 @@ var (
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
+	SealKeyToModeenv                = sealKeyToModeenv
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -75,6 +77,14 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsM
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
+}
+
+func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
+	old := secbootSealKey
+	secbootSealKey = f
+	return func() {
+		secbootSealKey = old
+	}
 }
 
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
