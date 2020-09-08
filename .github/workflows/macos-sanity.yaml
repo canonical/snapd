@@ -36,7 +36,7 @@ jobs:
 
       - name: Build sanity checks
         run: |
-          go build -o /tmp/snp github.com/snapcore/snapd/cmd/snap
+          go build -tags nosecboot -o /tmp/snp github.com/snapcore/snapd/cmd/snap
 
       - name: Runtime sanity checks
         working-directory: ./src/github.com/snapcore/snapd

@@ -222,6 +222,31 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = i18n.G("snapd is about to reboot the system")
+	case client.ErrorKindInsufficientDiskSpace:
+		// this error carries multiple snap names
+		usesSnapName = false
+		values, ok := err.Value.(map[string]interface{})
+		if ok {
+			changeKind, _ := values["change-kind"].(string)
+			snaps, _ := values["snap-names"].([]interface{})
+			snapNames := make([]string, len(snaps))
+			for i, v := range snaps {
+				snapNames[i] = fmt.Sprint(v)
+			}
+			names := strutil.Quoted(snapNames)
+			switch changeKind {
+			case "remove":
+				msg = fmt.Sprintf(i18n.G("cannot remove %s due to low disk space for automatic snapshot, use --purge to avoid creating a snapshot"), names)
+			case "install":
+				msg = fmt.Sprintf(i18n.G("cannot install %s due to low disk space"), names)
+			case "refresh":
+				msg = fmt.Sprintf(i18n.G("cannot refresh %s due to low disk space"), names)
+			default:
+				msg = err.Error()
+			}
+			break
+		}
+		fallthrough
 	default:
 		usesSnapName = false
 		msg = err.Message

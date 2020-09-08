@@ -2,6 +2,9 @@ name: Tests
 on:
   pull_request:
     branches: [ "master", "release/**" ]
+  push:
+    branches: [ "release/**" ]
+
 jobs:
   snap-builds:
     runs-on: ubuntu-16.04

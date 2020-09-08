@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,16 +17,23 @@
  *
  */
 
-package secboot
+package install
 
 import (
-	"fmt"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
-func CheckKeySealingSupported() error {
-	return fmt.Errorf("build without secboot support")
+type Options struct {
+	// Also mount the filesystems after creation
+	Mount bool
+	// Encrypt the data partition
+	Encrypt bool
 }
 
-func SealKey(key EncryptionKey, params *SealKeyParams) error {
-	return fmt.Errorf("build without secboot support")
+type SystemInstallObserver interface {
+	gadget.ContentObserver
+	// ChosenEncryptionKey stores the encrypted data partition key to be sealed
+	// at the end of the installation process.
+	ChosenEncryptionKey(secboot.EncryptionKey)
 }

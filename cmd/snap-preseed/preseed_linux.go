@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -109,14 +109,10 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 	if err := seed.LoadAssertions(nil, nil); err != nil {
 		return "", err
 	}
+	model := seed.Model()
 
 	tm := timings.New(nil)
 	if err := seed.LoadMeta(tm); err != nil {
-		return "", err
-	}
-
-	model, err := seed.Model()
-	if err != nil {
 		return "", err
 	}
 
