@@ -586,11 +586,11 @@ func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	url := "/v2/systems"
 	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	systemsActionCmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 401)
+	c.Check(rec.Code, check.Equals, 403)
 }
 
 func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
@@ -624,7 +624,7 @@ func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
 		s.vars = map[string]string{"label": tc.systemLabel}
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		rec := httptest.NewRecorder()
 		systemsActionCmd.ServeHTTP(rec, req)
@@ -656,7 +656,7 @@ func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		rec := httptest.NewRecorder()
 		systemsActionCmd.ServeHTTP(rec, req)
