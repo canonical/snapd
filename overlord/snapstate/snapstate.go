@@ -1890,13 +1890,15 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
-	ts, _, err := remove(st, name, revision, flags)
+	ts, _, err := removeTasks(st, name, revision, flags)
 	return ts, err
 }
 
-func remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, uint64, error) {
+// removeTasks provides the task set to remove snap name after taking a snapshot
+// if flags.Purge is not true, it also computes an estimate of the latter size.
+func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err = Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, 0, err
 	}
@@ -1962,14 +1964,14 @@ func remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 	// trigger remove
 
-	full := state.NewTaskSet()
+	removeTs = state.NewTaskSet()
 	var chain *state.TaskSet
 
 	addNext := func(ts *state.TaskSet) {
 		if chain != nil {
 			ts.WaitAll(chain)
 		}
-		full.AddAll(ts)
+		removeTs.AddAll(ts)
 		chain = ts
 	}
 
@@ -1998,8 +2000,6 @@ func remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		addNext(state.NewTaskSet(disconnect))
 		prev = disconnect
 	}
-
-	var snapshotSize uint64
 
 	// 'purge' flag disables automatic snapshot for given remove op
 	if flags == nil || !flags.Purge {
@@ -2067,7 +2067,7 @@ func remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 
-	return full, snapshotSize, nil
+	return removeTs, snapshotSize, nil
 }
 
 func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
@@ -2101,7 +2101,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
-		ts, snapshotSize, err := remove(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
