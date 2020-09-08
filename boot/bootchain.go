@@ -25,9 +25,10 @@ import (
 	"sort"
 )
 
+// TODO:UC20 add a doc comment when this is stabilized
 type bootChain struct {
-	Model          string      `json:"model"`
 	BrandID        string      `json:"brand-id"`
+	Model          string      `json:"model"`
 	Grade          string      `json:"grade"`
 	ModelSignKeyID string      `json:"model-sign-key-id"`
 	AssetChain     []bootAsset `json:"asset-chain"`
@@ -38,6 +39,7 @@ type bootChain struct {
 	KernelCmdline  string `json:"kernel-cmdline"`
 }
 
+// TODO:UC20 add a doc comment when this is stabilized
 type bootAsset struct {
 	Role   string   `json:"role"`
 	Name   string   `json:"name"`
@@ -134,20 +136,12 @@ type byBootChainOrder []bootChain
 func (b byBootChainOrder) Len() int      { return len(b) }
 func (b byBootChainOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b byBootChainOrder) Less(i, j int) bool {
-	if !predictableBootAssetsEqual(b[i].AssetChain, b[j].AssetChain) {
-		return predictableBootAssetsLess(b[i].AssetChain, b[j].AssetChain)
-	}
-	if b[i].Kernel != b[j].Kernel {
-		return b[i].Kernel < b[j].Kernel
-	}
-	if b[i].KernelRevision != b[j].KernelRevision {
-		return b[i].KernelRevision < b[j].KernelRevision
+	// sort by model info
+	if b[i].BrandID != b[j].BrandID {
+		return b[i].BrandID < b[j].BrandID
 	}
 	if b[i].Model != b[j].Model {
 		return b[i].Model < b[j].Model
-	}
-	if b[i].BrandID != b[j].BrandID {
-		return b[i].BrandID < b[j].BrandID
 	}
 	if b[i].Grade != b[j].Grade {
 		return b[i].Grade < b[j].Grade
@@ -155,6 +149,18 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].ModelSignKeyID != b[j].ModelSignKeyID {
 		return b[i].ModelSignKeyID < b[j].ModelSignKeyID
 	}
+	// then boot assets
+	if !predictableBootAssetsEqual(b[i].AssetChain, b[j].AssetChain) {
+		return predictableBootAssetsLess(b[i].AssetChain, b[j].AssetChain)
+	}
+	// then kernel
+	if b[i].Kernel != b[j].Kernel {
+		return b[i].Kernel < b[j].Kernel
+	}
+	if b[i].KernelRevision != b[j].KernelRevision {
+		return b[i].KernelRevision < b[j].KernelRevision
+	}
+	// and last kernel command line
 	if b[i].KernelCmdline != b[j].KernelCmdline {
 		return b[i].KernelCmdline < b[j].KernelCmdline
 	}
@@ -186,5 +192,6 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
 	if err != nil {
 		return false
 	}
+	// TODO:UC20: return false if either chains have unasserted kernels
 	return bytes.Equal(pb1JSON, pb2JSON)
 }

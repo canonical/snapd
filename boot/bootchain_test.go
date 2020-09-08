@@ -177,7 +177,7 @@ func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"model":"","brand-id":"","grade":"","model-sign-key-id":"","asset-chain":[{"role":"recovery","name":"loader","hashes":["d","e"]},{"role":"recovery","name":"shim","hashes":["b"]},{"role":"run","name":"0oader","hashes":["x","z"]},{"role":"run","name":"1oader","hashes":["d","e"]},{"role":"run","name":"loader","hashes":["z"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"","kernel-revision":"","kernel-cmdline":""}`)
+	c.Check(string(d), Equals, `{"brand-id":"","model":"","grade":"","model-sign-key-id":"","asset-chain":[{"role":"recovery","name":"loader","hashes":["d","e"]},{"role":"recovery","name":"shim","hashes":["b"]},{"role":"run","name":"0oader","hashes":["x","z"]},{"role":"run","name":"1oader","hashes":["d","e"]},{"role":"run","name":"loader","hashes":["z"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"","kernel-revision":"","kernel-cmdline":""}`)
 
 	// already predictable, but try again
 	alreadySortedBc := boot.ToPredictableBootChain(predictableBc)
@@ -196,8 +196,8 @@ func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
 
 func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 	bc := &boot.BootChain{
-		Model:          "foo",
 		BrandID:        "mybrand",
+		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		// asset chain will get sorted when marshaling
@@ -215,8 +215,8 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 	predictableBc := boot.ToPredictableBootChain(bc)
 
 	c.Check(predictableBc, DeepEquals, &boot.BootChain{
-		Model:          "foo",
 		BrandID:        "mybrand",
+		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		// assets are sorted
@@ -233,11 +233,11 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"model":"foo","brand-id":"mybrand","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"loader","hashes":["d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdline":"foo=bar baz=0x123"}`)
+	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"loader","hashes":["d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdline":"foo=bar baz=0x123"}`)
 	// original structure has not been modified
 	c.Check(bc, DeepEquals, &boot.BootChain{
-		Model:          "foo",
 		BrandID:        "mybrand",
+		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		// asset chain will get sorted when marshaling
@@ -256,8 +256,8 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
 	bc := []boot.BootChain{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
@@ -275,8 +275,8 @@ func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
 	// sorted variant
 	pbOther := boot.PredictableBootChains{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
@@ -300,8 +300,8 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 
 	bcJustOne := []boot.BootChain{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
@@ -321,8 +321,8 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 
 	bcMoreAssets := []boot.BootChain{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
@@ -332,8 +332,8 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			KernelRevision: "1234",
 			KernelCmdline:  `foo`,
 		}, {
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
@@ -356,8 +356,8 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	// chains will be sorted
 	chains := []boot.BootChain{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "signed",
 			ModelSignKeyID: "my-key-id",
 			// assets will be sorted
@@ -371,8 +371,8 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			KernelRevision: "2345",
 			KernelCmdline:  `foo`,
 		}, {
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			// assets will be sorted
@@ -387,8 +387,8 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			KernelCmdline:  `foo`,
 		}, {
 			// recovery system
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			// will be sorted
@@ -458,8 +458,8 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 
 	justOne := []boot.BootChain{
 		{
-			Model:          "foo",
 			BrandID:        "mybrand",
+			Model:          "foo",
 			Grade:          "signed",
 			ModelSignKeyID: "my-key-id",
 			Kernel:         "pc-kernel-other",
@@ -625,23 +625,23 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				// will be sorted
 				{Hashes: []string{"b", "a"}},
 			},
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"b"}},
 			},
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsAssets), DeepEquals, boot.PredictableBootChains{
@@ -649,22 +649,22 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"b"}},
 			},
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"a", "b"}},
 			},
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		},
 	})
 
@@ -698,134 +698,292 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 		{
 			BrandID:        "foo",
 			Model:          "box",
-			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"a", "b"}},
 				{Name: "asset", Hashes: []string{"a", "b"}},
 			},
+			Grade:         "dangerous",
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
-			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
 			ModelSignKeyID: "key-1",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"a", "b"}},
 				{Name: "asset", Hashes: []string{"a", "b"}},
 			},
+			Kernel:        "foo",
+			KernelCmdline: `panic=1`,
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsIdenticalAssets), DeepEquals, boot.PredictableBootChains(chainsIdenticalAssets))
 }
 
 func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
-	// check that sort order is assets -> kernel (name, revision) -> rest
+	// check that sort order is model info, assets, kernel, kernel cmdline
 
 	chains := []boot.BootChain{
 		{
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel",
-			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			Model: "b",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"a", "b"}},
-				{Name: "asset", Hashes: []string{"b"}},
+				{Name: "asset", Hashes: []string{"y"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel",
-			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"a", "b"}},
-				{Name: "asset", Hashes: []string{"b"}},
+				{Name: "asset", Hashes: []string{"y"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel-other",
-			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"c", "d"}},
-				{Name: "asset", Hashes: []string{"c"}},
+				{Name: "asset", Hashes: []string{"y"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel-other",
-			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"c", "d"}},
-				{Name: "asset", Hashes: []string{"c"}},
+				{Name: "asset", Hashes: []string{"y"}},
 			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
 		},
 	}
 	predictable := boot.ToPredictableBootChains(chains)
 	c.Check(predictable, DeepEquals, boot.PredictableBootChains{
 		{
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel",
-			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"b"}},
-				{Name: "asset", Hashes: []string{"a", "b"}},
+				{Name: "asset", Hashes: []string{"x"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel",
-			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"b"}},
-				{Name: "asset", Hashes: []string{"a", "b"}},
+				{Name: "asset", Hashes: []string{"x"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel-other",
-			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"c"}},
-				{Name: "asset", Hashes: []string{"c", "d"}},
+				{Name: "asset", Hashes: []string{"x"}},
 			},
-		}, {
-			Model:          "foo",
-			BrandID:        "mybrand",
-			Grade:          "signed",
-			ModelSignKeyID: "my-key-id",
-			Kernel:         "pc-kernel-other",
-			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
 			AssetChain: []boot.BootAsset{
-				{Name: "asset", Hashes: []string{"c"}},
-				{Name: "asset", Hashes: []string{"c", "d"}},
+				{Name: "asset", Hashes: []string{"x"}},
 			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"x"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k1",
+			KernelCmdline: "cm=2",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=1",
+		},
+		{
+			Model: "b",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:        "k2",
+			KernelCmdline: "cm=2",
 		},
 	})
 }
