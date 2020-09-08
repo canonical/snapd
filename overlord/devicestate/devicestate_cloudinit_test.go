@@ -100,9 +100,8 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 		Model:  "pc20-model",
 		Serial: "serial",
 	})
-}
 
-func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
+	// always make a gadget snap, it is always needed for uc20 tests
 	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(1),
@@ -110,20 +109,27 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	}
 
 	// create a gadget snap in snapstate
-	st := s.o.State()
-	st.Lock()
-	snapstate.Set(st, "pc", &snapstate.SnapState{
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
 		Current:  snap.R(1),
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
 	})
-	st.Unlock()
 
-	// create a cloud.conf file in the gadget snap's mount dir
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", "gadget yaml"},
+		{"meta/snap.yaml", `name: pc
+type: gadget`},
+	})
+
+	// create the gadget snap's mount dir
 	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
 	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644), IsNil)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
+	// create a cloud.conf file in the gadget snap's mount dir
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapMountDir, "pc", "1", "cloud.conf"), nil, 0644), IsNil)
 
 	// pretend that cloud-init finished running
 	statusCalls := 0
@@ -137,11 +143,14 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, Not(IsNil))
-		// a gadget cloud.conf is not NoCloud
-		c.Assert(opts.DisableNoCloud, Equals, false)
+		// we have a gadget cloud.conf, so we don't disable even if it is
+		// NoCloud, to allow the gadget to control cloud.conf
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: false,
+		})
+		// in this case, pretend it was a real cloud, so it just got restricted
 		return sysconfig.CloudInitRestrictionResult{
-			Action:     "disabled",
+			Action:     "restrict",
 			DataSource: "GCE",
 		}, nil
 	})
@@ -151,30 +160,10 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
 }
 
 func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
-	si := &snap.SideInfo{
-		RealName: "pc",
-		Revision: snap.R(1),
-		SnapID:   "pcididididididididididididididid",
-	}
-
-	// create a gadget snap in snapstate
-	st := s.o.State()
-	st.Lock()
-	snapstate.Set(st, "pc", &snapstate.SnapState{
-		SnapType: "gadget",
-		Current:  snap.R(1),
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-	})
-	st.Unlock()
-
-	// create the gadget snap's mount dir
-	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
-	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
-
 	// pretend that cloud-init never ran
 	statusCalls := 0
 	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
@@ -187,11 +176,14 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
 	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
 		c.Assert(state, Equals, sysconfig.CloudInitUntriggered)
-		c.Assert(opts, Not(IsNil))
-		// a gadget cloud.conf is not NoCloud
-		c.Assert(opts.DisableNoCloud, Equals, true)
+		// no gadget cloud.conf, so we should be asked to disable if it was
+		// NoCloud
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// cloud-init never ran, so no datasource
 		return sysconfig.CloudInitRestrictionResult{
-			Action: "disabled",
+			Action: "disable",
 		}, nil
 	})
 	defer r()
@@ -199,6 +191,51 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
 	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
+
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitDoneNoCloudDisables(c *C) {
+	// pretend that cloud-init ran, and mock the actual cloud-init command to
+	// use the real sysconfig logic
+	cmd := testutil.MockCommand(c, "cloud-init", `
+if [ "$1" = "status" ]; then
+	echo "status: done"
+else
+	echo "unexpected args $*"
+	exit 1
+fi`)
+	defer cmd.Restore()
+
+	restrictCalls := 0
+
+	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitDone)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// we would have disabled it as per the opts
+		return sysconfig.CloudInitRestrictionResult{
+			// pretend it was NoCloud
+			DataSource: "NoCloud",
+			Action:     "disable",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"cloud-init", "status"},
+	})
+
+	// a message about cloud-init done and being restricted
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, disabled permanently.*`)
+
+	// and 1 call to restrict
 	c.Assert(restrictCalls, Equals, 1)
 }
 
@@ -472,74 +509,6 @@ fi`)
 		c.Assert(state, Equals, sysconfig.CloudInitDone)
 		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
 			ForceDisable: false,
-		})
-		// we would have restricted it since it ran
-		return sysconfig.CloudInitRestrictionResult{
-			// pretend it was NoCloud
-			DataSource: "NoCloud",
-			Action:     "restrict",
-		}, nil
-	})
-	defer r()
-
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
-	c.Assert(err, IsNil)
-
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"cloud-init", "status"},
-	})
-
-	// a message about cloud-init done and being restricted
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
-
-	// and 1 call to restrict
-	c.Assert(restrictCalls, Equals, 1)
-}
-
-func (s *cloudInitUC20Suite) TestCloudInitDoneNoCloudDisables(c *C) {
-	// the absence of a zzzz_snapd.cfg file will indicate that it has not been
-	// restricted yet and thus it should then check to see if it was manually
-	// disabled
-
-	si := &snap.SideInfo{
-		RealName: "pc",
-		Revision: snap.R(1),
-		SnapID:   "pcididididididididididididididid",
-	}
-
-	// create a gadget snap in snapstate
-	st := s.o.State()
-	st.Lock()
-	snapstate.Set(st, "pc", &snapstate.SnapState{
-		SnapType: "gadget",
-		Current:  snap.R(1),
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-	})
-	st.Unlock()
-
-	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
-		{"meta/gadget.yaml", "gadget yaml"},
-		{"meta/snap.yaml", `name: pc
-type: gadget`},
-	})
-
-	cmd := testutil.MockCommand(c, "cloud-init", `
-if [ "$1" = "status" ]; then
-	echo "status: done"
-else
-	echo "unexpected args $*"
-	exit 1
-fi`)
-	defer cmd.Restore()
-
-	restrictCalls := 0
-
-	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
-		restrictCalls++
-		c.Assert(state, Equals, sysconfig.CloudInitDone)
-		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
-			DisableNoCloud: true,
 		})
 		// we would have restricted it since it ran
 		return sysconfig.CloudInitRestrictionResult{
