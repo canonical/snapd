@@ -26,29 +26,27 @@ nested_wait_for_no_ssh() {
     nested_retry_while_success 200 1 "true"
 }
 
-nested_get_last_reboot() {
-    local last_uptime
-    last_uptime=$(nested_retry_until_success 200 1 "uptime -s")
-    date -u -d "$last_uptime seconds ago" +'%Y-%m-%dT%H:%M:%SZ'
+nested_get_boot_id() {
+    nested_retry_until_success 200 1 "cat /proc/sys/kernel/random/boot_id"
 }
 
 nested_wait_for_reboot() {
-    local initial_reboot="$1"
-    local retry wait last_reboot
+    local initial_boot_id="$1"
+    local retry wait last_boot_id
     retry=120
     wait=5
 
-    last_reboot=""
+    last_boot_id=""
     while [ $retry -ge 0 ]; do
         retry=$(( retry - 1 ))
-        last_reboot="$(nested_get_last_reboot)"
-        if [[ "$last_reboot" =~ .*-.*-.*T.*:.*:.*Z ]] && [ "$last_reboot" != "$initial_reboot" ]; then
+        last_boot_id="$(nested_get_boot_id)"
+        if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
             break
         fi
         sleep "$wait"
     done
 
-    [ "$last_reboot" != "$initial_reboot" ]
+    [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
 nested_retry_while_success() {
