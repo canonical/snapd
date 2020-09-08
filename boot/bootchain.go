@@ -23,6 +23,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 )
 
 // TODO:UC20 add a doc comment when this is stabilized
@@ -37,6 +40,9 @@ type bootChain struct {
 	// kernel is unasserted, in which case always reseal.
 	KernelRevision string `json:"kernel-revision"`
 	KernelCmdline  string `json:"kernel-cmdline"`
+
+	model          *asserts.Model
+	kernelBootFile bootloader.BootFile
 }
 
 // TODO:UC20 add a doc comment when this is stabilized
