@@ -22,20 +22,23 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var installRun = install.Run
 
 type cmdCreatePartitions struct {
-	Mount      bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt    bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KernelPath string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
-	ModelPath  string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
+	Mount   bool `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt bool `long:"encrypt" description:"Encrypt the data partition"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -47,6 +50,18 @@ const (
 	short = "Create missing partitions for the device"
 	long  = ""
 )
+
+type simpleObserver struct {
+	encryptionKey secboot.EncryptionKey
+}
+
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (bool, error) {
+	return true, nil
+}
+
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
+	o.encryptionKey = key
+}
 
 func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
@@ -72,22 +87,42 @@ func main() {
 		panic(err)
 	}
 
-	var model *asserts.Model
-	if args.ModelPath != "" {
-		var err error
-		model, err = readModel(args.ModelPath)
-		if err != nil {
-			panic(fmt.Sprintf("cannot load model: %v", err))
-		}
-	}
+	obs := &simpleObserver{}
+
 	options := install.Options{
-		Mount:      args.Mount,
-		Encrypt:    args.Encrypt,
-		KernelPath: args.KernelPath,
-		Model:      model,
+		Mount:   args.Mount,
+		Encrypt: args.Encrypt,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
+	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
+	}
+
+	if args.Encrypt {
+		loadChain := []bootloader.BootFile{
+			// the path to the shim EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
+			// the path to the recovery grub EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
+			// the path to the run mode grub EFI binary
+			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+		}
+
+		sealKeyParams := secboot.SealKeyParams{
+			ModelParams: []*secboot.SealKeyModelParams{
+				{
+					KernelCmdlines: []string{"cmdline"},
+					EFILoadChains:  [][]bootloader.BootFile{loadChain},
+				},
+			},
+
+			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
+			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
+		}
+
+		if err := secboot.SealKey(obs.encryptionKey, &sealKeyParams); err != nil {
+			panic(err)
+		}
 	}
 }
