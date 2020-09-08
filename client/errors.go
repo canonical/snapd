@@ -129,6 +129,9 @@ const (
 
 	// ErrorKindDNSFailure: DNS not responding.
 	ErrorKindDNSFailure ErrorKind = "dns-failure"
+
+	// ErrorKindInsufficientDiskSpace: not enough disk space to perform the request.
+	ErrorKindInsufficientDiskSpace ErrorKind = "insufficient-disk-space"
 )
 
 // Maintenance error kinds.
