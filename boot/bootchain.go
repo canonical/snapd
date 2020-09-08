@@ -105,17 +105,16 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 	return &newB
 }
 
-// equal returns true when boot chains are equivalent for reseal.
-func (b *bootChain) equalForReseal(other *bootChain) bool {
-	bJSON, err := json.Marshal(toPredictableBootChain(b))
+func predictableBootAssetsEqual(b1, b2 []bootAsset) bool {
+	b1JSON, err := json.Marshal(b1)
 	if err != nil {
 		return false
 	}
-	otherJSON, err := json.Marshal(toPredictableBootChain(other))
+	b2JSON, err := json.Marshal(b2)
 	if err != nil {
 		return false
 	}
-	return bytes.Equal(bJSON, otherJSON)
+	return bytes.Equal(b1JSON, b2JSON)
 }
 
 func predictableBootAssetsLess(b1, b2 []bootAsset) bool {
@@ -135,6 +134,15 @@ type byBootChainOrder []bootChain
 func (b byBootChainOrder) Len() int      { return len(b) }
 func (b byBootChainOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b byBootChainOrder) Less(i, j int) bool {
+	if !predictableBootAssetsEqual(b[i].AssetChain, b[j].AssetChain) {
+		return predictableBootAssetsLess(b[i].AssetChain, b[j].AssetChain)
+	}
+	if b[i].Kernel != b[j].Kernel {
+		return b[i].Kernel < b[j].Kernel
+	}
+	if b[i].KernelRevision != b[j].KernelRevision {
+		return b[i].KernelRevision < b[j].KernelRevision
+	}
 	if b[i].Model != b[j].Model {
 		return b[i].Model < b[j].Model
 	}
@@ -147,20 +155,15 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].ModelSignKeyID != b[j].ModelSignKeyID {
 		return b[i].ModelSignKeyID < b[j].ModelSignKeyID
 	}
-	if b[i].Kernel != b[j].Kernel {
-		return b[i].Kernel < b[j].Kernel
-	}
-	if b[i].KernelRevision != b[j].KernelRevision {
-		return b[i].KernelRevision < b[j].KernelRevision
-	}
 	if b[i].KernelCmdline != b[j].KernelCmdline {
 		return b[i].KernelCmdline < b[j].KernelCmdline
 	}
-	// XXX: add new fields as when bootChain is modified
-	return predictableBootAssetsLess(b[i].AssetChain, b[j].AssetChain)
+	return false
 }
 
-func toPredictableBootChains(chains []bootChain) []bootChain {
+type predictableBootChains []bootChain
+
+func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	if chains == nil {
 		return nil
 	}
@@ -170,4 +173,18 @@ func toPredictableBootChains(chains []bootChain) []bootChain {
 	}
 	sort.Sort(byBootChainOrder(predictableChains))
 	return predictableChains
+}
+
+// predictableBootChainsEqualForReseal returns true when boot chains are
+// equivalent for reseal.
+func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
+	pb1JSON, err := json.Marshal(pb1)
+	if err != nil {
+		return false
+	}
+	pb2JSON, err := json.Marshal(pb2)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(pb1JSON, pb2JSON)
 }

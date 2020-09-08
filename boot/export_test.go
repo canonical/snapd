@@ -90,13 +90,11 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 type BootAsset = bootAsset
 type BootChain = bootChain
 type ByBootAssetOrder = byBootAssetOrder
-
-func (b *BootChain) EqualForReseal(other *BootChain) bool {
-	return b.equalForReseal(other)
-}
+type PredictableBootChains = predictableBootChains
 
 var (
-	ToPredictableBootAsset  = toPredictableBootAsset
-	ToPredictableBootChain  = toPredictableBootChain
-	ToPredictableBootChains = toPredictableBootChains
+	ToPredictableBootAsset              = toPredictableBootAsset
+	ToPredictableBootChain              = toPredictableBootChain
+	ToPredictableBootChains             = toPredictableBootChains
+	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 )
