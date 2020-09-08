@@ -65,7 +65,7 @@ func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *
 
 	// next if we are grade dangerous, then we also install cloud configuration
 	// from ubuntu-seed if it exists
-	case osutil.IsDirectory(ubuntuSeedCloudCfg) && model.Grade() == asserts.ModelDangerous:
+	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
 		opts.AllowCloudInit = true
 		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
 
