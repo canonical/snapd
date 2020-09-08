@@ -2077,6 +2077,50 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	c.Check(drop, HasLen, 0)
 }
 
+func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
+	// call to observe successful boot
+
+	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+
+	// only asset for ubuntu-boot
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// shim and asset for ubuntu-seed
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"oldhash", dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"oldhash", dataHash},
+			"shim":  {shimHash},
+		},
+	}
+
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": {dataHash},
+		"shim":  {shimHash},
+	})
+	// asset was updated in parallel on both partition from the same
+	// oldhash that should be dropped now
+	c.Check(drop, HasLen, 1)
+	c.Check(drop[0].Equals("trusted", "asset", "oldhash"), IsNil)
+}
+
 func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	// call to observe successful boot
 
