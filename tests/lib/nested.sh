@@ -27,13 +27,15 @@ nested_wait_for_no_ssh() {
 }
 
 nested_get_last_reboot() {
-    nested_retry_until_success 200 1 "date -u -d '$(uptime -s) seconds ago' +'%Y-%m-%dT%H:%M:%SZ'"
+    local last_uptime
+    last_uptime=$(nested_retry_until_success 200 1 "uptime -s")
+    date -u -d "$last_uptime seconds ago" +'%Y-%m-%dT%H:%M:%SZ'
 }
 
 nested_wait_for_reboot() {
     local initial_reboot="$1"
     local retry wait last_reboot
-    retry=30
+    retry=120
     wait=5
 
     last_reboot=""
