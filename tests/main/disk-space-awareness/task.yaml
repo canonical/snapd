@@ -39,7 +39,7 @@ execute: |
   echo "Snap download fails with little disk space"
   NEWSIZE=$(expr $(get_disk_usage) + 1)
   resize "${NEWSIZE}M"
-  snap install hello-world 2>&1 | MATCH "cannot install \"hello-world\": insufficient space"
+  snap install hello-world 2>&1 | MATCH  "cannot install \"hello-world\" due to low disk space"
 
   # note, installing hello-world also pulls core snap.
   echo "And succeeds with enough space"
@@ -60,6 +60,6 @@ execute: |
     echo "expected snap remove hello-world to fail"
     exit 1
   fi
-  
-  MATCH "error: cannot remove \"hello-world\": cannot create automatic snapshot when" < error.txt
-  MATCH "removing last revision of the snap: insufficient space in" < error.txt
+
+  MATCH "error: cannot remove \"hello-world\" due to low disk space" < error.txt
+  MATCH "use --purge to avoid creating a snapshot" < error.txt
