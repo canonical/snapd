@@ -102,26 +102,6 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 	})
 }
 
-func (s *cloudInitSuite) SetUpTest(c *C) {
-	s.cloudInitBaseSuite.SetUpTest(c)
-
-	// make a uc16/uc18 style model assertion for the device
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-		"base":         "core18",
-	})
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc-model",
-		Serial: "serial",
-	})
-}
-
 func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	si := &snap.SideInfo{
 		RealName: "pc",
@@ -220,6 +200,26 @@ func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
+}
+
+func (s *cloudInitSuite) SetUpTest(c *C) {
+	s.cloudInitBaseSuite.SetUpTest(c)
+
+	// make a uc16/uc18 style model assertion for the device
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
 }
 
 func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
