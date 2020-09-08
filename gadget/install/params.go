@@ -20,7 +20,8 @@
 package install
 
 import (
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type Options struct {
@@ -28,10 +29,11 @@ type Options struct {
 	Mount bool
 	// Encrypt the data partition
 	Encrypt bool
-	// KernelPath is the path to the kernel to seal the keyfile to
-	KernelPath string
-	// Model is the device model to seal the keyfile to
-	Model *asserts.Model
-	// SystemLabel is the recover system label to seal the keyfile to
-	SystemLabel string
+}
+
+type SystemInstallObserver interface {
+	gadget.ContentObserver
+	// ChosenEncryptionKey stores the encrypted data partition key to be sealed
+	// at the end of the installation process.
+	ChosenEncryptionKey(secboot.EncryptionKey)
 }

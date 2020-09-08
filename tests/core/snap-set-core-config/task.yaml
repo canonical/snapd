@@ -92,42 +92,28 @@ execute: |
         exit 1
     fi
 
-
-    rm -f /var/lib/console-conf/complete
-    echo "Check that 'service.console-conf.disable' handling works"
-    # start some instances of console-conf
-    systemctl start console-conf@tty1
-    systemctl start console-conf@tty2
-    systemctl start serial-console-conf@ttyS0
-
-    systemctl status 'console-conf@*' | MATCH "Active: active"
-    systemctl status 'serial-console-conf@*' | MATCH "Active: active"
-
-    snap set system service.console-conf.disable=true
-    test -e /var/lib/console-conf/complete
-    # no output for anything console-conf
-    test -z "$(systemctl status 'console-conf@*')"
-    # serial-console-conf is usually in failed status, depending on how the
-    # process went down
-    systemctl status 'serial-console-conf@*' | MATCH "(|Active: (inactive|failed))"
-
-    # getty@ services are now active
-    systemctl status getty@tty1 | MATCH "Active: active"
-    systemctl status getty@tty2 | MATCH "Active: active"
-    systemctl status serial-getty@ttyS0 | MATCH "Active: active"
-
-    # enable it again
-    snap set system service.console-conf.disable=false
-    not test -e /var/lib/console-conf/complete
-
-    # console-conf@ services are now active
-    systemctl status 'console-conf@tty1' | MATCH "Active: active"
-    systemctl status 'console-conf@tty2' | MATCH "Active: active"
-    systemctl status 'serial-console-conf@ttyS0' | MATCH "Active: active"
-    # but getty@ ones are not
-    systemctl status getty@tty1 | MATCH "Active: (inactive|failed)"
-    systemctl status getty@tty2 | MATCH "Active: (inactive|failed)"
-    systemctl status serial-getty@ttyS0 | MATCH "Active: (inactive|failed)"
+    echo "Changing 'service.console-conf.disable' at runtime does not work"
+    console_conf_disabled="false"
+    if [ -e /var/lib/console-conf/complete ]; then
+        console_conf_disabled="true"
+    fi
+    if [ "$console_conf_disabled" = "true" ]; then
+        not snap set system service.console-conf.disable=false 2>stderr
+        MATCH "cannot toggle console-conf at runtime, but only initially via gadget defaults" < stderr
+        # and the console-conf complete file is unchanged
+        test -e /var/lib/console-conf/complete
+        # but setting to again (without changing) is fine
+        snap set system service.console-conf.disable=true
+    elif [ "$console_conf_disabled" = "false" ]; then
+        not snap set system service.console-conf.disable=true 2>stderr
+        MATCH "cannot toggle console-conf at runtime, but only initially via gadget defaults" < stderr
+        # and the console-conf complete file is unchanged
+        not test -e /var/lib/console-conf/complete
+        # but setting to again (without changing) is fine
+        snap set system service.console-conf.disable=false
+    else
+        echo "internal error: $console_conf_disabled var has unexpected setting"
+    fi
 
     echo "Check that 'system.kernel.printk.console-loglevel' handling works"
     snap set system system.kernel.printk.console-loglevel=7
