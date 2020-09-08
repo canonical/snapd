@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,12 +17,16 @@
  *
  */
 
-package install
+package daemon
 
 import (
-	"fmt"
+	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
-func Run(gadgetRoot, device string, options Options, _ SystemInstallObserver) error {
-	return fmt.Errorf("build without secboot support")
+func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) error) (restore func()) {
+	old := deviceManagerReboot
+	deviceManagerReboot = f
+	return func() {
+		deviceManagerReboot = old
+	}
 }
