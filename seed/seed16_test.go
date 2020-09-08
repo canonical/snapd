@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -156,8 +156,7 @@ func (s *seed16Suite) TestLoadAssertionsModelHappy(c *C) {
 	err = s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	model, err := s.seed16.Model()
-	c.Assert(err, IsNil)
+	model := s.seed16.Model()
 	c.Check(model.Model(), Equals, "my-model")
 
 	_, err = s.db.Find(asserts.ModelType, map[string]string{
@@ -186,25 +185,13 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	err = s.seed16.LoadAssertions(nil, nil)
 	c.Assert(err, IsNil)
 
-	model, err := s.seed16.Model()
-	c.Assert(err, IsNil)
+	model := s.seed16.Model()
 	c.Check(model.Model(), Equals, "my-model")
 
 	brand, err := s.seed16.Brand()
 	c.Assert(err, IsNil)
 	c.Check(brand.AccountID(), Equals, "my-brand")
 	c.Check(brand.DisplayName(), Equals, "My-brand")
-}
-
-func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
-	_, err := s.seed16.Model()
-	c.Check(err, ErrorMatches, "internal error: model assertion unset")
-
-	err = s.seed16.LoadMeta(s.perfTimings)
-	c.Check(err, ErrorMatches, "internal error: model assertion unset")
-
-	_, err = s.seed16.Brand()
-	c.Check(err, ErrorMatches, "internal error: model assertion unset")
 }
 
 func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
