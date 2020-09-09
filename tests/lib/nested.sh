@@ -27,19 +27,20 @@ nested_wait_for_no_ssh() {
 }
 
 nested_get_boot_id() {
-    nested_retry_until_success 200 1 "cat /proc/sys/kernel/random/boot_id"
+    nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
 
 nested_wait_for_reboot() {
     local initial_boot_id="$1"
     local retry wait last_boot_id
-    retry=120
+    retry=150
     wait=5
 
     last_boot_id=""
     while [ $retry -ge 0 ]; do
         retry=$(( retry - 1 ))
-        last_boot_id="$(nested_get_boot_id)"
+        # The get_boot_id could fail because the connection is broken due to the reboot
+        last_boot_id="$(nested_get_boot_id)" || true
         if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
             break
         fi
