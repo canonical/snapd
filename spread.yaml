@@ -337,39 +337,75 @@ backends:
             - ubuntu-core-16-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-16-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-16-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-16-32-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-16-arm-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-16-arm-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-16-arm-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-16-arm-32-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-18-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-18-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-18-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-18-32-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-18-arm-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-18-arm-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-18-arm-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-18-arm-32-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-20-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-20-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-20-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-20-32-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-20-arm-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-20-arm-64-cert:
+                  username: root
+                  cert: true
             - ubuntu-core-20-arm-32:
                   username: external
                   password: ubuntu
+            - ubuntu-core-20-arm-32-cert:
+                  username: root
+                  cert: true
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
