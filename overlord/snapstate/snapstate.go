@@ -1891,6 +1891,8 @@ type RemoveFlags struct {
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
 	ts, snapshotSize, err := removeTasks(st, name, revision, flags)
+	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
+	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
 		requiredSpace := safetyMarginDiskSpace(snapshotSize)
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
@@ -2108,9 +2110,6 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
 		}
-		// individual snap remove can fail due to low disk space; we could
-		// propagate this error unchanged, but rewriting it to list
-		// all snap names provides more meaningful error mesage.
 		if _, ok := err.(*InsufficientSpaceError); ok {
 			return nil, nil, &InsufficientSpaceError{
 				Path:       path,
