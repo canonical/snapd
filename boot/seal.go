@@ -35,6 +35,8 @@ import (
 
 var (
 	secbootSealKey = secboot.SealKey
+
+	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
 // sealKeyToModeenv seals the supplied key to the parameters specified
@@ -93,7 +95,7 @@ func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, mod
 
 	// get kernel information from seed
 	perf := timings.New(nil)
-	_, snaps, err := seed.ReadSystemEssential(dirs.SnapSeedDir, modeenv.RecoverySystem, []snap.Type{snap.TypeKernel}, perf)
+	_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, modeenv.RecoverySystem, []snap.Type{snap.TypeKernel}, perf)
 	if err != nil {
 		return bc, err
 	}
@@ -196,7 +198,7 @@ func buildRecoveryAssetChain(rbl bootloader.Bootloader, modeenv *Modeenv) (asset
 		}
 	}
 
-	return assets, recoveryBootChain[len(recoveryBootChain)-1], nil
+	return assets, recoveryBootChain[numAssets], nil
 }
 
 func buildRunModeAssetChain(rbl, bl bootloader.Bootloader, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
@@ -216,37 +218,31 @@ func buildRunModeAssetChain(rbl, bl bootloader.Bootloader, modeenv *Modeenv) (as
 	if err != nil {
 		return nil, kernel, err
 	}
-	// we want the number of additional assets after the recovery asset list
-	numRunModeAssets := len(runModeBootChain) - numRecoveryAssets - 1
+	// the last entry is the kernel
+	numRunModeAssets := len(runModeBootChain) - 1
 
-	assets = make([]bootAsset, numRecoveryAssets+numRunModeAssets)
+	assets = make([]bootAsset, numRunModeAssets)
 
-	for i := 0; i < numRecoveryAssets; i++ {
-		name := filepath.Base(recoveryBootChain[i].Path)
-		hashes, ok := modeenv.CurrentTrustedRecoveryBootAssets[name]
+	for i := 0; i < numRunModeAssets; i++ {
+		name := filepath.Base(runModeBootChain[i].Path)
+		var hashes []string
+		var ok bool
+		if i < numRecoveryAssets {
+			hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
+		} else {
+			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
+		}
 		if !ok {
 			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
-			Role:   string(recoveryBootChain[i].Role),
-			Name:   name,
-			Hashes: hashes,
-		}
-	}
-	for i := 0; i < numRunModeAssets; i++ {
-		name := filepath.Base(runModeBootChain[numRecoveryAssets+i].Path)
-		hashes, ok := modeenv.CurrentTrustedBootAssets[name]
-		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
-		}
-		assets[numRecoveryAssets+i] = bootAsset{
 			Role:   string(runModeBootChain[i].Role),
 			Name:   name,
 			Hashes: hashes,
 		}
 	}
 
-	return assets, runModeBootChain[len(runModeBootChain)-1], nil
+	return assets, runModeBootChain[numRunModeAssets], nil
 }
 
 // runModeKernelsFromModeenv obtains the current and next kernels

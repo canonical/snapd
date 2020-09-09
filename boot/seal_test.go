@@ -27,11 +27,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type sealSuite struct {
@@ -60,7 +64,28 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		modeenv := &boot.Modeenv{
 			RecoverySystem: "20200825",
+			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+
+			CurrentTrustedBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1"},
+			},
+
+			CurrentKernels: []string{"pc-kernel_500.snap"},
 		}
+
+		// mock asset cache
+		p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
+		c.Assert(err, IsNil)
 
 		// set encryption key
 		myKey := secboot.EncryptionKey{}
@@ -70,24 +95,47 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		model := makeMockUC20Model()
 
+		// set a mock recovery kernel
+		readSystemEssentialCalls := 0
+		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+			readSystemEssentialCalls++
+			kernelSnap := &seed.Snap{
+				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+				SideInfo: &snap.SideInfo{
+					Revision: snap.Revision{N: 0},
+				},
+			}
+			return model, []*seed.Snap{kernelSnap}, nil
+		})
+		defer restore()
+
 		// set mock key sealing
 		sealKeyCalls := 0
-		restore := boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
+		restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
 			sealKeyCalls++
 			c.Check(key, DeepEquals, myKey)
-			c.Assert(params.ModelParams, HasLen, 1)
+			c.Assert(params.ModelParams, HasLen, 2)
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
 				{
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
+					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
 				},
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			})
+			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
+				{
+					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
+					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode),
+					bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode),
+				},
+			})
+			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 			return tc.sealErr
 		})
