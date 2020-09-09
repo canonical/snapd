@@ -439,7 +439,6 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	})
 }
 
-
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New(SystemMode, s.rep).Enable("foo")
 	c.Assert(err, IsNil)
