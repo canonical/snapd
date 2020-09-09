@@ -77,13 +77,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 1)
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
-				{
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
-				},
+			bfs := bootFiles(c, params.ModelParams[0].EFILoadChains)
+			c.Assert(bfs, DeepEquals, []bootloader.BootFile{
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
@@ -101,6 +100,23 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+// TODO:UC20: stop uisng this and switch to check actual trees when
+// that makes sense
+func bootFiles(c *C, chains []*secboot.LoadChain) (bfs []bootloader.BootFile) {
+	for {
+		c.Assert(chains, HasLen, 1)
+		chain := chains[0]
+
+		bfs = append(bfs, *chain.BootFile)
+
+		if len(chain.Next) == 0 {
+			break
+		}
+		chains = chain.Next
+	}
+	return bfs
 }
 
 func createMockGrubCfg(baseDir string) error {
