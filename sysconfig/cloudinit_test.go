@@ -71,6 +71,22 @@ func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
 	return gadgetDir
 }
 
+func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
+	// no cloud.conf is false
+	c.Assert(sysconfig.HasGadgetCloudConf("non-existent-dir-place"), Equals, false)
+
+	// the dir is not enough
+	gadgetDir := c.MkDir()
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, false)
+
+	// creating one now is true
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, true)
+}
+
 // this test is for initramfs calls that disable cloud-init for the ephemeral
 // writable partition that is used while running during install or recover mode
 func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
