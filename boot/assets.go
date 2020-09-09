@@ -49,7 +49,7 @@ func newTrustedAssetsCache(cacheDir string) *trustedAssetsCache {
 	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA3_384}
 }
 
-func (c *trustedAssetsCache) tempAssetKey(blName, assetName string) string {
+func (c *trustedAssetsCache) tempAssetRelPath(blName, assetName string) string {
 	return filepath.Join(blName, assetName+".temp")
 }
 
@@ -57,7 +57,7 @@ func (c *trustedAssetsCache) pathInCache(part string) string {
 	return filepath.Join(c.cacheDir, part)
 }
 
-func trustedAssetCacheKey(blName, assetName, assetHash string) string {
+func trustedAssetCacheRelPath(blName, assetName, assetHash string) string {
 	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
 }
 
@@ -87,7 +87,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	}
 	defer inf.Close()
 	// temporary output
-	tempPath := c.pathInCache(c.tempAssetKey(blName, assetName))
+	tempPath := c.pathInCache(c.tempAssetRelPath(blName, assetName))
 	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
@@ -101,7 +101,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 		return nil, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
 	}
 	hashStr := hex.EncodeToString(h.Sum(nil))
-	cacheKey := trustedAssetCacheKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 
 	ta := &trackedAsset{
 		blName: blName,
@@ -122,7 +122,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 }
 
 func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
-	cacheKey := trustedAssetCacheKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 	if err := os.Remove(c.pathInCache(cacheKey)); err != nil && !os.IsNotExist(err) {
 		return err
 	}

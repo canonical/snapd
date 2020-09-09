@@ -48,9 +48,9 @@ type bootChain struct {
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootAsset struct {
-	Role   string   `json:"role"`
-	Name   string   `json:"name"`
-	Hashes []string `json:"hashes"`
+	Role   bootloader.Role `json:"role"`
+	Name   string          `json:"name"`
+	Hashes []string        `json:"hashes"`
 }
 
 func bootAssetLess(b, other *bootAsset) bool {
@@ -206,7 +206,7 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
 // bootAssetsToLoadChains generates a list of load chains covering given boot
 // assets sequence. At the end of each chain, adds an entry for the kernel boot
 // file.
-func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[string]string) ([]*secboot.LoadChain, error) {
+func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string) ([]*secboot.LoadChain, error) {
 	// kernel is added after all the assets
 	addKernelBootFile := len(assets) == 0
 	if addKernelBootFile {
@@ -216,7 +216,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 	thisAsset := assets[0]
 	blName := roleToBlName[thisAsset.Role]
 	if blName == "" {
-		return nil, fmt.Errorf("internal error: no bootloader name for asset role %q", thisAsset.Role)
+		return nil, fmt.Errorf("internal error: no bootloader name for boot asset role %q", thisAsset.Role)
 	}
 	var chains []*secboot.LoadChain
 	for _, hash := range thisAsset.Hashes {
@@ -226,14 +226,14 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 
 		p := filepath.Join(
 			dirs.SnapBootAssetsDir,
-			trustedAssetCacheKey(blName, thisAsset.Name, hash))
+			trustedAssetCacheRelPath(blName, thisAsset.Name, hash))
 		if !osutil.FileExists(p) {
-			return nil, fmt.Errorf("file %s not found in assets cache", p)
+			return nil, fmt.Errorf("file %s not found in boot assets cache", p)
 		}
 		bf = bootloader.NewBootFile(
 			"", // asset comes from the filesystem, not a snap
 			p,
-			bootloader.Role(thisAsset.Role),
+			thisAsset.Role,
 		)
 		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName)
 		if err != nil {

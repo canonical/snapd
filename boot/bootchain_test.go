@@ -1042,13 +1042,13 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 		{Name: "loader-run", Hashes: []string{"hash0"}, Role: "run"},
 	}
 
-	blNames := map[string]string{
+	blNames := map[bootloader.Role]string{
 		"recovery": "recovery-bl",
 		// missing bootloader name for role "run"
 	}
 	// fails when probing the shim asset in the cache
 	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
-	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in assets cache")
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// make it work now
 	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0755), IsNil)
@@ -1056,7 +1056,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 
 	// nested error bubbled up
 	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
-	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in assets cache")
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// again, make it work
 	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0755), IsNil)
@@ -1064,7 +1064,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 
 	// fails on missing bootloader name for role "run"
 	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
-	c.Assert(err, ErrorMatches, `internal error: no bootloader name for asset role "run"`)
+	c.Assert(err, ErrorMatches, `internal error: no bootloader name for boot asset role "run"`)
 	c.Check(chains, IsNil)
 }
 
@@ -1088,7 +1088,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
 	}
 
-	blNames := map[string]string{
+	blNames := map[bootloader.Role]string{
 		"recovery": "recovery-bl",
 		"run":      "run-bl",
 	}
@@ -1132,7 +1132,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
 	}
 
-	blNames := map[string]string{
+	blNames := map[bootloader.Role]string{
 		"recovery": "recovery-bl",
 		"run":      "run-bl",
 	}
