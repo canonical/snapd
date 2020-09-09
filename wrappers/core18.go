@@ -137,7 +137,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 
 	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
 		return err
@@ -383,7 +383,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
-	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	sysd := systemd.New(systemd.GlobalUserMode, inter)
 
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
 	if err != nil {
