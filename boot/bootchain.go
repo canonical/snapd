@@ -22,10 +22,15 @@ package boot
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"path/filepath"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // TODO:UC20 add a doc comment when this is stabilized
@@ -47,9 +52,9 @@ type bootChain struct {
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootAsset struct {
-	Role   string   `json:"role"`
-	Name   string   `json:"name"`
-	Hashes []string `json:"hashes"`
+	Role   bootloader.Role `json:"role"`
+	Name   string          `json:"name"`
+	Hashes []string        `json:"hashes"`
 }
 
 func bootAssetLess(b, other *bootAsset) bool {
@@ -217,4 +222,45 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
 	}
 	// TODO:UC20: return false if either chains have unasserted kernels
 	return bytes.Equal(pb1JSON, pb2JSON)
+}
+
+// bootAssetsToLoadChains generates a list of load chains covering given boot
+// assets sequence. At the end of each chain, adds an entry for the kernel boot
+// file.
+func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string) ([]*secboot.LoadChain, error) {
+	// kernel is added after all the assets
+	addKernelBootFile := len(assets) == 0
+	if addKernelBootFile {
+		return []*secboot.LoadChain{secboot.NewLoadChain(kernelBootFile)}, nil
+	}
+
+	thisAsset := assets[0]
+	blName := roleToBlName[thisAsset.Role]
+	if blName == "" {
+		return nil, fmt.Errorf("internal error: no bootloader name for boot asset role %q", thisAsset.Role)
+	}
+	var chains []*secboot.LoadChain
+	for _, hash := range thisAsset.Hashes {
+		var bf bootloader.BootFile
+		var next []*secboot.LoadChain
+		var err error
+
+		p := filepath.Join(
+			dirs.SnapBootAssetsDir,
+			trustedAssetCacheRelPath(blName, thisAsset.Name, hash))
+		if !osutil.FileExists(p) {
+			return nil, fmt.Errorf("file %s not found in boot assets cache", p)
+		}
+		bf = bootloader.NewBootFile(
+			"", // asset comes from the filesystem, not a snap
+			p,
+			thisAsset.Role,
+		)
+		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName)
+		if err != nil {
+			return nil, err
+		}
+		chains = append(chains, secboot.NewLoadChain(bf, next...))
+	}
+	return chains, nil
 }
