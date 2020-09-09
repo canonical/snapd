@@ -568,15 +568,24 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					EFILoadChains: []*secboot.LoadChain{
-						secboot.NewLoadChain(mockBF[0], secboot.NewLoadChain(mockBF[4])),
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[4])),
 					},
 					KernelCmdlines: []string{"cmdline1"},
 					Model:          &asserts.Model{},
 				},
 				{
 					EFILoadChains: []*secboot.LoadChain{
-						secboot.NewLoadChain(mockBF[0], secboot.NewLoadChain(mockBF[2], secboot.NewLoadChain(mockBF[4])), secboot.NewLoadChain(mockBF[3], secboot.NewLoadChain(mockBF[4]))),
-						secboot.NewLoadChain(mockBF[1], secboot.NewLoadChain(mockBF[2], secboot.NewLoadChain(mockBF[4])), secboot.NewLoadChain(mockBF[3], secboot.NewLoadChain(mockBF[4]))),
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
+						secboot.NewLoadChain(mockBF[1],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
 					},
 					KernelCmdlines: []string{"cmdline2", "cmdline3"},
 					Model:          &asserts.Model{},

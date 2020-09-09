@@ -31,6 +31,8 @@ import (
 
 type LoadChain struct {
 	*bootloader.BootFile
+	// Next is a list of alternative chains that can be loaded
+	// following the boot file.
 	Next []*LoadChain
 }
 
