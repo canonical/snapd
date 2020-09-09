@@ -3,5 +3,7 @@ defaults:
     service:
       rsyslog:
         disable: true
+      console-conf:
+        disable: true
     system:
       timezone: Europe/Malta
