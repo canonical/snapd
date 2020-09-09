@@ -32,6 +32,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// HasGadgetCloudConf takes a gadget directory and returns whether there is
+// cloud-init config in the form of a cloud.conf file in the gadget.
+func HasGadgetCloudConf(gadgetDir string) bool {
+	return osutil.FileExists(filepath.Join(gadgetDir, "cloud.conf"))
+}
+
 func ubuntuDataCloudDir(rootdir string) string {
 	return filepath.Join(rootdir, "etc/cloud/")
 }
@@ -103,12 +109,12 @@ func configureCloudInit(opts *Options) (err error) {
 	}
 
 	// next check if there is a gadget cloud.conf to install
-	gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
-	if osutil.FileExists(gadgetCloudConf) {
+	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config and return without considering
 		// CloudInitSrcDir
 		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
 		// and the gadget cloud.conf so returning here may be wrong
+		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
 		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
 	}
 
