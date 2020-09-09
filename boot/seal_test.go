@@ -126,13 +126,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			})
-			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
-				{
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
-					bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode),
-					bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode),
-				},
+			bfs = bootFiles(c, params.ModelParams[1].EFILoadChains)
+			c.Assert(bfs, DeepEquals, []bootloader.BootFile{
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
+				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode),
+				bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode),
 			})
 			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
