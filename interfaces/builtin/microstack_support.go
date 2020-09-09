@@ -133,9 +133,13 @@ owner /{dev,run}/shm/spice.* rw,
 /run/dmeventd-client rwlk,
 /run/dmeventd-server rwlk,
 
-# Used by tgtd.
-/run/tgtd/ rw,
-/run/tgtd/** rwlk,
+# Used by targetcli tools to work with LIO.
+/sys/kernel/config/target/ rw,
+/sys/kernel/config/target/** rw,
+
+# Used by targetcli.
+/run/targetcli.lock rwlk,
+/var/run/targetcli.lock rwlk,
 
 # Paths accessed by iscsid during its operation.
 /run/lock/iscsi/ rw,
@@ -223,7 +227,7 @@ type microStackInterface struct {
 	commonInterface
 }
 
-var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`, `iscsi-tcp`}
+var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`, `iscsi-tcp`, `target-core-mod`}
 
 func init() {
 	registerIface(&microStackInterface{commonInterface{

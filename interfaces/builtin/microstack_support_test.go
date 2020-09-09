@@ -121,6 +121,7 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 		"dm-thin-pool": true,
 		"dm-snapshot":  true,
 		"iscsi-tcp":    true,
+		"target-core-mod": true,
 	})
 }
 
