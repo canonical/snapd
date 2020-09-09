@@ -379,7 +379,7 @@ apps:
     plugs: [ dummy ]
   tee:
     command: bin/run
-    plugs: [ tRee]
+    plugs: [ tee]
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]
