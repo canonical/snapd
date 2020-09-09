@@ -289,7 +289,12 @@ func efiLoadChains(bc bootChain) ([][]bootloader.BootFile, error) {
 	seq0 := make([]bootloader.BootFile, 0, len(bc.AssetChain)+1)
 	seq1 := make([]bootloader.BootFile, 0, len(bc.AssetChain)+1)
 
+	hasDifferentHashes := false
+
 	for _, ba := range bc.AssetChain {
+		if len(ba.Hashes) > 1 {
+			hasDifferentHashes = true
+		}
 		p0, p1, err := cachedAssetPathnames(bc.blName, ba.Name, ba.Hashes)
 		if err != nil {
 			return nil, err
@@ -304,11 +309,12 @@ func efiLoadChains(bc bootChain) ([][]bootloader.BootFile, error) {
 
 	// XXX: we can explode to all possible combinations now, or using load event trees later
 
-	if sequenceEqual(seq0, seq1) {
-		return [][]bootloader.BootFile{seq0}, nil
+	if hasDifferentHashes {
+		return [][]bootloader.BootFile{seq0, seq1}, nil
 	}
 
-	return [][]bootloader.BootFile{seq0, seq1}, nil
+	return [][]bootloader.BootFile{seq0}, nil
+
 }
 
 // cachedAssetPathnames returns the pathnames of the files corresponding
@@ -342,16 +348,4 @@ func cachedAssetPathnames(blName, name string, hashes []string) (current, next s
 		return "", "", fmt.Errorf("invalid number of hashes for asset %s in modeenv", name)
 	}
 	return current, next, nil
-}
-
-func sequenceEqual(a, b []bootloader.BootFile) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
