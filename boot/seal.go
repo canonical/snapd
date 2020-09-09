@@ -155,6 +155,14 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 
 	chains := make([]bootChain, 0, 2)
 	for _, k := range runModeKernels {
+		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
+		if err != nil {
+			return nil, err
+		}
+		var kernelRev string
+		if info.SnapRevision().Store() {
+			kernelRev = info.SnapRevision().String()
+		}
 		chains = append(chains, bootChain{
 			BrandID:        model.BrandID(),
 			Model:          model.Model(),
@@ -162,8 +170,7 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 			ModelSignKeyID: model.SignKeyID(),
 			AssetChain:     assetChain,
 			Kernel:         k,
-			// XXX: obtain revision
-			KernelRevision: "",
+			KernelRevision: kernelRev,
 			KernelCmdlines: []string{cmdline},
 			model:          model,
 			kernelBootFile: bootloader.NewBootFile(k, kbf.Path, kbf.Role),
