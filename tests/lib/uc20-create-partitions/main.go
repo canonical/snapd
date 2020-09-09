@@ -99,6 +99,7 @@ func main() {
 	}
 
 	if args.Encrypt {
+		// TODO:UC20: how realistic should we be here?
 		loadChain := []bootloader.BootFile{
 			// the path to the shim EFI binary
 			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
