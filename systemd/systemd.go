@@ -592,7 +592,12 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-active with GlobalUserMode")
 	}
-	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	} else {
+		_, err = s.systemctl("is-active", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
