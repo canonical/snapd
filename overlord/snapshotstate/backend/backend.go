@@ -33,6 +33,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -163,6 +165,15 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 func Filename(snapshot *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
+}
+
+func setIDFromFilename(f string) (uint64, error) {
+	filename := path.Base(f)
+	parts := strings.Split(filename, "_")
+	if len(parts) != 4 {
+		return 0, fmt.Errorf("filename is in an unexpected format")
+	}
+	return strconv.ParseUint(parts[0], 10, 64)
 }
 
 func snapshotFromFilename(f string) (*client.Snapshot, error) {

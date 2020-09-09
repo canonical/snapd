@@ -120,10 +120,10 @@ func Open(fn string) (reader *Reader, e error) {
 	}
 
 	// we may have an imported snapshot where the meta.json may be from another system
-	if fileSnapshot, err := snapshotFromFilename(fn); err == nil {
-		if reader.SetID != fileSnapshot.SetID {
+	if setID, err := setIDFromFilename(fn); err == nil {
+		if reader.SetID != setID {
 			// imported snapshots have a different set ID than in meta.json, so use the one from the filename
-			reader.SetID = fileSnapshot.SetID
+			reader.SetID = setID
 		}
 	}
 
