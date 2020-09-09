@@ -5382,13 +5382,11 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 	_, _, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
 	if featureFlag && automaticSnapshot {
 		c.Check(snapshotSizeCall, Equals, 2)
-		c.Check(automaticSnapshotCalled, Equals, true)
 		c.Check(checkFreeSpaceCall, Equals, 1)
 	} else {
 		c.Check(checkFreeSpaceCall, Equals, 0)
 		c.Check(snapshotSizeCall, Equals, 0)
 	}
-
 	c.Check(automaticSnapshotCalled, Equals, true)
 
 	return err
