@@ -114,18 +114,10 @@ var (
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 )
 
-func (b *bootChain) SetModel(model *asserts.Model) {
+func (b *bootChain) SetModelAssertion(model *asserts.Model) {
 	b.model = model
-}
-
-func (b *bootChain) GetModel() *asserts.Model {
-	return b.model
 }
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 	b.kernelBootFile = kbf
-}
-
-func (b *bootChain) KernelBootFile() bootloader.BootFile {
-	return b.kernelBootFile
 }
