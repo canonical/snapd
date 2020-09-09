@@ -21,21 +21,38 @@ package boot_test
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sort"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type bootchainSuite struct {
 	testutil.BaseTest
+
+	rootDir string
 }
 
 var _ = Suite(&bootchainSuite{})
 
-func (s *sealSuite) TestBootAssetsSort(c *C) {
+func (s *bootchainSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.rootDir = c.MkDir()
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	dirs.SetRootDir(s.rootDir)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir), 0755), IsNil)
+}
+
+func (s *bootchainSuite) TestBootAssetsSort(c *C) {
 	// by role
 	d := []boot.BootAsset{
 		{Role: "run", Name: "1ist", Hashes: []string{"b", "c"}},
@@ -123,7 +140,7 @@ func (s *sealSuite) TestBootAssetsSort(c *C) {
 
 }
 
-func (s *sealSuite) TestBootAssetsPredictable(c *C) {
+func (s *bootchainSuite) TestBootAssetsPredictable(c *C) {
 	// by role
 	ba := boot.BootAsset{
 		Role: "run", Name: "list", Hashes: []string{"b", "a"},
@@ -145,7 +162,7 @@ func (s *sealSuite) TestBootAssetsPredictable(c *C) {
 	c.Check(baNil, IsNil)
 }
 
-func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
+func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 	pbNil := boot.ToPredictableBootChain(nil)
 	c.Check(pbNil, IsNil)
 
@@ -194,7 +211,7 @@ func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
 	c.Check(sortedBcIdentical, DeepEquals, bcIdenticalAssets)
 }
 
-func (s *sealSuite) TestBootChainMarshalFull(c *C) {
+func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 	bc := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
@@ -253,7 +270,7 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 	})
 }
 
-func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
+func (s *bootchainSuite) TestBootChainEqualForResealComplex(c *C) {
 	bc := []boot.BootChain{
 		{
 			BrandID:        "mybrand",
@@ -293,7 +310,7 @@ func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
 	c.Check(eq, Equals, true, Commentf("not equal\none: %v\nother: %v", pb, pbOther))
 }
 
-func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 	var pbNil boot.PredictableBootChains
 
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbNil, pbNil), Equals, true)
@@ -352,7 +369,7 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbMoreAssets), Equals, true)
 }
 
-func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	// chains will be sorted
 	chains := []boot.BootChain{
 		{
@@ -452,7 +469,7 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	})
 }
 
-func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsFields(c *C) {
 	chainsNil := boot.ToPredictableBootChains(nil)
 	c.Check(chainsNil, IsNil)
 
@@ -722,7 +739,7 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 	c.Check(boot.ToPredictableBootChains(chainsIdenticalAssets), DeepEquals, boot.PredictableBootChains(chainsIdenticalAssets))
 }
 
-func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsSortOrder(c *C) {
 	// check that sort order is model info, assets, kernel, kernel cmdline
 
 	chains := []boot.BootChain{
@@ -986,4 +1003,170 @@ func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
 			KernelCmdline: "cm=2",
 		},
 	})
+}
+
+func printChain(c *C, chain *secboot.LoadChain, prefix string) {
+	c.Logf("%v %v", prefix, chain.BootFile)
+	for _, n := range chain.Next {
+		printChain(c, n, prefix+"-")
+	}
+}
+
+// cPath returns a path under boot assets cache directory
+func cPath(p string) string {
+	return filepath.Join(dirs.SnapBootAssetsDir, p)
+}
+
+// nbf is bootloader.NewBootFile but shorter
+func nbf(snap, path, role string) bootloader.BootFile {
+	return bootloader.NewBootFile(snap, path, bootloader.Role(role))
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainTrivialKernel(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.Role("run"))
+
+	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(chains, DeepEquals, []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run")),
+	})
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.Role("run"))
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0"}, Role: "recovery"},
+		{Name: "loader-recovery", Hashes: []string{"hash0"}, Role: "recovery"},
+		{Name: "loader-run", Hashes: []string{"hash0"}, Role: "run"},
+	}
+
+	blNames := map[string]string{
+		"recovery": "recovery-bl",
+		// missing bootloader name for role "run"
+	}
+	// fails when probing the shim asset in the cache
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in assets cache")
+	c.Check(chains, IsNil)
+	// make it work now
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
+
+	// nested error bubbled up
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in assets cache")
+	c.Check(chains, IsNil)
+	// again, make it work
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
+
+	// fails on missing bootloader name for role "run"
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, `internal error: no bootloader name for asset role "run"`)
+	c.Check(chains, IsNil)
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.Role("run"))
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0"}, Role: "recovery"},
+		{Name: "loader-recovery", Hashes: []string{"hash0"}, Role: "recovery"},
+		{Name: "loader-run", Hashes: []string{"hash0"}, Role: "run"},
+	}
+
+	// mock relevant files in cache
+	for _, name := range []string{
+		"recovery-bl/shim-hash0",
+		"recovery-bl/loader-recovery-hash0",
+		"run-bl/loader-run-hash0",
+	} {
+		p := filepath.Join(dirs.SnapBootAssetsDir, name)
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+	}
+
+	blNames := map[string]string{
+		"recovery": "recovery-bl",
+		"run":      "run-bl",
+	}
+
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, IsNil)
+
+	c.Logf("got:")
+	for _, ch := range chains {
+		printChain(c, ch, "-")
+	}
+
+	expected := []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash0"), "recovery"),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), "recovery"),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))))),
+	}
+	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.Role("run"))
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0", "hash1"}, Role: "recovery"},
+		{Name: "loader-recovery", Hashes: []string{"hash0", "hash1"}, Role: "recovery"},
+		{Name: "loader-run", Hashes: []string{"hash0", "hash1"}, Role: "run"},
+	}
+
+	// mock relevant files in cache
+	for _, name := range []string{
+		"recovery-bl/shim-hash0", "recovery-bl/shim-hash1",
+		"recovery-bl/loader-recovery-hash0",
+		"recovery-bl/loader-recovery-hash1",
+		"run-bl/loader-run-hash0",
+		"run-bl/loader-run-hash1",
+	} {
+		p := filepath.Join(dirs.SnapBootAssetsDir, name)
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+	}
+
+	blNames := map[string]string{
+		"recovery": "recovery-bl",
+		"run":      "run-bl",
+	}
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, IsNil)
+
+	c.Logf("got:")
+	for _, ch := range chains {
+		printChain(c, ch, "-")
+	}
+
+	expected := []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash0"), "recovery"),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), "recovery"),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run")))),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), "recovery"),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))))),
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash1"), "recovery"),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), "recovery"),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run")))),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), "recovery"),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), "run"),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", "run"))))),
+	}
+	c.Check(chains, DeepEquals, expected)
 }

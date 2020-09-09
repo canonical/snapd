@@ -49,16 +49,16 @@ func newTrustedAssetsCache(cacheDir string) *trustedAssetsCache {
 	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA3_384}
 }
 
-func (c *trustedAssetsCache) assetKey(blName, assetName, assetHash string) string {
-	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
-}
-
 func (c *trustedAssetsCache) tempAssetKey(blName, assetName string) string {
 	return filepath.Join(blName, assetName+".temp")
 }
 
 func (c *trustedAssetsCache) pathInCache(part string) string {
 	return filepath.Join(c.cacheDir, part)
+}
+
+func trustedAssetCacheKey(blName, assetName, assetHash string) string {
+	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
 }
 
 // fileHash calculates the hash of an arbitrary file using the same hash method
@@ -101,7 +101,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 		return nil, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
 	}
 	hashStr := hex.EncodeToString(h.Sum(nil))
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheKey(blName, assetName, hashStr)
 
 	ta := &trackedAsset{
 		blName: blName,
@@ -122,7 +122,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 }
 
 func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheKey(blName, assetName, hashStr)
 	if err := os.Remove(c.pathInCache(cacheKey)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
