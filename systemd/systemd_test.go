@@ -386,6 +386,12 @@ func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
+	err := New(SystemMode, s.rep).Disable("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
@@ -433,19 +439,38 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	})
 }
 
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
+	err := New(SystemMode, s.rep).Enable("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestMask(c *C) {
+	err := New(SystemMode, s.rep).Mask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"mask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestMaskUnderRoot(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Mask("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "mask", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestUnmask(c *C) {
+	err := New(SystemMode, s.rep).Unmask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"unmask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Unmask("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
@@ -751,6 +776,19 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
 }
 
+func (s *SystemdTestSuite) TestIsActiveUnderRoot(c *C) {
+	sysErr := &Error{}
+	// manpage states that systemctl returns exit code 3 for inactive
+	// services, however we should check any non-0 exit status
+	sysErr.SetExitCode(1)
+	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	_, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
 func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr := &Error{}
 	// manpage states that systemctl returns exit code 3 for inactive
@@ -759,10 +797,10 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr.SetMsg([]byte("inactive\n"))
 	s.errors = []error{sysErr}
 
-	active, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
+	active, err := New(SystemMode, s.rep).IsActive("foo")
 	c.Assert(active, Equals, false)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
@@ -772,19 +810,19 @@ func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
 	sysErr.SetMsg([]byte("failed\n"))
 	s.errors = []error{sysErr}
 
-	active, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
+	active, err := New(SystemMode, s.rep).IsActive("foo")
 	c.Assert(active, Equals, false)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
 	s.errors = []error{nil}
 
-	active, err := NewUnderRoot("xyzzy", SystemMode, s.rep).IsActive("foo")
+	active, err := New(SystemMode, s.rep).IsActive("foo")
 	c.Assert(active, Equals, true)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
