@@ -666,6 +666,8 @@ nested_start_core_vm_unit() {
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
 
+    # ensure we have a log dir
+    mkdir -p "$NESTED_LOGS_DIR"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
@@ -847,6 +849,9 @@ nested_start_classic_vm() {
     PARAM_BIOS=""
     PARAM_TPM=""
 
+    # ensure we have a log dir
+    mkdir -p "$NESTED_LOGS_DIR"
+    # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
