@@ -2110,13 +2110,6 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
 		}
-		if _, ok := err.(*InsufficientSpaceError); ok {
-			return nil, nil, &InsufficientSpaceError{
-				Path:       path,
-				Snaps:      names,
-				ChangeKind: "remove",
-			}
-		}
 		if err != nil {
 			return nil, nil, err
 		}
