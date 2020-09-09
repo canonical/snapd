@@ -1890,7 +1890,21 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
-	ts, _, err := removeTasks(st, name, revision, flags)
+	ts, snapshotSize, err := removeTasks(st, name, revision, flags)
+	if snapshotSize > 0 {
+		requiredSpace := safetyMarginDiskSpace(snapshotSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      []string{name},
+					ChangeKind: "remove",
+					Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+			}
+			return nil, err
+		}
+	}
 	return ts, err
 }
 
@@ -2016,18 +2030,6 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 					if err != nil {
 						return nil, 0, err
 					}
-					requiredSpace := safetyMarginDiskSpace(snapshotSize)
-					path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-					if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-							return nil, 0, &InsufficientSpaceError{
-								Path:       path,
-								Snaps:      []string{name},
-								ChangeKind: "remove",
-								Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
-						}
-						return nil, 0, err
-					}
 				}
 				addNext(ts)
 			} else {
@@ -2125,7 +2127,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 		tasksets = append(tasksets, ts)
 	}
 
-	// remove() checks check-disk-space-remove feature flag, so totalSnapshotsSize
+	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
 	// will only be greater than 0 if the feature is enabled.
 	if totalSnapshotsSize > 0 {
 		requiredSpace := safetyMarginDiskSpace(totalSnapshotsSize)

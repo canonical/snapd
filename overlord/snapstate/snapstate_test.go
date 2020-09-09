@@ -5314,7 +5314,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, automaticSnapshot bool, failingDiskSizeCheck int) error {
+func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, automaticSnapshot, freeSpaceCheckFail bool) error {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5337,20 +5337,9 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, required uint64) error {
 		checkFreeSpaceCall++
-		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-		// we expect three disk checks - when removing individual snaps, and one
-		// that checks sum of their snapshots sizes.
-		switch checkFreeSpaceCall {
-		case 1:
-			c.Check(required, Equals, snapstate.SafetyMarginDiskSpace(10))
-		case 2:
-			c.Check(required, Equals, snapstate.SafetyMarginDiskSpace(20))
-		case 3:
-			c.Check(required, Equals, snapstate.SafetyMarginDiskSpace(30))
-		default:
-			c.Fatalf("unexpected osutil.CheckFreeSpace call")
-		}
-		if failingDiskSizeCheck == checkFreeSpaceCall {
+		// required size is the sum of snapshot sizes of test snaps
+		c.Check(required, Equals, snapstate.SafetyMarginDiskSpace(30))
+		if freeSpaceCheckFail {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
 		return nil
@@ -5391,11 +5380,10 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 	})
 
 	_, _, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
-
 	if featureFlag && automaticSnapshot {
-		c.Check(checkFreeSpaceCall, Equals, failingDiskSizeCheck)
 		c.Check(snapshotSizeCall, Equals, 2)
 		c.Check(automaticSnapshotCalled, Equals, true)
+		c.Check(checkFreeSpaceCall, Equals, 1)
 	} else {
 		c.Check(checkFreeSpaceCall, Equals, 0)
 		c.Check(snapshotSizeCall, Equals, 0)
@@ -5409,8 +5397,8 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceError(c *C) {
 	featureFlag := true
 	automaticSnapshot := true
-	failingDiskCheck := 3
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, failingDiskCheck)
+	freeSpaceCheckFail := true
+	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -5421,29 +5409,25 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceError(c *C) {
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckDisabled(c *C) {
 	featureFlag := false
 	automaticSnapshot := true
-	failingDiskCheck := 3
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, failingDiskCheck)
+	freeSpaceCheckFail := true
+	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceSnapshotDisabled(c *C) {
 	featureFlag := true
 	automaticSnapshot := false
-	failingDiskCheck := 3
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, failingDiskCheck)
+	freeSpaceCheckFail := true
+	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceErrorOnSecondSnap(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	featureFlag := true
 	automaticSnapshot := true
-	failingDiskCheck := 2
-	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, failingDiskCheck)
-
-	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
-	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
-	c.Check(diskSpaceErr.ChangeKind, Equals, "remove")
+	freeSpaceCheckFail := false
+	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
+	c.Check(err, IsNil)
 }
 
 func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
