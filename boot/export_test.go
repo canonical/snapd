@@ -99,3 +99,15 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 		o.seedChangedAssets = append(o.seedChangedAssets, ta)
 	}
 }
+
+type BootAsset = bootAsset
+type BootChain = bootChain
+type ByBootAssetOrder = byBootAssetOrder
+type PredictableBootChains = predictableBootChains
+
+var (
+	ToPredictableBootAsset              = toPredictableBootAsset
+	ToPredictableBootChain              = toPredictableBootChain
+	ToPredictableBootChains             = toPredictableBootChains
+	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
+)
