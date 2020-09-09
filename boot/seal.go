@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -39,6 +38,10 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
+var (
+	roleToBlName = map[bootloader.Role]string{}
+)
+
 // sealKeyToModeenv seals the supplied key to the parameters specified
 // in modeenv.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -49,6 +52,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
+	roleToBlName[bootloader.RoleRecovery] = rbl.Name()
 
 	recoveryBootChain, err := buildRecoveryBootChain(rbl, model, modeenv)
 	if err != nil {
@@ -63,6 +67,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
+	roleToBlName[bootloader.RoleRunMode] = bl.Name()
 
 	runModeBootChains, err := buildRunModeBootChains(rbl, bl, model, modeenv)
 	if err != nil {
@@ -123,9 +128,8 @@ func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, mod
 		AssetChain:     assetChain,
 		Kernel:         seedKernel.Path,
 		KernelRevision: kernelRev,
-		KernelCmdline:  cmdline,
+		KernelCmdlines: []string{cmdline},
 		model:          model,
-		blName:         rbl.Name(),
 		kernelBootFile: bootloader.NewBootFile(seedKernel.Path, kbf.Path, kbf.Role),
 	}, nil
 }
@@ -160,9 +164,8 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 			Kernel:         k,
 			// XXX: obtain revision
 			KernelRevision: "",
-			KernelCmdline:  cmdline,
+			KernelCmdlines: []string{cmdline},
 			model:          model,
-			blName:         rbl.Name(),
 			kernelBootFile: bootloader.NewBootFile(k, kbf.Path, kbf.Role),
 		})
 	}
@@ -192,7 +195,7 @@ func buildRecoveryAssetChain(rbl bootloader.Bootloader, modeenv *Modeenv) (asset
 			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
-			Role:   string(recoveryBootChain[i].Role),
+			Role:   recoveryBootChain[i].Role,
 			Name:   name,
 			Hashes: hashes,
 		}
@@ -236,7 +239,7 @@ func buildRunModeAssetChain(rbl, bl bootloader.Bootloader, modeenv *Modeenv) (as
 			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
-			Role:   string(runModeBootChain[i].Role),
+			Role:   runModeBootChain[i].Role,
 			Name:   name,
 			Hashes: hashes,
 		}
@@ -263,14 +266,14 @@ func runModeKernelsFromModeenv(modeenv *Modeenv) ([]string, error) {
 func sealKeyParams(pbc predictableBootChains) (*secboot.SealKeyParams, error) {
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
 	for _, bc := range pbc {
-		loadChains, err := efiLoadChains(bc)
+		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
 		if err != nil {
-			return nil, fmt.Errorf("error building EFI load chains: %s", err)
+			return nil, fmt.Errorf("error building load chains: %s", err)
 		}
 
 		modelParams = append(modelParams, &secboot.SealKeyModelParams{
 			Model:          bc.model,
-			KernelCmdlines: []string{bc.KernelCmdline},
+			KernelCmdlines: bc.KernelCmdlines,
 			EFILoadChains:  loadChains,
 		})
 	}
@@ -283,69 +286,4 @@ func sealKeyParams(pbc predictableBootChains) (*secboot.SealKeyParams, error) {
 	}
 
 	return sealKeyParams, nil
-}
-
-func efiLoadChains(bc bootChain) ([][]bootloader.BootFile, error) {
-	seq0 := make([]bootloader.BootFile, 0, len(bc.AssetChain)+1)
-	seq1 := make([]bootloader.BootFile, 0, len(bc.AssetChain)+1)
-
-	hasDifferentHashes := false
-
-	for _, ba := range bc.AssetChain {
-		if len(ba.Hashes) > 1 {
-			hasDifferentHashes = true
-		}
-		p0, p1, err := cachedAssetPathnames(bc.blName, ba.Name, ba.Hashes)
-		if err != nil {
-			return nil, err
-		}
-		seq0 = append(seq0, bootloader.NewBootFile("", p0, bootloader.Role(ba.Role)))
-		seq1 = append(seq1, bootloader.NewBootFile("", p1, bootloader.Role(ba.Role)))
-	}
-
-	// add kernel
-	seq0 = append(seq0, bc.kernelBootFile)
-	seq1 = append(seq1, bc.kernelBootFile)
-
-	// XXX: we can explode to all possible combinations now, or using load event trees later
-
-	if hasDifferentHashes {
-		return [][]bootloader.BootFile{seq0, seq1}, nil
-	}
-
-	return [][]bootloader.BootFile{seq0}, nil
-
-}
-
-// cachedAssetPathnames returns the pathnames of the files corresponding
-// to the current and next instances of a given boot asset.
-func cachedAssetPathnames(blName, name string, hashes []string) (current, next string, err error) {
-	cacheEntry := func(hash string) (string, error) {
-		p := filepath.Join(dirs.SnapBootAssetsDir, blName, fmt.Sprintf("%s-%s", name, hash))
-		if !osutil.FileExists(p) {
-			return "", fmt.Errorf("file %s not found in assets cache", p)
-		}
-		return p, nil
-	}
-
-	switch len(hashes) {
-	case 1:
-		current, err = cacheEntry(hashes[0])
-		if err != nil {
-			return "", "", err
-		}
-		next = current
-	case 2:
-		current, err = cacheEntry(hashes[0])
-		if err != nil {
-			return "", "", err
-		}
-		next, err = cacheEntry(hashes[1])
-		if err != nil {
-			return "", "", err
-		}
-	default:
-		return "", "", fmt.Errorf("invalid number of hashes for asset %s in modeenv", name)
-	}
-	return current, next, nil
 }
