@@ -60,6 +60,7 @@ var (
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 	SealKeyToModeenv                = sealKeyToModeenv
+	BuildRecoveryBootChain          = buildRecoveryBootChain
 )
 
 type BootAssetsMap = bootAssetsMap
