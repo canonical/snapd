@@ -115,27 +115,32 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			sealKeyCalls++
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 2)
-			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
-			bfs := bootFiles(c, params.ModelParams[0].EFILoadChains)
-			c.Assert(bfs, DeepEquals, []bootloader.BootFile{
-				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
+			// recovery parameters
+			shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			})
-			bfs = bootFiles(c, params.ModelParams[1].EFILoadChains)
-			c.Assert(bfs, DeepEquals, []bootloader.BootFile{
-				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode),
-				bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode),
+			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+
+			// run mode parameters
+			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
+			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+
+			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 			})
 			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
+			c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+
 			return tc.sealErr
 		})
 		defer restore()
@@ -148,23 +153,6 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
 	}
-}
-
-// TODO:UC20: stop uisng this and switch to check actual trees when
-// that makes sense
-func bootFiles(c *C, chains []*secboot.LoadChain) (bfs []bootloader.BootFile) {
-	for {
-		c.Assert(chains, HasLen, 1)
-		chain := chains[0]
-
-		bfs = append(bfs, *chain.BootFile)
-
-		if len(chain.Next) == 0 {
-			break
-		}
-		chains = chain.Next
-	}
-	return bfs
 }
 
 func createMockGrubCfg(baseDir string) error {
