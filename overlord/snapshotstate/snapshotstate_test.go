@@ -1084,7 +1084,6 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -1121,6 +1120,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	c.Assert(o.Settle(5*time.Second), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.NotNil)
+	defer st.Unlock()
 
 	tasks := change.Tasks()
 	c.Check(tasks, check.HasLen, 3)
