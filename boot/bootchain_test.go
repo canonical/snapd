@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -212,9 +213,12 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 		KernelCmdline:  `foo=bar baz=0x123`,
 	}
 
-	predictableBc := boot.ToPredictableBootChain(bc)
+	uc20model := makeMockUC20Model()
+	bc.SetModel(uc20model)
+	kernelBootFile := bootloader.NewBootFile("pc-kernel", "/foo", "recovery")
+	bc.SetKernelBootFile(kernelBootFile)
 
-	c.Check(predictableBc, DeepEquals, &boot.BootChain{
+	expectedPredictableBc := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
 		Grade:          "dangerous",
@@ -229,13 +233,19 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
 		KernelCmdline:  `foo=bar baz=0x123`,
-	})
+	}
+	// those can't be set directly, but are copied as well
+	expectedPredictableBc.SetModel(uc20model)
+	expectedPredictableBc.SetKernelBootFile(kernelBootFile)
+
+	predictableBc := boot.ToPredictableBootChain(bc)
+	c.Check(predictableBc, DeepEquals, expectedPredictableBc)
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
 	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"loader","hashes":["d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdline":"foo=bar baz=0x123"}`)
-	// original structure has not been modified
-	c.Check(bc, DeepEquals, &boot.BootChain{
+
+	expectedOriginal := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
 		Grade:          "dangerous",
@@ -250,7 +260,11 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
 		KernelCmdline:  `foo=bar baz=0x123`,
-	})
+	}
+	expectedOriginal.SetModel(uc20model)
+	expectedOriginal.SetKernelBootFile(kernelBootFile)
+	// original structure has not been modified
+	c.Check(bc, DeepEquals, expectedOriginal)
 }
 
 func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {

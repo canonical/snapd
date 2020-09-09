@@ -22,6 +22,8 @@ package boot
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -111,3 +113,19 @@ var (
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 )
+
+func (b *bootChain) SetModel(model *asserts.Model) {
+	b.model = model
+}
+
+func (b *bootChain) GetModel() *asserts.Model {
+	return b.model
+}
+
+func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
+	b.kernelBootFile = kbf
+}
+
+func (b *bootChain) KernelBootFile() bootloader.BootFile {
+	return b.kernelBootFile
+}
