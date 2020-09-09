@@ -91,9 +91,9 @@ var featureNames = map[SnapdFeature]string{
 
 	HiddenSnapFolder: "hidden-snap-folder",
 
-	CheckDiskSpaceRemove:  "check-disk-space-remove",
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
+	CheckDiskSpaceRemove:  "check-disk-space-remove",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
