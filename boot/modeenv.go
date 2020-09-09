@@ -39,17 +39,26 @@ type bootAssetsMap map[string][]string
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                             string
-	RecoverySystem                   string
-	CurrentRecoverySystems           []string
-	Base                             string
-	TryBase                          string
-	BaseStatus                       string
-	CurrentKernels                   []string
-	Model                            string
-	BrandID                          string
-	Grade                            string
-	CurrentTrustedBootAssets         bootAssetsMap
+	Mode                   string
+	RecoverySystem         string
+	CurrentRecoverySystems []string
+	Base                   string
+	TryBase                string
+	BaseStatus             string
+	CurrentKernels         []string
+	Model                  string
+	BrandID                string
+	Grade                  string
+	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
+	// a list of hashes of the asset contents. Typically the first entry in
+	// the list is a hash of an asset the system currently boots with (or is
+	// expected to have booted with). The second entry, if present, is the
+	// hash of an entry added when an update of the asset was being applied
+	// and will become the sole entry after a successful boot.
+	CurrentTrustedBootAssets bootAssetsMap
+	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
+	// asset names to a list of hashes of the asset contents. Used similarly
+	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap
 
 	// read is set to true when a modenv was read successfully
