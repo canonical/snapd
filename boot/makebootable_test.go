@@ -444,14 +444,13 @@ version: 5.0
 		c.Check(key, DeepEquals, myKey)
 		c.Assert(params.ModelParams, HasLen, 1)
 		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
+		bfs := bootFiles(c, params.ModelParams[0].EFILoadChains)
+		c.Assert(bfs, DeepEquals, []bootloader.BootFile{
 			// run mode load sequence
-			{
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
-			},
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
 		})
 		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
@@ -730,14 +729,13 @@ version: 5.0
 		c.Check(key, DeepEquals, myKey)
 		c.Assert(params.ModelParams, HasLen, 1)
 		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, [][]bootloader.BootFile{
+		bfs := bootFiles(c, params.ModelParams[0].EFILoadChains)
+		c.Assert(bfs, DeepEquals, []bootloader.BootFile{
 			// run mode load sequence
-			{
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-				bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
-			},
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+			bootloader.NewBootFile("", filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"), bootloader.RoleRunMode),
 		})
 		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",

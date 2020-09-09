@@ -29,11 +29,26 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 )
 
+type LoadChain struct {
+	*bootloader.BootFile
+	Next []*LoadChain
+}
+
+// NewLoadChain returns a LoadChain corresponding to loading the given
+// BootFile before any of the given next chains.
+func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
+	return &LoadChain{
+		BootFile: &bf,
+		Next:     next,
+	}
+}
+
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
-	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]bootloader.BootFile
+	// The set of EFI binary load chains for the current device
+	// configuration
+	EFILoadChains []*LoadChain
 	// The kernel command line
 	KernelCmdlines []string
 }
