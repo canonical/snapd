@@ -56,8 +56,9 @@ execute: |
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
 
-    # remove the exports
+    # remove the exports and import
     rm "${SET_ID}"_export*.snapshot
+    snap forget "$RESTORE_ID"
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
