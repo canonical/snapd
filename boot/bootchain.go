@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -42,8 +43,11 @@ type bootChain struct {
 	Kernel         string      `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
-	KernelRevision string `json:"kernel-revision"`
-	KernelCmdline  string `json:"kernel-cmdline"`
+	KernelRevision string   `json:"kernel-revision"`
+	KernelCmdlines []string `json:"kernel-cmdlines"`
+
+	model          *asserts.Model
+	kernelBootFile bootloader.BootFile
 }
 
 // TODO:UC20 add a doc comment when this is stabilized
@@ -63,15 +67,27 @@ func bootAssetLess(b, other *bootAsset) bool {
 	if b.Name != other.Name {
 		return byName
 	}
-	return hashListsLess(b.Hashes, other.Hashes)
+	return stringListsLess(b.Hashes, other.Hashes)
 }
 
-func hashListsLess(h1, h2 []string) bool {
-	if len(h1) != len(h2) {
-		return len(h1) < len(h2)
+func stringListsEqual(sl1, sl2 []string) bool {
+	if len(sl1) != len(sl2) {
+		return false
 	}
-	for idx := range h1 {
-		if h1[idx] < h2[idx] {
+	for i := range sl1 {
+		if sl1[i] != sl2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stringListsLess(sl1, sl2 []string) bool {
+	if len(sl1) != len(sl2) {
+		return len(sl1) < len(sl2)
+	}
+	for idx := range sl1 {
+		if sl1[idx] < sl2[idx] {
 			return true
 		}
 	}
@@ -110,6 +126,11 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
 		}
 		sort.Sort(byBootAssetOrder(newB.AssetChain))
+	}
+	if b.KernelCmdlines != nil {
+		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
+		copy(newB.KernelCmdlines, b.KernelCmdlines)
+		sort.Strings(newB.KernelCmdlines)
 	}
 	return &newB
 }
@@ -168,8 +189,8 @@ func (b byBootChainOrder) Less(i, j int) bool {
 		return b[i].KernelRevision < b[j].KernelRevision
 	}
 	// and last kernel command line
-	if b[i].KernelCmdline != b[j].KernelCmdline {
-		return b[i].KernelCmdline < b[j].KernelCmdline
+	if !stringListsEqual(b[i].KernelCmdlines, b[j].KernelCmdlines) {
+		return stringListsLess(b[i].KernelCmdlines, b[j].KernelCmdlines)
 	}
 	return false
 }
