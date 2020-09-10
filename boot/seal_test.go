@@ -156,7 +156,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}
 }
 
-func (s *sealSuite) TestRecoveryBootChain(c *C) {
+func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 	// TODO:UC20: make the test support multiple recovery systems
 
 	for _, tc := range []struct {
