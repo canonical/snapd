@@ -110,17 +110,17 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
-		"vhost":        true,
-		"vhost-net":    true,
-		"vhost-scsi":   true,
-		"vhost-vsock":  true,
-		"pci-stub":     true,
-		"vfio":         true,
-		"nbd":          true,
-		"dm-mod":       true,
-		"dm-thin-pool": true,
-		"dm-snapshot":  true,
-		"iscsi-tcp":    true,
+		"vhost":           true,
+		"vhost-net":       true,
+		"vhost-scsi":      true,
+		"vhost-vsock":     true,
+		"pci-stub":        true,
+		"vfio":            true,
+		"nbd":             true,
+		"dm-mod":          true,
+		"dm-thin-pool":    true,
+		"dm-snapshot":     true,
+		"iscsi-tcp":       true,
 		"target-core-mod": true,
 	})
 }
