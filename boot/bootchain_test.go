@@ -96,11 +96,10 @@ func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 
 	bc := &boot.BootChain{
 		AssetChain: []boot.BootAsset{
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"e", "d"}},
 			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"d", "c"}},
 			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"e", "d"}},
-			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"e", "d"}},
 			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"z", "x"}},
 		},
 	}
@@ -111,11 +110,10 @@ func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 		// assets not reordered
 		AssetChain: []boot.BootAsset{
 			// hash lists are sorted
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
 			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
-			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
 			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
 		},
 	})
@@ -427,6 +425,25 @@ func (s *bootchainSuite) TestPredictableBootChainsFields(c *C) {
 		}, {
 			Grade:  "dangerous",
 			Kernel: "foo",
+		},
+	})
+
+	chainsKernelRevision := []boot.BootChain{
+		{
+			Kernel:         "foo",
+			KernelRevision: "9",
+		}, {
+			Kernel:         "foo",
+			KernelRevision: "21",
+		},
+	}
+	c.Check(boot.ToPredictableBootChains(chainsKernelRevision), DeepEquals, boot.PredictableBootChains{
+		{
+			Kernel:         "foo",
+			KernelRevision: "21",
+		}, {
+			Kernel:         "foo",
+			KernelRevision: "9",
 		},
 	})
 
