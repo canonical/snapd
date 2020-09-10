@@ -112,7 +112,7 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
 
-	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
+	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, rbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot build recovery boot chain: %v", err)
 	}

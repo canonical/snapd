@@ -175,7 +175,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		c.Assert(err, IsNil)
 
 		modeenv := &boot.Modeenv{
-			RecoverySystem: "20200825",
+			CurrentRecoverySystems: []string{"20200825"},
 			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1", "shim-hash-2"},
@@ -244,6 +244,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
 			runGrub2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), bootloader.RoleRunMode)
 			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+			runKernel2 := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
 
 			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub,
@@ -259,6 +260,17 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 			c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+
+			c.Assert(params.ModelParams[2].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub,
+					secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel2)),
+					secboot.NewLoadChain(runGrub2, secboot.NewLoadChain(runKernel2)),
+				)),
+				secboot.NewLoadChain(shim2, secboot.NewLoadChain(grub,
+					secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel2)),
+					secboot.NewLoadChain(runGrub2, secboot.NewLoadChain(runKernel2)),
+				)),
+			})
 
 			return tc.resealErr
 		})
