@@ -26,19 +26,37 @@ package secboot
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 )
+
+type LoadChain struct {
+	*bootloader.BootFile
+	// Next is a list of alternative chains that can be loaded
+	// following the boot file.
+	Next []*LoadChain
+}
+
+// NewLoadChain returns a LoadChain corresponding to loading the given
+// BootFile before any of the given next chains.
+func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
+	return &LoadChain{
+		BootFile: &bf,
+		Next:     next,
+	}
+}
 
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
-	// The set of EFI binary load paths for the current device configuration
-	EFILoadChains [][]string
+	// The set of EFI binary load chains for the current device
+	// configuration
+	EFILoadChains []*LoadChain
 	// The kernel command line
 	KernelCmdlines []string
 }
 
 type SealKeyParams struct {
-	// The snap model
+	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
 	// The path to store the sealed key file
 	KeyFile string

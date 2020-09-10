@@ -34,7 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -237,7 +237,7 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
-	// restore := disks.MockMountPointDisksToPartionMapping()
+	// restore := disks.MockMountPointDisksToPartitionMapping()
 	// defer restore()
 
 	mockDiskWithEncDev := &disks.MockDiskMapping{
@@ -415,7 +415,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, devicePath)
-			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
+			c.Assert(keyPath, Equals, filepath.Join("encrypt-key-dir", "name.sealed-key"))
 			c.Assert(*options, DeepEquals, sb.ActivateWithTPMSealedKeyOptions{
 				PINTries:            1,
 				RecoveryKeyTries:    3,
@@ -434,7 +434,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", boot.InitramfsEncryptionKeyDir, tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
@@ -458,6 +458,58 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
+	tmpDir := c.MkDir()
+
+	// set up some test files
+	existingFile := filepath.Join(tmpDir, "foo")
+	err := ioutil.WriteFile(existingFile, nil, 0644)
+	c.Assert(err, IsNil)
+	missingFile := filepath.Join(tmpDir, "bar")
+	snapFile := filepath.Join(tmpDir, "test.snap")
+	snapf, err := createMockSnapFile(c.MkDir(), snapFile, "app")
+
+	for _, tc := range []struct {
+		bootFile bootloader.BootFile
+		efiImage sb.EFIImage
+		err      string
+	}{
+		{
+			// happy case for EFI image
+			bootFile: bootloader.NewBootFile("", existingFile, bootloader.RoleRecovery),
+			efiImage: sb.FileEFIImage(existingFile),
+		},
+		{
+			// missing EFI image
+			bootFile: bootloader.NewBootFile("", missingFile, bootloader.RoleRecovery),
+			err:      fmt.Sprintf("file %s/bar does not exist", tmpDir),
+		},
+		{
+			// happy case for snap file
+			bootFile: bootloader.NewBootFile(snapFile, "rel", bootloader.RoleRecovery),
+			efiImage: sb.SnapFileEFIImage{Container: snapf, Path: snapFile, FileName: "rel"},
+		},
+		{
+			// invalid snap file
+			bootFile: bootloader.NewBootFile(existingFile, "rel", bootloader.RoleRecovery),
+			err:      fmt.Sprintf(`"%s/foo" is not a snap or snapdir`, tmpDir),
+		},
+		{
+			// missing snap file
+			bootFile: bootloader.NewBootFile(missingFile, "rel", bootloader.RoleRecovery),
+			err:      fmt.Sprintf(`"%s/bar" is not a snap or snapdir`, tmpDir),
+		},
+	} {
+		o, err := secboot.EFIImageFromBootFile(&tc.bootFile)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Assert(o, DeepEquals, tc.efiImage)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
@@ -477,7 +529,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
-		{tpmEnabled: true, missingFile: true, expectedErr: "file /does/not/exist does not exist"},
+		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file /does/not/exist does not exist"},
 		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/kernel.snap" is not a snap or snapdir`},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
@@ -487,48 +539,54 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
 	} {
 		tmpDir := c.MkDir()
-		var mockEFI []string
+		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
 			mockFileName := filepath.Join(tmpDir, name)
 			err := ioutil.WriteFile(mockFileName, nil, 0644)
 			c.Assert(err, IsNil)
-			mockEFI = append(mockEFI, mockFileName)
+			mockBF = append(mockBF, bootloader.NewBootFile("", mockFileName, bootloader.RoleRecovery))
 		}
 
 		if tc.missingFile {
-			mockEFI[0] = "/does/not/exist"
+			mockBF[0].Path = "/does/not/exist"
 		}
 
-		// create a snap file
-		snapPath := filepath.Join(tmpDir, "kernel.snap")
 		var kernelSnap snap.Container
+		snapPath := filepath.Join(tmpDir, "kernel.snap")
 		if tc.badSnapFile {
 			err := ioutil.WriteFile(snapPath, nil, 0644)
 			c.Assert(err, IsNil)
 		} else {
-			kernelDir := c.MkDir()
-			snapYamlPath := filepath.Join(kernelDir, "meta/snap.yaml")
-			err := os.MkdirAll(filepath.Dir(snapYamlPath), 0755)
-			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(snapYamlPath, []byte("name: kernel"), 0644)
-			c.Assert(err, IsNil)
-			sqfs := squashfs.New(snapPath)
-			err = sqfs.Build(kernelDir, &squashfs.BuildOpts{SnapType: "kernel"})
-			c.Assert(err, IsNil)
-			kernelSnap, err = snapfile.Open(snapPath)
+			var err error
+			kernelSnap, err = createMockSnapFile(c.MkDir(), snapPath, "kernel")
 			c.Assert(err, IsNil)
 		}
-		mockEFI = append(mockEFI, snapPath)
+
+		mockBF = append(mockBF, bootloader.NewBootFile(snapPath, "kernel.efi", bootloader.RoleRecovery))
 
 		myParams := secboot.SealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
-					EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
+					EFILoadChains: []*secboot.LoadChain{
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[4])),
+					},
 					KernelCmdlines: []string{"cmdline1"},
 					Model:          &asserts.Model{},
 				},
 				{
-					EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
+					EFILoadChains: []*secboot.LoadChain{
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
+						secboot.NewLoadChain(mockBF[1],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
+					},
 					KernelCmdlines: []string{"cmdline2", "cmdline3"},
 					Model:          &asserts.Model{},
 				},
@@ -543,61 +601,72 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			myKey[i] = byte(i)
 		}
 
+		// events for
+		// a -> kernel
 		sequences1 := []*sb.EFIImageLoadEvent{
 			{
 				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[0]),
+				Image:  sb.FileEFIImage(mockBF[0].Path),
 				Next: []*sb.EFIImageLoadEvent{
 					{
 						Source: sb.Shim,
-						Image:  sb.FileEFIImage(mockEFI[1]),
-						Next: []*sb.EFIImageLoadEvent{
-							{
-								Source: sb.Shim,
-								Image:  sb.FileEFIImage(mockEFI[2]),
-								Next: []*sb.EFIImageLoadEvent{
-									{
-										Source: sb.Shim,
-										Image:  sb.FileEFIImage(mockEFI[3]),
-									},
-								},
-							},
+						Image: sb.SnapFileEFIImage{
+							Container: kernelSnap,
+							Path:      mockBF[4].Snap,
+							FileName:  "kernel.efi",
 						},
 					},
 				},
 			},
 		}
 
-		sequences2 := []*sb.EFIImageLoadEvent{
+		// "cdk" events for
+		// c -> kernel OR
+		// d -> kernel
+		cdk := []*sb.EFIImageLoadEvent{
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[0]),
-				Next: []*sb.EFIImageLoadEvent{
-					{
-						Source: sb.Shim,
-						Image:  sb.FileEFIImage(mockEFI[1]),
-						Next: []*sb.EFIImageLoadEvent{
-							{
-								Source: sb.Shim,
-								Image:  sb.FileEFIImage(mockEFI[2]),
-							},
-						},
-					},
-				},
-			},
-			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[3]),
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(mockBF[2].Path),
 				Next: []*sb.EFIImageLoadEvent{
 					{
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockEFI[4],
+							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
 				},
+			},
+			{
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(mockBF[3].Path),
+				Next: []*sb.EFIImageLoadEvent{
+					{
+						Source: sb.Shim,
+						Image: sb.SnapFileEFIImage{
+							Container: kernelSnap,
+							Path:      mockBF[4].Snap,
+							FileName:  "kernel.efi",
+						},
+					},
+				},
+			},
+		}
+
+		// events for
+		// a -> "cdk"
+		// b -> "cdk"
+		sequences2 := []*sb.EFIImageLoadEvent{
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockBF[0].Path),
+				Next:   cdk,
+			},
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockBF[1].Path),
+				Next:   cdk,
 			},
 		}
 
@@ -716,6 +785,21 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 
 	err := secboot.SealKey(myKey, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
+}
+
+func createMockSnapFile(snapDir, snapPath, snapType string) (snap.Container, error) {
+	snapYamlPath := filepath.Join(snapDir, "meta/snap.yaml")
+	if err := os.MkdirAll(filepath.Dir(snapYamlPath), 0755); err != nil {
+		return nil, err
+	}
+	if err := ioutil.WriteFile(snapYamlPath, []byte("name: foo"), 0644); err != nil {
+		return nil, err
+	}
+	sqfs := squashfs.New(snapPath)
+	if err := sqfs.Build(snapDir, &squashfs.BuildOpts{SnapType: snapType}); err != nil {
+		return nil, err
+	}
+	return snapfile.Open(snapPath)
 }
 
 func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {

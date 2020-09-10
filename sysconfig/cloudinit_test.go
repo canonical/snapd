@@ -53,6 +53,40 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
+func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C) string {
+	cloudCfgSrcDir := c.MkDir()
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+	return cloudCfgSrcDir
+}
+
+func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
+	gadgetDir := c.MkDir()
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	return gadgetDir
+}
+
+func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
+	// no cloud.conf is false
+	c.Assert(sysconfig.HasGadgetCloudConf("non-existent-dir-place"), Equals, false)
+
+	// the dir is not enough
+	gadgetDir := c.MkDir()
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, false)
+
+	// creating one now is true
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, true)
+}
+
 // this test is for initramfs calls that disable cloud-init for the ephemeral
 // writable partition that is used while running during install or recover mode
 func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
@@ -74,18 +108,50 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
+func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit:  false,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		GadgetDir:       gadgetDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+
+	// did not copy ubuntu-seed src files
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+
+	// also did not copy gadget cloud.conf
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
 // this test is the same as the logic from install mode devicestate, where we
 // want to install cloud-init configuration not onto the running, ephemeral
 // writable, but rather the host writable partition that will be used upon
 // reboot into run mode
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
-	cloudCfgSrcDir := c.MkDir()
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
 	})
@@ -95,6 +161,41 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit: true,
+		GadgetDir:      gadgetDir,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// and did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfIgnoresUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		AllowCloudInit:  true,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		GadgetDir:       gadgetDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// and did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+
+	// but did not copy the ubuntu-seed files
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
@@ -337,6 +438,17 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
 		},
+		{
+			comment:             "nocloud uc20 done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
 		// the two cases for lxd and multipass are effectively the same, but as
 		// the largest known users of cloud-init w/ UC, we leave them as
 		// separate test cases for their different cloud-init status.json
@@ -356,6 +468,28 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDatasource:          "NoCloud",
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
+		},
+		{
+			comment:             "nocloud uc20 multipass done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:             "nocloud uc20 seed lxd done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: lxdNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableNoCloud: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
 		},
 	}
 

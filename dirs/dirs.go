@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/release"
@@ -362,9 +363,28 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	if release.DistroLike("fedora") {
-		// rhel, centos, fedora and derivatives
-		// both rhel and centos list "fedora" in ID_LIKE
+	opensuseTWWithLibexec := func() bool {
+		// XXX: this is pretty naive if openSUSE ever starts going back
+		// and forth about the change
+		if !release.DistroLike("opensuse-tumbleweed") {
+			return false
+		}
+		v, err := strconv.Atoi(release.ReleaseInfo.VersionID)
+		if err != nil {
+			// nothing we can do here
+			return false
+		}
+		// first seen on snapshot "20200826"
+		if v < 20200826 {
+			return false
+		}
+		return true
+	}
+
+	if release.DistroLike("fedora") || opensuseTWWithLibexec() {
+		// RHEL, CentOS, Fedora and derivatives, some more recent
+		// snapshots of openSUSE Tumbleweed;
+		// both RHEL and CentOS list "fedora" in ID_LIKE
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
 	} else {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")

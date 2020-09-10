@@ -26,13 +26,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -327,13 +327,6 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	for _, modelParams := range params.ModelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
-		// Verify if all EFI image files exist
-		for _, chain := range modelParams.EFILoadChains {
-			if err := checkFilesPresence(chain); err != nil {
-				return err
-			}
-		}
-
 		// Add EFI secure boot policy profile
 		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
 		if err != nil {
@@ -425,77 +418,65 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	return nil
 }
 
-// buildLoadSequences creates a linear EFI image load event chain for each one of the
-// specified sequences of file paths.
-func buildLoadSequences(pathSequences [][]string) ([]*sb.EFIImageLoadEvent, error) {
-	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
-	// device configuration. So you could have something like this:
+// buildLoadSequences builds EFI load image event trees from this package LoadChains
+func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, err error) {
+	// this will build load event trees for the current
+	// device configuration, e.g. something like:
 	//
 	// shim -> recovery grub -> recovery kernel 1
 	//                      |-> recovery kernel 2
 	//                      |-> recovery kernel ...
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
-	//
-	// Or it could look like this, which is the same thing:
-	//
-	// shim -> recovery grub -> recovery kernel 1
-	// shim -> recovery grub -> recovery kernel 2
-	// shim -> recovery grub -> recovery kernel ...
-	// shim -> recovery grub -> normal grub -> run kernel good
-	// shim -> recovery grub -> normal grub -> run kernel try
-	//
-	// When we add the ability to seal against specific binaries in order to secure
-	// the system with the Microsoft chain of trust, then the actual trees of
-	// EFIImageLoadEvents will need to match the exact supported boot sequences.
 
-	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(pathSequences))
-
-	efiImage := func(name string) (sb.EFIImage, error) {
-		if strings.HasSuffix(name, ".snap") {
-			snapf, err := snapfile.Open(name)
-			if err != nil {
-				return nil, err
-			}
-			return sb.SnapFileEFIImage{
-				Container: snapf,
-				Path:      name,
-				FileName:  "kernel.efi",
-			}, nil
+	for _, chain := range chains {
+		// root of load events has source Firmware
+		loadseq, err := chain.loadEvent(sb.Firmware)
+		if err != nil {
+			return nil, err
 		}
-		return sb.FileEFIImage(name), nil
+		loadseqs = append(loadseqs, loadseq)
 	}
-
-	for _, filePaths := range pathSequences {
-		var event *sb.EFIImageLoadEvent
-		var next []*sb.EFIImageLoadEvent
-
-		for i := len(filePaths) - 1; i >= 0; i-- {
-			image, err := efiImage(filePaths[i])
-			if err != nil {
-				return nil, err
-			}
-			event = &sb.EFIImageLoadEvent{
-				Source: sb.Shim,
-				Image:  image,
-				Next:   next,
-			}
-			next = []*sb.EFIImageLoadEvent{event}
-		}
-		// fix event source for the first binary in chain (shim)
-		event.Source = sb.Firmware
-
-		loadEvents = append(loadEvents, event)
-	}
-
-	return loadEvents, nil
+	return loadseqs, nil
 }
 
-func checkFilesPresence(pathList []string) error {
-	for _, p := range pathList {
-		if !osutil.FileExists(p) {
-			return fmt.Errorf("file %s does not exist", p)
+// loadEvent builds the corresponding load event and its tree
+func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageLoadEvent, error) {
+	var next []*sb.EFIImageLoadEvent
+	for _, nextChain := range lc.Next {
+		// everything that is not the root has source shim
+		ev, err := nextChain.loadEvent(sb.Shim)
+		if err != nil {
+			return nil, err
 		}
+		next = append(next, ev)
 	}
-	return nil
+	image, err := efiImageFromBootFile(lc.BootFile)
+	if err != nil {
+		return nil, err
+	}
+	return &sb.EFIImageLoadEvent{
+		Source: source,
+		Image:  image,
+		Next:   next,
+	}, nil
+}
+
+func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
+	if b.Snap == "" {
+		if !osutil.FileExists(b.Path) {
+			return nil, fmt.Errorf("file %s does not exist", b.Path)
+		}
+		return sb.FileEFIImage(b.Path), nil
+	}
+
+	snapf, err := snapfile.Open(b.Snap)
+	if err != nil {
+		return nil, err
+	}
+	return sb.SnapFileEFIImage{
+		Container: snapf,
+		Path:      b.Snap,
+		FileName:  b.Path,
+	}, nil
 }

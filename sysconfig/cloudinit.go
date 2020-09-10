@@ -32,6 +32,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// HasGadgetCloudConf takes a gadget directory and returns whether there is
+// cloud-init config in the form of a cloud.conf file in the gadget.
+func HasGadgetCloudConf(gadgetDir string) bool {
+	return osutil.FileExists(filepath.Join(gadgetDir, "cloud.conf"))
+}
+
 func ubuntuDataCloudDir(rootdir string) string {
 	return filepath.Join(rootdir, "etc/cloud/")
 }
@@ -54,7 +60,11 @@ func DisableCloudInit(rootDir string) error {
 	return nil
 }
 
-func installCloudInitCfg(src, targetdir string) error {
+// installCloudInitCfgDir installs glob cfg files from the source directory to
+// the cloud config dir. For installing single files from anywhere with any
+// name, use installUnifiedCloudInitCfg
+func installCloudInitCfgDir(src, targetdir string) error {
+	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
 		return err
@@ -76,21 +86,54 @@ func installCloudInitCfg(src, targetdir string) error {
 	return nil
 }
 
-// TODO:UC20: - allow cloud.conf coming from the gadget
-//            - think about if/what cloud-init means on "secured" models
+// installGadgetCloudInitCfg installs a single cloud-init config file from the
+// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg".
+func installGadgetCloudInitCfg(src, targetdir string) error {
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
+	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
+	return osutil.CopyFile(src, configFile, 0)
+}
+
 func configureCloudInit(opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
 
-	switch opts.CloudInitSrcDir {
-	case "":
-		// disable cloud-init by default using the writable dir
-		err = DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
-	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+	// first check if cloud-init should be disallowed entirely
+	if !opts.AllowCloudInit {
+		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
-	return err
+
+	// next check if there is a gadget cloud.conf to install
+	if HasGadgetCloudConf(opts.GadgetDir) {
+		// then copy / install the gadget config and return without considering
+		// CloudInitSrcDir
+		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
+		// and the gadget cloud.conf so returning here may be wrong
+		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
+		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+	}
+
+	// TODO:UC20: implement filtering of files from src when specified via a
+	//            specific Options for i.e. signed grade and MAAS, etc.
+
+	// finally check if there is a cloud-init src dir we should copy config
+	// files from
+
+	if opts.CloudInitSrcDir != "" {
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+	}
+
+	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
+	// a gadget cloud.conf, in this case cloud-init may pick up dynamic metadata
+	// and userdata from NoCloud sources such as a CD-ROM drive with label
+	// CIDATA, etc. during first-boot
+
+	return nil
 }
 
 // CloudInitState represents the various cloud-init states
@@ -204,10 +247,17 @@ type CloudInitRestrictionResult struct {
 }
 
 // CloudInitRestrictOptions are options for how to restrict cloud-init with
-// RestrictCloudInit. ForceDisable will force disabling cloud-init even if it is
-// in an active/running or errored state.
+// RestrictCloudInit.
 type CloudInitRestrictOptions struct {
+	// ForceDisable will force disabling cloud-init even if it is
+	// in an active/running or errored state.
 	ForceDisable bool
+
+	// DisableNoCloud modifies the behavior to whole-sale disable cloud-init,
+	// if the datasource detected is NoCloud, if the datasource detected is
+	// anything other than NoCloud then it is merely restricted as described in
+	// the doc-comment on RestrictCloudInit.
+	DisableNoCloud bool
 }
 
 // RestrictCloudInit will limit the operations of cloud-init on subsequent boots
@@ -294,7 +344,16 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 		// USB drive inserted by an attacker with label CIDATA will defeat
 		// security measures on Ubuntu Core, so with the additional fs_label
 		// spec, we disable that import.
-		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+
+		// Note that on UC20, we will also specify DisableNoCloud, to disable
+		// cloud-init even after the first boot
+		if opts.DisableNoCloud {
+			// change the action taken to disable
+			res.Action = "disable"
+			err = DisableCloudInit(dirs.GlobalRootDir)
+		} else {
+			err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
+		}
 	default:
 		// all other datasources that are not NoCloud will be restricted to only
 		// allow this specific datasource to prevent an attack via NoCloud for

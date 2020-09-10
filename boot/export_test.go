@@ -20,6 +20,11 @@
 package boot
 
 import (
+	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -50,10 +55,23 @@ var (
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
+
+	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
+	SealKeyToModeenv                = sealKeyToModeenv
 )
 
 type BootAssetsMap = bootAssetsMap
 type TrackedAsset = trackedAsset
+
+func (t *TrackedAsset) Equals(blName, name, hash string) error {
+	equal := t.hash == hash &&
+		t.name == name &&
+		t.blName == blName
+	if !equal {
+		return fmt.Errorf("not equal to bootloader %q tracked asset %v:%v", t.blName, t.name, t.hash)
+	}
+	return nil
+}
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
@@ -61,4 +79,46 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsM
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
+}
+
+func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
+	old := secbootSealKey
+	secbootSealKey = f
+	return func() {
+		secbootSealKey = old
+	}
+}
+
+func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
+	ta := &trackedAsset{
+		blName: blName,
+		name:   assetName,
+		hash:   hash,
+	}
+	if !recovery {
+		o.changedAssets = append(o.changedAssets, ta)
+	} else {
+		o.seedChangedAssets = append(o.seedChangedAssets, ta)
+	}
+}
+
+type BootAsset = bootAsset
+type BootChain = bootChain
+type ByBootAssetOrder = byBootAssetOrder
+type PredictableBootChains = predictableBootChains
+
+var (
+	ToPredictableBootAsset              = toPredictableBootAsset
+	ToPredictableBootChain              = toPredictableBootChain
+	ToPredictableBootChains             = toPredictableBootChains
+	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
+	BootAssetsToLoadChains              = bootAssetsToLoadChains
+)
+
+func (b *bootChain) SetModelAssertion(model *asserts.Model) {
+	b.model = model
+}
+
+func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
+	b.kernelBootFile = kbf
 }
