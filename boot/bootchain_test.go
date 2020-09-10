@@ -21,120 +21,137 @@ package boot_test
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sort"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type bootchainSuite struct {
 	testutil.BaseTest
+
+	rootDir string
 }
 
 var _ = Suite(&bootchainSuite{})
 
-func (s *sealSuite) TestBootAssetsSort(c *C) {
+func (s *bootchainSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.rootDir = c.MkDir()
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	dirs.SetRootDir(s.rootDir)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir), 0755), IsNil)
+}
+
+func (s *bootchainSuite) TestBootAssetsSort(c *C) {
 	// by role
 	d := []boot.BootAsset{
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "c"}},
-		{Role: "recovery", Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRecovery, Name: "1ist", Hashes: []string{"b", "c"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "recovery", Name: "1ist", Hashes: []string{"b", "c"}},
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRecovery, Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "c"}},
 	})
 
 	// by name
 	d = []boot.BootAsset{
-		{Role: "recovery", Name: "shim", Hashes: []string{"d", "e"}},
-		{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
-		{Role: "recovery", Name: "shim", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"d", "e"}},
 	})
 
 	// by hash list length
 	d = []boot.BootAsset{
-		{Role: "run", Name: "1ist", Hashes: []string{"a", "f"}},
-		{Role: "run", Name: "1ist", Hashes: []string{"d"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"a", "f"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"d"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "run", Name: "1ist", Hashes: []string{"d"}},
-		{Role: "run", Name: "1ist", Hashes: []string{"a", "f"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"d"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"a", "f"}},
 	})
 
 	// hash list entries
 	d = []boot.BootAsset{
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "d"}},
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "d"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "c"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "c"}},
-		{Role: "run", Name: "1ist", Hashes: []string{"b", "d"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "c"}},
+		{Role: bootloader.RoleRunMode, Name: "1ist", Hashes: []string{"b", "d"}},
 	})
 
 	d = []boot.BootAsset{
-		{Role: "run", Name: "loader", Hashes: []string{"z"}},
-		{Role: "recovery", Name: "shim", Hashes: []string{"b"}},
-		{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
-		{Role: "run", Name: "1oader", Hashes: []string{"d", "e"}},
-		{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
-		{Role: "run", Name: "0oader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+		{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
+		{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
-		{Role: "recovery", Name: "shim", Hashes: []string{"b"}},
-		{Role: "run", Name: "0oader", Hashes: []string{"x", "z"}},
-		{Role: "run", Name: "1oader", Hashes: []string{"d", "e"}},
-		{Role: "run", Name: "loader", Hashes: []string{"z"}},
-		{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+		{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+		{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 	})
 
 	// d is already sorted, sort it again
 	sort.Sort(boot.ByBootAssetOrder(d))
 	// still the same
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
-		{Role: "recovery", Name: "shim", Hashes: []string{"b"}},
-		{Role: "run", Name: "0oader", Hashes: []string{"x", "z"}},
-		{Role: "run", Name: "1oader", Hashes: []string{"d", "e"}},
-		{Role: "run", Name: "loader", Hashes: []string{"z"}},
-		{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+		{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+		{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 	})
 
 	// 2 identical entries
 	d = []boot.BootAsset{
-		{Role: "run", Name: "loader", Hashes: []string{"x", "z"}},
-		{Role: "run", Name: "loader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"x", "z"}},
 	}
 	sort.Sort(boot.ByBootAssetOrder(d))
 	c.Check(d, DeepEquals, []boot.BootAsset{
-		{Role: "run", Name: "loader", Hashes: []string{"x", "z"}},
-		{Role: "run", Name: "loader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"x", "z"}},
+		{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"x", "z"}},
 	})
 
 }
 
-func (s *sealSuite) TestBootAssetsPredictable(c *C) {
+func (s *bootchainSuite) TestBootAssetsPredictable(c *C) {
 	// by role
 	ba := boot.BootAsset{
-		Role: "run", Name: "list", Hashes: []string{"b", "a"},
+		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"b", "a"},
 	}
 	pred := boot.ToPredictableBootAsset(&ba)
 	c.Check(pred, DeepEquals, &boot.BootAsset{
-		Role: "run", Name: "list", Hashes: []string{"a", "b"},
+		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"a", "b"},
 	})
 	// original structure is not changed
 	c.Check(ba, DeepEquals, boot.BootAsset{
-		Role: "run", Name: "list", Hashes: []string{"b", "a"},
+		Role: bootloader.RoleRunMode, Name: "list", Hashes: []string{"b", "a"},
 	})
 
 	// try to make a predictable struct predictable once more
@@ -145,18 +162,18 @@ func (s *sealSuite) TestBootAssetsPredictable(c *C) {
 	c.Check(baNil, IsNil)
 }
 
-func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
+func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 	pbNil := boot.ToPredictableBootChain(nil)
 	c.Check(pbNil, IsNil)
 
 	bc := &boot.BootChain{
 		AssetChain: []boot.BootAsset{
-			{Role: "run", Name: "loader", Hashes: []string{"z"}},
-			{Role: "recovery", Name: "shim", Hashes: []string{"b"}},
-			{Role: "run", Name: "loader", Hashes: []string{"d", "c"}},
-			{Role: "run", Name: "1oader", Hashes: []string{"e", "d"}},
-			{Role: "recovery", Name: "loader", Hashes: []string{"e", "d"}},
-			{Role: "run", Name: "0oader", Hashes: []string{"z", "x"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"d", "c"}},
+			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"e", "d"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"e", "d"}},
+			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"z", "x"}},
 		},
 	}
 
@@ -166,18 +183,18 @@ func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
 		// assets are sorted
 		AssetChain: []boot.BootAsset{
 			// hash lists are sorted
-			{Role: "recovery", Name: "loader", Hashes: []string{"d", "e"}},
-			{Role: "recovery", Name: "shim", Hashes: []string{"b"}},
-			{Role: "run", Name: "0oader", Hashes: []string{"x", "z"}},
-			{Role: "run", Name: "1oader", Hashes: []string{"d", "e"}},
-			{Role: "run", Name: "loader", Hashes: []string{"z"}},
-			{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d", "e"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b"}},
+			{Role: bootloader.RoleRunMode, Name: "0oader", Hashes: []string{"x", "z"}},
+			{Role: bootloader.RoleRunMode, Name: "1oader", Hashes: []string{"d", "e"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
 	})
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"brand-id":"","model":"","grade":"","model-sign-key-id":"","asset-chain":[{"role":"recovery","name":"loader","hashes":["d","e"]},{"role":"recovery","name":"shim","hashes":["b"]},{"role":"run","name":"0oader","hashes":["x","z"]},{"role":"run","name":"1oader","hashes":["d","e"]},{"role":"run","name":"loader","hashes":["z"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"","kernel-revision":"","kernel-cmdline":""}`)
+	c.Check(string(d), Equals, `{"brand-id":"","model":"","grade":"","model-sign-key-id":"","asset-chain":[{"role":"recovery","name":"loader","hashes":["d","e"]},{"role":"recovery","name":"shim","hashes":["b"]},{"role":"run-mode","name":"0oader","hashes":["x","z"]},{"role":"run-mode","name":"1oader","hashes":["d","e"]},{"role":"run-mode","name":"loader","hashes":["z"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"","kernel-revision":"","kernel-cmdlines":null}`)
 
 	// already predictable, but try again
 	alreadySortedBc := boot.ToPredictableBootChain(predictableBc)
@@ -186,15 +203,15 @@ func (s *sealSuite) TestBootChainMarshalOnlyAssets(c *C) {
 	// boot chain with 2 identical assets
 	bcIdenticalAssets := &boot.BootChain{
 		AssetChain: []boot.BootAsset{
-			{Role: "run", Name: "loader", Hashes: []string{"z"}},
-			{Role: "run", Name: "loader", Hashes: []string{"z"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z"}},
 		},
 	}
 	sortedBcIdentical := boot.ToPredictableBootChain(bcIdenticalAssets)
 	c.Check(sortedBcIdentical, DeepEquals, bcIdenticalAssets)
 }
 
-func (s *sealSuite) TestBootChainMarshalFull(c *C) {
+func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 	bc := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
@@ -202,58 +219,71 @@ func (s *sealSuite) TestBootChainMarshalFull(c *C) {
 		ModelSignKeyID: "my-key-id",
 		// asset chain will get sorted when marshaling
 		AssetChain: []boot.BootAsset{
-			{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			// hash list will get sorted
-			{Role: "recovery", Name: "shim", Hashes: []string{"b", "a"}},
-			{Role: "recovery", Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
-		KernelCmdline:  `foo=bar baz=0x123`,
+		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
 	}
 
-	predictableBc := boot.ToPredictableBootChain(bc)
+	uc20model := makeMockUC20Model()
+	bc.SetModelAssertion(uc20model)
+	kernelBootFile := bootloader.NewBootFile("pc-kernel", "/foo", bootloader.RoleRecovery)
+	bc.SetKernelBootFile(kernelBootFile)
 
-	c.Check(predictableBc, DeepEquals, &boot.BootChain{
+	expectedPredictableBc := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		// assets are sorted
 		AssetChain: []boot.BootAsset{
-			{Role: "recovery", Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 			// hash lists are sorted
-			{Role: "recovery", Name: "shim", Hashes: []string{"a", "b"}},
-			{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
-		KernelCmdline:  `foo=bar baz=0x123`,
-	})
+		KernelCmdlines: []string{`a=1`, `foo=bar baz=0x123`},
+	}
+	// those can't be set directly, but are copied as well
+	expectedPredictableBc.SetModelAssertion(uc20model)
+	expectedPredictableBc.SetKernelBootFile(kernelBootFile)
+
+	predictableBc := boot.ToPredictableBootChain(bc)
+	c.Check(predictableBc, DeepEquals, expectedPredictableBc)
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"loader","hashes":["d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"run","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdline":"foo=bar baz=0x123"}`)
-	// original structure has not been modified
-	c.Check(bc, DeepEquals, &boot.BootChain{
+	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"loader","hashes":["d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
+
+	expectedOriginal := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		// asset chain will get sorted when marshaling
 		AssetChain: []boot.BootAsset{
-			{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			// hash list will get sorted
-			{Role: "recovery", Name: "shim", Hashes: []string{"b", "a"}},
-			{Role: "recovery", Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
+			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
-		KernelCmdline:  `foo=bar baz=0x123`,
-	})
+		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
+	}
+	expectedOriginal.SetModelAssertion(uc20model)
+	expectedOriginal.SetKernelBootFile(kernelBootFile)
+	// original structure has not been modified
+	c.Check(bc, DeepEquals, expectedOriginal)
 }
 
-func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
+func (s *bootchainSuite) TestBootChainEqualForResealComplex(c *C) {
 	bc := []boot.BootChain{
 		{
 			BrandID:        "mybrand",
@@ -261,14 +291,14 @@ func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 				// hash list will get sorted
-				{Role: "recovery", Name: "shim", Hashes: []string{"b", "a"}},
-				{Role: "recovery", Name: "loader", Hashes: []string{"d"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 			},
 			Kernel:         "pc-kernel",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo=bar baz=0x123`,
+			KernelCmdlines: []string{`foo=bar baz=0x123`},
 		},
 	}
 	pb := boot.ToPredictableBootChains(bc)
@@ -280,20 +310,20 @@ func (s *sealSuite) TestBootChainEqualForResealComplex(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: "recovery", Name: "loader", Hashes: []string{"d"}},
-				{Role: "recovery", Name: "shim", Hashes: []string{"a", "b"}},
-				{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo=bar baz=0x123`,
+			KernelCmdlines: []string{`foo=bar baz=0x123`},
 		},
 	}
 	eq := boot.PredictableBootChainsEqualForReseal(pb, pbOther)
 	c.Check(eq, Equals, true, Commentf("not equal\none: %v\nother: %v", pb, pbOther))
 }
 
-func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 	var pbNil boot.PredictableBootChains
 
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbNil, pbNil), Equals, true)
@@ -305,11 +335,11 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`foo`},
 		},
 	}
 	pbJustOne := boot.ToPredictableBootChains(bcJustOne)
@@ -326,22 +356,22 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: "run", Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`foo`},
 		}, {
 			BrandID:        "mybrand",
 			Model:          "foo",
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: "run", Name: "loader", Hashes: []string{"d", "e"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"d", "e"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`foo`},
 		},
 	}
 
@@ -352,7 +382,7 @@ func (s *sealSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbMoreAssets), Equals, true)
 }
 
-func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
 	// chains will be sorted
 	chains := []boot.BootChain{
 		{
@@ -363,13 +393,13 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			// assets will be sorted
 			AssetChain: []boot.BootAsset{
 				// hashes will be sorted
-				{Role: "recovery", Name: "shim", Hashes: []string{"x", "y"}},
-				{Role: "recovery", Name: "loader", Hashes: []string{"c", "d"}},
-				{Role: "run", Name: "loader", Hashes: []string{"z", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"x", "y"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z", "x"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`snapd_recovery_mode=run foo`},
 		}, {
 			BrandID:        "mybrand",
 			Model:          "foo",
@@ -378,13 +408,13 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			// assets will be sorted
 			AssetChain: []boot.BootAsset{
 				// hashes will be sorted
-				{Role: "recovery", Name: "shim", Hashes: []string{"y", "x"}},
-				{Role: "recovery", Name: "loader", Hashes: []string{"c", "d"}},
-				{Role: "run", Name: "loader", Hashes: []string{"b", "a"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"y", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"b", "a"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "1234",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`snapd_recovery_mode=run foo`},
 		}, {
 			// recovery system
 			BrandID:        "mybrand",
@@ -393,12 +423,16 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			ModelSignKeyID: "my-key-id",
 			// will be sorted
 			AssetChain: []boot.BootAsset{
-				{Role: "recovery", Name: "shim", Hashes: []string{"y", "x"}},
-				{Role: "recovery", Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"y", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "12",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{
+				// will be sorted
+				`snapd_recovery_mode=recover snapd_recovery_system=23 foo`,
+				`snapd_recovery_mode=recover snapd_recovery_system=12 foo`,
+			},
 		},
 	}
 
@@ -417,7 +451,10 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "12",
-			"kernel-cmdline":    "foo",
+			"kernel-cmdlines": []interface{}{
+				`snapd_recovery_mode=recover snapd_recovery_system=12 foo`,
+				`snapd_recovery_mode=recover snapd_recovery_system=23 foo`,
+			},
 			"asset-chain": []interface{}{
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
 				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
@@ -429,11 +466,11 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "1234",
-			"kernel-cmdline":    "foo",
+			"kernel-cmdlines":   []interface{}{"snapd_recovery_mode=run foo"},
 			"asset-chain": []interface{}{
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
 				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
-				map[string]interface{}{"role": "run", "name": "loader", "hashes": []interface{}{"a", "b"}},
+				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"a", "b"}},
 			},
 		}, {
 			"model":             "foo",
@@ -442,17 +479,17 @@ func (s *sealSuite) TestPredictableBootChainsFullMarshal(c *C) {
 			"model-sign-key-id": "my-key-id",
 			"kernel":            "pc-kernel-other",
 			"kernel-revision":   "2345",
-			"kernel-cmdline":    "foo",
+			"kernel-cmdlines":   []interface{}{"snapd_recovery_mode=run foo"},
 			"asset-chain": []interface{}{
 				map[string]interface{}{"role": "recovery", "name": "loader", "hashes": []interface{}{"c", "d"}},
 				map[string]interface{}{"role": "recovery", "name": "shim", "hashes": []interface{}{"x", "y"}},
-				map[string]interface{}{"role": "run", "name": "loader", "hashes": []interface{}{"x", "z"}},
+				map[string]interface{}{"role": "run-mode", "name": "loader", "hashes": []interface{}{"x", "z"}},
 			},
 		},
 	})
 }
 
-func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsFields(c *C) {
 	chainsNil := boot.ToPredictableBootChains(nil)
 	c.Check(chainsNil, IsNil)
 
@@ -464,7 +501,7 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			ModelSignKeyID: "my-key-id",
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "2345",
-			KernelCmdline:  `foo`,
+			KernelCmdlines: []string{`foo`},
 		},
 	}
 	predictableJustOne := boot.ToPredictableBootChains(justOne)
@@ -506,82 +543,82 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 
 	chainsCmdline := []boot.BootChain{
 		{
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `a`,
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`a`},
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsCmdline), DeepEquals, boot.PredictableBootChains{
 		{
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `a`,
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`a`},
 		}, {
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	})
 
 	chainsModel := []boot.BootChain{
 		{
-			Model:         "fridge",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Model:          "fridge",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsModel), DeepEquals, boot.PredictableBootChains{
 		{
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
-			Model:         "fridge",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Model:          "fridge",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	})
 
 	chainsBrand := []boot.BootChain{
 		{
-			BrandID:       "foo",
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			BrandID:        "foo",
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
-			BrandID:       "acme",
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			BrandID:        "acme",
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsBrand), DeepEquals, boot.PredictableBootChains{
 		{
-			BrandID:       "acme",
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			BrandID:        "acme",
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
-			BrandID:       "foo",
-			Model:         "box",
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			BrandID:        "foo",
+			Model:          "box",
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	})
 
@@ -591,14 +628,14 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			Model:          "box",
 			Grade:          "dangerous",
 			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
+			KernelCmdlines: []string{`panic=1`},
 			ModelSignKeyID: "key-2",
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
 			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
+			KernelCmdlines: []string{`panic=1`},
 			ModelSignKeyID: "key-1",
 		},
 	}
@@ -608,14 +645,14 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			Model:          "box",
 			Grade:          "dangerous",
 			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
+			KernelCmdlines: []string{`panic=1`},
 			ModelSignKeyID: "key-1",
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
 			Grade:          "dangerous",
 			Kernel:         "foo",
-			KernelCmdline:  `panic=1`,
+			KernelCmdlines: []string{`panic=1`},
 			ModelSignKeyID: "key-2",
 		},
 	})
@@ -630,8 +667,8 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 				// will be sorted
 				{Hashes: []string{"b", "a"}},
 			},
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
@@ -640,8 +677,8 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"b"}},
 			},
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsAssets), DeepEquals, boot.PredictableBootChains{
@@ -653,8 +690,8 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"b"}},
 			},
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
@@ -663,8 +700,8 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 			AssetChain: []boot.BootAsset{
 				{Hashes: []string{"a", "b"}},
 			},
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	})
 
@@ -703,9 +740,9 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 				{Name: "asset", Hashes: []string{"a", "b"}},
 				{Name: "asset", Hashes: []string{"a", "b"}},
 			},
-			Grade:         "dangerous",
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Grade:          "dangerous",
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		}, {
 			BrandID:        "foo",
 			Model:          "box",
@@ -715,14 +752,14 @@ func (s *sealSuite) TestPredictableBootChainsFields(c *C) {
 				{Name: "asset", Hashes: []string{"a", "b"}},
 				{Name: "asset", Hashes: []string{"a", "b"}},
 			},
-			Kernel:        "foo",
-			KernelCmdline: `panic=1`,
+			Kernel:         "foo",
+			KernelCmdlines: []string{`panic=1`},
 		},
 	}
 	c.Check(boot.ToPredictableBootChains(chainsIdenticalAssets), DeepEquals, boot.PredictableBootChains(chainsIdenticalAssets))
 }
 
-func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsSortOrder(c *C) {
 	// check that sort order is model info, assets, kernel, kernel cmdline
 
 	chains := []boot.BootChain{
@@ -731,128 +768,144 @@ func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1", "cm=2"},
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1", "cm=2"},
 		},
 	}
 	predictable := boot.ToPredictableBootChains(chains)
@@ -862,128 +915,308 @@ func (s *sealSuite) TestPredictableBootChainsSortOrder(c *C) {
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1", "cm=2"},
 		},
 		{
 			Model: "a",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
+		},
+		{
+			Model: "a",
+			AssetChain: []boot.BootAsset{
+				{Name: "asset", Hashes: []string{"y"}},
+			},
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1", "cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"x"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=1",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k1",
-			KernelCmdline: "cm=2",
+			Kernel:         "k1",
+			KernelCmdlines: []string{"cm=2"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=1",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=1"},
 		},
 		{
 			Model: "b",
 			AssetChain: []boot.BootAsset{
 				{Name: "asset", Hashes: []string{"y"}},
 			},
-			Kernel:        "k2",
-			KernelCmdline: "cm=2",
+			Kernel:         "k2",
+			KernelCmdlines: []string{"cm=2"},
 		},
 	})
+}
+
+func printChain(c *C, chain *secboot.LoadChain, prefix string) {
+	c.Logf("%v %v", prefix, chain.BootFile)
+	for _, n := range chain.Next {
+		printChain(c, n, prefix+"-")
+	}
+}
+
+// cPath returns a path under boot assets cache directory
+func cPath(p string) string {
+	return filepath.Join(dirs.SnapBootAssetsDir, p)
+}
+
+// nbf is bootloader.NewBootFile but shorter
+var nbf = bootloader.NewBootFile
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainTrivialKernel(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
+
+	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(chains, DeepEquals, []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)),
+	})
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-recovery", Hashes: []string{"hash0"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-run", Hashes: []string{"hash0"}, Role: bootloader.RoleRunMode},
+	}
+
+	blNames := map[bootloader.Role]string{
+		bootloader.RoleRecovery: "recovery-bl",
+		// missing bootloader name for role "run-mode"
+	}
+	// fails when probing the shim asset in the cache
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
+	c.Check(chains, IsNil)
+	// make it work now
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
+
+	// nested error bubbled up
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
+	c.Check(chains, IsNil)
+	// again, make it work
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
+
+	// fails on missing bootloader name for role "run-mode"
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, ErrorMatches, `internal error: no bootloader name for boot asset role "run-mode"`)
+	c.Check(chains, IsNil)
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-recovery", Hashes: []string{"hash0"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-run", Hashes: []string{"hash0"}, Role: bootloader.RoleRunMode},
+	}
+
+	// mock relevant files in cache
+	for _, name := range []string{
+		"recovery-bl/shim-hash0",
+		"recovery-bl/loader-recovery-hash0",
+		"run-bl/loader-run-hash0",
+	} {
+		p := filepath.Join(dirs.SnapBootAssetsDir, name)
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+	}
+
+	blNames := map[bootloader.Role]string{
+		bootloader.RoleRecovery: "recovery-bl",
+		bootloader.RoleRunMode:  "run-bl",
+	}
+
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, IsNil)
+
+	c.Logf("got:")
+	for _, ch := range chains {
+		printChain(c, ch, "-")
+	}
+
+	expected := []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash0"), bootloader.RoleRecovery),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), bootloader.RoleRecovery),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
+	}
+	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
+	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
+
+	assets := []boot.BootAsset{
+		{Name: "shim", Hashes: []string{"hash0", "hash1"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-recovery", Hashes: []string{"hash0", "hash1"}, Role: bootloader.RoleRecovery},
+		{Name: "loader-run", Hashes: []string{"hash0", "hash1"}, Role: bootloader.RoleRunMode},
+	}
+
+	// mock relevant files in cache
+	for _, name := range []string{
+		"recovery-bl/shim-hash0", "recovery-bl/shim-hash1",
+		"recovery-bl/loader-recovery-hash0",
+		"recovery-bl/loader-recovery-hash1",
+		"run-bl/loader-run-hash0",
+		"run-bl/loader-run-hash1",
+	} {
+		p := filepath.Join(dirs.SnapBootAssetsDir, name)
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+	}
+
+	blNames := map[bootloader.Role]string{
+		bootloader.RoleRecovery: "recovery-bl",
+		bootloader.RoleRunMode:  "run-bl",
+	}
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	c.Assert(err, IsNil)
+
+	c.Logf("got:")
+	for _, ch := range chains {
+		printChain(c, ch, "-")
+	}
+
+	expected := []*secboot.LoadChain{
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash0"), bootloader.RoleRecovery),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), bootloader.RoleRecovery),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
+		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash1"), bootloader.RoleRecovery),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), bootloader.RoleRecovery),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
+			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
+				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
+					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
+	}
+	c.Check(chains, DeepEquals, expected)
 }

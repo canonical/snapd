@@ -37,10 +37,12 @@ execute: |
             MATCH '"system-restart"'
 
         # snapd schedules a slow timeout and an immediate one, however it is
-        # scheduled asynchronously, try keep the check simple
+        # scheduled asynchronously, try to keep the check simple
         # shellcheck disable=SC2016
         retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
-        # an immediate reboot should have been scheduled
+        # a reboot in 10 minutes should have been scheduled
+        MATCH -- '-r \+10' < /tmp/mock-shutdown.calls
+        # and an immediate reboot should have been scheduled
         MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
         # restore shutdown so that spread can reboot the host
@@ -154,7 +156,9 @@ execute: |
         # see earlier note about shutdown
         # shellcheck disable=SC2016
         retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
-        # an immediate reboot should have been scheduled
+        # a reboot in 10 minutes should have been scheduled
+        MATCH -- '-r \+10' < /tmp/mock-shutdown.calls
+        # and an immediate reboot should have been scheduled
         MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
         umount /usr/sbin/shutdown

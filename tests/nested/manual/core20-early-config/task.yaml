@@ -35,12 +35,6 @@ prepare: |
     nested_create_core_vm
     nested_start_core_vm
 
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_destroy_vm
-    nested_cleanup_env
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -73,4 +67,4 @@ execute: |
     nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
     # check console-conf disabled
-    execute_remote "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+    nested_exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
