@@ -35,12 +35,12 @@ import (
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootChain struct {
-	BrandID        string      `json:"brand-id"`
-	Model          string      `json:"model"`
-	Grade          string      `json:"grade"`
-	ModelSignKeyID string      `json:"model-sign-key-id"`
-	AssetChain     []bootAsset `json:"asset-chain"`
-	Kernel         string      `json:"kernel"`
+	BrandID        string             `json:"brand-id"`
+	Model          string             `json:"model"`
+	Grade          asserts.ModelGrade `json:"grade"`
+	ModelSignKeyID string             `json:"model-sign-key-id"`
+	AssetChain     []bootAsset        `json:"asset-chain"`
+	Kernel         string             `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
 	KernelRevision string   `json:"kernel-revision"`
@@ -107,14 +107,6 @@ func toPredictableBootAsset(b *bootAsset) *bootAsset {
 	return &newB
 }
 
-type byBootAssetOrder []bootAsset
-
-func (b byBootAssetOrder) Len() int      { return len(b) }
-func (b byBootAssetOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b byBootAssetOrder) Less(i, j int) bool {
-	return bootAssetLess(&b[i], &b[j])
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
@@ -125,7 +117,6 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 		for i := range b.AssetChain {
 			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
 		}
-		sort.Sort(byBootAssetOrder(newB.AssetChain))
 	}
 	if b.KernelCmdlines != nil {
 		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
@@ -188,7 +179,7 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].KernelRevision != b[j].KernelRevision {
 		return b[i].KernelRevision < b[j].KernelRevision
 	}
-	// and last kernel command line
+	// and last kernel command lines
 	if !stringListsEqual(b[i].KernelCmdlines, b[j].KernelCmdlines) {
 		return stringListsLess(b[i].KernelCmdlines, b[j].KernelCmdlines)
 	}

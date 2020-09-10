@@ -115,7 +115,6 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type ByBootAssetOrder = byBootAssetOrder
 type PredictableBootChains = predictableBootChains
 
 var (
@@ -124,6 +123,7 @@ var (
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
+	BootAssetLess                       = bootAssetLess
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {

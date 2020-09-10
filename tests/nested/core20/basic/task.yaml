@@ -30,5 +30,4 @@ execute: |
     nested_exec "sudo snap remove test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    # FIXME: this is invalid use of not
-    not nested_exec "snap list test-snapd-sh"
+    ! nested_exec "snap list test-snapd-sh"

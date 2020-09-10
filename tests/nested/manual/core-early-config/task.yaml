@@ -10,8 +10,6 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    nested_cleanup_env
-
     mkdir extra-snaps
 
     # modify and repack gadget snap (add defaults section and install hook)
@@ -46,13 +44,6 @@ prepare: |
     rmdir "$tmp"
 
     nested_start_core_vm
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_destroy_vm
-    nested_cleanup_env
-    rm -rf extra-snaps
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
