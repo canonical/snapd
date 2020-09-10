@@ -107,10 +107,7 @@ func (x *cmdReboot) Execute(args []string) error {
 	}
 
 	if err := x.client.RebootToSystem(x.Positional.Label, mode); err != nil {
-		if x.Positional.Label != "" {
-			return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
-		}
-		return fmt.Errorf("cannot reboot: %v", err)
+		return err
 	}
 
 	switch {

@@ -162,7 +162,7 @@ func (s *SnapSuite) TestRebootAPIFail(c *C) {
 		n++
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"})
-	c.Assert(err, ErrorMatches, `cannot reboot into system "20200101": cannot request system action: requested system does not exist`)
+	c.Assert(err, ErrorMatches, `cannot request system reboot into "20200101": requested system does not exist`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
