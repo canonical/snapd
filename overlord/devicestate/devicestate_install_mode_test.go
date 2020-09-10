@@ -85,6 +85,9 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
+
+	fakeJournalctl := testutil.MockCommand(c, "journalctl", "")
+	s.AddCleanup(fakeJournalctl.Restore)
 }
 
 func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {

@@ -71,6 +71,10 @@ execute: |
 
     check_core20_early_config
 
+    # check that we go the install log after the transition to run mode
+    nested_exec "test -e /var/log/install-mode.log"
+    xxx
+
     # now transition to recover mode and check it again
     boot_id="$(nested_get_boot_id)"
     # TODO:UC20: shouldn't need to specify the label here, fix when snap reboot
