@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
@@ -56,8 +58,9 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
-	SealKeyToModeenv                = sealKeyToModeenv
+	ObserveSuccessfulBootWithAssets   = observeSuccessfulBootAssets
+	SealKeyToModeenv                  = sealKeyToModeenv
+	BuildRecoveryBootChainsForSystems = buildRecoveryBootChainsForSystems
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -86,6 +89,14 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 	secbootSealKey = f
 	return func() {
 		secbootSealKey = old
+	}
+}
+
+func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
+	old := seedReadSystemEssential
+	seedReadSystemEssential = f
+	return func() {
+		seedReadSystemEssential = old
 	}
 }
 
