@@ -38,10 +38,6 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
-var (
-	roleToBlName = map[bootloader.Role]string{}
-)
-
 // sealKeyToModeenv seals the supplied key to the parameters specified
 // in modeenv.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -52,7 +48,6 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
-	roleToBlName[bootloader.RoleRecovery] = rbl.Name()
 
 	recoveryBootChain, err := buildRecoveryBootChain(rbl, model, modeenv)
 	if err != nil {
@@ -67,9 +62,12 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	roleToBlName[bootloader.RoleRunMode] = bl.Name()
+	cmdline, err := ComposeCandidateCommandLine(model)
+	if err != nil {
+		return fmt.Errorf("cannot compose the candidate command line: %v", err)
+	}
 
-	runModeBootChains, err := buildRunModeBootChains(rbl, bl, model, modeenv)
+	runModeBootChains, err := buildRunModeBootChains(rbl, bl, model, modeenv, cmdline)
 	if err != nil {
 		return fmt.Errorf("cannot build run mode boot chain: %v", err)
 	}
@@ -78,8 +76,13 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 
 	// XXX: store the predictable bootchains
 
+	roleToBlName := map[bootloader.Role]string{
+		bootloader.RoleRecovery: rbl.Name(),
+		bootloader.RoleRunMode:  bl.Name(),
+	}
+
 	// get parameters from bootchains and seal the key
-	params, err := sealKeyParams(pbc)
+	params, err := sealKeyParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot build key sealing parameters: %v", err)
 	}
@@ -134,13 +137,7 @@ func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, mod
 	}, nil
 }
 
-func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) ([]bootChain, error) {
-	// get the command line
-	cmdline, err := ComposeCandidateCommandLine(model)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain kernel command line: %v", err)
-	}
-
+func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
 	// get asset chains
 	assetChain, kbf, err := buildRunModeAssetChain(rbl, bl, modeenv)
 	if err != nil {
@@ -270,7 +267,7 @@ func runModeKernelsFromModeenv(modeenv *Modeenv) ([]string, error) {
 	return nil, fmt.Errorf("invalid number of kernels in modeenv")
 }
 
-func sealKeyParams(pbc predictableBootChains) (*secboot.SealKeyParams, error) {
+func sealKeyParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) (*secboot.SealKeyParams, error) {
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
 	for _, bc := range pbc {
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
