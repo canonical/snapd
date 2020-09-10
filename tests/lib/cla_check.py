@@ -73,7 +73,7 @@ def static_email_check(email, master_emails, width):
                 yellow, reset, email, width
             )
         )
-        return True
+        return False
     return False
 
 

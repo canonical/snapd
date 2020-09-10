@@ -99,20 +99,22 @@ func main() {
 	}
 
 	if args.Encrypt {
-		loadChain := []bootloader.BootFile{
-			// the path to the shim EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-			// the path to the recovery grub EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-			// the path to the run mode grub EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-		}
+		// TODO:UC20: how realistic should we be here?
+		// the path to the run mode grub EFI binary
+		runbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode)
+		loadChain := secboot.NewLoadChain(runbf)
+		// the path to the recovery grub EFI binary
+		recbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery)
+		loadChain = secboot.NewLoadChain(recbf, loadChain)
+		// the path to the shim EFI binary
+		shimbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery)
+		loadChain = secboot.NewLoadChain(shimbf, loadChain)
 
 		sealKeyParams := secboot.SealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					KernelCmdlines: []string{"cmdline"},
-					EFILoadChains:  [][]bootloader.BootFile{loadChain},
+					EFILoadChains:  []*secboot.LoadChain{loadChain},
 				},
 			},
 

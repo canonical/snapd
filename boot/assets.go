@@ -49,16 +49,16 @@ func newTrustedAssetsCache(cacheDir string) *trustedAssetsCache {
 	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA3_384}
 }
 
-func (c *trustedAssetsCache) assetKey(blName, assetName, assetHash string) string {
-	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
-}
-
-func (c *trustedAssetsCache) tempAssetKey(blName, assetName string) string {
+func (c *trustedAssetsCache) tempAssetRelPath(blName, assetName string) string {
 	return filepath.Join(blName, assetName+".temp")
 }
 
 func (c *trustedAssetsCache) pathInCache(part string) string {
 	return filepath.Join(c.cacheDir, part)
+}
+
+func trustedAssetCacheRelPath(blName, assetName, assetHash string) string {
+	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
 }
 
 // fileHash calculates the hash of an arbitrary file using the same hash method
@@ -87,7 +87,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	}
 	defer inf.Close()
 	// temporary output
-	tempPath := c.pathInCache(c.tempAssetKey(blName, assetName))
+	tempPath := c.pathInCache(c.tempAssetRelPath(blName, assetName))
 	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
@@ -101,7 +101,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 		return nil, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
 	}
 	hashStr := hex.EncodeToString(h.Sum(nil))
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 
 	ta := &trackedAsset{
 		blName: blName,
@@ -122,7 +122,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 }
 
 func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 	if err := os.Remove(c.pathInCache(cacheKey)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -637,4 +637,118 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	// TODO:UC20:
 	// - reseal with a given state of modeenv
 	return nil
+}
+
+func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
+	trustedAssetsMap := &m.CurrentTrustedBootAssets
+	otherTrustedAssetsMap := m.CurrentTrustedRecoveryBootAssets
+	whichBootloader := "run mode"
+	if opts != nil && opts.Role == bootloader.RoleRecovery {
+		trustedAssetsMap = &m.CurrentTrustedRecoveryBootAssets
+		otherTrustedAssetsMap = m.CurrentTrustedBootAssets
+		whichBootloader = "recovery"
+	}
+
+	if len(*trustedAssetsMap) == 0 {
+		// bootloader may have trusted assets, but we are not tracking
+		// any for the boot process
+		return nil, nil
+	}
+
+	// let's find the bootloader first
+	bl, trustedAssets, err := findMaybeTrustedAssetsBootloader(root, opts)
+	if err != nil {
+		return nil, err
+	}
+	if len(trustedAssets) == 0 {
+		// not a trusted assets bootloader, nothing to do
+		return nil, nil
+	}
+
+	cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
+	for _, trustedAsset := range trustedAssets {
+		assetName := filepath.Base(trustedAsset)
+
+		// find the hash of the file on disk
+		assetHash, err := cache.fileHash(filepath.Join(root, trustedAsset))
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
+		}
+		if assetHash == "" {
+			// no trusted asset on disk, but we booted nonetheless,
+			// at least log something
+			logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
+			// given that asset names cannot be reused, clear the
+			// boot assets map for the current bootloader
+			delete(*trustedAssetsMap, assetName)
+			continue
+		}
+
+		// this is what we booted with
+		bootedWith := []string{assetHash}
+		// one of these was expected during boot
+		hashList := (*trustedAssetsMap)[assetName]
+
+		assetFound := false
+		// find out if anything needs to be dropped
+		for _, hash := range hashList {
+			if hash == assetHash {
+				assetFound = true
+				continue
+			}
+			if !isAssetHashTrackedInMap(otherTrustedAssetsMap, assetName, hash) {
+				// asset can be dropped
+				drop = append(drop, &trackedAsset{
+					blName: bl.Name(),
+					name:   assetName,
+					hash:   hash,
+				})
+			}
+		}
+
+		if !assetFound {
+			// unexpected, we have booted with an asset whose hash
+			// is not listed among the ones we expect
+
+			// TODO:UC20: try to restore the asset from cache
+			return nil, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
+		}
+
+		// update the list of what we booted with
+		(*trustedAssetsMap)[assetName] = bootedWith
+
+	}
+	return drop, nil
+}
+
+// observeSuccessfulBootAssets observes the state of the trusted boot assets
+// after a successful boot. Returns a modified modeenv reflecting a new state,
+// and a list of assets that can be dropped from the cache.
+func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	newM, err = m.Copy()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, bl := range []struct {
+		root string
+		opts *bootloader.Options
+	}{
+		{
+			// ubuntu-boot bootloader
+			root: InitramfsUbuntuBootDir,
+			opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
+		}, {
+			// ubuntu-seed bootloader
+			root: InitramfsUbuntuSeedDir,
+			opts: &bootloader.Options{Role: bootloader.RoleRecovery, NoSlashBoot: true},
+		},
+	} {
+		dropForBootloader, err := observeSuccessfulBootAssetsForBootloader(newM, bl.root, bl.opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		drop = append(drop, dropForBootloader...)
+	}
+	return newM, drop, nil
 }

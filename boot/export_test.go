@@ -20,6 +20,10 @@
 package boot
 
 import (
+	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -52,11 +56,22 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	SealKeyToModeenv = sealKeyToModeenv
+	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
+	SealKeyToModeenv                = sealKeyToModeenv
 )
 
 type BootAssetsMap = bootAssetsMap
 type TrackedAsset = trackedAsset
+
+func (t *TrackedAsset) Equals(blName, name, hash string) error {
+	equal := t.hash == hash &&
+		t.name == name &&
+		t.blName == blName
+	if !equal {
+		return fmt.Errorf("not equal to bootloader %q tracked asset %v:%v", t.blName, t.name, t.hash)
+	}
+	return nil
+}
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
@@ -85,4 +100,25 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 	} else {
 		o.seedChangedAssets = append(o.seedChangedAssets, ta)
 	}
+}
+
+type BootAsset = bootAsset
+type BootChain = bootChain
+type PredictableBootChains = predictableBootChains
+
+var (
+	ToPredictableBootAsset              = toPredictableBootAsset
+	ToPredictableBootChain              = toPredictableBootChain
+	ToPredictableBootChains             = toPredictableBootChains
+	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
+	BootAssetsToLoadChains              = bootAssetsToLoadChains
+	BootAssetLess                       = bootAssetLess
+)
+
+func (b *bootChain) SetModelAssertion(model *asserts.Model) {
+	b.model = model
+}
+
+func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
+	b.kernelBootFile = kbf
 }

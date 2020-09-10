@@ -679,6 +679,27 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			statusMsg = "failed to transition to done or error state after 5 minutes"
 		}
 
+		// we should always have a model if we are seeded and are not on classic
+		model, err := m.Model()
+		if err != nil {
+			return err
+		}
+
+		// For UC20, we want to always disable cloud-init after it has run on
+		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+		// or if we installed cloud-init configuration from the gadget
+		if model.Grade() != asserts.ModelGradeUnset {
+			// always disable NoCloud after first boot on uc20, this is because
+			// even if the gadget has a cloud.conf configuring NoCloud, the
+			// config installed by cloud-init should not work differently for
+			// later boots, so it's sufficient that NoCloud runs on first-boot
+			// and never again
+			// note that the name DisableNoCloud is slightly misleading, it's
+			// more specifically "disable cloud-init after first boot if
+			// NoCloud, but just restrict after first boot if not NoCloud"
+			opts.DisableNoCloud = true
+		}
+
 		// now restrict/disable cloud-init
 		res, err := restrictCloudInit(cloudInitStatus, opts)
 		if err != nil {
@@ -698,6 +719,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 				// all other datasources just log that we limited it to that datasource
 				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
+		default:
+			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
 
