@@ -148,18 +148,17 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 }
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
-	// TODO:UC20: make the test support multiple recovery systems
-
 	for _, tc := range []struct {
-		assetsMap       boot.BootAssetsMap
-		recoverySystem  string
-		undefinedKernel bool
-		expectedAssets  []boot.BootAsset
-		err             string
+		assetsMap          boot.BootAssetsMap
+		recoverySystems    []string
+		undefinedKernel    bool
+		expectedAssets     []boot.BootAsset
+		expectedKernelRevs []int
+		err                string
 	}{
 		{
 			// transition sequences
-			recoverySystem: "20200825",
+			recoverySystems: []string{"20200825"},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -168,10 +167,24 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
+			expectedKernelRevs: []int{1},
+		},
+		{
+			// two systems
+			recoverySystems: []string{"20200825", "20200831"},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedAssets: []boot.BootAsset{
+				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
+			},
+			expectedKernelRevs: []int{1, 3},
 		},
 		{
 			// non-transition sequence
-			recoverySystem: "20200825",
+			recoverySystems: []string{"20200825"},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -180,15 +193,12 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
 			},
+			expectedKernelRevs: []int{1},
 		},
 		{
 			// invalid recovery system label
-			recoverySystem: "0",
-			assetsMap: boot.BootAssetsMap{
-				"grubx64.efi": []string{"grub-hash-1"},
-				"bootx64.efi": []string{"shim-hash-1"},
-			},
-			err: `invalid system seed label: "0"`,
+			recoverySystems: []string{"0"},
+			err:             `invalid system seed label: "0"`,
 		},
 	} {
 		tmpDir := c.MkDir()
@@ -197,12 +207,19 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 
 		// set recovery kernel
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-			if label != "20200825" {
+			if label != "20200825" && label != "20200831" {
 				return nil, nil, fmt.Errorf("invalid system seed label: %q", label)
 			}
+			kernelRev := 1
+			if label == "20200831" {
+				kernelRev = 3
+			}
 			kernelSnap := &seed.Snap{
-				Path:     "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-				SideInfo: &snap.SideInfo{Revision: snap.Revision{N: 1}},
+				Path: fmt.Sprintf("/var/lib/snapd/seed/snaps/pc-kernel_%d.snap", kernelRev),
+				SideInfo: &snap.SideInfo{
+					RealName: "pc-kernel",
+					Revision: snap.R(kernelRev),
+				},
 			}
 			return nil, []*seed.Snap{kernelSnap}, nil
 		})
@@ -218,15 +235,20 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		model := makeMockUC20Model()
 
 		modeenv := &boot.Modeenv{
-			RecoverySystem:                   tc.recoverySystem,
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
 		}
 
-		bc, err := boot.RecoveryBootChainsForSystems([]string{tc.recoverySystem}, bl, model, modeenv)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, bl, model, modeenv)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
-			c.Assert(bc, HasLen, 1)
-			c.Assert(bc[0].AssetChain, DeepEquals, tc.expectedAssets)
+			c.Assert(bc, HasLen, len(tc.recoverySystems))
+			for i, chain := range bc {
+				c.Assert(chain.AssetChain, DeepEquals, tc.expectedAssets)
+				c.Check(chain.Kernel, Equals, "pc-kernel")
+				expectedKernelRev := tc.expectedKernelRevs[i]
+				c.Check(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
+				c.Check(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{Snap: fmt.Sprintf("/var/lib/snapd/seed/snaps/pc-kernel_%d.snap", expectedKernelRev), Path: "kernel.efi", Role: bootloader.RoleRecovery})
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
