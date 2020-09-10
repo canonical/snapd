@@ -49,7 +49,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
 
-	recoveryBootChain, err := buildRecoveryBootChain(rbl, model, modeenv)
+	recoveryBootChains, err := buildRecoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot build recovery boot chain: %v", err)
 	}
@@ -72,20 +72,26 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot build run mode boot chain: %v", err)
 	}
 
-	pbc := toPredictableBootChains(append(runModeBootChains, *recoveryBootChain))
+	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	// get parameters from bootchains and seal the key
-	params, err := sealKeyParams(pbc, roleToBlName)
+	// get model parameters from bootchains
+	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot build key sealing parameters: %v", err)
 	}
-
-	if err := secbootSealKey(key, params); err != nil {
+	sealKeyParams := &secboot.SealKeyParams{
+		ModelParams:             modelParams,
+		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+		TPMLockoutAuthFile:      filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+	}
+	// finally, seal the key
+	if err := secbootSealKey(key, sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
@@ -94,57 +100,60 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	return nil
 }
 
-func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (bc *bootChain, err error) {
+func buildRecoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("bootloader doesn't support trusted assets")
 	}
 
-	// get the command line
-	cmdline, err := ComposeRecoveryCommandLine(model, modeenv.RecoverySystem)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
-	}
+	for _, system := range systems {
+		// get the command line
+		cmdline, err := ComposeRecoveryCommandLine(model, system)
+		if err != nil {
+			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+		}
 
-	// get kernel information from seed
-	perf := timings.New(nil)
-	_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, modeenv.RecoverySystem, []snap.Type{snap.TypeKernel}, perf)
-	if err != nil {
-		return nil, err
-	}
-	if len(snaps) != 1 {
-		return bc, fmt.Errorf("cannot obtain recovery kernel snap")
-	}
-	seedKernel := snaps[0]
+		// get kernel information from seed
+		perf := timings.New(nil)
+		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel}, perf)
+		if err != nil {
+			return nil, err
+		}
+		if len(snaps) != 1 {
+			return nil, fmt.Errorf("cannot obtain recovery kernel snap")
+		}
+		seedKernel := snaps[0]
 
-	var kernelRev string
-	if seedKernel.SideInfo.Revision.Store() {
-		kernelRev = seedKernel.SideInfo.Revision.String()
-	}
+		var kernelRev string
+		if seedKernel.SideInfo.Revision.Store() {
+			kernelRev = seedKernel.SideInfo.Revision.String()
+		}
 
-	recoveryBootChain, err := tbl.RecoveryBootChain("")
-	if err != nil {
-		return nil, err
-	}
+		recoveryBootChain, err := tbl.RecoveryBootChain(seedKernel.Path)
+		if err != nil {
+			return nil, err
+		}
 
-	// get asset chains
-	assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
-	if err != nil {
-		return nil, err
-	}
+		// get asset chains
+		assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
+		if err != nil {
+			return nil, err
+		}
 
-	return &bootChain{
-		BrandID:        model.BrandID(),
-		Model:          model.Model(),
-		Grade:          string(model.Grade()),
-		ModelSignKeyID: model.SignKeyID(),
-		AssetChain:     assetChain,
-		Kernel:         seedKernel.Path,
-		KernelRevision: kernelRev,
-		KernelCmdlines: []string{cmdline},
-		model:          model,
-		kernelBootFile: bootloader.NewBootFile(seedKernel.Path, kbf.Path, kbf.Role),
-	}, nil
+		chains = append(chains, bootChain{
+			BrandID:        model.BrandID(),
+			Model:          model.Model(),
+			Grade:          string(model.Grade()),
+			ModelSignKeyID: model.SignKeyID(),
+			AssetChain:     assetChain,
+			Kernel:         seedKernel.SnapName(),
+			KernelRevision: kernelRev,
+			KernelCmdlines: []string{cmdline},
+			model:          model,
+			kernelBootFile: kbf,
+		})
+	}
+	return chains, nil
 }
 
 func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
@@ -152,20 +161,20 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
-	runModeBootChain, err := tbl.BootChain(bl, "")
-	if err != nil {
-		return nil, err
-	}
-
-	// get asset chains
-	assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
-	if err != nil {
-		return nil, err
-	}
 
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
 	for _, k := range modeenv.CurrentKernels {
 		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
+		if err != nil {
+			return nil, err
+		}
+		runModeBootChain, err := tbl.BootChain(bl, info.MountFile())
+		if err != nil {
+			return nil, err
+		}
+
+		// get asset chains
+		assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
 		if err != nil {
 			return nil, err
 		}
@@ -179,11 +188,11 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 			Grade:          string(model.Grade()),
 			ModelSignKeyID: model.SignKeyID(),
 			AssetChain:     assetChain,
-			Kernel:         k,
+			Kernel:         info.SnapName(),
 			KernelRevision: kernelRev,
 			KernelCmdlines: []string{cmdline},
 			model:          model,
-			kernelBootFile: bootloader.NewBootFile(info.MountFile(), kbf.Path, kbf.Role),
+			kernelBootFile: kbf,
 		})
 	}
 	return chains, nil
@@ -202,7 +211,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
 		}
 		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
+			return nil, kernel, fmt.Errorf("cannot find boot asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
 			Role:   bf.Role,
@@ -214,7 +223,10 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 	return assets, bootFiles[len(bootFiles)-1], nil
 }
 
-func sealKeyParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) (*secboot.SealKeyParams, error) {
+func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) ([]*secboot.SealKeyModelParams, error) {
+	// TODO:UC20: try to make one SealKeyModelParams per model, boot
+	// chains are ordered, and chains sharing the model are grouped
+	// together
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
 	for _, bc := range pbc {
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
@@ -229,12 +241,5 @@ func sealKeyParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]s
 		})
 	}
 
-	sealKeyParams := &secboot.SealKeyParams{
-		ModelParams:             modelParams,
-		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
-		TPMLockoutAuthFile:      filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
-	}
-
-	return sealKeyParams, nil
+	return modelParams, nil
 }

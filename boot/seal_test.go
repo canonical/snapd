@@ -157,6 +157,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 }
 
 func (s *sealSuite) TestBuildRecoveryBootChain(c *C) {
+	// TODO:UC20: make the test support multiple recovery systems
+
 	for _, tc := range []struct {
 		assetsMap       boot.BootAssetsMap
 		recoverySystem  string
@@ -229,10 +231,11 @@ func (s *sealSuite) TestBuildRecoveryBootChain(c *C) {
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
 		}
 
-		bc, err := boot.BuildRecoveryBootChain(bl, model, modeenv)
+		bc, err := boot.BuildRecoveryBootChainsForSystems([]string{tc.recoverySystem}, bl, model, modeenv)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
-			c.Assert(bc.AssetChain, DeepEquals, tc.expectedAssets)
+			c.Assert(bc, HasLen, 1)
+			c.Assert(bc[0].AssetChain, DeepEquals, tc.expectedAssets)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}

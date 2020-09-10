@@ -447,6 +447,7 @@ version: 5.0
 			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 0},
+				RealName: "pc-kernel",
 			},
 		}
 		return model, []*seed.Snap{kernelSnap}, nil
@@ -765,6 +766,7 @@ version: 5.0
 			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 0},
+				RealName: "pc-kernel",
 			},
 		}
 		return model, []*seed.Snap{kernelSnap}, nil
