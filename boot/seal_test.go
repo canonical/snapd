@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -263,4 +264,106 @@ func createMockGrubCfg(baseDir string) error {
 		return err
 	}
 	return ioutil.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+}
+
+func (s *sealSuite) TestSealKeyModelParams(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	roleToBlName := map[bootloader.Role]string{
+		bootloader.RoleRecovery: "grub",
+		bootloader.RoleRunMode:  "grub",
+	}
+	// mock asset cache
+	p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/shim-shim-hash")
+	err := os.MkdirAll(filepath.Dir(p), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(p, nil, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	headers := model.Headers()
+	headers["model"] = "old-model-uc20"
+	headers["timestamp"] = "2019-10-01T08:00:00+00:00"
+	oldmodel := assertstest.FakeAssertion(headers).(*asserts.Model)
+
+	// old recovery
+	oldrc := boot.BootChain{
+		BrandID: oldmodel.BrandID(),
+		Model:   oldmodel.Model(),
+		AssetChain: []boot.BootAsset{
+			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
+			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
+		},
+		KernelCmdlines: []string{"panic=1", "oldrc"},
+	}
+	oldrc.SetModelAssertion(oldmodel)
+	oldkbf := bootloader.BootFile{Snap: "pc-linux_1.snap"}
+	oldrc.SetKernelBootFile(oldkbf)
+
+	// recovery
+	rc1 := boot.BootChain{
+		BrandID: model.BrandID(),
+		Model:   model.Model(),
+		AssetChain: []boot.BootAsset{
+			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
+			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
+		},
+		KernelCmdlines: []string{"panic=1", "rc1"},
+	}
+	rc1.SetModelAssertion(model)
+	rc1kbf := bootloader.BootFile{Snap: "pc-linux_10.snap"}
+	rc1.SetKernelBootFile(rc1kbf)
+
+	// run system
+	runc1 := boot.BootChain{
+		BrandID: model.BrandID(),
+		Model:   model.Model(),
+		AssetChain: []boot.BootAsset{
+			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
+			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
+			{Name: "loader", Role: bootloader.RoleRunMode, Hashes: []string{"loader-hash2"}},
+		},
+		KernelCmdlines: []string{"panic=1", "runc1"},
+	}
+	runc1.SetModelAssertion(model)
+	runc1kbf := bootloader.BootFile{Snap: "pc-linux_50.snap"}
+	runc1.SetKernelBootFile(runc1kbf)
+
+	pbc := boot.ToPredictableBootChains([]boot.BootChain{rc1, runc1, oldrc})
+
+	shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/shim-shim-hash"), bootloader.RoleRecovery)
+	loader1 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), bootloader.RoleRecovery)
+	loader2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), bootloader.RoleRunMode)
+
+	params, err := boot.SealKeyModelParams(pbc, roleToBlName)
+	c.Assert(err, IsNil)
+	c.Check(params, HasLen, 2)
+	c.Check(params[0].Model, Equals, model)
+	// NB: merging of lists makes panic=1 appear once
+	c.Check(params[0].KernelCmdlines, DeepEquals, []string{"panic=1", "rc1", "runc1"})
+
+	c.Check(params[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+		secboot.NewLoadChain(shim,
+			secboot.NewLoadChain(loader1,
+				secboot.NewLoadChain(rc1kbf))),
+		secboot.NewLoadChain(shim,
+			secboot.NewLoadChain(loader1,
+				secboot.NewLoadChain(loader2,
+					secboot.NewLoadChain(runc1kbf)))),
+	})
+
+	c.Check(params[1].Model, Equals, oldmodel)
+	c.Check(params[1].KernelCmdlines, DeepEquals, []string{"oldrc", "panic=1"})
+	c.Check(params[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+		secboot.NewLoadChain(shim,
+			secboot.NewLoadChain(loader1,
+				secboot.NewLoadChain(oldkbf))),
+	})
 }

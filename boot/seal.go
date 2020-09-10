@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -241,7 +242,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 		// group parameters by model, reuse an existing SealKeyModelParams
 		// if the model is the same.
 		if params, ok := modelToParams[bc.model]; ok {
-			params.KernelCmdlines = append(params.KernelCmdlines, bc.KernelCmdlines...)
+			params.KernelCmdlines = strutil.SortedListsUniqueMerge(params.KernelCmdlines, bc.KernelCmdlines)
 			params.EFILoadChains = append(params.EFILoadChains, loadChains...)
 		} else {
 			param := &secboot.SealKeyModelParams{
