@@ -808,7 +808,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		myParams := &secboot.ResealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
-					EFILoadChains:  [][]bootloader.BootFile{{mockEFI}},
+					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
 					KernelCmdlines: []string{"cmdline"},
 					Model:          &asserts.Model{},
 				},
