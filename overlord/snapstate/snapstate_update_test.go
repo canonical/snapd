@@ -5337,10 +5337,13 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 }
 
-func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInstallSize bool) error {
+func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInstallSize, failDiskCheck bool) error {
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
 		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
-		return &osutil.NotEnoughDiskSpaceError{}
+		if failDiskCheck {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
 	})
 	defer restore()
 
@@ -5388,7 +5391,8 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceError(c *C) {
 	featureFlag := true
 	failInstallSize := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize)
+	failDiskCheck := true
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -5398,13 +5402,23 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceError(c *C) {
 func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {
 	featureFlag := false
 	failInstallSize := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize)
+	failDiskCheck := true
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
 	featureFlag := true
 	failInstallSize := true
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize)
+	failDiskCheck := false
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
 	c.Check(err, ErrorMatches, "boom")
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskCheckHappy(c *C) {
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := false
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, IsNil)
 }
