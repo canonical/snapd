@@ -107,14 +107,6 @@ func toPredictableBootAsset(b *bootAsset) *bootAsset {
 	return &newB
 }
 
-type byBootAssetOrder []bootAsset
-
-func (b byBootAssetOrder) Len() int      { return len(b) }
-func (b byBootAssetOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b byBootAssetOrder) Less(i, j int) bool {
-	return bootAssetLess(&b[i], &b[j])
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
@@ -125,7 +117,6 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 		for i := range b.AssetChain {
 			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
 		}
-		sort.Sort(byBootAssetOrder(newB.AssetChain))
 	}
 	if b.KernelCmdlines != nil {
 		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
