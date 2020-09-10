@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
