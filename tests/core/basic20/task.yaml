@@ -26,8 +26,11 @@ execute: |
     echo "Ensure passwd/group is available for snaps"
     test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
+
     echo "Ensure extracted kernel.efi exists"
-    test -e /boot/grub/pc-kernel*/kernel.efi
+    test -e /boot/grub/"$kernel_name"*/kernel.efi
     test -e /boot/grub/kernel.efi
 
     echo "Ensure we are using managed boot assets"
@@ -58,4 +61,11 @@ execute: |
     done
 
     # ensure the "snap recovery" command works
-    snap recovery | MATCH '[0-9]+\ +canonical\*\ +ubuntu-core-20-[^ ]+\ +current'
+    MODEL="$(snap model | grep '^model' | awk '{ print $2 }')"
+    BRAND="$(snap model | grep '^brand' | cut -d' ' -f2- | xargs)"
+    if echo "$BRAND" | MATCH ".*\(.*\)"; then
+        BRAND="$(echo $BRAND | cut -d '(' -f2 | cut -d ')' -f1)"
+    elif [ "$BRAND" = "Canonical*" ]; then
+        BRAND="canonical\*"
+    fi
+    snap recovery | MATCH "[0-9]+ +$BRAND +$MODEL +current"
