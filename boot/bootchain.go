@@ -179,7 +179,7 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].KernelRevision != b[j].KernelRevision {
 		return b[i].KernelRevision < b[j].KernelRevision
 	}
-	// and last kernel command line
+	// and last kernel command lines
 	if !stringListsEqual(b[i].KernelCmdlines, b[j].KernelCmdlines) {
 		return stringListsLess(b[i].KernelCmdlines, b[j].KernelCmdlines)
 	}
