@@ -120,10 +120,6 @@ func (s *bootchainSuite) TestBootChainMarshalOnlyAssets(c *C) {
 		},
 	})
 
-	d, err := json.Marshal(predictableBc)
-	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"brand-id":"","model":"","grade":"","model-sign-key-id":"","asset-chain":[{"role":"run-mode","name":"loader","hashes":["z"]},{"role":"recovery","name":"shim","hashes":["b"]},{"role":"run-mode","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"1oader","hashes":["d","e"]},{"role":"recovery","name":"loader","hashes":["d","e"]},{"role":"run-mode","name":"0oader","hashes":["x","z"]}],"kernel":"","kernel-revision":"","kernel-cmdlines":null}`)
-
 	// already predictable, but try again
 	alreadySortedBc := boot.ToPredictableBootChain(predictableBc)
 	c.Check(alreadySortedBc, DeepEquals, predictableBc)
@@ -145,12 +141,12 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
-		// asset chain will get sorted when marshaling
+		// asset chain does not get sorted when marshaling
 		AssetChain: []boot.BootAsset{
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			// hash list will get sorted
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
 			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
@@ -169,10 +165,10 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		ModelSignKeyID: "my-key-id",
 		// assets are not reordered
 		AssetChain: []boot.BootAsset{
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			// hash lists are sorted
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
 			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
@@ -187,17 +183,16 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 
 	d, err := json.Marshal(predictableBc)
 	c.Assert(err, IsNil)
-	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"run-mode","name":"loader","hashes":["c","d"]},{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"recovery","name":"loader","hashes":["d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
-
+	c.Check(string(d), Equals, `{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["a","b"]},{"role":"recovery","name":"loader","hashes":["d"]},{"role":"run-mode","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel","kernel-revision":"1234","kernel-cmdlines":["a=1","foo=bar baz=0x123"]}`)
 	expectedOriginal := &boot.BootChain{
 		BrandID:        "mybrand",
 		Model:          "foo",
 		Grade:          "dangerous",
 		ModelSignKeyID: "my-key-id",
 		AssetChain: []boot.BootAsset{
-			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
 			{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
+			{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 		},
 		Kernel:         "pc-kernel",
 		KernelRevision: "1234",
@@ -209,74 +204,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 	c.Check(bc, DeepEquals, expectedOriginal)
 }
 
-func (s *bootchainSuite) TestBootChainEqualForResealComplex(c *C) {
-	bc := []boot.BootChain{
-		{
-			BrandID:        "mybrand",
-			Model:          "foo",
-			Grade:          "dangerous",
-			ModelSignKeyID: "my-key-id",
-			AssetChain: []boot.BootAsset{
-				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
-				// hash list will get sorted
-				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
-				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
-			},
-			Kernel:         "pc-kernel",
-			KernelRevision: "1234",
-			KernelCmdlines: []string{`foo=bar baz=0x123`},
-		},
-	}
-	pb := boot.ToPredictableBootChains(bc)
-	// equal with itself
-	eq := boot.PredictableBootChainsEqualForReseal(pb, pb)
-	c.Check(eq, Equals, true, Commentf("not equal with itself\nself: %v", pb))
-
-	// already sorted
-	pbOther := boot.PredictableBootChains{
-		{
-			BrandID:        "mybrand",
-			Model:          "foo",
-			Grade:          "dangerous",
-			ModelSignKeyID: "my-key-id",
-			AssetChain: []boot.BootAsset{
-				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
-				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
-				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
-			},
-			Kernel:         "pc-kernel",
-			KernelRevision: "1234",
-			KernelCmdlines: []string{`foo=bar baz=0x123`},
-		},
-	}
-	eq = boot.PredictableBootChainsEqualForReseal(pb, pbOther)
-	c.Check(eq, Equals, true, Commentf("not equal\none: %v\nother: %v", pb, pbOther))
-
-	pbNotEqual := boot.PredictableBootChains{
-		{
-			BrandID:        "mybrand",
-			Model:          "foo",
-			Grade:          "dangerous",
-			ModelSignKeyID: "my-key-id",
-			// order of boot assets is different
-			AssetChain: []boot.BootAsset{
-				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
-
-				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
-				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
-			},
-			Kernel:         "pc-kernel",
-			KernelRevision: "1234",
-			KernelCmdlines: []string{`foo=bar baz=0x123`},
-		},
-	}
-	eq = boot.PredictableBootChainsEqualForReseal(pb, pbNotEqual)
-	c.Check(eq, Equals, false, Commentf("unexpectedly equal\none: %v\nother: %v", pb, pbNotEqual))
-	eq = boot.PredictableBootChainsEqualForReseal(pbOther, pbNotEqual)
-	c.Check(eq, Equals, false, Commentf("unexpectedly equal\none: %v\nother: %v", pbOther, pbNotEqual))
-}
-
-func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
+func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 	var pbNil boot.PredictableBootChains
 
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbNil, pbNil), Equals, true)
@@ -288,6 +216,8 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"b", "a"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel-other",
@@ -309,9 +239,10 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
 			},
-			Kernel:         "pc-kernel-other",
+			Kernel:         "pc-kernel-recovery",
 			KernelRevision: "1234",
 			KernelCmdlines: []string{`foo`},
 		}, {
@@ -320,7 +251,9 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 			Grade:          "dangerous",
 			ModelSignKeyID: "my-key-id",
 			AssetChain: []boot.BootAsset{
-				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"d", "e"}},
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"a", "b"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"c", "d"}},
 			},
 			Kernel:         "pc-kernel-other",
 			KernelRevision: "1234",
@@ -333,6 +266,11 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForResealSimple(c *C) {
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbJustOne), Equals, false)
 	// with self
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbMoreAssets), Equals, true)
+	// chains composed of respective elements are not equal
+	c.Check(boot.PredictableBootChainsEqualForReseal(
+		[]boot.BootChain{pbMoreAssets[0]},
+		[]boot.BootChain{pbMoreAssets[1]}),
+		Equals, false)
 }
 
 func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
