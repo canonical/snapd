@@ -115,32 +115,23 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
 			sealKeyCalls++
 			c.Check(key, DeepEquals, myKey)
-			c.Assert(params.ModelParams, HasLen, 2)
+			c.Assert(params.ModelParams, HasLen, 1)
 
-			// recovery parameters
 			shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
 			grub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-			})
-			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-
-			// run mode parameters
-			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
-			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
-
-			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
-			})
-			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
-			c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
 			return tc.sealErr
 		})

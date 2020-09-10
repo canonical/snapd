@@ -224,21 +224,29 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 }
 
 func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) ([]*secboot.SealKeyModelParams, error) {
-	// TODO:UC20: try to make one SealKeyModelParams per model, boot
-	// chains are ordered, and chains sharing the model are grouped
-	// together
+	modelToParams := map[*asserts.Model]*secboot.SealKeyModelParams{}
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
+
 	for _, bc := range pbc {
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
 		if err != nil {
 			return nil, fmt.Errorf("error building load chains: %s", err)
 		}
 
-		modelParams = append(modelParams, &secboot.SealKeyModelParams{
-			Model:          bc.model,
-			KernelCmdlines: bc.KernelCmdlines,
-			EFILoadChains:  loadChains,
-		})
+		// group parameters by model, reuse an existing SealKeyModelParams
+		// if the model is the same.
+		if params, ok := modelToParams[bc.model]; ok {
+			params.KernelCmdlines = append(params.KernelCmdlines, bc.KernelCmdlines...)
+			params.EFILoadChains = append(params.EFILoadChains, loadChains...)
+		} else {
+			param := &secboot.SealKeyModelParams{
+				Model:          bc.model,
+				KernelCmdlines: bc.KernelCmdlines,
+				EFILoadChains:  loadChains,
+			}
+			modelParams = append(modelParams, param)
+			modelToParams[bc.model] = param
+		}
 	}
 
 	return modelParams, nil
