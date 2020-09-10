@@ -35,12 +35,12 @@ import (
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootChain struct {
-	BrandID        string      `json:"brand-id"`
-	Model          string      `json:"model"`
-	Grade          string      `json:"grade"`
-	ModelSignKeyID string      `json:"model-sign-key-id"`
-	AssetChain     []bootAsset `json:"asset-chain"`
-	Kernel         string      `json:"kernel"`
+	BrandID        string             `json:"brand-id"`
+	Model          string             `json:"model"`
+	Grade          asserts.ModelGrade `json:"grade"`
+	ModelSignKeyID string             `json:"model-sign-key-id"`
+	AssetChain     []bootAsset        `json:"asset-chain"`
+	Kernel         string             `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
 	KernelRevision string   `json:"kernel-revision"`
