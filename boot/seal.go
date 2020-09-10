@@ -49,9 +49,9 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
 
-	recoveryBootChains, err := buildRecoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
+	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
 	if err != nil {
-		return fmt.Errorf("cannot build recovery boot chain: %v", err)
+		return fmt.Errorf("cannot compose recovery boot chain: %v", err)
 	}
 
 	// build the run mode boot chains
@@ -67,9 +67,9 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot compose the candidate command line: %v", err)
 	}
 
-	runModeBootChains, err := buildRunModeBootChains(rbl, bl, model, modeenv, cmdline)
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
 	if err != nil {
-		return fmt.Errorf("cannot build run mode boot chain: %v", err)
+		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
@@ -82,7 +82,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	// get model parameters from bootchains
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return fmt.Errorf("cannot build key sealing parameters: %v", err)
+		return err
 	}
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:             modelParams,
@@ -100,7 +100,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	return nil
 }
 
-func buildRecoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
+func recoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("bootloader doesn't support trusted assets")
@@ -156,7 +156,7 @@ func buildRecoveryBootChainsForSystems(systems []string, rbl bootloader.Bootload
 	return chains, nil
 }
 
-func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
@@ -201,6 +201,7 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
 	assets = make([]bootAsset, len(bootFiles)-1)
 
+	// the last element is the kernel which is not a boot asset
 	for i, bf := range bootFiles[:len(bootFiles)-1] {
 		name := filepath.Base(bf.Path)
 		var hashes []string
@@ -211,7 +212,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
 		}
 		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find boot asset %s in modeenv", name)
+			return nil, kernel, fmt.Errorf("cannot find expected boot asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
 			Role:   bf.Role,
@@ -231,7 +232,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	for _, bc := range pbc {
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
 		if err != nil {
-			return nil, fmt.Errorf("error building load chains: %s", err)
+			return nil, fmt.Errorf("cannot build load chains with current boot assets for key sealing: %s", err)
 		}
 
 		modelParams = append(modelParams, &secboot.SealKeyModelParams{
