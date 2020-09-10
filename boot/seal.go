@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	secbootSealKey = secboot.SealKey
+	secbootSealKey   = secboot.SealKey
+	secbootResealKey = secboot.ResealKey
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -95,7 +96,69 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
-	// TODO:UC20: store the predictable bootchains
+	// TODO:UC20: save the predictable bootchains
+
+	return nil
+}
+
+// resealKeyToModeenv reseals the existing encryption key to the
+// parameters specified in modeenv.
+func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
+	// build the recovery mode boot chain
+	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
+	}
+
+	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
+	if err != nil {
+		return fmt.Errorf("cannot build recovery boot chain: %v", err)
+	}
+
+	// build the run mode boot chains
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the bootloader: %v", err)
+	}
+	cmdline, err := ComposeCommandLine(model)
+	if err != nil {
+		return fmt.Errorf("cannot compose the run mode command line: %v", err)
+	}
+
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
+	if err != nil {
+		return fmt.Errorf("cannot build run mode boot chain: %v", err)
+	}
+
+	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
+
+	// TODO:UC20: load and compare the predictable bootchains
+
+	roleToBlName := map[bootloader.Role]string{
+		bootloader.RoleRecovery: rbl.Name(),
+		bootloader.RoleRunMode:  bl.Name(),
+	}
+
+	// get model parameters from bootchains
+	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+	if err != nil {
+		return fmt.Errorf("cannot build key resealing parameters: %v", err)
+	}
+	resealKeyParams := &secboot.ResealKeyParams{
+		ModelParams:             modelParams,
+		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+	}
+	if err := secbootResealKey(resealKeyParams); err != nil {
+		return fmt.Errorf("cannot reseal the encryption key: %v", err)
+	}
+
+	// TODO:UC20: save the new predictable bootchains
 
 	return nil
 }

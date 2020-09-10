@@ -60,6 +60,7 @@ var (
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 	SealKeyToModeenv                = sealKeyToModeenv
+	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 )
 
@@ -89,6 +90,14 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 	secbootSealKey = f
 	return func() {
 		secbootSealKey = old
+	}
+}
+
+func MockSecbootResealKey(f func(params *secboot.ResealKeyParams) error) (restore func()) {
+	old := secbootResealKey
+	secbootResealKey = f
+	return func() {
+		secbootResealKey = old
 	}
 }
 

@@ -156,6 +156,124 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}
 }
 
+func (s *sealSuite) TestResealKeyToModeenv(c *C) {
+	for _, tc := range []struct {
+		resealErr error
+		err       string
+	}{
+		{resealErr: nil, err: ""},
+		{resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
+	} {
+		tmpDir := c.MkDir()
+		dirs.SetRootDir(tmpDir)
+		defer dirs.SetRootDir("")
+
+		err := createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-seed"))
+		c.Assert(err, IsNil)
+
+		err = createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-boot"))
+		c.Assert(err, IsNil)
+
+		modeenv := &boot.Modeenv{
+			RecoverySystem: "20200825",
+			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1", "shim-hash-2"},
+			},
+
+			CurrentTrustedBootAssets: boot.BootAssetsMap{
+				"grubx64.efi": []string{"run-grub-hash-1", "run-grub-hash-2"},
+			},
+
+			CurrentKernels: []string{"pc-kernel_500.snap", "pc-kernel_600.snap"},
+		}
+
+		// mock asset cache
+		p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), nil, 0644)
+		c.Assert(err, IsNil)
+
+		model := makeMockUC20Model()
+
+		// set a mock recovery kernel
+		readSystemEssentialCalls := 0
+		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+			readSystemEssentialCalls++
+			kernelSnap := &seed.Snap{
+				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+				SideInfo: &snap.SideInfo{
+					Revision: snap.Revision{N: 0},
+				},
+			}
+			return model, []*seed.Snap{kernelSnap}, nil
+		})
+		defer restore()
+
+		// set mock key resealing
+		resealKeyCalls := 0
+		restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+			resealKeyCalls++
+			c.Assert(params.ModelParams, HasLen, 3)
+
+			// recovery parameters
+			shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
+			shim2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
+				secboot.NewLoadChain(shim2, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			})
+			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+
+			// run mode parameters
+			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
+			runGrub2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), bootloader.RoleRunMode)
+			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+
+			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub,
+					secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)),
+					secboot.NewLoadChain(runGrub2, secboot.NewLoadChain(runKernel)),
+				)),
+				secboot.NewLoadChain(shim2, secboot.NewLoadChain(grub,
+					secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)),
+					secboot.NewLoadChain(runGrub2, secboot.NewLoadChain(runKernel)),
+				)),
+			})
+			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+
+			return tc.resealErr
+		})
+		defer restore()
+
+		err = boot.ResealKeyToModeenv(model, modeenv)
+		c.Assert(resealKeyCalls, Equals, 1)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 	// TODO:UC20: make the test support multiple recovery systems
 
