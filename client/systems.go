@@ -131,7 +131,10 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 		return err
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot request system action: %v", err)
+		if systemLabel != "" {
+			return xerrors.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
+		}
+		return xerrors.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
 }
