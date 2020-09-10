@@ -679,6 +679,27 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			statusMsg = "failed to transition to done or error state after 5 minutes"
 		}
 
+		// we should always have a model if we are seeded and are not on classic
+		model, err := m.Model()
+		if err != nil {
+			return err
+		}
+
+		// For UC20, we want to always disable cloud-init after it has run on
+		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+		// or if we installed cloud-init configuration from the gadget
+		if model.Grade() != asserts.ModelGradeUnset {
+			// always disable NoCloud after first boot on uc20, this is because
+			// even if the gadget has a cloud.conf configuring NoCloud, the
+			// config installed by cloud-init should not work differently for
+			// later boots, so it's sufficient that NoCloud runs on first-boot
+			// and never again
+			// note that the name DisableNoCloud is slightly misleading, it's
+			// more specifically "disable cloud-init after first boot if
+			// NoCloud, but just restrict after first boot if not NoCloud"
+			opts.DisableNoCloud = true
+		}
+
 		// now restrict/disable cloud-init
 		res, err := restrictCloudInit(cloudInitStatus, opts)
 		if err != nil {
@@ -698,6 +719,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 				// all other datasources just log that we limited it to that datasource
 				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
+		default:
+			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
 
@@ -994,23 +1017,88 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
-// RequestSystemAction request provided system to be run in a given mode. A
-// system reboot will be requested when the request can be successfully carried
-// out.
+// Reboot triggers a reboot into the given systemLabel and mode.
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (m *DeviceManager) Reboot(systemLabel, mode string) error {
+	rebootCurrent := func() {
+		logger.Noticef("rebooting system")
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+
+	// most simple case: just reboot
+	if systemLabel == "" && mode == "" {
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		rebootCurrent()
+		return nil
+	}
+
+	// no systemLabel means "current" so get the current system label
+	if systemLabel == "" {
+		systemMode := m.SystemMode()
+		currentSys, err := currentSystemForMode(m.state, systemMode)
+		if err != nil {
+			return fmt.Errorf("cannot get curent system: %v", err)
+		}
+		systemLabel = currentSys.System
+	}
+
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// even if we are already in the right mode we restart here by
+	// passing rebootCurrent as this is what the user requested
+	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+// RequestSystemAction requests the provided system to be run in a
+// given mode as specified by action.
+// A system reboot will be requested when the request can be
+// successfully carried out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
 
+	nop := func() {}
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// we do nothing (nop) if the mode and system are the same
+	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
+}
+
+// switchToSystemAndMode switches to given systemLabel and mode.
+// If the systemLabel and mode are the same as current, it calls
+// sameSystemAndMode. If successful otherwise it calls switched. Both
+// are called with the state lock held.
+func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}
 
 	systemMode := m.SystemMode()
+	// ignore the error to be robust in scenarios that
+	// dont' stricly require currentSys to be carried through.
+	// make sure that currentSys == nil does not break
+	// the code below!
+	// TODO: should we log the error?
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
+		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
 	system, err := systemFromSeed(systemLabel, currentSys)
@@ -1020,12 +1108,13 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
-		if action.Mode == act.Mode {
+		if mode == act.Mode {
 			sysAction = &act
 			break
 		}
 	}
 	if sysAction == nil {
+		// XXX: provide more context here like what mode was requested?
 		return ErrUnsupportedAction
 	}
 
@@ -1036,7 +1125,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && currentSys != nil && systemLabel == currentSys.System {
+			m.state.Lock()
+			defer m.state.Unlock()
+			sameSystemAndMode()
 			return nil
 		}
 	case "install":
@@ -1058,14 +1150,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if err != nil {
 		return err
 	}
-
-	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
-		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
-			systemLabel, action.Mode, err)
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v", systemLabel, mode, err)
 	}
 
-	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-	m.state.RequestRestart(state.RestartSystemNow)
+	switched(systemLabel, sysAction)
 	return nil
 }
 

@@ -95,7 +95,6 @@ execute: |
     go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
         --encrypt \
-        --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
     # keep for later
     cp -a /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key "/run/mnt/ubuntu-seed/device/fde/keyfile.$SPREAD_REBOOT"
