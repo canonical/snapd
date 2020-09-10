@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -142,12 +142,8 @@ func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *a
 }
 
 func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
-	model, err := seed.Model()
-	if err != nil {
-		return nil, err
-	}
 	a, err := db.Find(asserts.AccountType, map[string]string{
-		"account-id": model.BrandID(),
+		"account-id": seed.Model().BrandID(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("internal error: %v", err)

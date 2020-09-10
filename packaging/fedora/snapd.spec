@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.46
+Version:        2.46.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -915,6 +915,19 @@ fi
 
 
 %changelog
+* Fri Sep 04 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.46.1
+ - interfaces: allow snap-update-ns to read
+   /proc/cmdline
+ - github: run macOS job with Go 1.14
+ - o/snapstate, features: add feature flag for disk space check on
+   remove
+ - tests: account for apt-get on core18
+ - mkversion.sh: include dirty in version if the tree
+   is dirty
+ - interfaces/systemd: compare dereferenced Service
+ - vendor.json: update mysterious secboot SHA again
+
 * Tue Aug 25 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.46
  - logger: add support for setting snapd.debug=1 on kernel cmdline

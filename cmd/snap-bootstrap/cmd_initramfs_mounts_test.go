@@ -1136,18 +1136,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedNoModel(c *C) {
-	s.testInitramfsMountsEncryptedNoModel(c, "run", "")
+	s.testInitramfsMountsEncryptedNoModel(c, "run", "", 1)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeEncryptedNoModel(c *C) {
-	s.testInitramfsMountsEncryptedNoModel(c, "install", s.sysLabel)
+	s.testInitramfsMountsEncryptedNoModel(c, "install", s.sysLabel, 0)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c *C) {
-	s.testInitramfsMountsEncryptedNoModel(c, "recover", s.sysLabel)
+	s.testInitramfsMountsEncryptedNoModel(c, "recover", s.sysLabel, 0)
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string) {
+func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
 
 	// install and recover mounts are just ubuntu-seed before we fail
@@ -1205,9 +1205,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read model assertion: open .*%s: no such file or directory", where))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(".*cannot read model assertion: open .*%s: no such file or directory", where))
 	c.Assert(measureEpochCalls, Equals, 1)
-	c.Assert(measureModelCalls, Equals, 1)
+	c.Assert(measureModelCalls, Equals, expectedMeasureModelCalls)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	gl, err := filepath.Glob(filepath.Join(dirs.SnapBootstrapRunDir, "*-model-measured"))
 	c.Assert(err, IsNil)

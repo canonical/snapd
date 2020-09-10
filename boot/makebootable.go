@@ -361,6 +361,13 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	if sealer != nil {
+		// seal the encryption key to the parameters specified in modeenv
+		if err := sealKeyToModeenv(sealer.encryptionKey, model, modeenv); err != nil {
+			return err
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
