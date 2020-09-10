@@ -46,7 +46,7 @@ recovery system.
 When called without a system label and without a mode it will just
 trigger a regular reboot.
 
-When called without a system -abel but with a mode it will use the
+When called without a system label but with a mode it will use the
 current system to enter the given mode.
 
 Note that "recover" and "run" modes are only available for the
