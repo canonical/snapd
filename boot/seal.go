@@ -72,9 +72,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot build run mode boot chain: %v", err)
 	}
 
-	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChain))
-
-	// XXX: store the predictable bootchains
+	pbc := toPredictableBootChains(append(runModeBootChains, *recoveryBootChain))
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
@@ -91,21 +89,28 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
+	// TODO:UC20: store the predictable bootchains
+
 	return nil
 }
 
-func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (bc bootChain, err error) {
+func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (bc *bootChain, err error) {
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		return nil, fmt.Errorf("bootloader doesn't support trusted assets")
+	}
+
 	// get the command line
 	cmdline, err := ComposeRecoveryCommandLine(model, modeenv.RecoverySystem)
 	if err != nil {
-		return bc, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+		return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
 	}
 
 	// get kernel information from seed
 	perf := timings.New(nil)
 	_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, modeenv.RecoverySystem, []snap.Type{snap.TypeKernel}, perf)
 	if err != nil {
-		return bc, err
+		return nil, err
 	}
 	if len(snaps) != 1 {
 		return bc, fmt.Errorf("cannot obtain recovery kernel snap")
@@ -117,13 +122,18 @@ func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, mod
 		kernelRev = seedKernel.SideInfo.Revision.String()
 	}
 
-	// get asset chains
-	assetChain, kbf, err := buildRecoveryAssetChain(rbl, modeenv)
+	recoveryBootChain, err := tbl.RecoveryBootChain("")
 	if err != nil {
-		return bc, err
+		return nil, err
 	}
 
-	return bootChain{
+	// get asset chains
+	assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bootChain{
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
@@ -138,20 +148,23 @@ func buildRecoveryBootChain(rbl bootloader.Bootloader, model *asserts.Model, mod
 }
 
 func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
+	}
+	runModeBootChain, err := tbl.BootChain(bl, "")
+	if err != nil {
+		return nil, err
+	}
+
 	// get asset chains
-	assetChain, kbf, err := buildRunModeAssetChain(rbl, bl, modeenv)
+	assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
 	if err != nil {
 		return nil, err
 	}
 
-	// get run mode kernels
-	runModeKernels, err := runModeKernelsFromModeenv(modeenv)
-	if err != nil {
-		return nil, err
-	}
-
-	chains := make([]bootChain, 0, 2)
-	for _, k := range runModeKernels {
+	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
+	for _, k := range modeenv.CurrentKernels {
 		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
 		if err != nil {
 			return nil, err
@@ -170,71 +183,20 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 			KernelRevision: kernelRev,
 			KernelCmdlines: []string{cmdline},
 			model:          model,
-			kernelBootFile: bootloader.NewBootFile(k, kbf.Path, kbf.Role),
+			kernelBootFile: bootloader.NewBootFile(info.MountFile(), kbf.Path, kbf.Role),
 		})
 	}
-
 	return chains, nil
 }
 
-func buildRecoveryAssetChain(rbl bootloader.Bootloader, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, kernel, fmt.Errorf("bootloader doesn't support trusted assets")
-	}
+func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
+	assets = make([]bootAsset, len(bootFiles)-1)
 
-	recoveryBootChain, err := tbl.RecoveryBootChain("")
-	if err != nil {
-		return nil, kernel, err
-	}
-
-	// the last entry is the kernel
-	numAssets := len(recoveryBootChain) - 1
-	assets = make([]bootAsset, numAssets)
-
-	for i := 0; i < numAssets; i++ {
-		name := filepath.Base(recoveryBootChain[i].Path)
-		hashes, ok := modeenv.CurrentTrustedRecoveryBootAssets[name]
-		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
-		}
-		assets[i] = bootAsset{
-			Role:   recoveryBootChain[i].Role,
-			Name:   name,
-			Hashes: hashes,
-		}
-	}
-
-	return assets, recoveryBootChain[numAssets], nil
-}
-
-func buildRunModeAssetChain(rbl, bl bootloader.Bootloader, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, kernel, fmt.Errorf("recovery bootloader doesn't support trusted assets")
-	}
-
-	recoveryBootChain, err := tbl.RecoveryBootChain("")
-	if err != nil {
-		return nil, kernel, err
-	}
-	// the last entry is the kernel
-	numRecoveryAssets := len(recoveryBootChain) - 1
-
-	runModeBootChain, err := tbl.BootChain(bl, "")
-	if err != nil {
-		return nil, kernel, err
-	}
-	// the last entry is the kernel
-	numRunModeAssets := len(runModeBootChain) - 1
-
-	assets = make([]bootAsset, numRunModeAssets)
-
-	for i := 0; i < numRunModeAssets; i++ {
-		name := filepath.Base(runModeBootChain[i].Path)
+	for i, bf := range bootFiles[:len(bootFiles)-1] {
+		name := filepath.Base(bf.Path)
 		var hashes []string
 		var ok bool
-		if i < numRecoveryAssets {
+		if bf.Role == bootloader.RoleRecovery {
 			hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
 		} else {
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
@@ -243,28 +205,13 @@ func buildRunModeAssetChain(rbl, bl bootloader.Bootloader, modeenv *Modeenv) (as
 			return nil, kernel, fmt.Errorf("cannot find asset %s in modeenv", name)
 		}
 		assets[i] = bootAsset{
-			Role:   runModeBootChain[i].Role,
+			Role:   bf.Role,
 			Name:   name,
 			Hashes: hashes,
 		}
 	}
 
-	return assets, runModeBootChain[numRunModeAssets], nil
-}
-
-// runModeKernelsFromModeenv obtains the current and next kernels
-// listed in modeenv.
-func runModeKernelsFromModeenv(modeenv *Modeenv) ([]string, error) {
-	switch len(modeenv.CurrentKernels) {
-	case 1:
-		current := filepath.Join(dirs.SnapBlobDir, modeenv.CurrentKernels[0])
-		return []string{current}, nil
-	case 2:
-		current := filepath.Join(dirs.SnapBlobDir, modeenv.CurrentKernels[0])
-		next := filepath.Join(dirs.SnapBlobDir, modeenv.CurrentKernels[1])
-		return []string{current, next}, nil
-	}
-	return nil, fmt.Errorf("invalid number of kernels in modeenv")
+	return assets, bootFiles[len(bootFiles)-1], nil
 }
 
 func sealKeyParams(pbc predictableBootChains, roleToBlName map[bootloader.Role]string) (*secboot.SealKeyParams, error) {
