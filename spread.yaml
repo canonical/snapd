@@ -849,13 +849,17 @@ suites:
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
+        prepare-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_prepare_env
-
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_destroy_vm
+            nested_cleanup_env
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -902,6 +906,9 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
+
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -961,6 +968,9 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
+
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -1022,9 +1032,8 @@ suites:
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-            snap install core --beta
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
