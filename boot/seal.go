@@ -198,6 +198,10 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 	return chains, nil
 }
 
+// buildBootAssets takes the BootFiles of a bootloader boot chain and
+// produces corresponding bootAssets with the matching current asset
+// hashes from modeenv plus it returns separately the last BootFile
+// which is for the kernel.
 func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
 	assets = make([]bootAsset, len(bootFiles)-1)
 
