@@ -58,9 +58,9 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	ObserveSuccessfulBootWithAssets   = observeSuccessfulBootAssets
-	SealKeyToModeenv                  = sealKeyToModeenv
-	BuildRecoveryBootChainsForSystems = buildRecoveryBootChainsForSystems
+	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
+	SealKeyToModeenv                = sealKeyToModeenv
+	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 )
 
 type BootAssetsMap = bootAssetsMap
