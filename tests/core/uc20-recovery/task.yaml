@@ -143,7 +143,7 @@ execute: |
         mount -o bind "$PWD/mock-shutdown" /usr/sbin/shutdown
 
         # request going back to run mode
-        snap reboot --run "$label" | MATCH 'Reboot into ".*" "run" mode."
+        snap reboot --run "$label" | MATCH 'Reboot into ".*" "run" mode.'
         # XXX: is this a race between spread seeing REBOOT and machine rebooting?
 
         # see earlier note about shutdown
