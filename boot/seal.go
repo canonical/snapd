@@ -143,7 +143,7 @@ func buildRecoveryBootChainsForSystems(systems []string, rbl bootloader.Bootload
 		chains = append(chains, bootChain{
 			BrandID:        model.BrandID(),
 			Model:          model.Model(),
-			Grade:          string(model.Grade()),
+			Grade:          model.Grade(),
 			ModelSignKeyID: model.SignKeyID(),
 			AssetChain:     assetChain,
 			Kernel:         seedKernel.SnapName(),
@@ -185,7 +185,7 @@ func buildRunModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model,
 		chains = append(chains, bootChain{
 			BrandID:        model.BrandID(),
 			Model:          model.Model(),
-			Grade:          string(model.Grade()),
+			Grade:          model.Grade(),
 			ModelSignKeyID: model.SignKeyID(),
 			AssetChain:     assetChain,
 			Kernel:         info.SnapName(),
