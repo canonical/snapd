@@ -593,7 +593,13 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
 
     # Set kvm attribute
     local ATTR_KVM
@@ -620,7 +626,6 @@ nested_start_core_vm_unit() {
     
     local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
@@ -845,7 +850,13 @@ nested_start_classic_vm() {
 
     PARAM_IMAGE="-drive file=$NESTED_IMAGES_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:$NESTED_LOGS_DIR/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
     PARAM_BIOS=""
     PARAM_TPM=""
 
