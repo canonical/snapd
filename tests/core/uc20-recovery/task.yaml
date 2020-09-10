@@ -29,12 +29,9 @@ execute: |
         # with spread
         mount -o bind "$PWD/mock-shutdown" /usr/sbin/shutdown
 
-        # request a recovery mode
+        # reboot to recovery mode
         echo "Request rebooting into recovery mode"
-        # response contains maintenance: {"maintenance":{"message":"system is restarting","kind":"system-restart"}}
-        test-snapd-curl.curl -X POST --data '{"action":"do","mode":"recover"}' \
-            -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label" | \
-            MATCH '"system-restart"'
+        snap reboot --recover "$label" | MATCH 'Reboot into ".*" "recover" mode'
 
         # snapd schedules a slow timeout and an immediate one, however it is
         # scheduled asynchronously, try to keep the check simple
@@ -148,9 +145,7 @@ execute: |
         mount -o bind "$PWD/mock-shutdown" /usr/sbin/shutdown
 
         # request going back to run mode
-        test-snapd-curl.curl -X POST --data '{"action":"do","mode":"run"}' \
-            -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label" | \
-            MATCH '"system-restart"'
+        snap reboot --run "$label" | MATCH 'Reboot into ".*" "run" mode.'
         # XXX: is this a race between spread seeing REBOOT and machine rebooting?
 
         # see earlier note about shutdown

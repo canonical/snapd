@@ -35,12 +35,6 @@ prepare: |
     nested_create_core_vm
     nested_start_core_vm
 
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_destroy_vm
-    nested_cleanup_env
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
