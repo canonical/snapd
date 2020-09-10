@@ -36,16 +36,20 @@ var (
 // in modeenv.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
-	loadChain := []bootloader.BootFile{
-		// the path to the shim EFI binary
-		bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-		// the path to the recovery grub EFI binary
-		bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-		// the path to the run mode grub EFI binary
-		bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
-	}
+	// TODO:UC20: produce separate a recovery and a run boot chains
 	kernelPath := filepath.Join(InitramfsUbuntuBootDir, "EFI/ubuntu/kernel.efi")
-	loadChain = append(loadChain, bootloader.NewBootFile("", kernelPath, bootloader.RoleRunMode))
+	kbf := bootloader.NewBootFile("", kernelPath, bootloader.RoleRunMode)
+	loadChain := secboot.NewLoadChain(kbf)
+
+	// the path to the run mode grub EFI binary
+	runbf := bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode)
+	loadChain = secboot.NewLoadChain(runbf, loadChain)
+	// the path to the recovery grub EFI binary
+	recbf := bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery)
+	loadChain = secboot.NewLoadChain(recbf, loadChain)
+	// the path to the shim EFI binary
+	shimbf := bootloader.NewBootFile("", filepath.Join(InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery)
+	loadChain = secboot.NewLoadChain(shimbf, loadChain)
 
 	// Get the expected kernel command line for the system that is currently being installed
 	cmdline, err := ComposeCandidateCommandLine(model)
@@ -69,7 +73,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 			{
 				Model:          model,
 				KernelCmdlines: kernelCmdlines,
-				EFILoadChains:  [][]bootloader.BootFile{loadChain},
+				EFILoadChains:  []*secboot.LoadChain{loadChain},
 			},
 		},
 		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),

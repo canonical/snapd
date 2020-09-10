@@ -22,6 +22,8 @@ package boot
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -102,7 +104,6 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type ByBootAssetOrder = byBootAssetOrder
 type PredictableBootChains = predictableBootChains
 
 var (
@@ -110,4 +111,14 @@ var (
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
+	BootAssetsToLoadChains              = bootAssetsToLoadChains
+	BootAssetLess                       = bootAssetLess
 )
+
+func (b *bootChain) SetModelAssertion(model *asserts.Model) {
+	b.model = model
+}
+
+func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
+	b.kernelBootFile = kbf
+}

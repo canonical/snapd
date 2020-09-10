@@ -40,17 +40,13 @@ prepare: |
     nested_create_core_vm
     nested_start_core_vm
 
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_destroy_vm
-    nested_cleanup_env
-
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
         echo "logs before reboot"
         cat snapd-before-reboot.logs
     fi
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
     nested_exec "sudo journalctl -e --no-pager -u snapd" || true
 
