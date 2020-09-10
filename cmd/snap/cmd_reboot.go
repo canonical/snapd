@@ -88,7 +88,7 @@ func (x *cmdReboot) modeFromCommandline() (string, error) {
 			continue
 		}
 		if mode != "" {
-			return "", fmt.Errorf("Please specify a single mode")
+			return "", fmt.Errorf(i18n.G("Please specify a single mode"))
 		}
 		mode = arg.mode
 	}
@@ -112,13 +112,13 @@ func (x *cmdReboot) Execute(args []string) error {
 
 	switch {
 	case x.Positional.Label != "" && mode != "":
-		fmt.Fprintf(Stdout, "Reboot into %q %q mode.\n", x.Positional.Label, mode)
+		fmt.Fprintf(Stdout, i18n.G("Reboot into %q %q mode.\n"), x.Positional.Label, mode)
 	case x.Positional.Label != "":
-		fmt.Fprintf(Stdout, "Reboot into %q.\n", x.Positional.Label)
+		fmt.Fprintf(Stdout, i18n.G("Reboot into %q.\n"), x.Positional.Label)
 	case mode != "":
-		fmt.Fprintf(Stdout, "Reboot into %q mode.\n", mode)
+		fmt.Fprintf(Stdout, i18n.G("Reboot into %q mode.\n"), mode)
 	default:
-		fmt.Fprintf(Stdout, "Reboot\n")
+		fmt.Fprintf(Stdout, i18n.G("Reboot\n"))
 	}
 
 	return nil
