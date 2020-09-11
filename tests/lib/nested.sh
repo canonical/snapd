@@ -16,6 +16,7 @@ NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
+NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
 nested_wait_for_ssh() {
     nested_retry_until_success 400 1 "true"
 }
@@ -360,6 +361,11 @@ nested_download_image() {
 }
 
 nested_get_model() {
+    # use custom model if defined
+    if [ -n "$NESTED_CUSTOM_MODEL" ]; then
+        echo "$NESTED_CUSTOM_MODEL"
+        return
+    fi
     case "$SPREAD_SYSTEM" in
         ubuntu-16.04-64)
             echo "$TESTSLIB/assertions/nested-amd64.model"
@@ -374,7 +380,7 @@ nested_get_model() {
             echo "unsupported system"
             exit 1
             ;;
-        esac
+    esac
 }
 
 nested_create_core_vm() {
