@@ -95,7 +95,7 @@ func (s *TeeInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to the Trusted Execution Environment devices`)
+	c.Assert(si.Summary, Equals, `allows access to Trusted Execution Environment devices`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "tee")
 }
 
