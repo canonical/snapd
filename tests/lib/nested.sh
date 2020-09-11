@@ -6,11 +6,15 @@
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB"/systems.sh
 
+# shellcheck source=tests/lib/store.sh
+. "$TESTSLIB"/store.sh
+
 NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
 NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
 NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
 NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
+
 
 NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
@@ -18,6 +22,8 @@ NESTED_MON_PORT=8888
 
 NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
 NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
+NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
+NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
 
 nested_wait_for_ssh() {
@@ -453,6 +459,11 @@ nested_create_core_vm() {
                     rm -rf "$KERNEL_UNPACKED"
                     EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
+                    # sign the pc-kernel snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                    fi
+
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
                     local GADGET_SNAP
                     GADGET_SNAP=""
@@ -470,9 +481,20 @@ nested_create_core_vm() {
                         rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
+                    # sign the pc gadget snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+                    fi
+
+                    # repack the snapd snap
                     snap download --channel="latest/edge" snapd
                     repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+
+                    # sign the snapd snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd_*.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+                    fi
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
