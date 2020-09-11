@@ -333,6 +333,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 
 	return &TrustedAssetsUpdateObserver{
 		cache: newTrustedAssetsCache(dirs.SnapBootAssetsDir),
+		model: model,
 	}, nil
 }
 
@@ -340,6 +341,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 // attempts to reseal when needed.
 type TrustedAssetsUpdateObserver struct {
 	cache *trustedAssetsCache
+	model *asserts.Model
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
@@ -570,8 +572,9 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 // BeforeWrite is called when the update process has been staged for execution.
 func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
+		return fmt.Errorf("cannot reseal encryption key: %v", err)
+	}
 	return nil
 }
 
@@ -634,8 +637,9 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
+		return fmt.Errorf("cannot reseal encryption key after a canceled update: %v", err)
+	}
 	return nil
 }
 
