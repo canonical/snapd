@@ -96,7 +96,10 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
-	// TODO:UC20: store the predictable bootchains
+	installBootChainsPath := filepath.Join(dirs.SnapFDEDirUnder(InstallHostWritableDir), "boot-chains")
+	if err := bootChainsToFile(pbc, installBootChainsPath); err != nil {
+		return fmt.Errorf("cannot store boot chains: %v", err)
+	}
 
 	return nil
 }
@@ -256,4 +259,14 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	}
 
 	return modelParams, nil
+}
+
+// isResealNeeded returns true when the predictable boot chains provided as
+// input do not match the cached boot chains on disk.
+func isResealNeeded(pbc predictableBootChains, rootdir string) (bool, error) {
+	otherPbc, err := bootChainsFromFile(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	if err != nil {
+		return false, err
+	}
+	return !predictableBootChainsEqualForReseal(pbc, otherPbc), nil
 }

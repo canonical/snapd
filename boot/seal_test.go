@@ -46,6 +46,14 @@ type sealSuite struct {
 
 var _ = Suite(&sealSuite{})
 
+func (s *sealSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+}
+
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	for _, tc := range []struct {
 		sealErr error
@@ -366,4 +374,66 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 			secboot.NewLoadChain(loader1,
 				secboot.NewLoadChain(oldkbf))),
 	})
+}
+
+func (s *sealSuite) TestIsResealNeeded(c *C) {
+	chains := []boot.BootChain{
+		{
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "signed",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"x", "y"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z", "x"}},
+			},
+			Kernel:         "pc-kernel-other",
+			KernelRevision: "2345",
+			KernelCmdlines: []string{`snapd_recovery_mode=run foo`},
+		}, {
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "dangerous",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"y", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+			},
+			Kernel:         "pc-kernel-recovery",
+			KernelRevision: "1234",
+			KernelCmdlines: []string{`snapd_recovery_mode=recover foo`},
+		},
+	}
+
+	pbc := boot.ToPredictableBootChains(chains)
+
+	rootdir := c.MkDir()
+	err := boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+
+	needed, err := boot.IsResealNeeded(pbc, rootdir)
+	c.Assert(err, IsNil)
+	c.Check(needed, Equals, false)
+
+	otherchain := []boot.BootChain{pbc[0]}
+	needed, err = boot.IsResealNeeded(otherchain, rootdir)
+	c.Assert(err, IsNil)
+	// chains are different
+	c.Check(needed, Equals, true)
+
+	// boot-chains does not exist, we cannot compare so advise to reseal
+	otherRootdir := c.MkDir()
+	needed, err = boot.IsResealNeeded(otherchain, otherRootdir)
+	c.Assert(err, IsNil)
+	c.Check(needed, Equals, true)
+
+	// exists but cannot be read
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
+	needed, err = boot.IsResealNeeded(otherchain, rootdir)
+	c.Assert(err, ErrorMatches, "cannot open existing boot chains state file: open .*/boot-chains: permission denied")
+	c.Check(needed, Equals, false)
 }
