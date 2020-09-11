@@ -44,6 +44,47 @@ make_snap_installable(){
     new_snap_revision "$dir" "$snap_path"
 }
 
+make_snap_installable_with_id(){
+    local dir="$1"
+    local snap_path="$2"
+    local snap_id="$3"
+
+    if ! command -v yaml2json; then
+        snap install remarshal
+    fi
+    if ! command -v jq; then
+        snap install jq
+    fi
+
+    # unsquash the snap to get it's name
+    unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
+    snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
+    rm -rf /tmp/snap-squashfs
+
+
+    cat >> /tmp/snap-decl.json << EOF
+{
+    "type": "snap-declaration",
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "snap-name": "${snap_name}"
+}
+EOF
+
+    cat >> /tmp/snap-rev.json << EOF
+{
+    "type": "snap-revision",
+    "snap-id": "${snap_id}"
+}
+EOF
+
+    fakestore new-snap-declaration --dir "$dir" --snap-decl-json=/tmp/snap-decl.json "$snap_path"
+    fakestore new-snap-revision --dir "$dir" --snap-rev-json=/tmp/snap-rev.json "$snap_path"
+
+    rm -rf /tmp/snap-decl.json
+    rm -rf /tmp/snap-rev.json
+}
+
 new_snap_declaration(){
     local dir="$1"
     local snap_path="$2"
