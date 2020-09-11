@@ -446,7 +446,7 @@ version: 5.0
 		kernelSnap := &seed.Snap{
 			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: -1},
+				Revision: snap.Revision{N: 1},
 				RealName: "pc-kernel",
 			},
 		}
@@ -585,7 +585,7 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 				},
 			},
 			Kernel:         "pc-kernel",
-			KernelRevision: "",
+			KernelRevision: "1",
 			KernelCmdlines: []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			},

@@ -40,6 +40,10 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
+func bootChainsFileUnder(rootdir string) string {
+	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
+}
+
 // sealKeyToModeenv seals the supplied key to the parameters specified
 // in modeenv.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -97,9 +101,9 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
-	installBootChainsPath := filepath.Join(dirs.SnapFDEDirUnder(InstallHostWritableDir), "boot-chains")
+	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
 	if err := writeBootChains(pbc, installBootChainsPath); err != nil {
-		return fmt.Errorf("cannot store boot chains: %v", err)
+		return err
 	}
 
 	return nil
@@ -167,7 +171,7 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
-	bootChainsPath := filepath.Join(dirs.SnapFDEDirUnder(InstallHostWritableDir), "boot-chains")
+	bootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
 	if err := writeBootChains(pbc, bootChainsPath); err != nil {
 		return err
 	}
@@ -335,7 +339,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 // isResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
 func isResealNeeded(pbc predictableBootChains, rootdir string) (bool, error) {
-	previousPbc, err := readBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	previousPbc, err := readBootChains(bootChainsFileUnder(rootdir))
 	if err != nil {
 		return false, err
 	}
