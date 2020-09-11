@@ -565,55 +565,8 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 	// make sure SealKey was called
 	c.Check(sealKeyCalls, Equals, 1)
 
-	pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
-	c.Assert(err, IsNil)
-	c.Check(pbc, DeepEquals, boot.PredictableBootChains{
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "my-model-uc20",
-			Grade:          "dangerous",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain: []boot.BootAsset{
-				{
-					Role:   "recovery",
-					Name:   "bootx64.efi",
-					Hashes: []string{"39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"},
-				}, {
-					Role:   "recovery",
-					Name:   "grubx64.efi",
-					Hashes: []string{"aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"},
-				},
-			},
-			Kernel:         "pc-kernel",
-			KernelRevision: "1",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "my-model-uc20",
-			Grade:          "dangerous",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain: []boot.BootAsset{
-				{
-					Role: "recovery", Name: "bootx64.efi",
-					Hashes: []string{"39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"},
-				}, {
-					Role: "recovery", Name: "grubx64.efi",
-					Hashes: []string{"aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"},
-				}, {
-					Role: "run-mode", Name: "grubx64.efi",
-					Hashes: []string{"5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"},
-				},
-			},
-			Kernel:         "pc-kernel",
-			KernelRevision: "5",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-	})
+	// make sure we wrote the boot chains data file
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains")), Equals, true)
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunModeInstallBootConfigErr(c *C) {
