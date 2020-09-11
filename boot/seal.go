@@ -181,7 +181,14 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	// TODO:UC20: load and compare the predictable bootchains
+	ok, err := isResealNeeded(pbc, InstallHostWritableDir)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		// no need to actually reseal
+		return nil
+	}
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),

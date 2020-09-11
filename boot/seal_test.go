@@ -221,14 +221,18 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 }
 
 func (s *sealSuite) TestResealKeyToModeenv(c *C) {
+	var prevPbc boot.PredictableBootChains
+
 	for _, tc := range []struct {
 		sealedKeys bool
+		prevPbc    bool
 		resealErr  error
 		err        string
 	}{
 		{sealedKeys: false, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
+		{prevPbc: true, sealedKeys: true, resealErr: nil, err: ""},
 	} {
 		tmpDir := c.MkDir()
 		dirs.SetRootDir(tmpDir)
@@ -259,6 +263,11 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap", "pc-kernel_600.snap"},
+		}
+
+		if tc.prevPbc {
+			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+			c.Assert(err, IsNil)
 		}
 
 		// mock asset cache
@@ -369,7 +378,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		defer restore()
 
 		err = boot.ResealKeyToModeenv(model, modeenv)
-		if !tc.sealedKeys {
+		if !tc.sealedKeys || tc.prevPbc {
 			// did nothing
 			c.Assert(err, IsNil)
 			c.Assert(resealKeyCalls, Equals, 0)
@@ -467,6 +476,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 				},
 			},
 		})
+		prevPbc = pbc
 	}
 }
 
