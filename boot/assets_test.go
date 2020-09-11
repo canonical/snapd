@@ -66,6 +66,8 @@ func checkContentGlob(c *C, glob string, expected []string) {
 
 func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
 	uc20Model := makeMockUC20Model()
+	// checked by TrustedAssetsUpdateObserverForModel
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
@@ -80,9 +82,10 @@ func (s *assetsSuite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) 
 	return tab
 }
 
-func (s *assetsSuite) stampSealedKeys(c *C) {
-	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), nil, 0644)
+func (s *assetsSuite) stampSealedKeys(c *C, rootdir string) {
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
+	err := ioutil.WriteFile(stamp, nil, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -631,9 +634,14 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 }
 
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {
-	// we get an observer for UC20
+	// we get an observer for UC20, but only if we sealed keys
 	uc20Model := makeMockUC20Model()
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
+	c.Check(obs, IsNil)
+	// sealed keys stamp
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -681,7 +689,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	s.stampSealedKeys(c)
+	// checked by resealKeyToModeenv, under that rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -757,7 +766,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	s.stampSealedKeys(c)
+	// checked by resealKeyToModeenv, under that rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -1027,10 +1037,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	defer bootloader.Force(nil)
 	bl.TrustedAssetsList = []string{"asset"}
 
-	uc20Model := makeMockUC20Model()
-	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
-	c.Assert(obs, NotNil)
-	c.Assert(err, IsNil)
+	obs, _ := s.uc20UpdateObserver(c)
 
 	// we are already tracking 2 assets, this is an unexpected state for observing content updates
 	m := boot.Modeenv{
@@ -1042,7 +1049,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 			"asset": {"one", "two"},
 		},
 	}
-	err = m.WriteTo("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// and the source file
@@ -1525,7 +1532,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.stampSealedKeys(c)
+	// checked by resealKeyToModeenv, under that rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
@@ -2342,7 +2350,8 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	s.stampSealedKeys(c)
+	// checked by resealKeyToModeenv, under that rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -2474,7 +2483,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.stampSealedKeys(c)
+	// checked by resealKeyToModeenv, under that rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
