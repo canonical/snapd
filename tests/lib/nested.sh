@@ -465,8 +465,8 @@ EOF
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
