@@ -112,7 +112,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			kernelSnap := &seed.Snap{
 				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 				SideInfo: &snap.SideInfo{
-					Revision: snap.Revision{N: 0},
+					RealName: "pc-kernel",
+					Revision: snap.Revision{N: 1},
 				},
 			}
 			return model, []*seed.Snap{kernelSnap}, nil
@@ -157,7 +158,65 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(err, IsNil)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
+			continue
 		}
+
+		// verify the boot chains data file
+		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+		c.Assert(err, IsNil)
+		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
+			boot.BootChain{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   "recovery",
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash-1"},
+					},
+					{
+						Role:   "recovery",
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash-1"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "1",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				},
+			},
+			boot.BootChain{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   "recovery",
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash-1"},
+					},
+					{
+						Role:   "recovery",
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash-1"},
+					},
+					{
+						Role:   "run-mode",
+						Name:   "grubx64.efi",
+						Hashes: []string{"run-grub-hash-1"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "500",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				},
+			},
+		})
 	}
 }
 
@@ -217,7 +276,8 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			kernelSnap := &seed.Snap{
 				Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 				SideInfo: &snap.SideInfo{
-					Revision: snap.Revision{N: 0},
+					RealName: "pc-kernel",
+					Revision: snap.Revision{N: 1},
 				},
 			}
 			return model, []*seed.Snap{kernelSnap}, nil
@@ -304,7 +364,93 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			c.Assert(err, IsNil)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
+			continue
 		}
+
+		// verify the boot chains data file
+		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+		c.Assert(err, IsNil)
+		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
+			boot.BootChain{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   "recovery",
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+					},
+					{
+						Role:   "recovery",
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash-1"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "1",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				},
+			},
+			boot.BootChain{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   "recovery",
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+					},
+					{
+						Role:   "recovery",
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash-1"},
+					},
+					{
+						Role:   "run-mode",
+						Name:   "grubx64.efi",
+						Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "500",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				},
+			},
+			boot.BootChain{
+				BrandID:        "my-brand",
+				Model:          "my-model-uc20",
+				Grade:          "dangerous",
+				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+				AssetChain: []boot.BootAsset{
+					{
+						Role:   "recovery",
+						Name:   "bootx64.efi",
+						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+					},
+					{
+						Role:   "recovery",
+						Name:   "grubx64.efi",
+						Hashes: []string{"grub-hash-1"},
+					},
+					{
+						Role:   "run-mode",
+						Name:   "grubx64.efi",
+						Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
+					},
+				},
+				Kernel:         "pc-kernel",
+				KernelRevision: "600",
+				KernelCmdlines: []string{
+					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				},
+			},
+		})
 	}
 }
 
@@ -563,7 +709,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	pbc := boot.ToPredictableBootChains(chains)
 
 	rootdir := c.MkDir()
-	err := boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, IsNil)
 
 	needed, err := boot.IsResealNeeded(pbc, rootdir)
