@@ -18,6 +18,8 @@ NESTED_MON_PORT=8888
 
 NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
 NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
+NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+
 nested_wait_for_ssh() {
     nested_retry_until_success 400 1 "true"
 }
@@ -481,6 +483,12 @@ nested_create_core_vm() {
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
             
+            # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
+            # anywhere else but here, where snap prepare-image as called by 
+            # ubuntu-image will look for assertions for the snaps we provide
+            # to it
+            SNAPPY_FORCE_SAS_URL="$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
+            export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
             if [ -n "$NESTED_CORE_CHANNEL" ]; then
@@ -493,6 +501,7 @@ nested_create_core_vm() {
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
+            unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
     fi
