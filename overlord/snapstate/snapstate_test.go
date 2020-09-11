@@ -1570,8 +1570,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
-					Revision: snap.R(7),
 					SnapID:   "some-snap-id",
+					Revision: snap.R(7),
 				},
 				Type:      snap.TypeApp,
 				PlugsOnly: true,
