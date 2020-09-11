@@ -330,6 +330,10 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
 	}
+	// there is no need to track assets if we did not seal any keys
+	if !hasSealedKeys(dirs.GlobalRootDir) {
+		return nil, ErrObserverNotApplicable
+	}
 
 	return &TrustedAssetsUpdateObserver{
 		cache: newTrustedAssetsCache(dirs.SnapBootAssetsDir),

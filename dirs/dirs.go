@@ -345,7 +345,7 @@ func SetRootDir(rootdir string) {
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
-	SnapFDEDir = SnapDeviceDirUnder(rootdir)
+	SnapFDEDir = SnapFDEDirUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
