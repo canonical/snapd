@@ -125,6 +125,8 @@ var (
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
 	BootAssetLess                       = bootAssetLess
+	BootChainsToFile                    = bootChainsToFile
+	BootChainsFromFile                  = bootChainsFromFile
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {

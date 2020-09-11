@@ -1126,3 +1126,78 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 	}
 	c.Check(chains, DeepEquals, expected)
 }
+
+func (s *sealSuite) TestReadWriteBootChains(c *C) {
+	chains := []boot.BootChain{
+		{
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "signed",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"x", "y"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z", "x"}},
+			},
+			Kernel:         "pc-kernel-other",
+			KernelRevision: "2345",
+			KernelCmdlines: []string{`snapd_recovery_mode=run foo`},
+		}, {
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "dangerous",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"y", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+			},
+			Kernel:         "pc-kernel-recovery",
+			KernelRevision: "1234",
+			KernelCmdlines: []string{`snapd_recovery_mode=recover foo`},
+		},
+	}
+
+	pbc := boot.ToPredictableBootChains(chains)
+
+	rootdir := c.MkDir()
+
+	expected := `[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]
+`
+	// creates a complete tree and writes a file
+	err := boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), testutil.FileEquals, expected)
+
+	fi, err := os.Stat(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0600))
+
+	loaded, err := boot.BootChainsFromFile(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(loaded, DeepEquals, pbc)
+	// boot chains should be same for reseal purpose
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, true)
+
+	// make device/fde directory read only so that writing fails
+	otherRootdir := c.MkDir()
+	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(otherRootdir), 0755), IsNil)
+	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
+	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
+
+	err = boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"))
+	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
+
+	// make the original file non readable
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
+	loaded, err = boot.BootChainsFromFile(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, ErrorMatches, "cannot open existing boot chains state file: open .*/boot-chains: permission denied")
+	c.Check(loaded, IsNil)
+
+	// loading from a file that does not exist yields a nil boot chain
+	loaded, err = boot.BootChainsFromFile("does-not-exist")
+	c.Assert(err, IsNil)
+	c.Check(loaded, IsNil)
+}
