@@ -563,7 +563,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	pbc := boot.ToPredictableBootChains(chains)
 
 	rootdir := c.MkDir()
-	err := boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, IsNil)
 
 	needed, err := boot.IsResealNeeded(pbc, rootdir)

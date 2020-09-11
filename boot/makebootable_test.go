@@ -565,7 +565,7 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 	// make sure SealKey was called
 	c.Check(sealKeyCalls, Equals, 1)
 
-	pbc, err := boot.BootChainsFromFile(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+	pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
 	c.Assert(err, IsNil)
 	c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 		boot.BootChain{
