@@ -323,7 +323,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(numModels, params.ModelParams)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func ResealKey(params *ResealKeyParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(numModels, params.ModelParams)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,8 @@ func ResealKey(params *ResealKeyParams) error {
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile)
 }
 
-func buildPCRProtectionProfile(numModels int, modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
 
 	for _, mp := range modelParams {
