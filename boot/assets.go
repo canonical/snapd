@@ -572,6 +572,11 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 // BeforeWrite is called when the update process has been staged for execution.
 func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
+	if o.modeenv == nil {
+		// modeenv wasn't even loaded yet, meaning none of the trusted
+		// boot assets was updated
+		return nil
+	}
 	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
 		return fmt.Errorf("cannot reseal encryption key: %v", err)
 	}
