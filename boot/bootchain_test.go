@@ -269,6 +269,23 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 		[]boot.BootChain{pbMoreAssets[0]},
 		[]boot.BootChain{pbMoreAssets[1]}),
 		Equals, false)
+
+	// unrevisioned/unasserted kernels
+	bcUnrevOne := []boot.BootChain{pbJustOne[0]}
+	bcUnrevOne[0].KernelRevision = ""
+	pbUnrevOne := boot.ToPredictableBootChains(bcUnrevOne)
+	// soundness
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, true)
+	// never equal even with self because of unrevisioned
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbUnrevOne), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevOne, pbUnrevOne), Equals, false)
+
+	bcUnrevMoreAssets := []boot.BootChain{pbMoreAssets[0], pbMoreAssets[1]}
+	bcUnrevMoreAssets[1].KernelRevision = ""
+	pbUnrevMoreAssets := boot.ToPredictableBootChains(bcUnrevMoreAssets)
+	// never equal even with self because of unrevisioned
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbMoreAssets), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbUnrevMoreAssets), Equals, false)
 }
 
 func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {

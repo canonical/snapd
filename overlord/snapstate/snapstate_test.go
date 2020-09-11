@@ -1570,8 +1570,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
-					Revision: snap.R(7),
 					SnapID:   "some-snap-id",
+					Revision: snap.R(7),
 				},
 				Type:      snap.TypeApp,
 				PlugsOnly: true,
@@ -3702,7 +3702,7 @@ func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(info.Channel, Equals, "edge")
 
-	// Ensure that the non-intance snap is unchanged
+	// Ensure that the non-instance snap is unchanged
 	var nonInstanceSnapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &nonInstanceSnapst)
 	c.Assert(err, IsNil)

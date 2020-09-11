@@ -189,6 +189,18 @@ func (b byBootChainOrder) Less(i, j int) bool {
 
 type predictableBootChains []bootChain
 
+// hasUnrevisionedKernels returns true if any of the chains have an
+// unrevisioned kernel. Revisions will not be set for unasserted
+// kernels.
+func (pbc predictableBootChains) hasUnrevisionedKernels() bool {
+	for i := range pbc {
+		if pbc[i].KernelRevision == "" {
+			return true
+		}
+	}
+	return false
+}
+
 func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	if chains == nil {
 		return nil
@@ -202,7 +214,8 @@ func toPredictableBootChains(chains []bootChain) predictableBootChains {
 }
 
 // predictableBootChainsEqualForReseal returns true when boot chains are
-// equivalent for reseal.
+// equivalent for reseal. If the chains contain unrevisioned kernels
+// this always return false, such chains are incomparable.
 func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
 	pb1JSON, err := json.Marshal(pb1)
 	if err != nil {
@@ -212,8 +225,7 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
 	if err != nil {
 		return false
 	}
-	// TODO:UC20: return false if either chains have unasserted kernels
-	return bytes.Equal(pb1JSON, pb2JSON)
+	return bytes.Equal(pb1JSON, pb2JSON) && !pb1.hasUnrevisionedKernels()
 }
 
 // bootAssetsToLoadChains generates a list of load chains covering given boot
