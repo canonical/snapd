@@ -80,6 +80,14 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	}
 }
 
+func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, policyUpdatePath string, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+	old := sbUpdateKeyPCRProtectionPolicy
+	sbUpdateKeyPCRProtectionPolicy = f
+	return func() {
+		sbUpdateKeyPCRProtectionPolicy = old
+	}
+}
+
 func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
 	old := sbLockAccessToSealedKeys
 	sbLockAccessToSealedKeys = f

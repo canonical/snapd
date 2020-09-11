@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
@@ -19,11 +17,43 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    local retry wait
-    retry=400
-    wait=1
+    nested_retry_until_success 400 1 "true"
+}
 
-    while ! nested_exec true; do
+nested_wait_for_no_ssh() {
+    nested_retry_while_success 200 1 "true"
+}
+
+nested_get_boot_id() {
+    nested_exec "cat /proc/sys/kernel/random/boot_id"
+}
+
+nested_wait_for_reboot() {
+    local initial_boot_id="$1"
+    local retry wait last_boot_id
+    retry=150
+    wait=5
+
+    last_boot_id=""
+    while [ $retry -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        # The get_boot_id could fail because the connection is broken due to the reboot
+        last_boot_id="$(nested_get_boot_id)" || true
+        if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
+            break
+        fi
+        sleep "$wait"
+    done
+
+    [ "$last_boot_id" != "$initial_boot_id" ]
+}
+
+nested_retry_while_success() {
+    local retry="$1"
+    local wait="$2"
+    shift 2
+
+    while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
@@ -33,15 +63,15 @@ nested_wait_for_ssh() {
     done
 }
 
-nested_wait_for_no_ssh() {
-    local retry wait
-    retry=200
-    wait=1
+nested_retry_until_success() {
+    local retry="$1"
+    local wait="$2"
+    shift 2
 
-    while nested_exec true; do
+    until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for no ssh. Aborting!"
+            echo "Timed out waiting for ssh. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -268,6 +298,7 @@ nested_cleanup_env() {
     rm -rf "$NESTED_ASSETS_DIR"
     rm -rf "$NESTED_LOGS_DIR"
     rm -rf "$NESTED_IMAGES_DIR"/*.img
+    rm -rf "$(nested_get_extra_snaps_path)"
 }
 
 nested_get_image_name() {
@@ -666,6 +697,8 @@ nested_start_core_vm_unit() {
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
 
+    # ensure we have a log dir
+    mkdir -p "$NESTED_LOGS_DIR"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
@@ -847,6 +880,9 @@ nested_start_classic_vm() {
     PARAM_BIOS=""
     PARAM_TPM=""
 
+    # ensure we have a log dir
+    mkdir -p "$NESTED_LOGS_DIR"
+    # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \

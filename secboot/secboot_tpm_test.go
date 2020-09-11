@@ -34,7 +34,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
@@ -416,7 +415,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, devicePath)
-			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
+			c.Assert(keyPath, Equals, filepath.Join("encrypt-key-dir", "name.sealed-key"))
 			c.Assert(*options, DeepEquals, sb.ActivateWithTPMSealedKeyOptions{
 				PINTries:            1,
 				RecoveryKeyTries:    3,
@@ -435,7 +434,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", boot.InitramfsEncryptionKeyDir, tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
@@ -501,7 +500,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 			err:      fmt.Sprintf(`"%s/bar" is not a snap or snapdir`, tmpDir),
 		},
 	} {
-		o, err := secboot.EFIImageFromBootFile(tc.bootFile)
+		o, err := secboot.EFIImageFromBootFile(&tc.bootFile)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(o, DeepEquals, tc.efiImage)
@@ -540,16 +539,16 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
 	} {
 		tmpDir := c.MkDir()
-		var mockEFI []bootloader.BootFile
+		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
 			mockFileName := filepath.Join(tmpDir, name)
 			err := ioutil.WriteFile(mockFileName, nil, 0644)
 			c.Assert(err, IsNil)
-			mockEFI = append(mockEFI, bootloader.NewBootFile("", mockFileName, bootloader.RoleRecovery))
+			mockBF = append(mockBF, bootloader.NewBootFile("", mockFileName, bootloader.RoleRecovery))
 		}
 
 		if tc.missingFile {
-			mockEFI[0].Path = "/does/not/exist"
+			mockBF[0].Path = "/does/not/exist"
 		}
 
 		var kernelSnap snap.Container
@@ -563,17 +562,31 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		mockEFI = append(mockEFI, bootloader.NewBootFile(snapPath, "kernel.efi", bootloader.RoleRecovery))
+		mockBF = append(mockBF, bootloader.NewBootFile(snapPath, "kernel.efi", bootloader.RoleRecovery))
 
 		myParams := secboot.SealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
-					EFILoadChains:  [][]bootloader.BootFile{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
+					EFILoadChains: []*secboot.LoadChain{
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[4])),
+					},
 					KernelCmdlines: []string{"cmdline1"},
 					Model:          &asserts.Model{},
 				},
 				{
-					EFILoadChains:  [][]bootloader.BootFile{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
+					EFILoadChains: []*secboot.LoadChain{
+						secboot.NewLoadChain(mockBF[0],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
+						secboot.NewLoadChain(mockBF[1],
+							secboot.NewLoadChain(mockBF[2],
+								secboot.NewLoadChain(mockBF[4])),
+							secboot.NewLoadChain(mockBF[3],
+								secboot.NewLoadChain(mockBF[4]))),
+					},
 					KernelCmdlines: []string{"cmdline2", "cmdline3"},
 					Model:          &asserts.Model{},
 				},
@@ -588,61 +601,72 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			myKey[i] = byte(i)
 		}
 
+		// events for
+		// a -> kernel
 		sequences1 := []*sb.EFIImageLoadEvent{
 			{
 				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[0].Path),
+				Image:  sb.FileEFIImage(mockBF[0].Path),
 				Next: []*sb.EFIImageLoadEvent{
 					{
 						Source: sb.Shim,
-						Image:  sb.FileEFIImage(mockEFI[1].Path),
-						Next: []*sb.EFIImageLoadEvent{
-							{
-								Source: sb.Shim,
-								Image:  sb.FileEFIImage(mockEFI[2].Path),
-								Next: []*sb.EFIImageLoadEvent{
-									{
-										Source: sb.Shim,
-										Image:  sb.FileEFIImage(mockEFI[3].Path),
-									},
-								},
-							},
+						Image: sb.SnapFileEFIImage{
+							Container: kernelSnap,
+							Path:      mockBF[4].Snap,
+							FileName:  "kernel.efi",
 						},
 					},
 				},
 			},
 		}
 
-		sequences2 := []*sb.EFIImageLoadEvent{
+		// "cdk" events for
+		// c -> kernel OR
+		// d -> kernel
+		cdk := []*sb.EFIImageLoadEvent{
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[0].Path),
-				Next: []*sb.EFIImageLoadEvent{
-					{
-						Source: sb.Shim,
-						Image:  sb.FileEFIImage(mockEFI[1].Path),
-						Next: []*sb.EFIImageLoadEvent{
-							{
-								Source: sb.Shim,
-								Image:  sb.FileEFIImage(mockEFI[2].Path),
-							},
-						},
-					},
-				},
-			},
-			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI[3].Path),
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(mockBF[2].Path),
 				Next: []*sb.EFIImageLoadEvent{
 					{
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockEFI[4].Snap,
+							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
 				},
+			},
+			{
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(mockBF[3].Path),
+				Next: []*sb.EFIImageLoadEvent{
+					{
+						Source: sb.Shim,
+						Image: sb.SnapFileEFIImage{
+							Container: kernelSnap,
+							Path:      mockBF[4].Snap,
+							FileName:  "kernel.efi",
+						},
+					},
+				},
+			},
+		}
+
+		// events for
+		// a -> "cdk"
+		// b -> "cdk"
+		sequences2 := []*sb.EFIImageLoadEvent{
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockBF[0].Path),
+				Next:   cdk,
+			},
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockBF[1].Path),
+				Next:   cdk,
 			},
 		}
 
@@ -748,6 +772,126 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		c.Assert(provisioningCalls, Equals, tc.provisioningCalls)
 		c.Assert(sealCalls, Equals, tc.sealCalls)
 
+	}
+}
+
+func (s *secbootSuite) TestResealKey(c *C) {
+	mockErr := errors.New("some error")
+
+	for _, tc := range []struct {
+		tpmErr               error
+		tpmEnabled           bool
+		missingFile          bool
+		addEFISbPolicyErr    error
+		addSystemdEFIStubErr error
+		addSnapModelErr      error
+		provisioningErr      error
+		resealErr            error
+		resealCalls          int
+		expectedErr          string
+	}{
+		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
+		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
+		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*/file.efi does not exist"},
+		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
+		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
+		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
+		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
+	} {
+		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
+		if !tc.missingFile {
+			err := ioutil.WriteFile(mockEFI.Path, nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		myParams := &secboot.ResealKeyParams{
+			ModelParams: []*secboot.SealKeyModelParams{
+				{
+					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
+					KernelCmdlines: []string{"cmdline"},
+					Model:          &asserts.Model{},
+				},
+			},
+			KeyFile:                 "keyfile",
+			TPMPolicyUpdateDataFile: "policy-update-data-file",
+		}
+
+		sequences := []*sb.EFIImageLoadEvent{
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockEFI.Path),
+			},
+		}
+
+		// mock TPM connection
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		// mock TPM enabled check
+		restore = secboot.MockIsTPMEnabled(func(t *sb.TPMConnection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
+
+		// mock adding EFI secure boot policy profile
+		var pcrProfile *sb.PCRProtectionProfile
+		addEFISbPolicyCalls := 0
+		restore = secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error {
+			addEFISbPolicyCalls++
+			pcrProfile = profile
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.LoadSequences, DeepEquals, sequences)
+			return tc.addEFISbPolicyErr
+		})
+		defer restore()
+
+		// mock adding systemd EFI stub profile
+		addSystemdEfiStubCalls := 0
+		restore = secboot.MockSbAddSystemdEFIStubProfile(func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error {
+			addSystemdEfiStubCalls++
+			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
+			return tc.addSystemdEFIStubErr
+		})
+		defer restore()
+
+		// mock adding snap model profile
+		addSnapModelCalls := 0
+		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
+			addSnapModelCalls++
+			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
+			return tc.addSnapModelErr
+		})
+		defer restore()
+
+		// mock PCR protection policy update
+		resealCalls := 0
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicy(func(t *sb.TPMConnection, keyPath, polUpdatePath string, profile *sb.PCRProtectionProfile) error {
+			resealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(keyPath, Equals, myParams.KeyFile)
+			c.Assert(polUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
+			c.Assert(profile, Equals, pcrProfile)
+			return tc.resealErr
+		})
+		defer restore()
+
+		err := secboot.ResealKey(myParams)
+		if tc.expectedErr == "" {
+			c.Assert(err, IsNil)
+			c.Assert(addEFISbPolicyCalls, Equals, 1)
+			c.Assert(addSystemdEfiStubCalls, Equals, 1)
+			c.Assert(addSnapModelCalls, Equals, 1)
+		} else {
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		}
+		c.Assert(resealCalls, Equals, tc.resealCalls)
 	}
 }
 

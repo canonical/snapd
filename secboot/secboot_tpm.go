@@ -58,6 +58,7 @@ var (
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
+	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -322,15 +323,59 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	// Provision the TPM as late as possible
+	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
+		return err
+	}
+
+	// Seal key to the TPM
+	creationParams := sb.KeyCreationParams{
+		PCRProfile: pcrProfile,
+		PINHandle:  pinHandle,
+	}
+	return sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams)
+}
+
+// ResealKey updates the PCR protection policy for the sealed encryption key according to
+// the specified parameters.
+func ResealKey(params *ResealKeyParams) error {
+	numModels := len(params.ModelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile)
+}
+
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
 
-	for _, modelParams := range params.ModelParams {
+	for _, mp := range modelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
 		// Add EFI secure boot policy profile
-		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
+		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
-			return fmt.Errorf("cannot build EFI image load sequences: %v", err)
+			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
@@ -342,30 +387,30 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		}
 
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
-		if len(modelParams.KernelCmdlines) != 0 {
+		if len(mp.KernelCmdlines) != 0 {
 			systemdStubParams := sb.SystemdEFIStubProfileParams{
 				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
 				PCRIndex:       tpmPCR,
-				KernelCmdlines: modelParams.KernelCmdlines,
+				KernelCmdlines: mp.KernelCmdlines,
 			}
 			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
-				return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
 
 		// Add snap model profile
-		if modelParams.Model != nil {
+		if mp.Model != nil {
 			snapModelParams := sb.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 				PCRIndex:     tpmPCR,
-				Models:       []*asserts.Model{modelParams.Model},
+				Models:       []*asserts.Model{mp.Model},
 			}
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
-				return fmt.Errorf("cannot add snap model profile: %v", err)
+				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
 
@@ -379,21 +424,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		pcrProfile = modelPCRProfiles[0]
 	}
 
-	// Provision the TPM as late as possible
-	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
-		return err
-	}
-
-	// Seal key to the TPM
-	creationParams := sb.KeyCreationParams{
-		PCRProfile: pcrProfile,
-		PINHandle:  pinHandle,
-	}
-	if err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams); err != nil {
-		return err
-	}
-
-	return nil
+	return pcrProfile, nil
 }
 
 func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
@@ -418,58 +449,51 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	return nil
 }
 
-// buildLoadSequences creates a linear EFI image load event chain for each one of the
-// specified sequences of file paths.
-func buildLoadSequences(bootImages [][]bootloader.BootFile) ([]*sb.EFIImageLoadEvent, error) {
-	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
-	// device configuration. So you could have something like this:
+// buildLoadSequences builds EFI load image event trees from this package LoadChains
+func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, err error) {
+	// this will build load event trees for the current
+	// device configuration, e.g. something like:
 	//
 	// shim -> recovery grub -> recovery kernel 1
 	//                      |-> recovery kernel 2
 	//                      |-> recovery kernel ...
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
-	//
-	// Or it could look like this, which is the same thing:
-	//
-	// shim -> recovery grub -> recovery kernel 1
-	// shim -> recovery grub -> recovery kernel 2
-	// shim -> recovery grub -> recovery kernel ...
-	// shim -> recovery grub -> normal grub -> run kernel good
-	// shim -> recovery grub -> normal grub -> run kernel try
-	//
-	// When we add the ability to seal against specific binaries in order to secure
-	// the system with the Microsoft chain of trust, then the actual trees of
-	// EFIImageLoadEvents will need to match the exact supported boot sequences.
 
-	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(bootImages))
-
-	for _, sequence := range bootImages {
-		var event *sb.EFIImageLoadEvent
-		var next []*sb.EFIImageLoadEvent
-
-		for i := len(sequence) - 1; i >= 0; i-- {
-			image, err := efiImageFromBootFile(sequence[i])
-			if err != nil {
-				return nil, err
-			}
-			event = &sb.EFIImageLoadEvent{
-				Source: sb.Shim,
-				Image:  image,
-				Next:   next,
-			}
-			next = []*sb.EFIImageLoadEvent{event}
+	for _, chain := range chains {
+		// root of load events has source Firmware
+		loadseq, err := chain.loadEvent(sb.Firmware)
+		if err != nil {
+			return nil, err
 		}
-		// fix event source for the first binary in chain (shim)
-		event.Source = sb.Firmware
-
-		loadEvents = append(loadEvents, event)
+		loadseqs = append(loadseqs, loadseq)
 	}
-
-	return loadEvents, nil
+	return loadseqs, nil
 }
 
-func efiImageFromBootFile(b bootloader.BootFile) (sb.EFIImage, error) {
+// loadEvent builds the corresponding load event and its tree
+func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageLoadEvent, error) {
+	var next []*sb.EFIImageLoadEvent
+	for _, nextChain := range lc.Next {
+		// everything that is not the root has source shim
+		ev, err := nextChain.loadEvent(sb.Shim)
+		if err != nil {
+			return nil, err
+		}
+		next = append(next, ev)
+	}
+	image, err := efiImageFromBootFile(lc.BootFile)
+	if err != nil {
+		return nil, err
+	}
+	return &sb.EFIImageLoadEvent{
+		Source: source,
+		Image:  image,
+		Next:   next,
+	}, nil
+}
+
+func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
 	if b.Snap == "" {
 		if !osutil.FileExists(b.Path) {
 			return nil, fmt.Errorf("file %s does not exist", b.Path)

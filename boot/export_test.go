@@ -22,8 +22,12 @@ package boot
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
@@ -56,6 +60,8 @@ var (
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 	SealKeyToModeenv                = sealKeyToModeenv
+	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	SealKeyModelParams              = sealKeyModelParams
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -87,6 +93,14 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 	}
 }
 
+func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
+	old := seedReadSystemEssential
+	seedReadSystemEssential = f
+	return func() {
+		seedReadSystemEssential = old
+	}
+}
+
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
 	ta := &trackedAsset{
 		blName: blName,
@@ -102,7 +116,6 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type ByBootAssetOrder = byBootAssetOrder
 type PredictableBootChains = predictableBootChains
 
 var (
@@ -110,4 +123,18 @@ var (
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
+	BootAssetsToLoadChains              = bootAssetsToLoadChains
+	BootAssetLess                       = bootAssetLess
 )
+
+func (b *bootChain) SetModelAssertion(model *asserts.Model) {
+	b.model = model
+}
+
+func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
+	b.kernelBootFile = kbf
+}
+
+func (b *bootChain) KernelBootFile() bootloader.BootFile {
+	return b.kernelBootFile
+}
