@@ -33,7 +33,7 @@ execute: |
 
   # disk usage, in MB
   get_disk_usage() {
-    du -s --block-size=1048576 "$TMPFSMOUNT" | awk '{print $1}'
+    df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
   }
 
   echo "Enabling experimental disk space checks"
