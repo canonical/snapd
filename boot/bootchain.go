@@ -265,6 +265,7 @@ func bootChainsFromFile(path string) (pbc predictableBootChains, err error) {
 		}
 		return nil, fmt.Errorf("cannot open existing boot chains state file: %v", err)
 	}
+	defer inf.Close()
 	if err := json.NewDecoder(inf).Decode(&pbc); err != nil {
 		return nil, fmt.Errorf("cannot read boot chains data: %v", err)
 	}
