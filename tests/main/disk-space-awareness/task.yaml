@@ -67,3 +67,6 @@ execute: |
 
   MATCH "error: cannot remove \"hello-world\" due to low disk space" < error.txt
   MATCH "use --purge to avoid creating a snapshot" < error.txt
+
+  echo "Removing the snap with --purge works despite of low disk space"
+  snap remove --purge hello-world
