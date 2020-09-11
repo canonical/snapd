@@ -819,6 +819,18 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		"asset": {dataHash},
 		"shim":  {shimHash},
 	})
+
+	// everything is set up, trigger reseal
+	resealCalls := 0
+	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	err = obs.BeforeWrite()
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
@@ -867,6 +879,12 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
 		"asset": {dataHash},
 	})
+
+	// reseal does nothing
+	err = obs.BeforeWrite()
+	c.Assert(err, IsNil)
+	c.Check(tab.RecoveryBootChainCalls, HasLen, 0)
+	c.Check(tab.BootChainKernelPath, HasLen, 0)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
@@ -920,6 +938,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateNotTrustedMocked(c *C) {
 	c.Assert(err, IsNil)
 	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+
+	// reseal is a noop
+	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
 }
 
@@ -2402,5 +2424,131 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 
 	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
+}
+
+func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
+	// check that Canceled calls reseal when there were changes to the
+	// trusted boot assets
+	d := c.MkDir()
+	root := c.MkDir()
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash"},
+			"shim":  {"shimhash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"assethash"},
+			"shim":  {"shimhash"},
+		},
+		CurrentRecoverySystems: []string{"system"},
+		CurrentKernels:         []string{"pc-kernel_1.snap"},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// mock some files in cache
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	for _, name := range []string{
+		"shim-shimhash",
+		"asset-assethash",
+		"asset-recoveryhash",
+	} {
+		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+
+	// we get an observer for UC20
+	obs, uc20model := s.uc20UpdateObserver(c)
+
+	data := []byte("foobar")
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+	shim := []byte("shim")
+	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	c.Assert(err, IsNil)
+
+	// trigger a bunch of updates, so that we have things to cancel
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")})
+	c.Assert(err, IsNil)
+	// observe the recovery struct
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "shim",
+		&gadget.ContentChange{After: filepath.Join(d, "shim")})
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		kernelSnap := &seed.Snap{
+			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			SideInfo: &snap.SideInfo{
+				Revision: snap.Revision{N: 0},
+				RealName: "pc-linux",
+			},
+		}
+		return uc20model, []*seed.Snap{kernelSnap}, nil
+	})
+	defer restore()
+
+	shimBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted/shim-shimhash"), bootloader.RoleRecovery)
+	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted/asset-assethash"), bootloader.RoleRecovery)
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+	tab.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		recoveryKernelBf,
+	}
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		runKernelBf,
+	}
+
+	resealCalls := 0
+	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+		resealCalls++
+		c.Assert(params.ModelParams, HasLen, 1)
+		mp := params.ModelParams[0]
+		c.Check(mp.Model, DeepEquals, uc20model)
+		for _, ch := range mp.EFILoadChains {
+			printChain(c, ch, "-")
+		}
+		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			secboot.NewLoadChain(shimBf,
+				secboot.NewLoadChain(assetBf,
+					secboot.NewLoadChain(runKernelBf))),
+			secboot.NewLoadChain(shimBf,
+				secboot.NewLoadChain(assetBf,
+					secboot.NewLoadChain(recoveryKernelBf))),
+		})
+		return nil
+	})
+	defer restore()
+
+	// update is canceled
+	err = obs.Canceled()
+	c.Assert(err, IsNil)
+	// modeenv is back to initial state
+	afterCancelM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(afterCancelM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
+	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
+	// unused assets were dropped
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-assethash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-recoveryhash"),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
+	})
+
 	c.Check(resealCalls, Equals, 1)
 }
