@@ -917,9 +917,9 @@ nested_exec() {
 
 nested_exec_as() {
     local USER="$1"
-    local PWD="$2"
+    local PASSWD="$2"
     shift 2
-    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+    sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {
