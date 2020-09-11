@@ -28,9 +28,6 @@ import (
 // A DeviceContext provides for operating as a given device and with
 // its brand store either for normal operation or over a remodeling.
 type DeviceContext interface {
-	// Model returns the governing device model assertion for the context.
-	Model() *asserts.Model
-
 	// GroundContext returns a context corresponding to the
 	// original model of the device for a remodel, or a context
 	// equivalent to this one otherwise, except in both cases
