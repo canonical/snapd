@@ -565,6 +565,9 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 	// make sure SealKey was called
 	c.Check(sealKeyCalls, Equals, 1)
 
+	// make sure the marker file for sealed key was created
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
+
 	// make sure we wrote the boot chains data file
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
 }
