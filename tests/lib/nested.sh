@@ -480,8 +480,14 @@ nested_create_core_vm() {
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
-            "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
-                --channel "$NESTED_CORE_CHANNEL" \
+            
+            if [ -n "$NESTED_CORE_CHANNEL" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
+            else 
+                UBUNTU_IMAGE_CHANNEL_ARG=""
+            fi
+            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
+                "$UBUNTU_IMAGE_CHANNEL_ARG" \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
