@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -266,4 +267,46 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 		chains = append(chains, secboot.NewLoadChain(bf, next...))
 	}
 	return chains, nil
+}
+
+// predictableBootChainsWrapperForStorage wraps the boot chains so that we do not store
+// the arrays directly as JSON
+type predictableBootChainsWrapperForStorage struct {
+	BootChains predictableBootChains `json:"boot-chains"`
+}
+
+func readBootChains(path string) (pbc predictableBootChains, err error) {
+	inf, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot open existing boot chains data file: %v", err)
+	}
+	defer inf.Close()
+	var wrapped predictableBootChainsWrapperForStorage
+	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
+		return nil, fmt.Errorf("cannot read boot chains data: %v", err)
+	}
+	return wrapped.BootChains, nil
+}
+
+func writeBootChains(pbc predictableBootChains, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create a temporary boot chains file: %v", err)
+	}
+	// becomes noop when the file is committed
+	defer outf.Cancel()
+
+	wrapped := predictableBootChainsWrapperForStorage{
+		BootChains: pbc,
+	}
+	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
+		return fmt.Errorf("cannot write boot chains data: %v", err)
+	}
+	return outf.Commit()
 }
