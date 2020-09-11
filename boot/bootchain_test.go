@@ -1180,7 +1180,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 
 	rootdir := c.MkDir()
 
-	expected := `[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]
+	expected := `{"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
 	// creates a complete tree and writes a file
 	err := boot.BootChainsToFile(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
@@ -1210,7 +1210,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
 	loaded, err = boot.BootChainsFromFile(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, ErrorMatches, "cannot open existing boot chains state file: open .*/boot-chains: permission denied")
+	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(loaded, IsNil)
 
 	// loading from a file that does not exist yields a nil boot chain

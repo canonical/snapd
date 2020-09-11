@@ -586,6 +586,6 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
 	needed, err = boot.IsResealNeeded(otherchain, rootdir)
-	c.Assert(err, ErrorMatches, "cannot open existing boot chains state file: open .*/boot-chains: permission denied")
+	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
 }

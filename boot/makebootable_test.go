@@ -446,7 +446,7 @@ version: 5.0
 		kernelSnap := &seed.Snap{
 			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 0},
+				Revision: snap.Revision{N: -1},
 				RealName: "pc-kernel",
 			},
 		}

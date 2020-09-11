@@ -269,22 +269,29 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 	return chains, nil
 }
 
-func bootChainsFromFile(path string) (pbc predictableBootChains, err error) {
+// predictableBootChainsWrapperForStorage wraps the boot chains so that we do not store
+// the arrays directly as JSON
+type predictableBootChainsWrapperForStorage struct {
+	BootChains predictableBootChains `json:"boot-chains"`
+}
+
+func readBootChains(path string) (pbc predictableBootChains, err error) {
 	inf, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cannot open existing boot chains state file: %v", err)
+		return nil, fmt.Errorf("cannot open existing boot chains data file: %v", err)
 	}
 	defer inf.Close()
-	if err := json.NewDecoder(inf).Decode(&pbc); err != nil {
+	var wrapped predictableBootChainsWrapperForStorage
+	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
 		return nil, fmt.Errorf("cannot read boot chains data: %v", err)
 	}
-	return pbc, nil
+	return wrapped.BootChains, nil
 }
 
-func bootChainsToFile(pbc predictableBootChains, path string) error {
+func writeBootChains(pbc predictableBootChains, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
@@ -295,8 +302,11 @@ func bootChainsToFile(pbc predictableBootChains, path string) error {
 	// becomes noop when the file is committed
 	defer outf.Cancel()
 
-	if err := json.NewEncoder(outf).Encode(pbc); err != nil {
-		return err
+	wrapped := predictableBootChainsWrapperForStorage{
+		BootChains: pbc,
+	}
+	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
+		return fmt.Errorf("cannot write boot chains data: %v", err)
 	}
 	return outf.Commit()
 }
