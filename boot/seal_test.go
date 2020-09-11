@@ -222,15 +222,24 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 	for _, tc := range []struct {
-		resealErr error
-		err       string
+		sealedKeys bool
+		resealErr  error
+		err        string
 	}{
-		{resealErr: nil, err: ""},
-		{resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
+		{sealedKeys: false, resealErr: nil, err: ""},
+		{sealedKeys: true, resealErr: nil, err: ""},
+		{sealedKeys: true, resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
 	} {
 		tmpDir := c.MkDir()
 		dirs.SetRootDir(tmpDir)
 		defer dirs.SetRootDir("")
+
+		if tc.sealedKeys {
+			c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+			err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), nil, 0644)
+			c.Assert(err, IsNil)
+
+		}
 
 		err := createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-seed"))
 		c.Assert(err, IsNil)
@@ -360,6 +369,12 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		defer restore()
 
 		err = boot.ResealKeyToModeenv(model, modeenv)
+		if !tc.sealedKeys {
+			// did nothing
+			c.Assert(err, IsNil)
+			c.Assert(resealKeyCalls, Equals, 0)
+			continue
+		}
 		c.Assert(resealKeyCalls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)

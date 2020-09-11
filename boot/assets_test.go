@@ -80,6 +80,12 @@ func (s *assetsSuite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) 
 	return tab
 }
 
+func (s *assetsSuite) stampSealedKeys(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), nil, 0644)
+	c.Assert(err, IsNil)
+}
+
 func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	cacheDir := c.MkDir()
 	d := c.MkDir()
@@ -675,6 +681,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
+	s.stampSealedKeys(c)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"nested/other-asset",
@@ -748,6 +756,8 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
+
+	s.stampSealedKeys(c)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -1514,6 +1524,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
+
+	s.stampSealedKeys(c)
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
@@ -2330,6 +2342,8 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
+	s.stampSealedKeys(c)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"shim",
@@ -2459,6 +2473,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
+
+	s.stampSealedKeys(c)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 

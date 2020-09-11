@@ -21,11 +21,13 @@ package boot
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -101,12 +103,36 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
+	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
+		return err
+	}
+
 	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
 	if err := writeBootChains(pbc, installBootChainsPath); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func stampSealedKeys(rootdir string) error {
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+
+	if err := osutil.AtomicWriteFile(stamp, nil, 0644, 0); err != nil {
+		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
+	}
+	return nil
+}
+
+// hasSealedKeys return whether any keys were sealed at all
+func hasSealedKeys(rootdir string) bool {
+	// TODO:UC20: consider more than the marker for cases where we reseal
+	// outside of run mode
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	return osutil.FileExists(stamp)
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
@@ -116,6 +142,11 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 	// both in terms of var name and mount points?
 	// should we use dir(mode) functions at least?
 	// see similar comment in SetRecoveryBootSystemAndMode
+
+	if !hasSealedKeys(InstallHostWritableDir) {
+		// nothing to do
+		return nil
+	}
 
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
