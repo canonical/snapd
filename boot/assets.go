@@ -578,7 +578,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		return nil
 	}
 	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
-		return fmt.Errorf("cannot reseal encryption key: %v", err)
+		return err
 	}
 	return nil
 }
@@ -643,7 +643,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	}
 
 	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
-		return fmt.Errorf("cannot reseal encryption key after a canceled update: %v", err)
+		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil
 }
