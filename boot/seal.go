@@ -34,7 +34,8 @@ import (
 )
 
 var (
-	secbootSealKey = secboot.SealKey
+	secbootSealKey   = secboot.SealKey
+	secbootResealKey = secboot.ResealKey
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -52,7 +53,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 
 	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
 	if err != nil {
-		return fmt.Errorf("cannot compose recovery boot chain: %v", err)
+		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
 
 	// build the run mode boot chains
@@ -83,7 +84,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	// get model parameters from bootchains
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:             modelParams,
@@ -96,7 +97,74 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
-	// TODO:UC20: store the predictable bootchains
+	// TODO:UC20: save the predictable bootchains
+
+	return nil
+}
+
+// resealKeyToModeenv reseals the existing encryption key to the
+// parameters specified in modeenv.
+func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
+	// TODO:UC20: should we use Initramfs*Dirs in run mode
+	// both in terms of var name and mount points?
+	// should we use dir(mode) functions at least?
+	// see similar comment in SetRecoveryBootSystemAndMode
+
+	// build the recovery mode boot chain
+	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
+	}
+
+	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, rbl, model, modeenv)
+	if err != nil {
+		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
+	}
+
+	// build the run mode boot chains
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find the bootloader: %v", err)
+	}
+	cmdline, err := ComposeCommandLine(model)
+	if err != nil {
+		return fmt.Errorf("cannot compose the run mode command line: %v", err)
+	}
+
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
+	if err != nil {
+		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
+	}
+
+	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
+
+	// TODO:UC20: load and compare the predictable bootchains
+
+	roleToBlName := map[bootloader.Role]string{
+		bootloader.RoleRecovery: rbl.Name(),
+		bootloader.RoleRunMode:  bl.Name(),
+	}
+
+	// get model parameters from bootchains
+	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+	if err != nil {
+		return fmt.Errorf("cannot prepare for key resealing: %v", err)
+	}
+	resealKeyParams := &secboot.ResealKeyParams{
+		ModelParams:             modelParams,
+		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+	}
+	if err := secbootResealKey(resealKeyParams); err != nil {
+		return fmt.Errorf("cannot reseal the encryption key: %v", err)
+	}
+
+	// TODO:UC20: save the new predictable bootchains
 
 	return nil
 }
@@ -236,7 +304,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	for _, bc := range pbc {
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
 		if err != nil {
-			return nil, fmt.Errorf("cannot build load chains with current boot assets for key sealing: %s", err)
+			return nil, fmt.Errorf("cannot build load chains with current boot assets: %s", err)
 		}
 
 		// group parameters by model, reuse an existing SealKeyModelParams
