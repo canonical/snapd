@@ -481,6 +481,8 @@ nested_create_core_vm() {
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
             
+            UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
+            export UBUNTU_IMAGE_SNAP_CMD
             if [ -n "$NESTED_CORE_CHANNEL" ]; then
                 UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
             else 
@@ -491,6 +493,7 @@ nested_create_core_vm() {
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
+            unset UBUNTU_IMAGE_SNAP_CMD
         fi
     fi
 
