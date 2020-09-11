@@ -448,6 +448,16 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # also make logging persistent for easier debugging of 
+                        # test failures, otherwise we have no way to see what 
+                        # happened during a failed nested VM boot where we 
+                        # weren't able to login to a device
+                        cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
