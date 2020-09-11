@@ -293,7 +293,8 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			// shared parameters
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1", "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
 
 			// load chains
