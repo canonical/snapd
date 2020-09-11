@@ -134,8 +134,8 @@ var (
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
 	BootAssetLess                       = bootAssetLess
-	BootChainsToFile                    = writeBootChains
-	BootChainsFromFile                  = readBootChains
+	WriteBootChains                     = writeBootChains
+	ReadBootChains                      = readBootChains
 	IsResealNeeded                      = isResealNeeded
 )
 
