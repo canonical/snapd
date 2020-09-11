@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -89,6 +90,8 @@ type Device interface {
 	Base() string
 
 	HasModeenv() bool
+
+	Model() *asserts.Model
 }
 
 // Participant figures out what the BootParticipant is for the given

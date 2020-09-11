@@ -22,6 +22,7 @@ package boottest
 import (
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 )
 
@@ -29,6 +30,7 @@ type mockDevice struct {
 	bootSnap string
 	mode     string
 	uc20     bool
+	model    *asserts.Model
 }
 
 // MockDevice implements boot.Device. It wraps a string like
@@ -58,8 +60,9 @@ func snapAndMode(str string) (snap, mode string) {
 	return parts[0], parts[1]
 }
 
-func (d *mockDevice) Kernel() string   { return d.bootSnap }
-func (d *mockDevice) Base() string     { return d.bootSnap }
-func (d *mockDevice) Classic() bool    { return d.bootSnap == "" }
-func (d *mockDevice) RunMode() bool    { return d.mode == "run" }
-func (d *mockDevice) HasModeenv() bool { return d.uc20 }
+func (d *mockDevice) Kernel() string        { return d.bootSnap }
+func (d *mockDevice) Base() string          { return d.bootSnap }
+func (d *mockDevice) Classic() bool         { return d.bootSnap == "" }
+func (d *mockDevice) RunMode() bool         { return d.mode == "run" }
+func (d *mockDevice) HasModeenv() bool      { return d.uc20 }
+func (d *mockDevice) Model() *asserts.Model { return d.model }
