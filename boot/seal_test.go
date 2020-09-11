@@ -574,6 +574,8 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 
 		bl, err := bootloader.Find(grubDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 		c.Assert(err, IsNil)
+		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+		c.Assert(ok, Equals, true)
 
 		model := makeMockUC20Model()
 
@@ -581,7 +583,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
 		}
 
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, bl, model, modeenv)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, model, modeenv)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(bc, HasLen, len(tc.recoverySystems))

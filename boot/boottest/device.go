@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 )
 
 type mockDevice struct {
@@ -37,7 +36,7 @@ type mockDevice struct {
 // <boot-snap-name>[@<mode>], no <boot-snap-name> means classic, no
 // <mode> defaults to "run". It returns <boot-snap-name> for both
 // Base and Kernel, for more control mock a DeviceContext.
-func MockDevice(s string) boot.Device {
+func MockDevice(s string) *mockDevice {
 	bootsnap, mode := snapAndMode(s)
 	return &mockDevice{
 		bootSnap: bootsnap,
@@ -46,8 +45,8 @@ func MockDevice(s string) boot.Device {
 }
 
 // MockUC20Device implements boot.Device and returns true for HasModeenv.
-func MockUC20Device(s string) boot.Device {
-	m := MockDevice(s).(*mockDevice)
+func MockUC20Device(s string) *mockDevice {
+	m := MockDevice(s)
 	m.uc20 = true
 	return m
 }
@@ -60,9 +59,16 @@ func snapAndMode(str string) (snap, mode string) {
 	return parts[0], parts[1]
 }
 
-func (d *mockDevice) Kernel() string        { return d.bootSnap }
-func (d *mockDevice) Base() string          { return d.bootSnap }
-func (d *mockDevice) Classic() bool         { return d.bootSnap == "" }
-func (d *mockDevice) RunMode() bool         { return d.mode == "run" }
-func (d *mockDevice) HasModeenv() bool      { return d.uc20 }
-func (d *mockDevice) Model() *asserts.Model { return d.model }
+func (d *mockDevice) Kernel() string   { return d.bootSnap }
+func (d *mockDevice) Base() string     { return d.bootSnap }
+func (d *mockDevice) Classic() bool    { return d.bootSnap == "" }
+func (d *mockDevice) RunMode() bool    { return d.mode == "run" }
+func (d *mockDevice) HasModeenv() bool { return d.uc20 }
+func (d *mockDevice) Model() *asserts.Model {
+	if d.model == nil {
+		panic("tried to use model without setting one first")
+	}
+	return d.model
+}
+
+func (d *mockDevice) SetModel(model *asserts.Model) { d.model = model }

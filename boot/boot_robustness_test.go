@@ -194,6 +194,7 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReboots(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	tt := []struct {
 		rebootBeforeFunc  string
@@ -258,6 +259,7 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	tt := []struct {
 		rebootBeforeFunc  string

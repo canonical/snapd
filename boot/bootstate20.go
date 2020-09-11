@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -31,12 +32,14 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func newBootState20(typ snap.Type) bootState {
+func newBootState20(typ snap.Type, dev Device) bootState {
 	switch typ {
 	case snap.TypeBase:
 		return &bootState20Base{}
 	case snap.TypeKernel:
-		return &bootState20Kernel{}
+		return &bootState20Kernel{
+			dev: dev,
+		}
 	default:
 		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
@@ -93,6 +96,9 @@ type bootStateUpdate20 struct {
 
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
+
+	// device
+	dev Device
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -101,6 +107,10 @@ func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
 
 func (u20 *bootStateUpdate20) postModeenv(task bootCommitTask) {
 	u20.postModeenvTasks = append(u20.postModeenvTasks, task)
+}
+
+func (u20 *bootStateUpdate20) setDevice(dev Device) {
+	u20.dev = dev
 }
 
 func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
@@ -150,9 +160,15 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
-	// TODO:UC20: reseal against the TPM here with the updated modeenv written
-	//            but before doing any post-modeenv tasks so if we got rebooted
-	//            in between, we are still able to boot properly
+	if u20.dev != nil {
+		model := u20.dev.Model()
+		if model.Grade() != asserts.ModelGradeUnset {
+			// reseal if needed
+			if err := resealKeyToModeenv(model, u20.writeModeenv); err != nil {
+				return fmt.Errorf("cannot reseal encryption key: %v", err)
+			}
+		}
+	}
 
 	// finally handle any post-modeenv writing tasks
 	for _, t := range u20.postModeenvTasks {
@@ -177,6 +193,8 @@ type bootState20Kernel struct {
 	// used to find the bootloader to manipulate the enabled kernel, etc.
 	blOpts *bootloader.Options
 	blDir  string
+
+	dev Device
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -267,6 +285,9 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 		u20.writeModeenv.CurrentKernels = []string{sn.Filename()}
 	}
 
+	// keep track of the device for resealing
+	u20.setDevice(ks20.dev)
+
 	return u20, nil
 }
 
@@ -298,6 +319,9 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	// because the modeenv doesn't "trust" or expect the new kernel that booted.
 	// As such, set the next kernel as a post modeenv task.
 	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
+
+	// keep track of the device for resealing
+	u20.setDevice(ks20.dev)
 
 	return rebootRequired, u20, nil
 }
@@ -640,7 +664,9 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 
 // bootState20BootAssets implements the successfulBootState interface for trusted
 // boot assets UC20.
-type bootState20BootAssets struct{}
+type bootState20BootAssets struct {
+	dev Device
+}
 
 func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u20, err := toBootStateUpdate20(update)
@@ -659,6 +685,8 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	}
 	// update modeenv
 	u20.writeModeenv = newM
+	// keep track of the device
+	u20.setDevice(ba20.dev)
 
 	if len(dropAssets) == 0 {
 		// nothing to drop, we're done
@@ -680,6 +708,8 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	return u20, nil
 }
 
-func trustedAssetsBootState() *bootState20BootAssets {
-	return &bootState20BootAssets{}
+func trustedAssetsBootState(dev Device) *bootState20BootAssets {
+	return &bootState20BootAssets{
+		dev: dev,
+	}
 }

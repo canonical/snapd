@@ -150,6 +150,7 @@ func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
 func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -193,6 +194,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -247,6 +249,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -290,6 +293,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -350,6 +354,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel
@@ -404,6 +409,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+	coreDev.SetModel(makeMockUC20Model())
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel

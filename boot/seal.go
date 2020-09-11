@@ -59,8 +59,13 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// nothing to do
+		return nil
+	}
 
-	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
+	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -153,8 +158,12 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
-
-	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, rbl, model, modeenv)
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// nothing to do
+		return nil
+	}
+	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -218,12 +227,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	return nil
 }
 
-func recoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, fmt.Errorf("bootloader doesn't support trusted assets")
-	}
-
+func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
 		// get the command line
 		cmdline, err := ComposeRecoveryCommandLine(model, system)
@@ -247,7 +251,7 @@ func recoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, m
 			kernelRev = seedKernel.SideInfo.Revision.String()
 		}
 
-		recoveryBootChain, err := tbl.RecoveryBootChain(seedKernel.Path)
+		recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
 		if err != nil {
 			return nil, err
 		}
