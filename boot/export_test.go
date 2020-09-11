@@ -61,6 +61,7 @@ var (
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 	SealKeyToModeenv                = sealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	SealKeyModelParams              = sealKeyModelParams
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -132,4 +133,8 @@ func (b *bootChain) SetModelAssertion(model *asserts.Model) {
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 	b.kernelBootFile = kbf
+}
+
+func (b *bootChain) KernelBootFile() bootloader.BootFile {
+	return b.kernelBootFile
 }
