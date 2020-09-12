@@ -1183,7 +1183,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	expected := `{"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
 	// creates a complete tree and writes a file
-	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), testutil.FileEquals, expected)
 
@@ -1191,11 +1191,20 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0600))
 
-	loaded, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	loaded, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, IsNil)
 	c.Check(loaded, DeepEquals, pbc)
+	c.Check(cnt, Equals, 0)
 	// boot chains should be same for reseal purpose
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, true)
+
+	// write them again with count > 0
+	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99)
+	c.Assert(err, IsNil)
+
+	_, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(cnt, Equals, 99)
 
 	// make device/fde directory read only so that writing fails
 	otherRootdir := c.MkDir()
@@ -1203,18 +1212,20 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
 	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
 
-	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"))
+	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0)
 	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
 
 	// make the original file non readable
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	loaded, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	loaded, _, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(loaded, IsNil)
 
 	// loading from a file that does not exist yields a nil boot chain
-	loaded, err = boot.ReadBootChains("does-not-exist")
+	// and 0 count
+	loaded, cnt, err = boot.ReadBootChains("does-not-exist")
 	c.Assert(err, IsNil)
 	c.Check(loaded, IsNil)
+	c.Check(cnt, Equals, 0)
 }

@@ -109,7 +109,7 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	}
 
 	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
-	if err := writeBootChains(pbc, installBootChainsPath); err != nil {
+	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
 		return err
 	}
 
@@ -177,7 +177,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	ok, err := isResealNeeded(pbc, rootdir)
+	ok, nextCount, err := isResealNeeded(pbc, rootdir)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	}
 
 	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, bootChainsPath); err != nil {
+	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
 		return err
 	}
 
@@ -372,10 +372,12 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 
 // isResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
-func isResealNeeded(pbc predictableBootChains, rootdir string) (bool, error) {
-	previousPbc, err := readBootChains(bootChainsFileUnder(rootdir))
+// It also returns the next value for the reasel count that is saved
+// together with the boot chains.
+func isResealNeeded(pbc predictableBootChains, rootdir string) (ok bool, nextCount int, err error) {
+	previousPbc, c, err := readBootChains(bootChainsFileUnder(rootdir))
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
-	return !predictableBootChainsEqualForReseal(pbc, previousPbc), nil
+	return !predictableBootChainsEqualForReseal(pbc, previousPbc), c + 1, nil
 }

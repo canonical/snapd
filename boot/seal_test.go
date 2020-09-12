@@ -162,8 +162,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// verify the boot chains data file
-		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
 		c.Assert(err, IsNil)
+		c.Check(cnt, Equals, 0)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
@@ -270,7 +271,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		if tc.prevPbc {
-			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDir, "boot-chains"))
+			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
 			c.Assert(err, IsNil)
 		}
 
@@ -397,8 +398,13 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		// verify the boot chains data file
-		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
+		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 		c.Assert(err, IsNil)
+		if tc.prevPbc {
+			c.Assert(cnt, Equals, 10)
+		} else {
+			c.Assert(cnt, Equals, 1)
+		}
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
@@ -739,29 +745,31 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	pbc := boot.ToPredictableBootChains(chains)
 
 	rootdir := c.MkDir()
-	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
 	c.Assert(err, IsNil)
 
-	needed, err := boot.IsResealNeeded(pbc, rootdir)
+	needed, cnt, err := boot.IsResealNeeded(pbc, rootdir)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, false)
 
 	otherchain := []boot.BootChain{pbc[0]}
-	needed, err = boot.IsResealNeeded(otherchain, rootdir)
+	needed, cnt, err = boot.IsResealNeeded(otherchain, rootdir)
 	c.Assert(err, IsNil)
 	// chains are different
 	c.Check(needed, Equals, true)
+	c.Check(cnt, Equals, 3)
 
 	// boot-chains does not exist, we cannot compare so advise to reseal
 	otherRootdir := c.MkDir()
-	needed, err = boot.IsResealNeeded(otherchain, otherRootdir)
+	needed, cnt, err = boot.IsResealNeeded(otherchain, otherRootdir)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
+	c.Check(cnt, Equals, 1)
 
 	// exists but cannot be read
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	needed, err = boot.IsResealNeeded(otherchain, rootdir)
+	needed, _, err = boot.IsResealNeeded(otherchain, rootdir)
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
 }
