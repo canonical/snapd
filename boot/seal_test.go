@@ -748,12 +748,12 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
 	c.Assert(err, IsNil)
 
-	needed, cnt, err := boot.IsResealNeeded(pbc, rootdir)
+	needed, _, err := boot.IsResealNeeded(pbc, rootdir)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, false)
 
 	otherchain := []boot.BootChain{pbc[0]}
-	needed, cnt, err = boot.IsResealNeeded(otherchain, rootdir)
+	needed, cnt, err := boot.IsResealNeeded(otherchain, rootdir)
 	c.Assert(err, IsNil)
 	// chains are different
 	c.Check(needed, Equals, true)
