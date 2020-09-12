@@ -68,6 +68,8 @@ func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserve
 	uc20Model := makeMockUC20Model()
 	// checked by TrustedAssetsUpdateObserverForModel
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
+	// checked by resealKeyToModeenv, under this rootdir
+	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
@@ -689,9 +691,6 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	// checked by resealKeyToModeenv, under that rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
-
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"nested/other-asset",
@@ -765,9 +764,6 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
-
-	// checked by resealKeyToModeenv, under that rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
@@ -1531,9 +1527,6 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
-
-	// checked by resealKeyToModeenv, under that rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
@@ -2350,9 +2343,6 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	// checked by resealKeyToModeenv, under that rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
-
 	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"shim",
@@ -2482,9 +2472,6 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
-
-	// checked by resealKeyToModeenv, under that rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
