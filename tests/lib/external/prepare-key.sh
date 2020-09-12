@@ -19,4 +19,4 @@ fi
 
 execute_remote "sudo mkdir -p /root/.ssh"
 execute_remote "sudo chmod 700 /root/.ssh"
-cat "$KEY_NAME".pub | execute_remote "sudo tee -a /root/.ssh/authorized_keys > /dev/null"
+execute_remote "sudo tee -a /root/.ssh/authorized_keys > /dev/null" < "$KEY_NAME".pub
