@@ -69,6 +69,13 @@ func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
+func (s *baseBootenvSuite) stampSealedKeys(c *C, rootdir string) {
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
+	err := ioutil.WriteFile(stamp, nil, 0644)
+	c.Assert(err, IsNil)
+}
+
 type bootenvSuite struct {
 	baseBootenvSuite
 
@@ -812,6 +819,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
 	data := []byte("foobar")
@@ -1419,6 +1429,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
 	data := []byte("foobar")
@@ -1614,6 +1627,9 @@ func (s *bootenv20Suite) bootloaderWithTrustedAssets(c *C, trustedAssets []strin
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
 	data := []byte("foobar")
@@ -1748,6 +1764,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
 	tab := s.bootloaderWithTrustedAssets(c, []string{"nested/asset", "shim"})
 
 	data := []byte("foobar")

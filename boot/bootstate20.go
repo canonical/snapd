@@ -164,8 +164,8 @@ func (u20 *bootStateUpdate20) commit() error {
 		model := u20.dev.Model()
 		if model.Grade() != asserts.ModelGradeUnset {
 			// reseal if needed
-			if err := resealKeyToModeenv(model, u20.writeModeenv); err != nil {
-				return fmt.Errorf("cannot reseal encryption key: %v", err)
+			if err := resealKeyToModeenv(dirs.GlobalRootDir, model, u20.writeModeenv); err != nil {
+				return err
 			}
 		}
 	}

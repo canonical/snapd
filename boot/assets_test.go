@@ -83,13 +83,6 @@ func (s *assetsSuite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) 
 	return tab
 }
 
-func (s *assetsSuite) stampSealedKeys(c *C, rootdir string) {
-	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-	err := ioutil.WriteFile(stamp, nil, 0644)
-	c.Assert(err, IsNil)
-}
-
 func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	cacheDir := c.MkDir()
 	d := c.MkDir()
