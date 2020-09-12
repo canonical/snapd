@@ -269,6 +269,23 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 		[]boot.BootChain{pbMoreAssets[0]},
 		[]boot.BootChain{pbMoreAssets[1]}),
 		Equals, false)
+
+	// unrevisioned/unasserted kernels
+	bcUnrevOne := []boot.BootChain{pbJustOne[0]}
+	bcUnrevOne[0].KernelRevision = ""
+	pbUnrevOne := boot.ToPredictableBootChains(bcUnrevOne)
+	// soundness
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, true)
+	// never equal even with self because of unrevisioned
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbUnrevOne), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevOne, pbUnrevOne), Equals, false)
+
+	bcUnrevMoreAssets := []boot.BootChain{pbMoreAssets[0], pbMoreAssets[1]}
+	bcUnrevMoreAssets[1].KernelRevision = ""
+	pbUnrevMoreAssets := boot.ToPredictableBootChains(bcUnrevMoreAssets)
+	// never equal even with self because of unrevisioned
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbMoreAssets), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbUnrevMoreAssets), Equals, false)
 }
 
 func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
@@ -1125,4 +1142,79 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
 	}
 	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *sealSuite) TestReadWriteBootChains(c *C) {
+	chains := []boot.BootChain{
+		{
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "signed",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"x", "y"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+				{Role: bootloader.RoleRunMode, Name: "loader", Hashes: []string{"z", "x"}},
+			},
+			Kernel:         "pc-kernel-other",
+			KernelRevision: "2345",
+			KernelCmdlines: []string{`snapd_recovery_mode=run foo`},
+		}, {
+			BrandID:        "mybrand",
+			Model:          "foo",
+			Grade:          "dangerous",
+			ModelSignKeyID: "my-key-id",
+			AssetChain: []boot.BootAsset{
+				// hashes will be sorted
+				{Role: bootloader.RoleRecovery, Name: "shim", Hashes: []string{"y", "x"}},
+				{Role: bootloader.RoleRecovery, Name: "loader", Hashes: []string{"c", "d"}},
+			},
+			Kernel:         "pc-kernel-recovery",
+			KernelRevision: "1234",
+			KernelCmdlines: []string{`snapd_recovery_mode=recover foo`},
+		},
+	}
+
+	pbc := boot.ToPredictableBootChains(chains)
+
+	rootdir := c.MkDir()
+
+	expected := `{"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
+`
+	// creates a complete tree and writes a file
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), testutil.FileEquals, expected)
+
+	fi, err := os.Stat(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0600))
+
+	loaded, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Check(loaded, DeepEquals, pbc)
+	// boot chains should be same for reseal purpose
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, true)
+
+	// make device/fde directory read only so that writing fails
+	otherRootdir := c.MkDir()
+	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(otherRootdir), 0755), IsNil)
+	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
+	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
+
+	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"))
+	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
+
+	// make the original file non readable
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
+	loaded, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
+	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
+	c.Check(loaded, IsNil)
+
+	// loading from a file that does not exist yields a nil boot chain
+	loaded, err = boot.ReadBootChains("does-not-exist")
+	c.Assert(err, IsNil)
+	c.Check(loaded, IsNil)
 }
