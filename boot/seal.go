@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -183,8 +185,11 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	}
 	if !ok {
 		// no need to actually reseal
+		logger.Debugf("reseal not necessary")
 		return nil
 	}
+	pbcJSON, _ := json.Marshal(pbc)
+	logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
