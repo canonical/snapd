@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
@@ -151,7 +152,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
 	}
 
-	uc20model := makeMockUC20Model()
+	uc20model := boottest.MakeMockUC20Model()
 	bc.SetModelAssertion(uc20model)
 	kernelBootFile := bootloader.NewBootFile("pc-kernel", "/foo", bootloader.RoleRecovery)
 	bc.SetKernelBootFile(kernelBootFile)
