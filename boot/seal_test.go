@@ -62,14 +62,14 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		{sealErr: nil, err: ""},
 		{sealErr: errors.New("seal error"), err: "cannot seal the encryption key: seal error"},
 	} {
-		tmpDir := c.MkDir()
-		dirs.SetRootDir(tmpDir)
+		rootdir := c.MkDir()
+		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
 
-		err := createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-seed"))
+		err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
 		c.Assert(err, IsNil)
 
-		err = createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-boot"))
+		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
 		c.Assert(err, IsNil)
 
 		modeenv := &boot.Modeenv{
@@ -87,14 +87,14 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
+		p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
 		err = os.MkdirAll(filepath.Dir(p), 0755)
 		c.Assert(err, IsNil)
 		err = ioutil.WriteFile(p, nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
 		c.Assert(err, IsNil)
 
 		// set encryption key
@@ -127,11 +127,11 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 1)
 
-			shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
-			grub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
-			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
+			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
@@ -217,6 +217,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				},
 			},
 		})
+
+		// marker
+		c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
+
 	}
 }
 
@@ -234,21 +238,21 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		{sealedKeys: true, resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
 		{prevPbc: true, sealedKeys: true, resealErr: nil, err: ""},
 	} {
-		tmpDir := c.MkDir()
-		dirs.SetRootDir(tmpDir)
+		rootdir := c.MkDir()
+		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
 
 		if tc.sealedKeys {
-			c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
-			err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), nil, 0644)
+			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
+			err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
 			c.Assert(err, IsNil)
 
 		}
 
-		err := createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-seed"))
+		err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
 		c.Assert(err, IsNil)
 
-		err = createMockGrubCfg(filepath.Join(tmpDir, "run/mnt/ubuntu-boot"))
+		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
 		c.Assert(err, IsNil)
 
 		modeenv := &boot.Modeenv{
@@ -266,23 +270,23 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		if tc.prevPbc {
-			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+			err := boot.WriteBootChains(prevPbc, filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 			c.Assert(err, IsNil)
 		}
 
 		// mock asset cache
-		p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
+		p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
 		err = os.MkdirAll(filepath.Dir(p), 0755)
 		c.Assert(err, IsNil)
 		err = ioutil.WriteFile(p, nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), nil, 0644)
+		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), nil, 0644)
 		c.Assert(err, IsNil)
 
 		model := makeMockUC20Model()
@@ -319,9 +323,9 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 6)
 
 			// recovery parameters
-			shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
-			shim2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), bootloader.RoleRecovery)
-			grub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
+			shim2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 
 			c.Assert(params.ModelParams[0].EFILoadChains[:2], DeepEquals, []*secboot.LoadChain{
@@ -334,10 +338,10 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			})
 
 			// run mode parameters
-			runGrub := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
-			runGrub2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), bootloader.RoleRunMode)
-			runKernel := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
-			runKernel2 := bootloader.NewBootFile(filepath.Join(tmpDir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
+			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
+			runGrub2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), bootloader.RoleRunMode)
+			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
+			runKernel2 := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
 
 			c.Assert(params.ModelParams[0].EFILoadChains[2:4], DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim,
@@ -377,7 +381,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.ResealKeyToModeenv(model, modeenv)
+		err = boot.ResealKeyToModeenv(rootdir, model, modeenv)
 		if !tc.sealedKeys || tc.prevPbc {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -393,7 +397,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		// verify the boot chains data file
-		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"))
+		pbc, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 		c.Assert(err, IsNil)
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
@@ -534,8 +538,8 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			err:             `invalid system seed label: "0"`,
 		},
 	} {
-		tmpDir := c.MkDir()
-		dirs.SetRootDir(tmpDir)
+		rootdir := c.MkDir()
+		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
 
 		// set recovery kernel
@@ -558,7 +562,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		})
 		defer restore()
 
-		grubDir := filepath.Join(tmpDir, "run/mnt/ubuntu-seed")
+		grubDir := filepath.Join(rootdir, "run/mnt/ubuntu-seed")
 		err := createMockGrubCfg(grubDir)
 		c.Assert(err, IsNil)
 
@@ -599,8 +603,8 @@ func createMockGrubCfg(baseDir string) error {
 }
 
 func (s *sealSuite) TestSealKeyModelParams(c *C) {
-	tmpDir := c.MkDir()
-	dirs.SetRootDir(tmpDir)
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -610,14 +614,14 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		bootloader.RoleRunMode:  "grub",
 	}
 	// mock asset cache
-	p := filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/shim-shim-hash")
+	p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/shim-shim-hash")
 	err := os.MkdirAll(filepath.Dir(p), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(p, nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	headers := model.Headers()
@@ -670,9 +674,9 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 
 	pbc := boot.ToPredictableBootChains([]boot.BootChain{rc1, runc1, oldrc})
 
-	shim := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/shim-shim-hash"), bootloader.RoleRecovery)
-	loader1 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), bootloader.RoleRecovery)
-	loader2 := bootloader.NewBootFile("", filepath.Join(tmpDir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), bootloader.RoleRunMode)
+	shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/shim-shim-hash"), bootloader.RoleRecovery)
+	loader1 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), bootloader.RoleRecovery)
+	loader2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), bootloader.RoleRunMode)
 
 	params, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	c.Assert(err, IsNil)

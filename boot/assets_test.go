@@ -66,10 +66,9 @@ func checkContentGlob(c *C, glob string, expected []string) {
 
 func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
 	uc20Model := makeMockUC20Model()
-	// checked by TrustedAssetsUpdateObserverForModel
+	// checked by TrustedAssetsUpdateObserverForModel and
+	// resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
-	// checked by resealKeyToModeenv, under this rootdir
-	s.stampSealedKeys(c, boot.InstallHostWritableDir)
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)

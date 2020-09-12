@@ -48,6 +48,7 @@ func bootChainsFileUnder(rootdir string) string {
 
 // sealKeyToModeenv seals the supplied key to the parameters specified
 // in modeenv.
+// It assumes to be invoked in install mode.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
@@ -137,13 +138,8 @@ func hasSealedKeys(rootdir string) bool {
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
-func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
-	// TODO:UC20: should we use Initramfs*Dirs in run mode
-	// both in terms of var name and mount points?
-	// should we use dir(mode) functions at least?
-	// see similar comment in SetRecoveryBootSystemAndMode
-
-	if !hasSealedKeys(InstallHostWritableDir) {
+func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) error {
+	if !hasSealedKeys(rootdir) {
 		// nothing to do
 		return nil
 	}
@@ -181,7 +177,7 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	ok, err := isResealNeeded(pbc, InstallHostWritableDir)
+	ok, err := isResealNeeded(pbc, rootdir)
 	if err != nil {
 		return err
 	}
@@ -203,13 +199,13 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 	resealKeyParams := &secboot.ResealKeyParams{
 		ModelParams:             modelParams,
 		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+		TPMPolicyUpdateDataFile: filepath.Join(dirs.SnapFDEDirUnder(rootdir), "policy-update-data"),
 	}
 	if err := secbootResealKey(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
-	bootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
+	bootChainsPath := bootChainsFileUnder(rootdir)
 	if err := writeBootChains(pbc, bootChainsPath); err != nil {
 		return err
 	}

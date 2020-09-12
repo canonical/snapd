@@ -581,7 +581,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		// boot assets was updated
 		return nil
 	}
-	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
 		return err
 	}
 	return nil
@@ -646,7 +646,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil
