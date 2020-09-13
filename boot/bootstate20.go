@@ -97,8 +97,8 @@ type bootStateUpdate20 struct {
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
 
-	// device
-	dev Device
+	// model set if a reseal might be necessary
+	resealModel *asserts.Model
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -109,8 +109,8 @@ func (u20 *bootStateUpdate20) postModeenv(task bootCommitTask) {
 	u20.postModeenvTasks = append(u20.postModeenvTasks, task)
 }
 
-func (u20 *bootStateUpdate20) setDevice(dev Device) {
-	u20.dev = dev
+func (u20 *bootStateUpdate20) resealForModel(model *asserts.Model) {
+	u20.resealModel = model
 }
 
 func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
@@ -160,13 +160,12 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
-	if u20.dev != nil {
-		model := u20.dev.Model()
-		if model.Grade() != asserts.ModelGradeUnset {
-			// reseal if needed
-			if err := resealKeyToModeenv(dirs.GlobalRootDir, model, u20.writeModeenv); err != nil {
-				return err
-			}
+	if u20.resealModel != nil {
+		// TODO:UC20: consider hint whether modeenv was written?
+		// especially if we have unsasserted kernels
+		// reseal if needed
+		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.resealModel, u20.writeModeenv); err != nil {
+			return err
 		}
 	}
 
@@ -283,10 +282,10 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 		// On commit, set CurrentKernels as just this kernel because that is the
 		// successful kernel we booted
 		u20.writeModeenv.CurrentKernels = []string{sn.Filename()}
-	}
 
-	// keep track of the device for resealing
-	u20.setDevice(ks20.dev)
+		// keep track of the model for resealing
+		u20.resealForModel(ks20.dev.Model())
+	}
 
 	return u20, nil
 }
@@ -320,8 +319,8 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	// As such, set the next kernel as a post modeenv task.
 	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
 
-	// keep track of the device for resealing
-	u20.setDevice(ks20.dev)
+	// keep track of the model for resealing
+	u20.resealForModel(ks20.dev.Model())
 
 	return rebootRequired, u20, nil
 }
@@ -685,8 +684,8 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	}
 	// update modeenv
 	u20.writeModeenv = newM
-	// keep track of the device
-	u20.setDevice(ba20.dev)
+	// keep track of the model for resealing
+	u20.resealForModel(ba20.dev.Model())
 
 	if len(dropAssets) == 0 {
 		// nothing to drop, we're done
