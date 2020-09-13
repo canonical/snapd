@@ -1263,6 +1263,61 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(m2.TryBase, Equals, s.base2.Filename())
 }
 
+func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	// we should not even need to build boot chains
+	tab.BootChainErr = errors.New("boom")
+
+	// default state
+	m := &boot.Modeenv{
+		Mode: "run",
+		Base: s.base1.Filename(),
+	}
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv: m,
+			// no kernel setup necessary
+		},
+	)
+	defer r()
+
+	// get the boot base participant from our new base snap
+	bootBase := boot.Participant(s.base2, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot
+	rebootRequired, err := bootBase.SetNextBoot()
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, true)
+
+	// make sure the modeenv was updated
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.BaseStatus, Equals, boot.TryStatus)
+	c.Assert(m2.TryBase, Equals, s.base2.Filename())
+
+	// no reseal
+	c.Check(resealCalls, Equals, 0)
+}
+
 func (s *bootenvSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
