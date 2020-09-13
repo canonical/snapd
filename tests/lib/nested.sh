@@ -416,25 +416,12 @@ nested_create_core_vm() {
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-
-                    # Get the snakeoil key and cert
-                    local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
-                    KEY_NAME=$(nested_get_snakeoil_key)
-                    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+                    rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap
-                    local KERNEL_SNAP KERNEL_UNPACKED
                     KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-                    KERNEL_UNPACKED="$NESTED_ASSETS_DIR"/kernel-unpacked
-                    unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-                    sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-                    sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-                    snap pack "$KERNEL_UNPACKED" "$NESTED_ASSETS_DIR"
 
                     chmod 0600 "$KERNEL_SNAP"
-                    rm -f "$PWD/pc-kernel.snap"
-                    rm -rf "$KERNEL_UNPACKED"
                     EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -445,6 +432,12 @@ nested_create_core_vm() {
                     fi
                     # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
                     if [ -z "$GADGET_SNAP" ]; then
+                        # Get the snakeoil key and cert
+                        local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
+                        KEY_NAME=$(nested_get_snakeoil_key)
+                        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
@@ -938,6 +931,10 @@ nested_exec_as() {
 
 nested_copy() {
     sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
+}
+
+nested_copy_from_remote() {
+    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost:"$1" "$2"
 }
 
 nested_add_tty_chardev() {
