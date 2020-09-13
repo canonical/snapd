@@ -1,0 +1,53 @@
+summary: Check that a gadget refresh reseals
+
+systems: [ubuntu-20.04-64]
+
+execute: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    # Wait for snapd to be seeded
+    nested_exec sudo snap wait system seed.loaded
+    SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    # Install new (unasserted) gadget and wait for reboot/change finishing
+    boot_id="$( nested_get_boot_id )"
+    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
+    # no reboot here, no gadget changes
+    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+  
+    # nothing in the gadget has changed so no reseal was needed
+    SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
+    RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
+
+    # create modified boot assets
+    KEY_NAME=$(nested_get_snakeoil_key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+    # ensure clean pc-gadget dir
+    rm -rf pc-gadget
+    snap download --basename=pc --channel="20/edge" pc
+    unsquashfs -d pc-gadget pc.snap
+    echo " " >> pc-gadget/grub-recovery.conf
+    # XXX: this needs a bump everytime we change the gadget, add code to
+    #      do this automatically
+    # XXX2: updateing "ubuntu-boot" here fails with (edition 1->2):
+    # ERROR cannot backup volume structure #0 ("mbr"): cannot find device matching structure #0 ("mbr"): unexpected number of matches (0) for /sys/block/*/ubuntu-data-e4fdfe94-a608-429d-a561-de5dd6a41fdb
+    MATCH "edition: 2" < pc-gadget/meta/gadget.yaml
+    sed -i 's/edition: 2/edition: 3/' pc-gadget/meta/gadget.yaml
+    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    snap pack pc-gadget/
+
+    # install newly created gadget (which will trigger a reboot)
+    nested_copy ./pc_*.snap
+    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous ./pc_*.snap --no-wait)
+    nested_wait_for_reboot "${boot_id}"
+    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+
+    # the gadget has changed, we should see resealing
+    SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
+    RESEAL_COUNT_3="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    test "$RESEAL_COUNT_3" -eq "1"
