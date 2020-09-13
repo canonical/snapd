@@ -638,12 +638,19 @@ nested_start_core_vm_unit() {
         PARAM_SMP="-smp 1"
     fi
 
-    # with qemu-nested, we can't use kvm acceleration
     local PARAM_MACHINE
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MACHINE=""
+        # check if we have nested kvm
+        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        else
+            # and if not reset kvm related parameters
+            PARAM_MACHINE=""
+            PARAM_CPU=""
+            ATTR_KVM=""
+        fi
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -863,12 +870,19 @@ nested_start_classic_vm() {
     PARAM_SNAPSHOT="-snapshot"
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MACHINE=""
+        # check if we have nested kvm
+        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        else
+            # and if not reset kvm related parameters
+            PARAM_MACHINE=""
+            PARAM_CPU=""
+            ATTR_KVM=""
+        fi
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
