@@ -269,29 +269,31 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 	return chains, nil
 }
 
-// predictableBootChainsWrapperForStorage wraps the boot chains so that we do not store
-// the arrays directly as JSON
+// predictableBootChainsWrapperForStorage wraps the boot chains so
+// that we do not store the arrays directly as JSON and we can add
+// other information
 type predictableBootChainsWrapperForStorage struct {
-	BootChains predictableBootChains `json:"boot-chains"`
+	ResealCount int                   `json:"reseal-count,omitempty"`
+	BootChains  predictableBootChains `json:"boot-chains"`
 }
 
-func readBootChains(path string) (pbc predictableBootChains, err error) {
+func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
 	inf, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, 0, nil
 		}
-		return nil, fmt.Errorf("cannot open existing boot chains data file: %v", err)
+		return nil, 0, fmt.Errorf("cannot open existing boot chains data file: %v", err)
 	}
 	defer inf.Close()
 	var wrapped predictableBootChainsWrapperForStorage
 	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
-		return nil, fmt.Errorf("cannot read boot chains data: %v", err)
+		return nil, 0, fmt.Errorf("cannot read boot chains data: %v", err)
 	}
-	return wrapped.BootChains, nil
+	return wrapped.BootChains, wrapped.ResealCount, nil
 }
 
-func writeBootChains(pbc predictableBootChains, path string) error {
+func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
@@ -303,7 +305,8 @@ func writeBootChains(pbc predictableBootChains, path string) error {
 	defer outf.Cancel()
 
 	wrapped := predictableBootChainsWrapperForStorage{
-		BootChains: pbc,
+		ResealCount: resealCount,
+		BootChains:  pbc,
 	}
 	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
 		return fmt.Errorf("cannot write boot chains data: %v", err)

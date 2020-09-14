@@ -330,6 +330,10 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
 	}
+	// there is no need to track assets if we did not seal any keys
+	if !hasSealedKeys(dirs.GlobalRootDir) {
+		return nil, ErrObserverNotApplicable
+	}
 
 	return &TrustedAssetsUpdateObserver{
 		cache: newTrustedAssetsCache(dirs.SnapBootAssetsDir),
@@ -577,8 +581,8 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		// boot assets was updated
 		return nil
 	}
-	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
-		return fmt.Errorf("cannot reseal encryption key: %v", err)
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
+		return err
 	}
 	return nil
 }
@@ -642,8 +646,8 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	if err := resealKeyToModeenv(o.model, o.modeenv); err != nil {
-		return fmt.Errorf("cannot reseal encryption key after a canceled update: %v", err)
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
+		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil
 }

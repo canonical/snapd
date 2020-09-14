@@ -20,12 +20,16 @@
 package boot
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -46,6 +50,7 @@ func bootChainsFileUnder(rootdir string) string {
 
 // sealKeyToModeenv seals the supplied key to the parameters specified
 // in modeenv.
+// It assumes to be invoked in install mode.
 func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
@@ -101,21 +106,45 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
+	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
+		return err
+	}
+
 	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
-	if err := writeBootChains(pbc, installBootChainsPath); err != nil {
+	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+func stampSealedKeys(rootdir string) error {
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+
+	if err := osutil.AtomicWriteFile(stamp, nil, 0644, 0); err != nil {
+		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
+	}
+	return nil
+}
+
+// hasSealedKeys return whether any keys were sealed at all
+func hasSealedKeys(rootdir string) bool {
+	// TODO:UC20: consider more than the marker for cases where we reseal
+	// outside of run mode
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	return osutil.FileExists(stamp)
+}
+
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
-func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
-	// TODO:UC20: should we use Initramfs*Dirs in run mode
-	// both in terms of var name and mount points?
-	// should we use dir(mode) functions at least?
-	// see similar comment in SetRecoveryBootSystemAndMode
+func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) error {
+	if !hasSealedKeys(rootdir) {
+		// nothing to do
+		return nil
+	}
 
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
@@ -150,7 +179,17 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	// TODO:UC20: load and compare the predictable bootchains
+	ok, nextCount, err := isResealNeeded(pbc, rootdir)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		// no need to actually reseal
+		logger.Debugf("reseal not necessary")
+		return nil
+	}
+	pbcJSON, _ := json.Marshal(pbc)
+	logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
@@ -165,14 +204,14 @@ func resealKeyToModeenv(model *asserts.Model, modeenv *Modeenv) error {
 	resealKeyParams := &secboot.ResealKeyParams{
 		ModelParams:             modelParams,
 		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		TPMPolicyUpdateDataFile: filepath.Join(InstallHostFDEDataDir, "policy-update-data"),
+		TPMPolicyUpdateDataFile: filepath.Join(dirs.SnapFDEDirUnder(rootdir), "policy-update-data"),
 	}
 	if err := secbootResealKey(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
-	bootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
-	if err := writeBootChains(pbc, bootChainsPath); err != nil {
+	bootChainsPath := bootChainsFileUnder(rootdir)
+	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
 		return err
 	}
 
@@ -338,10 +377,12 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 
 // isResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
-func isResealNeeded(pbc predictableBootChains, rootdir string) (bool, error) {
-	previousPbc, err := readBootChains(bootChainsFileUnder(rootdir))
+// It also returns the next value for the reasel count that is saved
+// together with the boot chains.
+func isResealNeeded(pbc predictableBootChains, rootdir string) (ok bool, nextCount int, err error) {
+	previousPbc, c, err := readBootChains(bootChainsFileUnder(rootdir))
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
-	return !predictableBootChainsEqualForReseal(pbc, previousPbc), nil
+	return !predictableBootChainsEqualForReseal(pbc, previousPbc), c + 1, nil
 }
