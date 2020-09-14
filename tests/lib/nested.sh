@@ -550,7 +550,7 @@ nested_create_cloud_init_config() {
    list: |
     user1:ubuntu
    expire: False
-  datasource_list: [ "None"]
+  datasource_list: [ NoCloud, None ]
   datasource:
     None:
      userdata_raw: |
