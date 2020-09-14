@@ -6,6 +6,17 @@ execute: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
+  retry=120
+  wait=1
+  until nested_exec command -v snap; do
+       retry=$(( retry - 1 ))
+       if [ $retry -le 0 ]; then
+           echo "Timed out waiting for no snap command. Aborting!"
+           exit 1
+       fi
+       sleep "$wait"
+  done
+
   # Wait for snapd to be seeded
   nested_exec sudo snap wait system seed.loaded
 
