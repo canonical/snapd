@@ -61,8 +61,8 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	}
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
-		// nothing to do
-		return nil
+		// TODO:UC20: later the exact kind of bootloaders we expect here might change
+		return fmt.Errorf("internal error: cannot seal keys without a trusted assets bootloader")
 	}
 
 	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, model, modeenv)
