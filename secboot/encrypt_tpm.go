@@ -35,6 +35,8 @@ var (
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
 )
 
+// RecoveryKey is a key used to unlock the encrypted partition when
+// the encryption key can't be used, for example when unseal fails.
 type RecoveryKey sb.RecoveryKey
 
 func NewRecoveryKey() (RecoveryKey, error) {

@@ -29,6 +29,7 @@ const (
 	encryptionKeySize = 64
 )
 
+// EncryptionKey is the key used to encrypt the data partition.
 type EncryptionKey [encryptionKeySize]byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
