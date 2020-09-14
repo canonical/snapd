@@ -58,9 +58,11 @@ var (
 
 	NewTrustedAssetsCache = newTrustedAssetsCache
 
-	ObserveSuccessfulBootWithAssets   = observeSuccessfulBootAssets
-	SealKeyToModeenv                  = sealKeyToModeenv
-	BuildRecoveryBootChainsForSystems = buildRecoveryBootChainsForSystems
+	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
+	SealKeyToModeenv                = sealKeyToModeenv
+	ResealKeyToModeenv              = resealKeyToModeenv
+	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	SealKeyModelParams              = sealKeyModelParams
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -89,6 +91,14 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 	secbootSealKey = f
 	return func() {
 		secbootSealKey = old
+	}
+}
+
+func MockSecbootResealKey(f func(params *secboot.ResealKeyParams) error) (restore func()) {
+	old := secbootResealKey
+	secbootResealKey = f
+	return func() {
+		secbootResealKey = old
 	}
 }
 
@@ -124,6 +134,9 @@ var (
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
 	BootAssetLess                       = bootAssetLess
+	WriteBootChains                     = writeBootChains
+	ReadBootChains                      = readBootChains
+	IsResealNeeded                      = isResealNeeded
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
@@ -132,4 +145,8 @@ func (b *bootChain) SetModelAssertion(model *asserts.Model) {
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 	b.kernelBootFile = kbf
+}
+
+func (b *bootChain) KernelBootFile() bootloader.BootFile {
+	return b.kernelBootFile
 }

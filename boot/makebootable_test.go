@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,8 +28,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -78,25 +78,8 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 	return fn, info
 }
 
-func makeMockModel() *asserts.Model {
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"display-name": "My Model",
-		"architecture": "amd64",
-		"base":         "core18",
-		"gadget":       "pc=18",
-		"kernel":       "pc-kernel=18",
-		"timestamp":    "2018-01-01T08:00:00+00:00",
-	}
-	return assertstest.FakeAssertion(headers).(*asserts.Model)
-}
-
 func (s *makeBootableSuite) TestMakeBootable(c *C) {
-	model := makeMockModel()
+	model := boottest.MakeMockModel()
 
 	grubCfg := []byte("#grub cfg")
 	unpackedGadgetDir := c.MkDir()
@@ -189,36 +172,8 @@ func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 }
 
-func makeMockUC20Model() *asserts.Model {
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model-uc20",
-		"display-name": "My Model",
-		"architecture": "amd64",
-		"base":         "core20",
-		"grade":        "dangerous",
-		"timestamp":    "2019-11-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name": "pc-linux",
-				"id":   "pclinuxdidididididididididididid",
-				"type": "kernel",
-			},
-			map[string]interface{}{
-				"name": "pc",
-				"id":   "pcididididididididididididididid",
-				"type": "gadget",
-			},
-		},
-	}
-	return assertstest.FakeAssertion(headers).(*asserts.Model)
-}
-
 func (s *makeBootable20Suite) TestMakeBootable20(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
@@ -292,7 +247,7 @@ version: 5.0
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
@@ -315,7 +270,7 @@ func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c 
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	bootWith := &boot.BootableSet{Recovery: true}
 	err := os.MkdirAll(filepath.Join(s.rootdir, "systems/20191204"), 0755)
@@ -330,7 +285,7 @@ func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *
 func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	bootloader.Force(nil)
 
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
@@ -446,7 +401,7 @@ version: 5.0
 		kernelSnap := &seed.Snap{
 			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 0},
+				Revision: snap.Revision{N: 1},
 				RealName: "pc-kernel",
 			},
 		}
@@ -459,38 +414,29 @@ version: 5.0
 	restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
 		sealKeyCalls++
 		c.Check(key, DeepEquals, myKey)
-		c.Assert(params.ModelParams, HasLen, 2)
+		c.Assert(params.ModelParams, HasLen, 1)
 
-		// recovery parameters
 		shim := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"),
 			bootloader.RoleRecovery)
 		grub := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"),
 			bootloader.RoleRecovery)
-		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-
-		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
-		})
-		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
-		})
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-
-		// run mode parameters
 		runGrub := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"),
 			bootloader.RoleRunMode)
+		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
 			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 		})
-		c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		})
-		c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
 		return nil
 	})
@@ -573,12 +519,18 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 
 	// make sure SealKey was called
 	c.Check(sealKeyCalls, Equals, 1)
+
+	// make sure the marker file for sealed key was created
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
+
+	// make sure we wrote the boot chains data file
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunModeInstallBootConfigErr(c *C) {
 	bootloader.Force(nil)
 
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
@@ -649,7 +601,7 @@ version: 5.0
 func (s *makeBootable20Suite) TestMakeBootable20RunModeSealKeyErr(c *C) {
 	bootloader.Force(nil)
 
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
@@ -778,39 +730,29 @@ version: 5.0
 	restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
 		sealKeyCalls++
 		c.Check(key, DeepEquals, myKey)
-		c.Assert(params.ModelParams, HasLen, 2)
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams, HasLen, 1)
 
-		// recovery parameters
 		shim := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"),
 			bootloader.RoleRecovery)
 		grub := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"),
 			bootloader.RoleRecovery)
-		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-
-		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
-		})
-		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
-		})
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-
-		// run mode parameters
 		runGrub := bootloader.NewBootFile("", filepath.Join(s.rootdir,
 			"var/lib/snapd/boot-assets/grub/grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"),
 			bootloader.RoleRunMode)
+		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
 			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 		})
-		c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		})
-		c.Assert(params.ModelParams[1].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
 		return fmt.Errorf("seal error")
 	})
@@ -821,7 +763,7 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
 	ubootEnv := []byte("#uboot env")
@@ -872,7 +814,7 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20BootScr(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
 	// the uboot.conf must be empty for this to work/do the right thing
@@ -943,7 +885,7 @@ version: 5.0
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootScr(c *C) {
 	bootloader.Force(nil)
 
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)

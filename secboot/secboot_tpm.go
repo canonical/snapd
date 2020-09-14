@@ -58,6 +58,7 @@ var (
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
+	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -318,19 +319,65 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
+	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	// Provision the TPM as late as possible
+	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
+		return err
+	}
+
+	// Seal key to the TPM
+	creationParams := sb.KeyCreationParams{
+		PCRProfile: pcrProfile,
+		PINHandle:  pinHandle,
+	}
+	return sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams)
+}
+
+// ResealKey updates the PCR protection policy for the sealed encryption key according to
+// the specified parameters.
+func ResealKey(params *ResealKeyParams) error {
+	numModels := len(params.ModelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile)
+}
+
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
 
-	for _, modelParams := range params.ModelParams {
+	for _, mp := range modelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
 		// Add EFI secure boot policy profile
-		loadSequences, err := buildLoadSequences(modelParams.EFILoadChains)
+		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
-			return fmt.Errorf("cannot build EFI image load sequences: %v", err)
+			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
@@ -342,30 +389,30 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		}
 
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
-		if len(modelParams.KernelCmdlines) != 0 {
+		if len(mp.KernelCmdlines) != 0 {
 			systemdStubParams := sb.SystemdEFIStubProfileParams{
 				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
 				PCRIndex:       tpmPCR,
-				KernelCmdlines: modelParams.KernelCmdlines,
+				KernelCmdlines: mp.KernelCmdlines,
 			}
 			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
-				return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
 
 		// Add snap model profile
-		if modelParams.Model != nil {
+		if mp.Model != nil {
 			snapModelParams := sb.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 				PCRIndex:     tpmPCR,
-				Models:       []*asserts.Model{modelParams.Model},
+				Models:       []*asserts.Model{mp.Model},
 			}
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
-				return fmt.Errorf("cannot add snap model profile: %v", err)
+				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
 
@@ -379,21 +426,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		pcrProfile = modelPCRProfiles[0]
 	}
 
-	// Provision the TPM as late as possible
-	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
-		return err
-	}
-
-	// Seal key to the TPM
-	creationParams := sb.KeyCreationParams{
-		PCRProfile: pcrProfile,
-		PINHandle:  pinHandle,
-	}
-	if err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams); err != nil {
-		return err
-	}
-
-	return nil
+	return pcrProfile, nil
 }
 
 func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {

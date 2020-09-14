@@ -148,7 +148,7 @@ func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -191,7 +191,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -245,7 +245,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -288,7 +288,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -348,7 +348,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// set all the same vars as if we were doing trying, except don't set a try
@@ -402,7 +402,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// set all the same vars as if we were doing trying, except don't set a try

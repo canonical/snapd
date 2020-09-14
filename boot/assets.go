@@ -330,9 +330,14 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
 	}
+	// there is no need to track assets if we did not seal any keys
+	if !hasSealedKeys(dirs.GlobalRootDir) {
+		return nil, ErrObserverNotApplicable
+	}
 
 	return &TrustedAssetsUpdateObserver{
 		cache: newTrustedAssetsCache(dirs.SnapBootAssetsDir),
+		model: model,
 	}, nil
 }
 
@@ -340,6 +345,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 // attempts to reseal when needed.
 type TrustedAssetsUpdateObserver struct {
 	cache *trustedAssetsCache
+	model *asserts.Model
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
@@ -570,8 +576,14 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 // BeforeWrite is called when the update process has been staged for execution.
 func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	if o.modeenv == nil {
+		// modeenv wasn't even loaded yet, meaning none of the trusted
+		// boot assets was updated
+		return nil
+	}
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -634,8 +646,9 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv); err != nil {
+		return fmt.Errorf("while canceling gadget update: %v", err)
+	}
 	return nil
 }
 

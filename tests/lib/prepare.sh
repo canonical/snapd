@@ -442,9 +442,16 @@ uc20_build_initramfs_kernel_snap() {
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
+
+    local injectKernelPanic=false
+    injectKernelPanicArg=${3:-}
+    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
+        injectKernelPanic=true
+    fi
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
+
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
@@ -493,6 +500,10 @@ uc20_build_initramfs_kernel_snap() {
         sed -i "$skeletondir/main/usr/lib/the-modeenv" \
             -e "s@echo 'LABEL=ubuntu-boot /run/mnt/ubuntu-boot auto defaults 0 0' >> /run/image.fstab@echo not doing anything@"
 
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
+        fi
 
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
