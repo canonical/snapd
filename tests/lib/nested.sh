@@ -705,6 +705,9 @@ nested_start_core_vm_unit() {
             else
                 snap install swtpm-mvo --beta
             fi
+            # we've observed the socket not being up yet by the time a nested-vm
+            # starts
+            sleep 5
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
