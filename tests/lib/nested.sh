@@ -623,7 +623,12 @@ nested_start_core_vm_unit() {
     #
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u nested-vm" to see what is going on ?
-    PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
+    fi
 
     # Set kvm attribute
     local ATTR_KVM
@@ -894,7 +899,12 @@ nested_start_classic_vm() {
     #
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u nested-vm" to see what is going on ?
-    PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log -serial chardev:char0"
+    fi
     PARAM_BIOS=""
     PARAM_TPM=""
 
