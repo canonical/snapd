@@ -442,6 +442,16 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # also make logging persistent for easier debugging of 
+                        # test failures, otherwise we have no way to see what 
+                        # happened during a failed nested VM boot where we 
+                        # weren't able to login to a device
+                        cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -449,8 +459,8 @@ nested_create_core_vm() {
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
@@ -954,9 +964,9 @@ nested_exec() {
 
 nested_exec_as() {
     local USER="$1"
-    local PWD="$2"
+    local PASSWD="$2"
     shift 2
-    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+    sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {

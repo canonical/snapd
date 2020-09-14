@@ -835,6 +835,7 @@ suites:
             # Directory where the images and test assets are stored
             NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
+        warn-timeout: 10m
         kill-timeout: 40m
         debug: |
             #shellcheck source=tests/lib/nested.sh
@@ -1024,6 +1025,7 @@ suites:
             if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
+        warn-timeout: 10m
         kill-timeout: 40m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
