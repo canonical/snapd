@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -65,7 +66,7 @@ func checkContentGlob(c *C, glob string, expected []string) {
 }
 
 func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	// checked by TrustedAssetsUpdateObserverForModel and
 	// resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
@@ -229,13 +230,13 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	d := c.MkDir()
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
 	// but nil for non UC20
-	nonUC20Model := makeMockModel()
+	nonUC20Model := boottest.MakeMockModel()
 	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
@@ -262,7 +263,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -338,7 +339,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	}
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -393,7 +394,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	defer bootloader.Force(nil)
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -417,7 +418,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	defer bootloader.Force(nil)
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -449,7 +450,7 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	}
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -511,7 +512,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	}
 
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -557,7 +558,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryNoAssets(c *C) {
 	bootloader.Force(tab)
 	defer bootloader.Force(nil)
 
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -587,7 +588,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 		"nested/asset",
 	})
 	// we get an observer for UC20
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -609,7 +610,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 	d := c.MkDir()
 
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
@@ -636,7 +637,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	// we get an observer for UC20, but only if we sealed keys
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Check(obs, IsNil)
@@ -647,7 +648,7 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	c.Assert(obs, NotNil)
 
 	// but nil for non UC20
-	nonUC20Model := makeMockModel()
+	nonUC20Model := boottest.MakeMockModel()
 	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
@@ -2379,10 +2380,10 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 0},
-				RealName: "pc-linux",
+				Revision: snap.Revision{N: 1},
+				RealName: "pc-kernel",
 			},
 		}
 		return uc20model, []*seed.Snap{kernelSnap}, nil
@@ -2421,14 +2422,14 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 			secboot.NewLoadChain(shimBf,
 				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(runKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
 					secboot.NewLoadChain(recoveryKernelBf)),
 				secboot.NewLoadChain(beforeAssetBf,
 					secboot.NewLoadChain(recoveryKernelBf))),
+			secboot.NewLoadChain(shimBf,
+				secboot.NewLoadChain(assetBf,
+					secboot.NewLoadChain(runKernelBf)),
+				secboot.NewLoadChain(beforeAssetBf,
+					secboot.NewLoadChain(runKernelBf))),
 		})
 		return nil
 	})
@@ -2501,10 +2502,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 0},
-				RealName: "pc-linux",
+				Revision: snap.Revision{N: 1},
+				RealName: "pc-kernel",
 			},
 		}
 		return uc20model, []*seed.Snap{kernelSnap}, nil

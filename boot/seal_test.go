@@ -29,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
@@ -103,7 +103,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			myKey[i] = byte(i)
 		}
 
-		model := makeMockUC20Model()
+		model := boottest.MakeMockUC20Model()
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -290,7 +290,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), nil, 0644)
 		c.Assert(err, IsNil)
 
-		model := makeMockUC20Model()
+		model := boottest.MakeMockUC20Model()
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -575,7 +575,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		bl, err := bootloader.Find(grubDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 		c.Assert(err, IsNil)
 
-		model := makeMockUC20Model()
+		model := boottest.MakeMockUC20Model()
 
 		modeenv := &boot.Modeenv{
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
@@ -613,7 +613,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: "grub",
@@ -630,10 +630,10 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	headers := model.Headers()
-	headers["model"] = "old-model-uc20"
-	headers["timestamp"] = "2019-10-01T08:00:00+00:00"
-	oldmodel := assertstest.FakeAssertion(headers).(*asserts.Model)
+	oldmodel := boottest.MakeMockUC20Model(map[string]interface{}{
+		"model":     "old-model-uc20",
+		"timestamp": "2019-10-01T08:00:00+00:00",
+	})
 
 	// old recovery
 	oldrc := boot.BootChain{
@@ -646,7 +646,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		KernelCmdlines: []string{"panic=1", "oldrc"},
 	}
 	oldrc.SetModelAssertion(oldmodel)
-	oldkbf := bootloader.BootFile{Snap: "pc-linux_1.snap"}
+	oldkbf := bootloader.BootFile{Snap: "pc-kernel_1.snap"}
 	oldrc.SetKernelBootFile(oldkbf)
 
 	// recovery
@@ -660,7 +660,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		KernelCmdlines: []string{"panic=1", "rc1"},
 	}
 	rc1.SetModelAssertion(model)
-	rc1kbf := bootloader.BootFile{Snap: "pc-linux_10.snap"}
+	rc1kbf := bootloader.BootFile{Snap: "pc-kernel_10.snap"}
 	rc1.SetKernelBootFile(rc1kbf)
 
 	// run system
@@ -675,7 +675,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		KernelCmdlines: []string{"panic=1", "runc1"},
 	}
 	runc1.SetModelAssertion(model)
-	runc1kbf := bootloader.BootFile{Snap: "pc-linux_50.snap"}
+	runc1kbf := bootloader.BootFile{Snap: "pc-kernel_50.snap"}
 	runc1.SetKernelBootFile(runc1kbf)
 
 	pbc := boot.ToPredictableBootChains([]boot.BootChain{rc1, runc1, oldrc})
