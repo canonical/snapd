@@ -360,9 +360,8 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    if [ "$ENABLE_SSH" = "true" ]; then
-        # now install a unit that sets up enough so that we can connect
-        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    # now install a unit that sets up some tweaks
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -372,14 +371,48 @@ Documentation=man:snap(1)
 Type=oneshot
 ExecStart=/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
 RemainAfterExit=true
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
 EOF
-        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+    # logging tweaks
+    cat >> "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
+
+echo "Enabling more logging for snapd"
+
+mkdir -p /run/systemd/system/snapd.service.d
+cat <<EOF2 > /run/systemd/system/snapd.service.d/local.conf
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF2
+
+# We change the service configuration so reload and restart
+# the units to get them applied
+systemctl daemon-reload
+
+# Enable logging to console
+mkdir -p /run/systemd/journald.conf.d
+cat <<EOF2 > /run/systemd/journald.conf.d/to-console.conf
+[Journal]
+ForwardToConsole=yes
+MaxLevelConsole=debug
+TTYPath=/dev/ttyS0
+EOF2
+
+systemctl restart systemd-journald
+
+EOF
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+
+    if [ "$ENABLE_SSH" = "true" ]; then
+        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+        cat >> "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 # ensure we don't enable ssh in install mode or spread will get confused
 if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
     echo "not in run or recovery mode - script not running"
@@ -426,8 +459,8 @@ grep '^PermitRootLogin yes' /etc/ssh/sshd_config
 systemctl reload ssh
 
 touch /root/spread-setup-done
+
 EOF
-        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
     fi
 
     snap pack "$UNPACK_DIR" "$TARGET"
