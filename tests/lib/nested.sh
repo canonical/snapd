@@ -17,7 +17,8 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    nested_retry_until_success 400 1 "true"
+    # TODO:UC20: the retry count should be lowered to something more reasonable.
+    nested_retry_until_success 800 1 "true"
 }
 
 nested_wait_for_no_ssh() {
