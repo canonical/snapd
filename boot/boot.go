@@ -113,9 +113,12 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 // bootloaderOptionsForDeviceKernel returns a set of bootloader options that
 // enable correct kernel extraction and removal for given device
 func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	if !dev.HasModeenv() {
+		return nil
+	}
+	// find the run-mode bootloader with its kernel support for UC20
 	return &bootloader.Options{
-		// unified extractable kernel if in uc20 mode
-		ExtractedRunKernelImage: dev.HasModeenv(),
+		Role: bootloader.RoleRunMode,
 	}
 }
 
@@ -184,6 +187,14 @@ type bootState interface {
 	// successful for the type's boot snap. The actual committing
 	// of the update is done via bootStateUpdate's commit, that
 	// way different markSuccessful can be folded together.
+	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
+}
+
+// successfulBootState exposes the state of resources requiring bookkeeping on a
+// successful boot.
+type successfulBootState interface {
+	// markSuccessful lazily implements marking the boot
+	// successful for the given type of resource.
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
@@ -325,6 +336,15 @@ func MarkBootSuccessful(dev Device) error {
 		}
 	}
 
+	if dev.HasModeenv() {
+		b := trustedAssetsBootState()
+		var err error
+		u, err = b.markSuccessful(u)
+		if err != nil {
+			return fmt.Errorf(errPrefix, err)
+		}
+	}
+
 	if u != nil {
 		if err := u.commit(); err != nil {
 			return fmt.Errorf(errPrefix, err)
@@ -353,7 +373,7 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: should the recovery partition stay around as RW during run
 	// mode all the time?

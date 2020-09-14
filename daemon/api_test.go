@@ -4163,7 +4163,26 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestPostSnapsOp(c *check.C) {
+func (s *apiSuite) TestPostSnapOp(c *check.C) {
+	s.testPostSnapsOp(c, "application/json")
+}
+
+func (s *apiSuite) TestPostSnapOpMoreComplexContentType(c *check.C) {
+	s.testPostSnapsOp(c, "application/json; charset=utf-8")
+}
+
+func (s *apiSuite) TestPostSnapOpInvalidCharset(c *check.C) {
+	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "unknown charset in content type")
+}
+
+func (s *apiSuite) testPostSnapsOp(c *check.C, contentType string) {
 	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -4174,9 +4193,9 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 
 	rsp, ok := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -7621,6 +7640,28 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"change-kind": "some-global-op",
+			},
+		},
+	})
+}
+
+func (s *apiSuite) TestErrToResponseInsufficentSpace(c *check.C) {
+	err := &snapstate.InsufficientSpaceError{
+		Snaps:      []string{"foo", "bar"},
+		ChangeKind: "some-change",
+		Path:       "/path",
+		Message:    "specific error msg",
+	}
+	rsp := errToResponse(err, nil, BadRequest, "%s: %v", "ERR").(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 507,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "specific error msg",
+			Kind:    client.ErrorKindInsufficientDiskSpace,
+			Value: map[string]interface{}{
+				"snap-names":  []string{"foo", "bar"},
+				"change-kind": "some-change",
 			},
 		},
 	})

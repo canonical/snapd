@@ -28,6 +28,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
+var (
+	EFIImageFromBootFile = efiImageFromBootFile
+)
+
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
 	sbConnectToDefaultTPM = f
@@ -73,6 +77,14 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	sbSealKeyToTPM = f
 	return func() {
 		sbSealKeyToTPM = old
+	}
+}
+
+func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, policyUpdatePath string, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+	old := sbUpdateKeyPCRProtectionPolicy
+	sbUpdateKeyPCRProtectionPolicy = f
+	return func() {
+		sbUpdateKeyPCRProtectionPolicy = old
 	}
 }
 

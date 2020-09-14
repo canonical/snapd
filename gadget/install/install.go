@@ -51,11 +51,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) error {
-	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
-		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
-	}
-
+func Run(gadgetRoot, device string, options Options, observer SystemInstallObserver) error {
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -94,11 +90,11 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	if options.KeyFile != "" {
-		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	for _, keyFile := range sealedKeyFiles {
+		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
 		}
-
 	}
 
 	created, err := createMissingPartitions(diskLayout, lv)
@@ -157,57 +153,21 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		return nil
 	}
 
+	// ensure directories
+	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
 	// Write the recovery key
-	if err := rkey.Save(options.RecoveryKeyFile); err != nil {
+	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
+	if err := rkey.Save(recoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
-	loadChain := []string{
-		// the path to the shim EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
-		// the path to the recovery grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
-		// the path to the run mode grub EFI binary
-		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
-	}
-	if options.KernelPath != "" {
-		// the path to the kernel EFI binary
-		loadChain = append(loadChain, options.KernelPath)
-	}
-
-	// Get the expected kernel command line for the system that is currently being installed
-	cmdline, err := boot.ComposeCandidateCommandLine(options.Model)
-	if err != nil {
-		return fmt.Errorf("cannot obtain kernel command line: %v", err)
-	}
-
-	// Get the expected kernel command line of the recovery system we're installing from
-	recoveryCmdline, err := boot.ComposeRecoveryCommandLine(options.Model, options.SystemLabel)
-	if err != nil {
-		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
-	}
-
-	kernelCmdlines := []string{
-		cmdline,
-		recoveryCmdline,
-	}
-
-	sealKeyParams := secboot.SealKeyParams{
-		ModelParams: []*secboot.SealKeyModelParams{
-			{
-				Model:          options.Model,
-				KernelCmdlines: kernelCmdlines,
-				EFILoadChains:  [][]string{loadChain},
-			},
-		},
-		KeyFile:                 options.KeyFile,
-		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
-		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
-	}
-
-	if err := secboot.SealKey(key, &sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the encryption key: %v", err)
+	if observer != nil {
+		observer.ChosenEncryptionKey(key)
 	}
 
 	return nil

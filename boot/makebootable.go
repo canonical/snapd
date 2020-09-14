@@ -159,7 +159,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -261,8 +261,10 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 
 	var currentTrustedBootAssets bootAssetsMap
+	var currentTrustedRecoveryBootAssets bootAssetsMap
 	if sealer != nil {
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
+		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
 	}
 	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition
@@ -270,10 +272,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Mode:           "run",
 		RecoverySystem: recoverySystemLabel,
 		// default to the system we were installed from
-		CurrentRecoverySystems:   []string{recoverySystemLabel},
-		CurrentTrustedBootAssets: currentTrustedBootAssets,
-		// TODO:UC20: set current boot assets for recovery
-
+		CurrentRecoverySystems:           []string{recoverySystemLabel},
+		CurrentTrustedBootAssets:         currentTrustedBootAssets,
+		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
@@ -287,11 +288,11 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
+		// Bootloader for run mode
+		Role: bootloader.RoleRunMode,
 		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
+		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
-		// Bootloader that supports kernel asset extraction
-		ExtractedRunKernelImage: true,
 	}
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
@@ -360,12 +361,19 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	if sealer != nil {
+		// seal the encryption key to the parameters specified in modeenv
+		if err := sealKeyToModeenv(sealer.encryptionKey, model, modeenv); err != nil {
+			return err
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
 		// let the bootloader know we will be touching the recovery
 		// partition
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {
