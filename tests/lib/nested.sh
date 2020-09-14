@@ -700,6 +700,8 @@ nested_start_core_vm_unit() {
             else
                 snap install swtpm-mvo --beta
             fi
+            # wait for the tpm sock file to exist
+            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
