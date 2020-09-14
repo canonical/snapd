@@ -356,6 +356,7 @@ repack_core20_snap_with_tweaks() {
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
 [Journal]
 ForwardToConsole=yes
+TTYPath=/dev/ttyS0
 EOF
     echo 'SNAPD_DEBUG=1' >> "$UNPACK_DIR"/etc/environment
 
