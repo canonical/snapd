@@ -803,6 +803,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		tpmEnabled           bool
 		missingFile          bool
 		addEFISbPolicyErr    error
+		addEFIBootManagerErr error
 		addSystemdEFIStubErr error
 		addSnapModelErr      error
 		provisioningErr      error
@@ -814,6 +815,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*/file.efi does not exist"},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
+		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
@@ -863,6 +865,17 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(params.LoadSequences, DeepEquals, sequences)
 			return tc.addEFISbPolicyErr
+		})
+		defer restore()
+
+		// mock adding EFI boot manager profile
+		addEFIBootManagerCalls := 0
+		restore = secboot.MockSbAddEFIBootManagerProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error {
+			addEFIBootManagerCalls++
+			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.LoadSequences, DeepEquals, sequences)
+			return tc.addEFIBootManagerErr
 		})
 		defer restore()
 

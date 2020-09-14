@@ -400,7 +400,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 			LoadSequences: loadSequences,
 		}
 		if err := sbAddEFIBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
-			return fmt.Errorf("cannot add EFI boot manager profile: %v", err)
+			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
