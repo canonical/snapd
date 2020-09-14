@@ -389,7 +389,7 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevision(c *C) {
 }
 
 func (s *bootenv20Suite) TestCurrentBoot20NameAndRevision(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -417,7 +417,7 @@ func (s *bootenv20Suite) TestCurrentBoot20NameAndRevision(c *C) {
 // only difference between this test and TestCurrentBoot20NameAndRevision is the
 // base bootloader which doesn't support ExtractedRunKernelImageBootloader.
 func (s *bootenv20EnvRefKernelSuite) TestCurrentBoot20NameAndRevision(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -659,7 +659,7 @@ func (s *bootenvSuite) TestMarkBootSuccessfulTryKernelKernelStatusDefaultCleansU
 }
 
 func (s *bootenv20Suite) TestCoreKernel20(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	r := setupUC20Bootenv(
@@ -694,9 +694,8 @@ func (s *bootenv20Suite) TestCoreKernel20(c *C) {
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -738,9 +737,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -780,9 +778,8 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -851,10 +848,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 		runKernelBf,
 	}
 
-	uc20Model := makeMockUC20Model()
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(uc20Model)
 
 	m := &boot.Modeenv{
 		Mode:           "run",
@@ -882,7 +877,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20Model)
+		c.Check(mp.Model, DeepEquals, coreDev.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
@@ -923,9 +918,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	r := setupUC20Bootenv(
 		c,
@@ -959,9 +953,8 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel
@@ -1018,9 +1011,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel
@@ -1081,9 +1073,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCl
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("core20")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
@@ -1108,7 +1099,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCl
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
-	coreDev := boottest.MockUC20Device("core20")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	m := &boot.Modeenv{
@@ -1146,7 +1137,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
-	coreDev := boottest.MockUC20Device("core20")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// default state
@@ -1209,9 +1200,8 @@ func (s *bootenvSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// bonus points: we were trying both a base snap and a kernel snap
 	m := &boot.Modeenv{
@@ -1274,9 +1264,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20AllSnap(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// bonus points: we were trying both a base snap and a kernel snap
 	m := &boot.Modeenv{
@@ -1388,9 +1377,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
@@ -1480,10 +1468,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	)
 	defer r()
 
-	uc20Model := makeMockUC20Model()
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(uc20Model)
 
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
@@ -1491,7 +1477,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20Model)
+		c.Check(mp.Model, DeepEquals, coreDev.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
@@ -1542,10 +1528,8 @@ func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelUpdate(c *C) 
 	)
 	defer r()
 
-	uc20Model := makeMockUC20Model()
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(uc20Model)
 
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
@@ -1591,9 +1575,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	coreDev.SetModel(makeMockUC20Model())
 
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
@@ -1674,7 +1657,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		recoveryKernelBf,
 	}
 
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
@@ -1713,10 +1696,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	// set the model for resealing
-	coreDev.SetModel(uc20Model)
 
 	resealCalls := 0
 	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
@@ -1808,7 +1789,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		recoveryKernelBf,
 	}
 
-	uc20Model := makeMockUC20Model()
+	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
@@ -1847,10 +1828,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-	// set the model for resealing
-	coreDev.SetModel(uc20Model)
 
 	// TODO:UC20: add a test for resealing when the boot chain does not change
 	resealCalls := 0
@@ -1933,7 +1912,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	)
 	defer r()
 
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// mark successful
@@ -1969,7 +1948,7 @@ func (s *recoveryBootenv20Suite) SetUpTest(c *C) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	s.forceBootloader(s.bootloader)
 
-	s.dev = boottest.MockUC20Device("some-snap")
+	s.dev = boottest.MockUC20Device("", nil)
 }
 
 func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeHappy(c *C) {
