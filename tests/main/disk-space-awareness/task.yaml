@@ -1,8 +1,7 @@
 summary: Check that basic snap operation are aware of low disk space.
 
-# this test is remounts /var/lib/snapd which is too intrusive for core and
-# selinux, disabled on these systems.
-systems: [-fedora-*, -amazon-*, -centos-*, -ubuntu-core-*]
+# this test is remounts /var/lib/snapd which is too intrusive for core.
+systems: [-ubuntu-core-*]
 
 description: |
   Check that operations such as snap installation or snap removal (with an
