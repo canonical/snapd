@@ -56,6 +56,183 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+type cloudInitUC20Suite struct {
+	cloudInitBaseSuite
+}
+
+var _ = Suite(&cloudInitUC20Suite{})
+
+func (s *cloudInitUC20Suite) SetUpTest(c *C) {
+	s.cloudInitBaseSuite.SetUpTest(c)
+
+	// make a uc20 style dangerous model assertion for the device
+	// note that actually the devicemgr ensure only cares about having a grade
+	// for uc20, it doesn't use the grade for anything right now, the install
+	// handler code however does care about the grade, so here we just default
+	// to signed
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc20-model", map[string]interface{}{
+		"display-name": "UC20 pc model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              "pckernelidididididididididididid",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "pcididididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc20-model",
+		Serial: "serial",
+	})
+
+	// create the gadget snap's mount dir
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc", "1")
+	c.Assert(os.MkdirAll(gadgetDir, 0755), IsNil)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
+	// create a cloud.conf file in the gadget snap's mount dir
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapMountDir, "pc", "1", "cloud.conf"), nil, 0644), IsNil)
+
+	// pretend that cloud-init finished running
+	statusCalls := 0
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
+		return sysconfig.CloudInitDone, nil
+	})
+	defer r()
+
+	restrictCalls := 0
+	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitDone)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// in this case, pretend it was a real cloud, so it just got restricted
+		return sysconfig.CloudInitRestrictionResult{
+			Action:     "restrict",
+			DataSource: "GCE",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ GCE \].*`)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitUC20NoCloudGadgetDisables(c *C) {
+	// pretend that cloud-init never ran
+	statusCalls := 0
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
+		return sysconfig.CloudInitUntriggered, nil
+	})
+	defer r()
+
+	restrictCalls := 0
+	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitUntriggered)
+		// no gadget cloud.conf, so we should be asked to disable if it was
+		// NoCloud
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// cloud-init never ran, so no datasource
+		return sysconfig.CloudInitRestrictionResult{
+			Action: "disable",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
+
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in disabled state, disabled permanently.*`)
+}
+
+func (s *cloudInitUC20Suite) TestCloudInitDoneNoCloudDisables(c *C) {
+	// pretend that cloud-init ran, and mock the actual cloud-init command to
+	// use the real sysconfig logic
+	cmd := testutil.MockCommand(c, "cloud-init", `
+if [ "$1" = "status" ]; then
+	echo "status: done"
+else
+	echo "unexpected args $*"
+	exit 1
+fi`)
+	defer cmd.Restore()
+
+	restrictCalls := 0
+
+	r := devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		c.Assert(state, Equals, sysconfig.CloudInitDone)
+		c.Assert(opts, DeepEquals, &sysconfig.CloudInitRestrictOptions{
+			DisableNoCloud: true,
+		})
+		// we would have disabled it as per the opts
+		return sysconfig.CloudInitRestrictionResult{
+			// pretend it was NoCloud
+			DataSource: "NoCloud",
+			Action:     "disable",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"cloud-init", "status"},
+	})
+
+	// a message about cloud-init done and being restricted
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, disabled permanently.*`)
+
+	// and 1 call to restrict
+	c.Assert(restrictCalls, Equals, 1)
+}
+
+func (s *cloudInitSuite) SetUpTest(c *C) {
+	s.cloudInitBaseSuite.SetUpTest(c)
+
+	// make a uc16/uc18 style model assertion for the device
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+}
+
 func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
 	r := release.MockOnClassic(true)
 	defer r()
@@ -129,13 +306,6 @@ func (s *cloudInitSuite) TestCloudInitAlreadyEnsuredRestrictedDoesNothing(c *C) 
 }
 
 func (s *cloudInitSuite) TestCloudInitDeviceManagerEnsureRestrictsCloudInit(c *C) {
-	st := s.o.State()
-	st.Lock()
-	// avoid device registration
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Serial: "123",
-	})
-	st.Unlock()
 	n := 0
 
 	// mock that it was restricted so that we set the internal bool to say it
