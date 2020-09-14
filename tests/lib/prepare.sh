@@ -345,6 +345,26 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
+repack_core20_snap_with_tweaks() {
+    local CORE20SNAP="$1"
+    local TARGET="$2"
+
+    local UNPACK_DIR="/tmp/core20-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+
+    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
+    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
+[Journal]
+ForwardToConsole=yes
+EOF
+    echo 'SNAPD_DEBUG=1' >> "$UNPACK_DIR"/etc/environment
+
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf "$UNPACK_DIR"
+}
+
+
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
     local ENABLE_SSH="${2:-true}"

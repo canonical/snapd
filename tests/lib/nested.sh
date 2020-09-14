@@ -450,6 +450,11 @@ nested_create_core_vm() {
                     snap download --channel="latest/edge" snapd
                     repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+
+                    # which channel?
+                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
