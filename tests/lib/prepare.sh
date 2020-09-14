@@ -357,6 +357,7 @@ repack_core20_snap_with_tweaks() {
 [Journal]
 ForwardToConsole=yes
 TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
 EOF
     echo 'SNAPD_DEBUG=1' >> "$UNPACK_DIR"/etc/environment
 
