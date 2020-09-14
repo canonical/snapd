@@ -542,6 +542,8 @@ instance_id: cloud-images
 EOF
 }
 
+# TODO: see if the uc20 config works for classic here too, that would be faster
+#       as the chpasswd module from cloud-init runs rather late in the boot
 nested_create_cloud_init_config() {
     local CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
@@ -564,9 +566,23 @@ nested_create_cloud_init_config() {
 EOF
 }
 
+nested_create_cloud_init_uc20_config() {
+    local CONFIG_PATH=$1
+    cat << 'EOF' > "$CONFIG_PATH"
+#cloud-config
+datasource_list: [NoCloud]
+users:
+  - name: user1
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: false
+    # passwd is just "ubuntu"
+    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+EOF
+}
+
 nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
