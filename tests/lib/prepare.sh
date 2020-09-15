@@ -345,9 +345,36 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
+repack_core20_snap_with_tweaks() {
+    local CORE20SNAP="$1"
+    local TARGET="$2"
+
+    local UNPACK_DIR="/tmp/core20-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+
+    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
+    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
+[Journal]
+ForwardToConsole=yes
+TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
+EOF
+    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
+cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF
+
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf "$UNPACK_DIR"
+}
+
+
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
-    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -360,9 +387,8 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    if [ "$ENABLE_SSH" = "true" ]; then
-        # now install a unit that sets up enough so that we can connect
-        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    # now install a unit that sets up enough so that we can connect
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -376,8 +402,8 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -427,8 +453,7 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
-    fi
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
 
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
