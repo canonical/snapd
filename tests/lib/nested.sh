@@ -61,7 +61,7 @@ nested_retry_while_success() {
     while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$@' to fail. Aborting!"
+            echo "Timed out waiting for command '$*' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -76,7 +76,7 @@ nested_retry_until_success() {
     until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$@' to succeed. Aborting!"
+            echo "Timed out waiting for command '$*' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
