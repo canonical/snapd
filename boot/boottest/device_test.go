@@ -41,6 +41,8 @@ func (s *boottestSuite) TestMockDeviceClassic(c *C) {
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, false)
 
+	c.Check(func() { dev.Model() }, PanicMatches, "Device.Model called.*")
+
 	c.Check(func() { boottest.MockDevice("@run") }, Panics, "MockDevice with no snap name and @mode is unsupported")
 }
 
@@ -51,6 +53,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Base(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, false)
+	c.Check(func() { dev.Model() }, Panics, "Device.Model called but MockUC20Device not used")
 
 	dev = boottest.MockDevice("boot-snap@run")
 	c.Check(dev.Classic(), Equals, false)
@@ -58,6 +61,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Base(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, true)
+	c.Check(func() { dev.Model() }, PanicMatches, "Device.Model called.*")
 
 	dev = boottest.MockDevice("boot-snap@recover")
 	c.Check(dev.Classic(), Equals, false)
@@ -65,6 +69,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Base(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, false)
 	c.Check(dev.HasModeenv(), Equals, true)
+	c.Check(func() { dev.Model() }, PanicMatches, "Device.Model called.*")
 }
 
 func (s *boottestSuite) TestMockUC20Device(c *C) {
@@ -75,6 +80,8 @@ func (s *boottestSuite) TestMockUC20Device(c *C) {
 	c.Check(dev.Kernel(), Equals, "pc-kernel")
 	c.Check(dev.Base(), Equals, "core20")
 
+	c.Check(dev.Model().Model(), Equals, "my-model-uc20")
+
 	dev = boottest.MockUC20Device("run", nil)
 	c.Check(dev.RunMode(), Equals, true)
 
@@ -82,6 +89,7 @@ func (s *boottestSuite) TestMockUC20Device(c *C) {
 	c.Check(dev.RunMode(), Equals, false)
 
 	model := boottest.MakeMockUC20Model(map[string]interface{}{
+		"model": "other-model-uc20",
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name": "pc-linux",
@@ -98,4 +106,6 @@ func (s *boottestSuite) TestMockUC20Device(c *C) {
 	dev = boottest.MockUC20Device("recover", model)
 	c.Check(dev.RunMode(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "pc-linux")
+	c.Check(dev.Model().Model(), Equals, "other-model-uc20")
+	c.Check(dev.Model(), Equals, model)
 }
