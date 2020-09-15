@@ -122,6 +122,12 @@
 			"revisionTime": "2020-09-10T15:49:09Z"
 		},
 		{
+			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",
+			"path": "github.com/snapcore/secboot/internal/efi",
+			"revision": "7e933de20d914ff47ad080f25d2ed93cef6e8530",
+			"revisionTime": "2020-09-10T15:49:09Z"
+		},
+		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
 			"revision": "7e933de20d914ff47ad080f25d2ed93cef6e8530",
