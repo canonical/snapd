@@ -17,7 +17,8 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    nested_retry_until_success 400 1 "true"
+    # TODO:UC20: the retry count should be lowered to something more reasonable.
+    nested_retry_until_success 800 1 "true"
 }
 
 nested_wait_for_no_ssh() {
@@ -464,6 +465,10 @@ EOF
                     snap download --channel="latest/edge" snapd
                     repack_snapd_deb_into_snapd_snap "$PWD"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
+                    # which channel?
+                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -561,12 +566,12 @@ nested_create_cloud_init_config() {
    list: |
     user1:ubuntu
    expire: False
-  datasource_list: [ "None"]
+  datasource_list: [ NoCloud ]
   datasource:
-    None:
+    NoCloud:
      userdata_raw: |
       #!/bin/bash
-      echo test
+      logger -t nested test running || true
 EOF
 }
 
@@ -647,7 +652,18 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
 
     # Set kvm attribute
     local ATTR_KVM
@@ -681,7 +697,6 @@ nested_start_core_vm_unit() {
     
     local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
@@ -731,6 +746,8 @@ nested_start_core_vm_unit() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
@@ -921,12 +938,25 @@ nested_start_classic_vm() {
 
     PARAM_IMAGE="-drive file=$NESTED_IMAGES_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:$NESTED_LOGS_DIR/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
     PARAM_BIOS=""
     PARAM_TPM=""
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \

@@ -213,19 +213,35 @@ func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	return predictableChains
 }
 
-// predictableBootChainsEqualForReseal returns true when boot chains are
-// equivalent for reseal. If the chains contain unrevisioned kernels
-// this always return false, such chains are incomparable.
-func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
+type bootChainEquivalence int
+
+const (
+	bootChainEquivalent   bootChainEquivalence = 0
+	bootChainDifferent    bootChainEquivalence = 1
+	bootChainUnrevisioned bootChainEquivalence = -1
+)
+
+// predictableBootChainsEqualForReseal returns bootChainEquivalent
+// when boot chains are equivalent for reseal. If the boot chains
+// are clearly different it returns bootChainDifferent.
+// If it would return bootChainEquivalent but the chains contain
+// unrevisioned kernels it will return bootChainUnrevisioned.
+func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootChainEquivalence {
 	pb1JSON, err := json.Marshal(pb1)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
 	pb2JSON, err := json.Marshal(pb2)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
-	return bytes.Equal(pb1JSON, pb2JSON) && !pb1.hasUnrevisionedKernels()
+	if bytes.Equal(pb1JSON, pb2JSON) {
+		if pb1.hasUnrevisionedKernels() {
+			return bootChainUnrevisioned
+		}
+		return bootChainEquivalent
+	}
+	return bootChainDifferent
 }
 
 // bootAssetsToLoadChains generates a list of load chains covering given boot
@@ -273,7 +289,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 // that we do not store the arrays directly as JSON and we can add
 // other information
 type predictableBootChainsWrapperForStorage struct {
-	ResealCount int                   `json:"reseal-count,omitempty"`
+	ResealCount int                   `json:"reseal-count"`
 	BootChains  predictableBootChains `json:"boot-chains"`
 }
 
