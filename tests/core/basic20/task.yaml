@@ -63,7 +63,4 @@ execute: |
     # ensure the "snap recovery" command works
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND="$(snap model --verbose | grep '^brand' | cut -d' ' -f2- | xargs)"
-    if echo "$BRAND" | MATCH ".*\(.*\)"; then
-        BRAND="$(echo $BRAND | cut -d '(' -f2 | cut -d ')' -f1)"
-    fi
     snap recovery | MATCH "[0-9]+ +$BRAND +$MODEL +current"
