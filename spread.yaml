@@ -836,7 +836,7 @@ suites:
             NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -1027,7 +1027,7 @@ suites:
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
