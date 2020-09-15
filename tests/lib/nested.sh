@@ -125,12 +125,13 @@ nested_create_assertions_disk() {
     mount "/dev/mapper/loop${LOOP_DEV}p1" "$NESTED_ASSETS_DIR/sys-user-partition"
     
     # use custom assertion if set
+    local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
-        autoImportAssert=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
     else 
-        autoImportAssert="$TESTSLIB/assertions/auto-import.assert"
+        AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
     fi
-    sudo cp "$autoImportAssert" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
+    sudo cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
     # unmount the partition and the image disk
     sudo umount "$NESTED_ASSETS_DIR/sys-user-partition"
