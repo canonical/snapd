@@ -24,6 +24,10 @@ nested_wait_for_no_ssh() {
     nested_retry_while_success 200 1 "true"
 }
 
+nested_wait_for_snap_command() {
+    nested_retry_until_success 200 1 command -v snap
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -56,7 +60,7 @@ nested_retry_while_success() {
     while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -71,7 +75,7 @@ nested_retry_until_success() {
     until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -441,6 +445,16 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # also make logging persistent for easier debugging of 
+                        # test failures, otherwise we have no way to see what 
+                        # happened during a failed nested VM boot where we 
+                        # weren't able to login to a device
+                        cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -448,8 +462,8 @@ nested_create_core_vm() {
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -532,6 +546,8 @@ instance_id: cloud-images
 EOF
 }
 
+# TODO: see if the uc20 config works for classic here too, that would be faster
+#       as the chpasswd module from cloud-init runs rather late in the boot
 nested_create_cloud_init_config() {
     local CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
@@ -554,9 +570,23 @@ nested_create_cloud_init_config() {
 EOF
 }
 
+nested_create_cloud_init_uc20_config() {
+    local CONFIG_PATH=$1
+    cat << 'EOF' > "$CONFIG_PATH"
+#cloud-config
+datasource_list: [NoCloud]
+users:
+  - name: user1
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: false
+    # passwd is just "ubuntu"
+    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+EOF
+}
+
 nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
@@ -700,6 +730,8 @@ nested_start_core_vm_unit() {
             else
                 snap install swtpm-mvo --beta
             fi
+            # wait for the tpm sock file to exist
+            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
@@ -734,6 +766,12 @@ nested_start_core_vm_unit() {
 
     # Wait until ssh is ready
     nested_wait_for_ssh
+    # Wait for the snap command to be available
+    nested_wait_for_snap_command
+    # Wait for snap seeding to be done
+    nested_exec "sudo snap wait system seed.loaded"
+    # Wait for cloud init to be done
+    nested_exec "cloud-init status --wait"
 }
 
 nested_get_current_image_name() {
@@ -945,9 +983,9 @@ nested_exec() {
 
 nested_exec_as() {
     local USER="$1"
-    local PWD="$2"
+    local PASSWD="$2"
     shift 2
-    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+    sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {
