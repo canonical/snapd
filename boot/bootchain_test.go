@@ -206,7 +206,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 	var pbNil boot.PredictableBootChains
 
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbNil, pbNil), Equals, true)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbNil, pbNil), Equals, boot.BootChainEquivalent)
 
 	bcJustOne := []boot.BootChain{
 		{
@@ -226,10 +226,10 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 	}
 	pbJustOne := boot.ToPredictableBootChains(bcJustOne)
 	// equal with self
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, true)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, boot.BootChainEquivalent)
 
 	// equal with nil?
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbNil), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbNil), Equals, boot.BootChainDifferent)
 
 	bcMoreAssets := []boot.BootChain{
 		{
@@ -262,31 +262,31 @@ func (s *bootchainSuite) TestPredictableBootChainsEqualForReseal(c *C) {
 
 	pbMoreAssets := boot.ToPredictableBootChains(bcMoreAssets)
 
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbJustOne), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbJustOne), Equals, boot.BootChainDifferent)
 	// with self
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbMoreAssets), Equals, true)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbMoreAssets, pbMoreAssets), Equals, boot.BootChainEquivalent)
 	// chains composed of respective elements are not equal
 	c.Check(boot.PredictableBootChainsEqualForReseal(
 		[]boot.BootChain{pbMoreAssets[0]},
 		[]boot.BootChain{pbMoreAssets[1]}),
-		Equals, false)
+		Equals, boot.BootChainDifferent)
 
 	// unrevisioned/unasserted kernels
 	bcUnrevOne := []boot.BootChain{pbJustOne[0]}
 	bcUnrevOne[0].KernelRevision = ""
 	pbUnrevOne := boot.ToPredictableBootChains(bcUnrevOne)
 	// soundness
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, true)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbJustOne), Equals, boot.BootChainEquivalent)
 	// never equal even with self because of unrevisioned
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbUnrevOne), Equals, false)
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevOne, pbUnrevOne), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbJustOne, pbUnrevOne), Equals, boot.BootChainDifferent)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevOne, pbUnrevOne), Equals, boot.BootChainUnrevisioned)
 
 	bcUnrevMoreAssets := []boot.BootChain{pbMoreAssets[0], pbMoreAssets[1]}
 	bcUnrevMoreAssets[1].KernelRevision = ""
 	pbUnrevMoreAssets := boot.ToPredictableBootChains(bcUnrevMoreAssets)
 	// never equal even with self because of unrevisioned
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbMoreAssets), Equals, false)
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbUnrevMoreAssets), Equals, false)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbMoreAssets), Equals, boot.BootChainDifferent)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbUnrevMoreAssets, pbUnrevMoreAssets), Equals, boot.BootChainUnrevisioned)
 }
 
 func (s *bootchainSuite) TestPredictableBootChainsFullMarshal(c *C) {
@@ -1197,7 +1197,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Check(loaded, DeepEquals, pbc)
 	c.Check(cnt, Equals, 0)
 	// boot chains should be same for reseal purpose
-	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, true)
+	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, boot.BootChainEquivalent)
 
 	// write them again with count > 0
 	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99)

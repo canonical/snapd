@@ -145,7 +145,7 @@ func hasSealedKeys(rootdir string) bool {
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
-func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) error {
+func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	if !hasSealedKeys(rootdir) {
 		// nothing to do
 		return nil
@@ -188,7 +188,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	ok, nextCount, err := isResealNeeded(pbc, rootdir)
+	ok, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
 	if err != nil {
 		return err
 	}
@@ -383,10 +383,20 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 // input do not match the cached boot chains on disk under rootdir.
 // It also returns the next value for the reasel count that is saved
 // together with the boot chains.
-func isResealNeeded(pbc predictableBootChains, rootdir string) (ok bool, nextCount int, err error) {
+// A hint expectReseal can be provided, it is used when the matching
+// is ambigous because the boot chains contain unrevisioned kernels.
+func isResealNeeded(pbc predictableBootChains, rootdir string, expectReseal bool) (ok bool, nextCount int, err error) {
 	previousPbc, c, err := readBootChains(bootChainsFileUnder(rootdir))
 	if err != nil {
 		return false, 0, err
 	}
-	return !predictableBootChainsEqualForReseal(pbc, previousPbc), c + 1, nil
+
+	switch predictableBootChainsEqualForReseal(pbc, previousPbc) {
+	case bootChainEquivalent:
+		return false, c + 1, nil
+	case bootChainUnrevisioned:
+		return expectReseal, c + 1, nil
+	case bootChainDifferent:
+	}
+	return true, c + 1, nil
 }

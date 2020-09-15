@@ -153,11 +153,13 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
+	modeenvRewritten := false
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
+		modeenvRewritten = true
 	}
 
 	// next reseal using the modeenv values, we do this before any
@@ -165,10 +167,11 @@ func (u20 *bootStateUpdate20) commit() error {
 	// the reseal even before the post tasks are completed, we
 	// still boot properly
 	if u20.resealModel != nil {
-		// TODO:UC20: consider hint whether modeenv was written?
-		// especially if we have unsasserted kernels
-		// reseal if needed
-		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.resealModel, u20.writeModeenv); err != nil {
+		// if there is ambiguity whether the boot chains have
+		// changed because of unasserted kernels use whether we
+		// wrote the modeenv as hint whether to reseal
+		expectReseal := modeenvRewritten
+		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.resealModel, u20.writeModeenv, expectReseal); err != nil {
 			return err
 		}
 	}
