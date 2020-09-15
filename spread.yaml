@@ -420,11 +420,7 @@ debug-each: |
             echo '# nested VM status'
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
-
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                echo '# nested VM serial boot log'
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         fi
 
         echo '# journal messages for snapd'
@@ -842,9 +838,7 @@ suites:
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -888,9 +882,7 @@ suites:
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -938,9 +930,7 @@ suites:
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -988,9 +978,7 @@ suites:
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         warn-timeout: 10m
         kill-timeout: 40m
         prepare: |

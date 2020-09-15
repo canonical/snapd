@@ -588,13 +588,21 @@ nested_configure_cloud_init_on_core20_vm() {
     kpartx -d "$IMAGE"
 }
 
-nested_save_serial_log(){
+nested_save_serial_log() {
     if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
         for i in $(seq 50); do
             if [ ! -f "${NESTED_LOGS_DIR}/serial.log.${i}" ]; then
                 cp "${NESTED_LOGS_DIR}/serial.log" "${NESTED_LOGS_DIR}/serial.log.${i}"
                 break
             fi
+        done
+    fi
+}
+
+nested_print_serial_log() {
+    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        for logfile in $(ls -r "${NESTED_LOGS_DIR}"/serial.log*); do
+            cat "${logfile}"
         done
     fi
 }
