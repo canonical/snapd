@@ -711,7 +711,7 @@ nested_start_core_vm_unit() {
         if [ "$NESTED_ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine q35${ATTR_KVM},smm=on,mem-merge=off -global ICH9-LPC.disable_s3=1"
+            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$NESTED_ENABLE_TPM" = "true" ]; then
