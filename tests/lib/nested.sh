@@ -24,6 +24,10 @@ nested_wait_for_no_ssh() {
     nested_retry_while_success 200 1 "true"
 }
 
+nested_wait_for_snap_command() {
+    nested_retry_until_success 200 1 command -v snap
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -56,7 +60,7 @@ nested_retry_while_success() {
     while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$@' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -71,7 +75,7 @@ nested_retry_until_success() {
     until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$@' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -752,6 +756,9 @@ nested_start_core_vm_unit() {
 
     # Wait until ssh is ready
     nested_wait_for_ssh
+    # Wait for the snap command to be available
+    nested_wait_for_snap_command
+
 }
 
 nested_get_current_image_name() {
