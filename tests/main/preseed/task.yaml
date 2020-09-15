@@ -62,6 +62,7 @@ execute: |
   MATCH "Done .+ mount-snap +Mount snap \"snapd\" \(unset\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"snapd\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \(unset\) security profiles" < tasks.log
+  MATCH "Done .+ export-content +Export content from snap \"snapd\" \(unset\)" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"snapd\" \(unset\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"snapd\"" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"snapd\"" < tasks.log
@@ -72,6 +73,7 @@ execute: |
   MATCH "Done .+ mount-snap +Mount snap \"core18\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"core18\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Setup snap \"core18\" \([0-9]+\) security profiles" < tasks.log
+  MATCH "Done .+ export-content +Export content from snap \"core18\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"core18\" \([0-9]+\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core18\"" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core18\"" < tasks.log
@@ -82,6 +84,7 @@ execute: |
   MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
+  MATCH "Done .+ export-content +Export content from snap \"lxd\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"lxd\" \([0-9]+\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"lxd\"" < tasks.log
   MATCH "Done .+ connect +Connect lxd:network to snapd:network" < tasks.log
@@ -93,7 +96,7 @@ execute: |
   MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
 
   echo "Checking that there were no other 'Done' tasks when preseeding"
-  [ "$(grep -c ' Done ' tasks.log)" = "32" ]
+  [ "$(grep -c ' Done ' tasks.log)" = "35" ]
 
   # everything below is pending execution on first boot
   MATCH "Do .+ run-hook +Run install hook of \"core18\" snap if present" < tasks.log
