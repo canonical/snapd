@@ -66,6 +66,17 @@ func init() {
 	})
 }
 
+func isConnectedPidCheckAllowed(info *snap.Info, plugOrSlot string) bool {
+	slot := info.Slots[plugOrSlot]
+	if slot != nil {
+		switch slot.Interface {
+		case "pulseaudio", "audio-record", "cups-control":
+			return true
+		}
+	}
+	return false
+}
+
 func (c *isConnectedCommand) Execute(args []string) error {
 	plugOrSlot := c.Positional.PlugOrSlotSpec
 
@@ -100,6 +111,9 @@ func (c *isConnectedCommand) Execute(args []string) error {
 
 	var otherSnap *snap.Info
 	if c.Pid != 0 {
+		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
+			return fmt.Errorf("cannot use --pid check with %s:%s", snapName, plugOrSlot)
+		}
 		name, err := cgroupSnapNameFromPid(c.Pid)
 		if err != nil {
 			// Indicate that this pid is not a snap

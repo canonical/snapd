@@ -5,9 +5,7 @@ summary: Classic test snap
 
 plugs:
   foo-plug:
-    interface: content
-    content: foo
-    target: $SNAP_COMMON/foo
+    interface: cups-control
 
 apps:
   svc:
