@@ -760,6 +760,8 @@ nested_start_core_vm_unit() {
     nested_wait_for_snap_command
     # Wait for snap seeding to be done
     nested_exec "sudo snap wait system seed.loaded"
+    # Wait for cloud init to be done
+    nested_exec "cloud-init status --wait"
 }
 
 nested_get_current_image_name() {
