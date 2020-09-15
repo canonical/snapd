@@ -15,6 +15,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include "ns-support.h"
 
 #ifdef HAVE_CONFIG_H
