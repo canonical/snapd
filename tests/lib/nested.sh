@@ -566,12 +566,12 @@ nested_create_cloud_init_config() {
    list: |
     user1:ubuntu
    expire: False
-  datasource_list: [ NoCloud, None ]
+  datasource_list: [ NoCloud ]
   datasource:
-    None:
+    NoCloud:
      userdata_raw: |
       #!/bin/bash
-      echo test
+      logger -t nested test running || true
 EOF
 }
 
