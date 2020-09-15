@@ -293,6 +293,39 @@ unknown_key=some unknown value
 `)
 }
 
+func (s *modeenvSuite) TestReadModeenvWithUnknownKeysDeepEqualsSameWithoutUnknownKeys(c *C) {
+	s.makeMockModeenvFile(c, `first_unknown=thing
+mode=recovery
+recovery_system=20191126
+try_base=core20_124.snap
+base_status=try
+unknown_key=some unknown value
+current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
+current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
+a_key=other
+`)
+
+	modeenvWithExtraKeys, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenvWithExtraKeys.Mode, Equals, "recovery")
+	c.Check(modeenvWithExtraKeys.RecoverySystem, Equals, "20191126")
+
+	// should be the same as one that with just those keys in memory
+	c.Assert(modeenvWithExtraKeys.DeepEqual(&boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     boot.TryStatus,
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"hash1", "hash2"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"bootx64.efi": []string{"shimhash1", "shimhash2"},
+			"grubx64.efi": []string{"recovery-hash1"},
+		},
+	}), Equals, true)
+}
+
 func (s *modeenvSuite) TestReadModeWithBase(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
