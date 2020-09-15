@@ -208,7 +208,7 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 		defer restore()
 
 		calls := 0
-		restore = secboot.MockSbMeasureSnapModelToTPM(func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error {
+		restore = secboot.MockSbMeasureSnapModelToTPM(func(tpm *sb.TPMConnection, pcrIndex int, model sb.SnapModel) error {
 			calls++
 			c.Assert(tpm, Equals, mockTpm)
 			c.Assert(model, Equals, mockModel)

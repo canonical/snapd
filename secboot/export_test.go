@@ -24,8 +24,6 @@ import (
 	"io"
 
 	sb "github.com/snapcore/secboot"
-
-	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -130,7 +128,7 @@ func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex in
 	}
 }
 
-func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model sb.SnapModel) error) (restore func()) {
 	old := sbMeasureSnapModelToTPM
 	sbMeasureSnapModelToTPM = f
 	return func() {
