@@ -359,7 +359,13 @@ ForwardToConsole=yes
 TTYPath=/dev/ttyS0
 MaxLevelConsole=debug
 EOF
-    echo 'SNAPD_DEBUG=1' >> "$UNPACK_DIR"/etc/environment
+    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
+cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF
 
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
