@@ -578,6 +578,17 @@ nested_configure_cloud_init_on_core20_vm() {
     kpartx -d "$IMAGE"
 }
 
+nested_save_serial_log(){
+    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        for i in $(seq 50); do
+            if [ ! -f "${NESTED_LOGS_DIR}/serial.log.${i}" ]; then
+                cp "${NESTED_LOGS_DIR}/serial.log" "${NESTED_LOGS_DIR}/serial.log.${i}"
+                break
+            fi
+        done
+    fi
+}
+
 nested_force_stop_vm() {
     systemctl stop nested-vm
 }
@@ -618,6 +629,9 @@ nested_start_core_vm_unit() {
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
     PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+
+    # save logs from previous runs
+    nested_save_serial_log
 
     # Set kvm attribute
     local ATTR_KVM
@@ -679,7 +693,7 @@ nested_start_core_vm_unit() {
         if [ "$NESTED_ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
+            PARAM_MACHINE="-machine q35${ATTR_KVM},smm=on,mem-merge=off -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$NESTED_ENABLE_TPM" = "true" ]; then
@@ -794,6 +808,7 @@ nested_shutdown() {
 }
 
 nested_start() {
+    nested_save_serial_log
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
@@ -889,6 +904,10 @@ nested_start_classic_vm() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+
+    # save logs from previous runs
+    nested_save_serial_log
+
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
