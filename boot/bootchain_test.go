@@ -1181,7 +1181,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 
 	rootdir := c.MkDir()
 
-	expected := `{"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
+	expected := `{"reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
 	// creates a complete tree and writes a file
 	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0)

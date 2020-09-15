@@ -289,7 +289,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 // that we do not store the arrays directly as JSON and we can add
 // other information
 type predictableBootChainsWrapperForStorage struct {
-	ResealCount int                   `json:"reseal-count,omitempty"`
+	ResealCount int                   `json:"reseal-count"`
 	BootChains  predictableBootChains `json:"boot-chains"`
 }
 
