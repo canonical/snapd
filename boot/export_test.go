@@ -127,6 +127,12 @@ type BootAsset = bootAsset
 type BootChain = bootChain
 type PredictableBootChains = predictableBootChains
 
+const (
+	BootChainEquivalent   = bootChainEquivalent
+	BootChainDifferent    = bootChainDifferent
+	BootChainUnrevisioned = bootChainUnrevisioned
+)
+
 var (
 	ToPredictableBootAsset              = toPredictableBootAsset
 	ToPredictableBootChain              = toPredictableBootChain
