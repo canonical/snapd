@@ -24,6 +24,10 @@ nested_wait_for_no_ssh() {
     nested_retry_while_success 200 1 "true"
 }
 
+nested_wait_for_snap_command() {
+    nested_retry_until_success 200 1 command -v snap
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -56,7 +60,7 @@ nested_retry_while_success() {
     while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -71,7 +75,7 @@ nested_retry_until_success() {
     until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -542,6 +546,8 @@ instance_id: cloud-images
 EOF
 }
 
+# TODO: see if the uc20 config works for classic here too, that would be faster
+#       as the chpasswd module from cloud-init runs rather late in the boot
 nested_create_cloud_init_config() {
     local CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
@@ -564,9 +570,23 @@ nested_create_cloud_init_config() {
 EOF
 }
 
+nested_create_cloud_init_uc20_config() {
+    local CONFIG_PATH=$1
+    cat << 'EOF' > "$CONFIG_PATH"
+#cloud-config
+datasource_list: [NoCloud]
+users:
+  - name: user1
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: false
+    # passwd is just "ubuntu"
+    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+EOF
+}
+
 nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
@@ -646,7 +666,18 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
 
     # save logs from previous runs
     nested_save_serial_log
@@ -683,7 +714,6 @@ nested_start_core_vm_unit() {
     
     local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
@@ -758,6 +788,12 @@ nested_start_core_vm_unit() {
 
     # Wait until ssh is ready
     nested_wait_for_ssh
+    # Wait for the snap command to be available
+    nested_wait_for_snap_command
+    # Wait for snap seeding to be done
+    nested_exec "sudo snap wait system seed.loaded"
+    # Wait for cloud init to be done
+    nested_exec "cloud-init status --wait"
 }
 
 nested_get_current_image_name() {
@@ -918,7 +954,18 @@ nested_start_classic_vm() {
 
     PARAM_IMAGE="-drive file=$NESTED_IMAGES_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:$NESTED_LOGS_DIR/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
     PARAM_BIOS=""
     PARAM_TPM=""
 
