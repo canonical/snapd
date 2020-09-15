@@ -909,6 +909,15 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, true)
 
+	// make sure the env was updated
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status":   boot.TryStatus,
+		"snap_kernel":     s.kern1.Filename(),
+		"snap_try_kernel": s.kern2.Filename(),
+	})
+
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -992,6 +1001,14 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, false)
+
+	// make sure the env is as expected
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status": boot.DefaultStatus,
+		"snap_kernel": s.kern1.Filename(),
+	})
 
 	// and that the modeenv now has the one kernel listed
 	m2, err := boot.ReadModeenv("")
