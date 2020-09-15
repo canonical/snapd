@@ -160,6 +160,10 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
+	// next reseal using the modeenv values, we do this before any
+	// post-modeenv tasks so if we are rebooted at any point after
+	// the reseal even before the post tasks are completed, we
+	// still boot properly
 	if u20.resealModel != nil {
 		// TODO:UC20: consider hint whether modeenv was written?
 		// especially if we have unsasserted kernels

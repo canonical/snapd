@@ -1007,7 +1007,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(err, IsNil)
 	c.Assert(bvars, DeepEquals, map[string]string{
 		"kernel_status": boot.DefaultStatus,
-		"snap_kernel": s.kern1.Filename(),
+		"snap_kernel":   s.kern1.Filename(),
 	})
 
 	// and that the modeenv now has the one kernel listed
