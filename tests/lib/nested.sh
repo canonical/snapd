@@ -758,7 +758,8 @@ nested_start_core_vm_unit() {
     nested_wait_for_ssh
     # Wait for the snap command to be available
     nested_wait_for_snap_command
-
+    # Wait for snap seeding to be done
+    nested_exec "sudo snap wait system seed.loaded"
 }
 
 nested_get_current_image_name() {
