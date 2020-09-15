@@ -441,6 +441,16 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # also make logging persistent for easier debugging of 
+                        # test failures, otherwise we have no way to see what 
+                        # happened during a failed nested VM boot where we 
+                        # weren't able to login to a device
+                        cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -448,8 +458,8 @@ nested_create_core_vm() {
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -704,6 +714,8 @@ nested_start_core_vm_unit() {
             else
                 snap install swtpm-mvo --beta
             fi
+            # wait for the tpm sock file to exist
+            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
@@ -943,9 +955,9 @@ nested_exec() {
 
 nested_exec_as() {
     local USER="$1"
-    local PWD="$2"
+    local PASSWD="$2"
     shift 2
-    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+    sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {

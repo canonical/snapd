@@ -837,6 +837,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
+        warn-timeout: 10m
         kill-timeout: 40m
         debug: |
             #shellcheck source=tests/lib/nested.sh
@@ -990,6 +991,7 @@ suites:
             if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
+        warn-timeout: 10m
         kill-timeout: 40m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
