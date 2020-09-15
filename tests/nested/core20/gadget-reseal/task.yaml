@@ -5,8 +5,6 @@ systems: [ubuntu-20.04-64]
 execute: |
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    # Wait for snapd to be seeded
-    nested_exec sudo snap wait system seed.loaded
     SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     # Install new (unasserted) gadget without changes and wait for change without reboot
@@ -33,7 +31,9 @@ execute: |
     echo " " >> pc-gadget/grub-recovery.conf
     # XXX: this needs a bump everytime we change the gadget, add code to
     #      do this automatically
-    # XXX2: updateing "ubuntu-boot" here fails with (edition 1->2):
+    #
+    # XXX2: if we would update "ubuntu-boot" here which is at edition 1
+    #       and goes to revision 2 there is a failure:
     # ERROR cannot backup volume structure #0 ("mbr"): cannot find device matching structure #0 ("mbr"): unexpected number of matches (0) for /sys/block/*/ubuntu-data-e4fdfe94-a608-429d-a561-de5dd6a41fdb
     MATCH "edition: 2" < pc-gadget/meta/gadget.yaml
     sed -i 's/edition: 2/edition: 3/' pc-gadget/meta/gadget.yaml
