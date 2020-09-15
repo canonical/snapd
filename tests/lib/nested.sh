@@ -17,11 +17,16 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    nested_retry_until_success 400 1 "true"
+    # TODO:UC20: the retry count should be lowered to something more reasonable.
+    nested_retry_until_success 800 1 "true"
 }
 
 nested_wait_for_no_ssh() {
     nested_retry_while_success 200 1 "true"
+}
+
+nested_wait_for_snap_command() {
+    nested_retry_until_success 200 1 command -v snap
 }
 
 nested_get_boot_id() {
@@ -56,7 +61,7 @@ nested_retry_while_success() {
     while nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -71,7 +76,7 @@ nested_retry_until_success() {
     until nested_exec "$@"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for ssh. Aborting!"
+            echo "Timed out waiting for command '$*' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -416,25 +421,12 @@ nested_create_core_vm() {
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-
-                    # Get the snakeoil key and cert
-                    local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
-                    KEY_NAME=$(nested_get_snakeoil_key)
-                    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+                    rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap
-                    local KERNEL_SNAP KERNEL_UNPACKED
                     KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-                    KERNEL_UNPACKED="$NESTED_ASSETS_DIR"/kernel-unpacked
-                    unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-                    sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-                    sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-                    snap pack "$KERNEL_UNPACKED" "$NESTED_ASSETS_DIR"
 
                     chmod 0600 "$KERNEL_SNAP"
-                    rm -f "$PWD/pc-kernel.snap"
-                    rm -rf "$KERNEL_UNPACKED"
                     EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -445,9 +437,25 @@ nested_create_core_vm() {
                     fi
                     # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
                     if [ -z "$GADGET_SNAP" ]; then
+                        # Get the snakeoil key and cert
+                        local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
+                        KEY_NAME=$(nested_get_snakeoil_key)
+                        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # also make logging persistent for easier debugging of 
+                        # test failures, otherwise we have no way to see what 
+                        # happened during a failed nested VM boot where we 
+                        # weren't able to login to a device
+                        cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -455,8 +463,12 @@ nested_create_core_vm() {
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
+                    # which channel?
+                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -539,6 +551,8 @@ instance_id: cloud-images
 EOF
 }
 
+# TODO: see if the uc20 config works for classic here too, that would be faster
+#       as the chpasswd module from cloud-init runs rather late in the boot
 nested_create_cloud_init_config() {
     local CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
@@ -552,18 +566,32 @@ nested_create_cloud_init_config() {
    list: |
     user1:ubuntu
    expire: False
-  datasource_list: [ "None"]
+  datasource_list: [ NoCloud ]
   datasource:
-    None:
+    NoCloud:
      userdata_raw: |
       #!/bin/bash
-      echo test
+      logger -t nested test running || true
+EOF
+}
+
+nested_create_cloud_init_uc20_config() {
+    local CONFIG_PATH=$1
+    cat << 'EOF' > "$CONFIG_PATH"
+#cloud-config
+datasource_list: [NoCloud]
+users:
+  - name: user1
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: false
+    # passwd is just "ubuntu"
+    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
 EOF
 }
 
 nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_config "$NESTED_ASSETS_DIR/data.cfg"
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
@@ -624,7 +652,18 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
 
     # Set kvm attribute
     local ATTR_KVM
@@ -638,12 +677,19 @@ nested_start_core_vm_unit() {
         PARAM_SMP="-smp 1"
     fi
 
-    # with qemu-nested, we can't use kvm acceleration
     local PARAM_MACHINE
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MACHINE=""
+        # check if we have nested kvm
+        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        else
+            # and if not reset kvm related parameters
+            PARAM_MACHINE=""
+            PARAM_CPU=""
+            ATTR_KVM=""
+        fi
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -651,7 +697,6 @@ nested_start_core_vm_unit() {
     
     local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
@@ -690,6 +735,8 @@ nested_start_core_vm_unit() {
             else
                 snap install swtpm-mvo --beta
             fi
+            # wait for the tpm sock file to exist
+            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
@@ -699,6 +746,8 @@ nested_start_core_vm_unit() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
@@ -724,6 +773,12 @@ nested_start_core_vm_unit() {
 
     # Wait until ssh is ready
     nested_wait_for_ssh
+    # Wait for the snap command to be available
+    nested_wait_for_snap_command
+    # Wait for snap seeding to be done
+    nested_exec "sudo snap wait system seed.loaded"
+    # Wait for cloud init to be done
+    nested_exec "cloud-init status --wait"
 }
 
 nested_get_current_image_name() {
@@ -863,12 +918,19 @@ nested_start_classic_vm() {
     PARAM_SNAPSHOT="-snapshot"
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MACHINE=""
+        # check if we have nested kvm
+        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        else
+            # and if not reset kvm related parameters
+            PARAM_MACHINE=""
+            PARAM_CPU=""
+            ATTR_KVM=""
+        fi
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -876,12 +938,25 @@ nested_start_classic_vm() {
 
     PARAM_IMAGE="-drive file=$NESTED_IMAGES_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:$NESTED_LOGS_DIR/serial.log"
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
+    # XXX: should serial just be logged to stdout so that we just need
+    #      to "journalctl -u nested-vm" to see what is going on ?
+    if "$QEMU" -version | grep '2\.5'; then
+        # XXX: remove once we no longer support xenial hosts
+        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
+    else
+        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+    fi
     PARAM_BIOS=""
     PARAM_TPM=""
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
@@ -917,13 +992,17 @@ nested_exec() {
 
 nested_exec_as() {
     local USER="$1"
-    local PWD="$2"
+    local PASSWD="$2"
     shift 2
-    sshpass -p "$PWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+    sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
 nested_copy() {
     sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
+}
+
+nested_copy_from_remote() {
+    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost:"$1" "$2"
 }
 
 nested_add_tty_chardev() {

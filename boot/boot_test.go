@@ -848,8 +848,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 		runKernelBf,
 	}
 
-	uc20Model := boottest.MakeMockUC20Model()
-	coreDev := boottest.MockUC20Device("", uc20Model)
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	m := &boot.Modeenv{
@@ -878,7 +877,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20Model)
+		c.Check(mp.Model, DeepEquals, coreDev.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
@@ -1613,8 +1612,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	)
 	defer r()
 
-	uc20Model := boottest.MakeMockUC20Model()
-	coreDev := boottest.MockUC20Device("", uc20Model)
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
@@ -1623,7 +1621,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20Model)
+		c.Check(mp.Model, DeepEquals, coreDev.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
