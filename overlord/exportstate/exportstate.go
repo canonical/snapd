@@ -300,12 +300,16 @@ func manifestKeysForSnapdOrCore(st *state.State) (primaryKey string, subKey stri
 // The snapd tools export set is special as there are providers from snaps other
 // than snapd that need consideration. The result is, in order of preference:
 //
+// 0) "host" if on classic with disabled re-execution.
 // 1) snapd subkey, if available
 // 2) core subkey, if available
 // 3) "host" subkey, if on classic
 //
 // If no provider is available then empty subkey is returned.
 func electSubKeyForSnapdTools(activeSnapdSubKey, activeCoreSubKey string) string {
+	if release.OnClassic && os.Getenv("SNAP_REEXEC") == "0" {
+		return "host"
+	}
 	if subKey := activeSnapdSubKey; subKey != "" {
 		return subKey
 	}

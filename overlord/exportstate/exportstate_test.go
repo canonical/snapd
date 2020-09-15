@@ -462,6 +462,14 @@ func (s *exportstateSuite) TestElectSubKeyForSnapdTools(c *C) {
 	s.AddCleanup(release.MockOnClassic(false))
 	subKey = exportstate.ElectSubKeyForSnapdTools("", "")
 	c.Check(subKey, Equals, "")
+
+	// On classic systems with disabled re-exec host wins over snaps.
+	s.AddCleanup(release.MockOnClassic(true))
+	os.Setenv("SNAP_REEXEC", "0")
+	s.AddCleanup(func() { os.Unsetenv("SNAP_REEXEC") })
+	subKey = exportstate.ElectSubKeyForSnapdTools("snapd_subkey", "core_subkey")
+	c.Check(subKey, Equals, "host")
+
 }
 
 func (s *exportstateSuite) TestCurrentSnapdAndCoreInfo(c *C) {
