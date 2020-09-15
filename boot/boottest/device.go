@@ -88,3 +88,9 @@ func (d *mockDevice) Base() string {
 	}
 	return d.bootSnap
 }
+func (d *mockDevice) Model() *asserts.Model {
+	if d.model == nil {
+		panic("tried to use model without setting one first")
+	}
+	return d.model
+}
