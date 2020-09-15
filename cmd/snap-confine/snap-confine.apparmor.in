@@ -1,7 +1,7 @@
 # Author: Jamie Strandboge <jamie@canonical.com>
 #include <tunables/global>
 
-@LIBEXECDIR@/snap-confine (attach_disconnected) {
+@LIBEXECDIR@/snap-confine (attach_disconnected, complain) {
     # Include any additional files that snapd chose to generate.
     # - for $HOME on NFS
     # - for $HOME on encrypted media

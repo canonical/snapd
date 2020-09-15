@@ -14,6 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+#define _GNU_SOURCE
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -32,7 +35,6 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -387,44 +389,38 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// a special base anymore and we should map our own tooling in.
 	if (config->distro == SC_DISTRO_CORE_OTHER
 	    || !sc_streq(config->base_snap_name, "core")) {
-		// when bases are used we need to bind-mount the libexecdir
-		// (that contains snap-exec) into /usr/lib/snapd of the
-		// base snap so that snap-exec is available for the snaps
-		// (base snaps do not ship snapd)
 
-		// dst is always /usr/lib/snapd as this is where snapd
-		// assumes to find snap-exec
-		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
-				 scratch_dir);
-
-		// bind mount the current $ROOT/usr/lib/snapd path,
-		// where $ROOT is either "/" or the "/snap/{core,snapd}/current"
-		// that we are re-execing from
-		char *src = NULL;
-		char self[PATH_MAX + 1] = { 0 };
-		ssize_t nread;
-		nread = readlink("/proc/self/exe", self, sizeof self - 1);
-		if (nread < 0) {
-			die("cannot read /proc/self/exe");
-		}
-		// Though we initialized self to NULs and passed one less to
-		// readlink, therefore guaranteeing that self is
-		// zero-terminated, perform an explicit assignment to make
-		// Coverity happy.
-		self[nread] = '\0';
-		// this cannot happen except when the kernel is buggy
-		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", self);
-		}
-		src = dirname(self);
-		// dirname(path) might return '.' depending on path.
-		// /proc/self/exe should always point
-		// to an absolute path, but let's guarantee that.
-		if (src[0] != '/') {
-			die("cannot use the result of dirname(): %s", src);
+		// Open the /usr/lib/snapd inside the scratch space.
+		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
+		sc_do_mount("tmpfs", dst, "tmpfs", 0, NULL);
+		int tools_dir_fd SC_CLEANUP(sc_cleanup_close)= -1;
+		tools_dir_fd = open(dst, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | __O_PATH);
+		if (tools_dir_fd < 0) {
+			die("cannot open %s", dst);
 		}
 
-		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
+		// Link to all the snap tools.
+		static const char * const tools[] = {
+			"etelpmoc.sh",
+			"info",
+			"snap-confine",
+			"snapctl",
+			"snap-discard-ns",
+			"snap-exec",
+			"snap-gdb-shim",
+			"snap-update-ns",
+			NULL,
+		};
+		for (const char * const *tool = tools; *tool != NULL; ++tool) {
+			char symlink_target[PATH_MAX + 1] = {0};
+			sc_must_snprintf(symlink_target, sizeof symlink_target, "/var/lib/snapd/export/snapd/current/tools/%s", *tool);
+			if (symlinkat(symlink_target, tools_dir_fd, *tool) < 0) {
+				die("cannot link to %s", *tool);
+			}
+		}
+
+		// Prevent modification by most snaps.
+		sc_do_mount("none", dst, NULL, MS_REMOUNT|MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
