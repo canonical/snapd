@@ -79,12 +79,24 @@ func (ehf *exportedHostFile) IsExportedPathValidInHostMountNS() bool {
 	return false
 }
 
+var toolsToExport = []string{
+	"etelpmoc.sh",
+	"info",
+	"snap-confine",
+	"snapctl",
+	"snap-discard-ns",
+	"snap-exec",
+	"snap-gdb-shim",
+	"snap-update-ns",
+}
+
 func exportedSnapdToolsFromHost() []ExportEntry {
-	return []ExportEntry{
-		&exportedHostFile{
-			pathOnHost:      filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
-			pathInExportSet: "snap-exec",
-		},
-		// TODO: add the remaining tools here.
+	entries := make([]ExportEntry, 0, len(toolsToExport))
+	for _, tool := range toolsToExport {
+		entries = append(entries, &exportedHostFile{
+			pathOnHost:      filepath.Join(dirs.DistroLibExecDir, tool),
+			pathInExportSet: tool,
+		})
 	}
+	return entries
 }

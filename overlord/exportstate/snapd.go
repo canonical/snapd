@@ -28,14 +28,15 @@ import (
 // exportedSnapToolsFromSnapdOrCore returns export entries describing
 // essential snapd tools, like snap-exec.
 func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []ExportEntry {
-	return []ExportEntry{
-		&exportedSnapFile{
+	entries := make([]ExportEntry, 0, len(toolsToExport))
+	for _, tool := range toolsToExport {
+		entries = append(entries, &exportedSnapFile{
 			snap:            info,
-			pathInSnap:      "usr/lib/snapd/snap-exec",
-			pathInExportSet: "snap-exec",
-		},
-		// TODO: add the remaining tools here.
+			pathInSnap:      filepath.Join("usr/lib/snapd", tool),
+			pathInExportSet: tool,
+		})
 	}
+	return entries
 }
 
 // exportedSnapFile implements ExportEntry describing a file stored inside a snap.

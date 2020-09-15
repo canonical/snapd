@@ -636,7 +636,7 @@ func (s *abstractManifestSuite) TestSnapdManifestWithDefaultSnapMountDir(c *C) {
 
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1) // Tools are checked elsewhere.
+	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
 }
 
 func (s *abstractManifestSuite) TestSnapdManifestWithAltSnapMountDir(c *C) {
@@ -649,7 +649,7 @@ func (s *abstractManifestSuite) TestSnapdManifestWithAltSnapMountDir(c *C) {
 	c.Check(am.SubKey, Equals, "1")
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1) // Tools are checked elsewhere.
+	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
 }
 
 func (s *abstractManifestSuite) TestCoreManifestWithDefaultSnapMountDir(c *C) {
@@ -662,7 +662,7 @@ func (s *abstractManifestSuite) TestCoreManifestWithDefaultSnapMountDir(c *C) {
 	c.Check(am.SubKey, Equals, "core_2")
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1) // Tools are checked elsewhere.
+	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
 }
 
 func (s *abstractManifestSuite) TestCoreManifestWithAltSnapMountDir(c *C) {
@@ -675,7 +675,7 @@ func (s *abstractManifestSuite) TestCoreManifestWithAltSnapMountDir(c *C) {
 	c.Check(am.SubKey, Equals, "core_2")
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1) // Tools are checked elsewhere.
+	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
 }
 
 func (s *abstractManifestSuite) TestOtherInfoManifest(c *C) {

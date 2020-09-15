@@ -65,8 +65,8 @@ func (s *hostSuite) TestExportManifestForClassicSystemWithDefaultSnapMountDir(c 
 	c.Check(am.SubKey, Equals, "host")
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1)
-	s.checkSnapExec(c, tools[0])
+	c.Assert(tools, HasLen, 8)
+	s.checkSnapExec(c, tools[5])
 }
 
 func (s *hostSuite) TestExportManifestForClassicSystemWithAltSnapMountDir(c *C) {
@@ -77,6 +77,6 @@ func (s *hostSuite) TestExportManifestForClassicSystemWithAltSnapMountDir(c *C) 
 	c.Check(am.SubKey, Equals, "host")
 	tools, ok := am.ExportSets["tools"]
 	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 1)
-	s.checkSnapExec(c, tools[0])
+	c.Assert(tools, HasLen, 8)
+	s.checkSnapExec(c, tools[5])
 }

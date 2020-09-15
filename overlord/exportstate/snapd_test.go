@@ -37,12 +37,12 @@ var _ = Suite(&snapdSuite{})
 
 func (s *snapdSuite) TestExportedSnapToolsFromSnapdOrCore(c *C) {
 	tools := exportstate.ExportedSnapToolsFromSnapdOrCore(s.snapdInfo)
-	c.Assert(tools, HasLen, 1)
-	s.checkSnapExec(c, tools[0], s.snapdInfo)
+	c.Assert(tools, HasLen, 8)
+	s.checkSnapExec(c, tools[5], s.snapdInfo)
 
 	tools = exportstate.ExportedSnapToolsFromSnapdOrCore(s.coreInfo)
-	c.Assert(tools, HasLen, 1)
-	s.checkSnapExec(c, tools[0], s.coreInfo)
+	c.Assert(tools, HasLen, 8)
+	s.checkSnapExec(c, tools[5], s.coreInfo)
 }
 
 func (s *snapdSuite) checkSnapExec(c *C, snapExec exportstate.ExportEntry, info *snap.Info) {
