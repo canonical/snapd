@@ -1763,6 +1763,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 }
 
 func (s *bootenv20Suite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) *bootloadertest.MockTrustedAssetsBootloader {
+	// TODO:UC20: this should be an ExtractedRecoveryKernelImageBootloader
+	// because that would reflect our main currently supported
+	// trusted assets bootloader (grub)
 	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(tab)
 	tab.TrustedAssetsList = trustedAssets
