@@ -954,6 +954,8 @@ nested_start_classic_vm() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
