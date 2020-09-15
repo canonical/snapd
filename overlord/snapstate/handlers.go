@@ -1142,7 +1142,7 @@ func notifyLinkParticipants(t *state.Task, instanceName string) {
 	st := t.State()
 	for _, p := range linkSnapParticipants {
 		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
-			t.Errorf("link participant %T failed to observe linkage change of snap %q: %v", p, instanceName, err)
+			t.Errorf("%v", err)
 		}
 	}
 }
