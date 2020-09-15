@@ -26,12 +26,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type bootAssetsMap map[string][]string
@@ -67,6 +69,11 @@ type Modeenv struct {
 	// originRootdir is set to the root whence the modeenv was
 	// read from, and where it will be written back to
 	originRootdir string
+
+	// extrakeys is all the keys in the modeenv we read from the file but don't
+	// understand, we keep track of this so that if we read a new modeenv with
+	// extra keys and need to rewrite it, we will write those new keys as well
+	extrakeys map[string]string
 }
 
 func modeenvFile(rootdir string) string {
@@ -85,10 +92,13 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+
+	fmt.Println(cfg.Options(""))
 	// TODO:UC20: should we check these errors and try to do something?
 	m := Modeenv{
 		read:          true,
 		originRootdir: rootdir,
+		extrakeys:     make(map[string]string),
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
@@ -110,6 +120,34 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
+
+	// save all the rest of the keys we don't understand
+	keys, err := cfg.Options("")
+	if err != nil {
+		return nil, err
+	}
+	var knownKeys = []string{
+		"recovery_system",
+		"current_recovery_systems",
+		"mode",
+		"base",
+		"base_status",
+		"try_base",
+		"current_kernels",
+		"model",
+		"grade",
+		"current_trusted_boot_assets",
+		"current_trusted_recovery_boot_assets",
+	}
+	for _, k := range keys {
+		if !strutil.ListContains(knownKeys, k) {
+			val, err := cfg.Get("", k)
+			if err != nil {
+				return nil, err
+			}
+			m.extrakeys[k] = val
+		}
+	}
 
 	return &m, nil
 }
@@ -190,6 +228,17 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
+
+	// write all the extra keys at the end
+	// sort them for test convenience
+	extraKeys := make([]string, 0, len(m.extrakeys))
+	for k := range m.extrakeys {
+		extraKeys = append(extraKeys, k)
+	}
+	sort.Strings(extraKeys)
+	for _, k := range extraKeys {
+		marshalModeenvEntryTo(buf, k, m.extrakeys[k])
+	}
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err

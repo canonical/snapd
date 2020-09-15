@@ -270,6 +270,29 @@ recovery_system=20191126
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 }
 
+func (s *modeenvSuite) TestReadModeenvWithUnknownKeysKeepsWrites(c *C) {
+	s.makeMockModeenvFile(c, `first_unknown=thing
+mode=recovery
+recovery_system=20191126
+unknown_key=some unknown value
+a_key=other
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "recovery")
+	c.Check(modeenv.RecoverySystem, Equals, "20191126")
+
+	c.Assert(modeenv.Write(), IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=recovery
+recovery_system=20191126
+a_key=other
+first_unknown=thing
+unknown_key=some unknown value
+`)
+}
+
 func (s *modeenvSuite) TestReadModeWithBase(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
