@@ -201,10 +201,13 @@ func currentSubKeySymlinkPath(primaryKey string) string {
 // point to the given subKey. Appropriate subKey can be computed by
 // subKeyForSnap.
 //
-// The directory structure must already exist on disk, at the time this function
-// is called.
+// If the symbolic link cannot be created because the export directory does not
+// exist no error is reported. This is because this function is most often
+// called from link-snap where it runs unconditionally but most snaps do not
+// have any content to export and the symlink would be dangling.
 func setCurrentSubKey(primaryKey, subKey string) error {
-	if err := osutil.AtomicSymlink(subKey, currentSubKeySymlinkPath(primaryKey)); err != nil {
+	pathName := currentSubKeySymlinkPath(primaryKey)
+	if err := osutil.AtomicSymlink(subKey, pathName); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot set current subkey of %q to %q: %v", primaryKey, subKey, err)
 	}
 	return nil

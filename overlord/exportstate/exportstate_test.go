@@ -354,9 +354,11 @@ func (s *exportstateSuite) TestRemoveCurrentSubKey(c *C) {
 }
 
 func (s *exportstateSuite) TestSetCurrentSubKey(c *C) {
-	// Current subkey cannot be selected without exporting the content first.
+	// Current subkey cannot be selected without exporting the content first
+	// but the ENOENT error is silently ignored.
 	err := exportstate.SetCurrentSubKey(s.am.PrimaryKey, s.am.SubKey)
-	c.Assert(err, ErrorMatches, `cannot set current subkey of "primary" to "sub": .*`)
+	c.Check(err, IsNil)
+	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current subkey at will.
 	err = s.am.Materialize().CreateExportedFiles()
