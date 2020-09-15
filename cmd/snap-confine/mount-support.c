@@ -450,7 +450,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	(void)sc_set_effective_identity(old);
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
 	// created the directory as the user who first ran a snap on a given
-	// system and the group identity of that user is visilbe on disk.
+	// system and the group identity of that user is visible on disk.
 	// This was LP:#1665004
 	struct stat sb;
 	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
