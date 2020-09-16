@@ -102,11 +102,13 @@ func (m *Manifest) RemoveExportedFiles() error {
 
 // SymlinkExport describes content exported as symbolic link.
 type SymlinkExport struct {
+	// XXX PrimaryKey => SnapName ??
 	PrimaryKey string `json:"primary-key"`
-	SubKey     string `json:"sub-key"`
-	ExportSet  string `json:"export-set"`
-	Name       string `json:"name"`
-	Target     string `json:"target"`
+	// XXX SubKey => ExportedVersion ??
+	SubKey    string `json:"sub-key"`
+	ExportSet string `json:"export-set"`
+	Name      string `json:"name"`
+	Target    string `json:"target"`
 }
 
 // PathName returns the full path of the symbolic link.
@@ -353,6 +355,8 @@ type ExportSetName string
 // Exceptions apply when PrimaryKey is "snapd". The SubKey has additional forms,
 // incluging "$revision", "core_$revision" and "host". Neither primary nor sub
 // keys should be parsed.
+// XXX do we need this at all? it's mostly representing the result of the New below and is consumed in 1 place?
+//
 type AbstractManifest struct {
 	PrimaryKey string
 	SubKey     string
@@ -446,6 +450,7 @@ func (am *AbstractManifest) Materialize() *Manifest {
 //
 // This distinction enables exporting files that are consumed by either other
 // snaps or by the classic system.
+// XXX this maybe can be just a struct with constructions for the host and snap case
 type ExportEntry interface {
 	PathInExportSet() string
 	PathInHostMountNS() string
