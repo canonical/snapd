@@ -33,7 +33,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type bootAssetsMap map[string][]string
@@ -125,21 +124,23 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err != nil {
 		return nil, err
 	}
-	var knownKeys = []string{
-		"recovery_system",
-		"current_recovery_systems",
-		"mode",
-		"base",
-		"base_status",
-		"try_base",
-		"current_kernels",
-		"model",
-		"grade",
-		"current_trusted_boot_assets",
-		"current_trusted_recovery_boot_assets",
+	var knownKeys = map[string]struct{}{
+		"recovery_system":          {},
+		"current_recovery_systems": {},
+		// for gofmt
+		"mode":            {},
+		"base":            {},
+		"base_status":     {},
+		"try_base":        {},
+		"current_kernels": {},
+		"model":           {},
+		"grade":           {},
+		// for gofmt
+		"current_trusted_boot_assets":          {},
+		"current_trusted_recovery_boot_assets": {},
 	}
 	for _, k := range keys {
-		if !strutil.ListContains(knownKeys, k) {
+		if _, known := knownKeys[k]; !known {
 			val, err := cfg.Get("", k)
 			if err != nil {
 				return nil, err
