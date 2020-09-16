@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=io.snapcraft.PrivilegedDesktopLauncher
+Exec=@bindir@/snap userd
+AssumedAppArmorLabel=unconfined
