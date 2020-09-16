@@ -93,7 +93,6 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		return nil, err
 	}
 
-	fmt.Println(cfg.Options(""))
 	// TODO:UC20: should we check these errors and try to do something?
 	m := Modeenv{
 		read:          true,
