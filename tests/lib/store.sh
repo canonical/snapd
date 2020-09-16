@@ -53,7 +53,11 @@ make_snap_installable_with_id(){
         snap install remarshal
     fi
     if ! command -v jq; then
-        snap install jq
+        #shellcheck source=tests/lib/core-config.sh
+        . "$TESTSLIB"/core-config.sh
+
+        SUFFIX="$(get_test_snap_suffix)"
+        snap install "jq$SUFFIX"
     fi
 
     # unsquash the snap to get it's name
