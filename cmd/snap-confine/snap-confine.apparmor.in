@@ -1,7 +1,7 @@
 # Author: Jamie Strandboge <jamie@canonical.com>
 #include <tunables/global>
 
-@LIBEXECDIR@/snap-confine (attach_disconnected, complain) {
+@LIBEXECDIR@/snap-confine (attach_disconnected) {
     # Include any additional files that snapd chose to generate.
     # - for $HOME on NFS
     # - for $HOME on encrypted media
@@ -213,6 +213,11 @@
     mount options=(ro bind) @SNAP_MOUNT_DIR@/core/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
     # allow making snapd snap tools available inside base snaps
     mount options=(ro bind) @SNAP_MOUNT_DIR@/snapd/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(slave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    /tmp/snap.rootfs_*/usr/lib/snapd/* w,
 
     mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,

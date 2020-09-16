@@ -391,7 +391,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 
 		// Open the /usr/lib/snapd inside the scratch space.
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
-		sc_do_mount("tmpfs", dst, "tmpfs", 0, NULL);
+		sc_do_mount("none", dst, "tmpfs", MS_NODEV|MS_NOEXEC, NULL);
 		int tools_dir_fd SC_CLEANUP(sc_cleanup_close)= -1;
 		tools_dir_fd = open(dst, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | __O_PATH);
 		if (tools_dir_fd < 0) {
