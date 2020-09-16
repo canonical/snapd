@@ -45,7 +45,7 @@ func (m *ExportManager) doExportContent(task *state.Task, tomb *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	manifest := NewManifest(info)
+	manifest := NewManifestForSnap(info)
 	if manifest.IsEmpty() {
 		// Most snaps do not export any content.
 		return nil

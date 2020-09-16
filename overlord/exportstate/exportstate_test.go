@@ -20,7 +20,6 @@
 package exportstate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,31 +37,16 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type manifestSuite struct {
+type exportstateSuite struct {
 	testutil.BaseTest
-	m *exportstate.Manifest
+	st *state.State
+	m  exportstate.Manifest
 }
 
-var _ = Suite(&manifestSuite{})
-
-func (s *manifestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-	s.m = sampleAbstractManifest.Materialize()
-}
-
-func (s *manifestSuite) TestNewManifest(c *C) {
-	info := snaptest.MockInfo(c, "name: foo\nversion: 1\n",
-		&snap.SideInfo{Revision: snap.Revision{N: 42}})
-	m := exportstate.NewManifest(info)
-	c.Check(m.Symlinks, HasLen, 0)
-}
-
-func (s *manifestSuite) TestIsEmpty(c *C) {
-	m := exportstate.Manifest{}
-	c.Check(m.IsEmpty(), Equals, true)
-
-	m = exportstate.Manifest{
+var _ = Suite(&exportstateSuite{
+	m: exportstate.Manifest{
+		PrimaryKey: "primary-key",
+		SubKey:     "sub-key",
 		Symlinks: []exportstate.SymlinkExport{{
 			PrimaryKey: "primary-key",
 			SubKey:     "sub-key",
@@ -70,134 +54,6 @@ func (s *manifestSuite) TestIsEmpty(c *C) {
 			Name:       "symlink-name",
 			Target:     "symlink-target",
 		},
-		},
-	}
-	c.Check(m.IsEmpty(), Equals, false)
-}
-
-func (s *manifestSuite) TestCreateExportedFiles(c *C) {
-	err := s.m.CreateExportedFiles()
-	c.Assert(err, IsNil)
-	checkFiles := func() {
-		// Creating symlinks creates the prerequisite directories.
-		// The symbolic links point from export set name to a path that is valid in
-		// either the host or snap mount namespace.
-		c.Check(filepath.Join(
-			exportstate.ExportDir, "primary", "sub", "for-snaps", "local-path"),
-			testutil.SymlinkTargetEquals, "snap-path")
-		c.Check(filepath.Join(
-			exportstate.ExportDir, "primary", "sub", "for-snaps", "local-path-2"),
-			testutil.SymlinkTargetEquals, "snap-path-2")
-		c.Check(filepath.Join(exportstate.ExportDir, "primary", "sub", "for-host", "local-path"),
-			testutil.SymlinkTargetEquals, "host-path")
-	}
-	checkFiles()
-
-	// Calling this over and over is safe.
-	err = s.m.CreateExportedFiles()
-	c.Assert(err, IsNil)
-	checkFiles()
-}
-
-func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
-	// If the file system contains symlinks with different targets that clash
-	// with the exported content then the operation fails.
-	fname := filepath.Join(exportstate.ExportDir, "primary", "sub", "for-snaps", "local-path")
-	err := os.MkdirAll(filepath.Dir(fname), 0755)
-	c.Assert(err, IsNil)
-	err = os.Symlink("wrong-target", fname)
-	c.Assert(err, IsNil)
-	err = s.m.CreateExportedFiles()
-	c.Check(err, ErrorMatches, "symlink snap-path .*/var/lib/snapd/export/primary/sub/for-snaps/local-path: file exists")
-}
-
-func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
-	// If the file system contains non-symlinks that clash with the exported
-	// content then the operation fails.
-	fname := filepath.Join(exportstate.ExportDir, "primary", "sub", "for-snaps", "local-path")
-	err := os.MkdirAll(filepath.Dir(fname), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, nil, 0644)
-	c.Assert(err, IsNil)
-	err = s.m.CreateExportedFiles()
-	c.Check(err, ErrorMatches, "symlink snap-path .*/var/lib/snapd/export/primary/sub/for-snaps/local-path: file exists")
-}
-
-func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
-	// Creating and then removing exported files completes successfully.
-	err := s.m.CreateExportedFiles()
-	c.Assert(err, IsNil)
-	err = s.m.RemoveExportedFiles()
-	c.Assert(err, IsNil)
-	// The symbolic links are removed.
-	c.Check(filepath.Join(exportstate.ExportDir,
-		"primary", "sub", "for-snaps", "local-path"),
-		testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir,
-		"primary", "sub", "for-snaps", "local-path-2"),
-		testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir,
-		"primary", "sub", "for-host", "local-path"),
-		testutil.FileAbsent)
-
-	// The empty directories are pruned.
-	c.Check(filepath.Join(exportstate.ExportDir, "primary", "sub", "for-snaps"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "primary", "sub", "for-host"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "primary", "sub"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "primary"), testutil.FileAbsent)
-
-	// Removing exported files doesn't fail if they are no longer present.
-	err = s.m.RemoveExportedFiles()
-	c.Assert(err, IsNil)
-
-	// Removing exported files does not remove unrelated files and does not stop on
-	// subsequent failures to remove non-empty directories.
-	err = s.m.CreateExportedFiles()
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(exportstate.ExportDir,
-		"primary", "sub", "for-snaps", "unrelated"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(exportstate.ExportDir,
-		"primary", "sub-2"), 755)
-	c.Assert(err, IsNil)
-
-	err = s.m.RemoveExportedFiles()
-	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir,
-		"primary", "sub", "for-snaps", "unrelated"), testutil.FilePresent)
-}
-
-type exportstateSuite struct {
-	testutil.BaseTest
-	st *state.State
-	am exportstate.AbstractManifest
-	m  exportstate.Manifest
-}
-
-var _ = Suite(&exportstateSuite{
-	am: exportstate.AbstractManifest{
-		PrimaryKey: "primary",
-		SubKey:     "sub",
-		ExportSets: map[exportstate.ExportSetName][]*exportstate.ExportEntry{
-			"export-set": {
-				&exportstate.ExportEntry{
-					PathInExportSet:                  "local-path",
-					PathInHostMountNS:                "host-path",
-					PathInSnapMountNS:                "snap-path",
-					IsExportedPathValidInHostMountNS: false,
-				},
-			},
-		},
-	},
-	m: exportstate.Manifest{
-		Symlinks: []exportstate.SymlinkExport{
-			{
-				PrimaryKey: "primary",
-				SubKey:     "sub",
-				ExportSet:  "export-set",
-				Name:       "local-path",
-				Target:     "snap-path",
-			},
 		},
 	},
 })
@@ -220,13 +76,15 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	st.Get("exports", &exportsRaw)
 	expected := map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
+			"primary-key": "primary-key",
+			"sub-key":     "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary",
-					"sub-key":     "sub",
+					"primary-key": "primary-key",
+					"sub-key":     "sub-key",
 					"export-set":  "export-set",
-					"name":        "local-path",
-					"target":      "snap-path",
+					"name":        "symlink-name",
+					"target":      "symlink-target",
 				},
 			},
 		},
@@ -255,13 +113,15 @@ func (s *exportstateSuite) TestSetRemovingState(c *C) {
 			"unrelated": "stuff",
 		},
 		"snap-name/42": map[string]interface{}{
+			"primary-key": "primary-key",
+			"sub-key":     "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary",
-					"sub-key":     "sub",
+					"primary-key": "primary-key",
+					"sub-key":     "sub-key",
 					"export-set":  "export-set",
-					"name":        "local-path",
-					"target":      "snap-path",
+					"name":        "symlink-name",
+					"target":      "symlink-target",
 				},
 			},
 		},
@@ -312,13 +172,15 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	// Get returns the stored snap manifest for given snap revision.
 	st.Set("exports", map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
+			"primary-key": "primary-key",
+			"sub-key":     "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary",
-					"sub-key":     "sub",
+					"primary-key": "primary-key",
+					"sub-key":     "sub-key",
 					"export-set":  "export-set",
-					"name":        "local-path",
-					"target":      "snap-path",
+					"name":        "symlink-name",
+					"target":      "symlink-target",
 				},
 			},
 		},
@@ -337,45 +199,45 @@ func (s *exportstateSuite) TestCurrentSubKeySymlinkPath(c *C) {
 func (s *exportstateSuite) TestRemoveCurrentSubKey(c *C) {
 	// It is not an error to remove the current subkey link
 	// if it does not exist.
-	err := exportstate.RemoveCurrentSubKey(s.am.PrimaryKey)
+	err := exportstate.RemoveCurrentSubKey(s.m.PrimaryKey)
 	c.Assert(err, IsNil)
 
 	// Removing the current subkey symlink works correctly.
-	err = s.am.Materialize().CreateExportedFiles()
+	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.am.PrimaryKey, s.am.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"),
-		testutil.SymlinkTargetEquals, s.am.SubKey)
-	err = exportstate.RemoveCurrentSubKey(s.am.PrimaryKey)
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+		testutil.SymlinkTargetEquals, s.m.SubKey)
+	err = exportstate.RemoveCurrentSubKey(s.m.PrimaryKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"),
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
 		testutil.FileAbsent)
 }
 
 func (s *exportstateSuite) TestSetCurrentSubKey(c *C) {
 	// Current subkey cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.SetCurrentSubKey(s.am.PrimaryKey, s.am.SubKey)
+	err := exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
 	c.Check(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current subkey at will.
-	err = s.am.Materialize().CreateExportedFiles()
+	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.am.PrimaryKey, s.am.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"),
-		testutil.SymlinkTargetEquals, s.am.SubKey)
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+		testutil.SymlinkTargetEquals, s.m.SubKey)
 
 	// The current subkey can be replaced to point to another value.
-	err = exportstate.SetCurrentSubKey(s.am.PrimaryKey, "other-"+s.am.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, "other-"+s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.am.PrimaryKey, "current"),
-		testutil.SymlinkTargetEquals, "other-"+s.am.SubKey)
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+		testutil.SymlinkTargetEquals, "other-"+s.m.SubKey)
 }
 
-func (s *exportstateSuite) TestCurrentSubKeyForSnap(c *C) {
+func (s *exportstateSuite) TestManifestKeys(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -499,166 +361,4 @@ func (s *exportstateSuite) TestCurrentSnapdAndCoreInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapdInfo.SnapName(), Equals, "snapd")
 	c.Check(coreInfo.SnapName(), Equals, "core")
-}
-
-var sampleAbstractManifest = exportstate.AbstractManifest{
-	PrimaryKey: "primary",
-	SubKey:     "sub",
-	ExportSets: map[exportstate.ExportSetName][]*exportstate.ExportEntry{
-		"for-snaps": {
-			&exportstate.ExportEntry{
-				PathInExportSet:                  "local-path",
-				PathInHostMountNS:                "host-path",
-				PathInSnapMountNS:                "snap-path",
-				IsExportedPathValidInHostMountNS: false,
-			},
-			&exportstate.ExportEntry{
-				PathInExportSet:                  "local-path-2",
-				PathInHostMountNS:                "host-path2",
-				PathInSnapMountNS:                "snap-path-2",
-				IsExportedPathValidInHostMountNS: false,
-			},
-		},
-		"for-host": {
-			&exportstate.ExportEntry{
-				PathInExportSet:                  "local-path",
-				PathInHostMountNS:                "host-path",
-				PathInSnapMountNS:                "snap-path",
-				IsExportedPathValidInHostMountNS: true,
-			},
-		},
-	},
-}
-
-type abstractManifestSuite struct {
-	testutil.BaseTest
-	snapdInfo *snap.Info
-	coreInfo  *snap.Info
-	otherInfo *snap.Info
-	am        exportstate.AbstractManifest
-}
-
-var _ = Suite(&abstractManifestSuite{})
-
-const snapdYaml = `
-name: snapd
-version: 1
-type: snapd
-`
-
-const coreYaml = `
-name: core
-version: 1
-type: os
-`
-
-// XXX: Do we need to handle ubuntu-core?
-
-const otherYaml = `
-name: other
-version: 1
-`
-
-func (s *abstractManifestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	s.snapdInfo = snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{
-		Revision: snap.Revision{N: 1},
-	})
-	s.coreInfo = snaptest.MockInfo(c, coreYaml, &snap.SideInfo{
-		Revision: snap.Revision{N: 2},
-	})
-	s.otherInfo = snaptest.MockInfo(c, otherYaml, &snap.SideInfo{
-		Revision: snap.Revision{N: 3},
-	})
-
-	s.am = sampleAbstractManifest
-}
-
-func (s *abstractManifestSuite) TestMaterialize(c *C) {
-	m := s.am.Materialize()
-	c.Check(m.Symlinks, HasLen, 3)
-	c.Check(m.Symlinks, testutil.Contains, exportstate.SymlinkExport{
-		PrimaryKey: "primary",
-		SubKey:     "sub",
-		ExportSet:  "for-snaps",
-		Name:       "local-path",
-		Target:     "snap-path",
-	})
-	c.Check(m.Symlinks, testutil.Contains, exportstate.SymlinkExport{
-		PrimaryKey: "primary",
-		SubKey:     "sub",
-		ExportSet:  "for-snaps",
-		Name:       "local-path-2",
-		Target:     "snap-path-2",
-	})
-	c.Check(m.Symlinks, testutil.Contains, exportstate.SymlinkExport{
-		PrimaryKey: "primary",
-		SubKey:     "sub",
-		ExportSet:  "for-host",
-		Name:       "local-path",
-		Target:     "host-path",
-	})
-}
-
-func (s *abstractManifestSuite) TestSnapdManifestWithDefaultSnapMountDir(c *C) {
-	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "ubuntu"}))
-	s.AddCleanup(release.MockOnClassic(true))
-
-	am := exportstate.NewAbstractManifest(s.snapdInfo)
-	c.Assert(am, NotNil)
-	c.Check(am.PrimaryKey, Equals, "snapd")
-	c.Check(am.SubKey, Equals, "1")
-
-	tools, ok := am.ExportSets["tools"]
-	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
-}
-
-func (s *abstractManifestSuite) TestSnapdManifestWithAltSnapMountDir(c *C) {
-	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "fedora"}))
-	s.AddCleanup(release.MockOnClassic(true))
-
-	am := exportstate.NewAbstractManifest(s.snapdInfo)
-	c.Assert(am, NotNil)
-	c.Check(am.PrimaryKey, Equals, "snapd")
-	c.Check(am.SubKey, Equals, "1")
-	tools, ok := am.ExportSets["tools"]
-	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
-}
-
-func (s *abstractManifestSuite) TestCoreManifestWithDefaultSnapMountDir(c *C) {
-	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "ubuntu"}))
-	s.AddCleanup(release.MockOnClassic(true))
-
-	am := exportstate.NewAbstractManifest(s.coreInfo)
-	c.Assert(am, NotNil)
-	c.Check(am.PrimaryKey, Equals, "snapd")
-	c.Check(am.SubKey, Equals, "core_2")
-	tools, ok := am.ExportSets["tools"]
-	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
-}
-
-func (s *abstractManifestSuite) TestCoreManifestWithAltSnapMountDir(c *C) {
-	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "fedora"}))
-	s.AddCleanup(release.MockOnClassic(true))
-
-	am := exportstate.NewAbstractManifest(s.coreInfo)
-	c.Assert(am, NotNil)
-	c.Check(am.PrimaryKey, Equals, "snapd")
-	c.Check(am.SubKey, Equals, "core_2")
-	tools, ok := am.ExportSets["tools"]
-	c.Assert(ok, Equals, true)
-	c.Assert(tools, HasLen, 8) // Tools are checked elsewhere.
-}
-
-func (s *abstractManifestSuite) TestOtherInfoManifest(c *C) {
-	am := exportstate.NewAbstractManifest(s.otherInfo)
-	c.Assert(am, NotNil)
-	c.Check(am.PrimaryKey, Equals, "other")
-	c.Check(am.SubKey, Equals, "3")
-	c.Check(am.ExportSets, HasLen, 0)
 }

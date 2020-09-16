@@ -25,19 +25,13 @@ import (
 )
 
 var (
-	// host.go
-	AbstractManifestForClassicSystem = abstractManifestForClassicSystem
-
-	// snapd.go
-	ExportedSnapToolsFromSnapdOrCore = exportedSnapToolsFromSnapdOrCore
-
 	// exportstate.go
-	CurrentSubKeySymlinkPath   = currentSubKeySymlinkPath
-	SetCurrentSubKey           = setCurrentSubKey
-	RemoveCurrentSubKey        = removeCurrentSubKey
-	ManifestKeysForSnapdOrCore = manifestKeysForSnapdOrCore
-	ElectSubKeyForSnapdTools   = electSubKeyForSnapdTools
-	CurrentSnapdAndCoreInfo    = currentSnapdAndCoreInfo
+	CurrentSubKeySymlinkPath            = currentSubKeySymlinkPath
+	SetCurrentSubKey                    = setCurrentSubKey
+	RemoveCurrentSubKey                 = removeCurrentSubKey
+	EffectiveManifestKeysForSnapdOrCore = effectiveManifestKeysForSnapdOrCore
+	ElectSubKeyForSnapdTools            = electSubKeyForSnapdTools
+	CurrentSnapdAndCoreInfo             = currentSnapdAndCoreInfo
 )
 
 func MockSnapStateCurrentInfo(fn func(st *state.State, snapName string) (*snap.Info, error)) (restore func()) {

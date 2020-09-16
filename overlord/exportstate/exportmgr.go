@@ -66,13 +66,10 @@ func (m *ExportManager) StartUp() error {
 
 func (m *ExportManager) exportSnapdTools() error {
 	// If the host system has an export manifest, create those files.
-	if abstract := HostAbstractManifest(); abstract != nil {
-		manifest := abstract.Materialize()
-		if err := manifest.CreateExportedFiles(); err != nil {
-			return err
-		}
+	if err := NewManifestForHost().CreateExportedFiles(); err != nil {
+		return err
 	}
-	primaryKey, subKey, err := manifestKeysForSnapdOrCore(m.state)
+	primaryKey, subKey, err := effectiveManifestKeysForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
