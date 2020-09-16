@@ -272,7 +272,7 @@ var (
 	// timeout for the whole of a single request to complete, requests are
 	// retried for up to 38s in total, make sure that the client timeout is
 	// not shorter than that
-	doTimeout = 50 * time.Second
+	doTimeout = 120 * time.Second
 )
 
 // MockDoTimings mocks the delay used by the do retry loop and request timeout.

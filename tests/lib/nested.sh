@@ -17,7 +17,8 @@ NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
-    nested_retry_until_success 400 1 "true"
+    # TODO:UC20: the retry count should be lowered to something more reasonable.
+    nested_retry_until_success 800 1 "true"
 }
 
 nested_wait_for_no_ssh() {
@@ -464,6 +465,10 @@ EOF
                     snap download --channel="latest/edge" snapd
                     repack_snapd_deb_into_snapd_snap "$PWD"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
+                    # which channel?
+                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -561,12 +566,12 @@ nested_create_cloud_init_config() {
    list: |
     user1:ubuntu
    expire: False
-  datasource_list: [ "None"]
+  datasource_list: [ NoCloud ]
   datasource:
-    None:
+    NoCloud:
      userdata_raw: |
       #!/bin/bash
-      echo test
+      logger -t nested test running || true
 EOF
 }
 
@@ -763,6 +768,8 @@ nested_start_core_vm_unit() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_SMP} \
@@ -971,9 +978,10 @@ nested_start_classic_vm() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
-
     # save logs from previous runs
     nested_save_serial_log
+    # make sure we start with clean log file
+    echo > "${NESTED_LOGS_DIR}/serial.log"
 
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \

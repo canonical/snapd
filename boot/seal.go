@@ -59,8 +59,13 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// TODO:UC20: later the exact kind of bootloaders we expect here might change
+		return fmt.Errorf("internal error: cannot seal keys without a trusted assets bootloader")
+	}
 
-	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, rbl, model, modeenv)
+	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -140,7 +145,7 @@ func hasSealedKeys(rootdir string) bool {
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
-func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) error {
+func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	if !hasSealedKeys(rootdir) {
 		// nothing to do
 		return nil
@@ -153,8 +158,12 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	if err != nil {
 		return fmt.Errorf("cannot find the recovery bootloader: %v", err)
 	}
-
-	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, rbl, model, modeenv)
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// TODO:UC20: later the exact kind of bootloaders we expect here might change
+		return fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
+	}
+	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -179,7 +188,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	ok, nextCount, err := isResealNeeded(pbc, rootdir)
+	ok, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
 	if err != nil {
 		return err
 	}
@@ -218,12 +227,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv) 
 	return nil
 }
 
-func recoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, fmt.Errorf("bootloader doesn't support trusted assets")
-	}
-
+func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
 		// get the command line
 		cmdline, err := ComposeRecoveryCommandLine(model, system)
@@ -247,7 +251,7 @@ func recoveryBootChainsForSystems(systems []string, rbl bootloader.Bootloader, m
 			kernelRev = seedKernel.SideInfo.Revision.String()
 		}
 
-		recoveryBootChain, err := tbl.RecoveryBootChain(seedKernel.Path)
+		recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -379,10 +383,20 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 // input do not match the cached boot chains on disk under rootdir.
 // It also returns the next value for the reasel count that is saved
 // together with the boot chains.
-func isResealNeeded(pbc predictableBootChains, rootdir string) (ok bool, nextCount int, err error) {
+// A hint expectReseal can be provided, it is used when the matching
+// is ambigous because the boot chains contain unrevisioned kernels.
+func isResealNeeded(pbc predictableBootChains, rootdir string, expectReseal bool) (ok bool, nextCount int, err error) {
 	previousPbc, c, err := readBootChains(bootChainsFileUnder(rootdir))
 	if err != nil {
 		return false, 0, err
 	}
-	return !predictableBootChainsEqualForReseal(pbc, previousPbc), c + 1, nil
+
+	switch predictableBootChainsEqualForReseal(pbc, previousPbc) {
+	case bootChainEquivalent:
+		return false, c + 1, nil
+	case bootChainUnrevisioned:
+		return expectReseal, c + 1, nil
+	case bootChainDifferent:
+	}
+	return true, c + 1, nil
 }

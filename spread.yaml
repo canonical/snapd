@@ -834,7 +834,7 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -981,12 +981,12 @@ suites:
             . "$TESTSLIB/nested.sh"
             nested_print_serial_log
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils haveged
             snap install ubuntu-image --classic
 
             # Install the snapd built

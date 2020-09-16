@@ -45,3 +45,6 @@ execute: |
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_grub_sha3\$"
     nested_exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_shim_sha3\$"
+
+    # check for sealed keys marker
+    nested_exec "test -f /var/lib/snapd/device/fde/sealed-keys"
