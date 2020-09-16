@@ -90,7 +90,7 @@ func (d *mockDevice) Base() string {
 }
 func (d *mockDevice) Model() *asserts.Model {
 	if d.model == nil {
-		panic("tried to use model without setting one first")
+		panic("Device.Model called but MockUC20Device not used")
 	}
 	return d.model
 }
