@@ -8,6 +8,9 @@ prepare: |
 
   snap download pc-kernel --channel=20/edge --basename=pc-kernel
   unsquashfs -d pc-kernel pc-kernel.snap
+  # ensure we really have the header we expect
+  grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
+  # modify the kernel so that the hash changes
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in D0S mode/' pc-kernel/kernel.efi
 
   KEY_NAME=$(nested_get_snakeoil_key)
