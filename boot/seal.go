@@ -188,11 +188,11 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	ok, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
+	needed, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if !needed {
 		// no need to actually reseal
 		logger.Debugf("reseal not necessary")
 		return nil
@@ -218,6 +218,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err := secbootResealKey(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
+	logger.Debugf("resealing (%d) succeeded", nextCount)
 
 	bootChainsPath := bootChainsFileUnder(rootdir)
 	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
