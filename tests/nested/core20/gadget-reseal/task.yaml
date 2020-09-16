@@ -3,6 +3,9 @@ summary: Check that a gadget refresh reseals
 systems: [ubuntu-20.04-64]
 
 execute: |
+    # Wait for snapd to be seeded
+    nested_exec sudo snap wait system seed.loaded
+
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
@@ -27,16 +30,9 @@ execute: |
     rm -rf pc-gadget
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
-    # modify the recovery bootloader asset to change the hash and thus force a reseal
-    echo " " >> pc-gadget/grub-recovery.conf
-    # XXX: this needs a bump everytime we change the gadget, add code to
-    #      do this automatically
-    #
-    # XXX2: if we would update "ubuntu-boot" here which is at edition 1
-    #       and goes to revision 2 there is a failure:
-    # ERROR cannot backup volume structure #0 ("mbr"): cannot find device matching structure #0 ("mbr"): unexpected number of matches (0) for /sys/block/*/ubuntu-data-e4fdfe94-a608-429d-a561-de5dd6a41fdb
-    MATCH "edition: 2" < pc-gadget/meta/gadget.yaml
-    sed -i 's/edition: 2/edition: 3/' pc-gadget/meta/gadget.yaml
+    # change a few bytes in the compat header
+    sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+    ./manip_gadget.py pc-gadget/meta/gadget.yaml
     nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     snap pack pc-gadget/
@@ -51,4 +47,4 @@ execute: |
     SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
     RESEAL_COUNT_3="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
-    test "$RESEAL_COUNT_3" -eq "1"
+    test "$RESEAL_COUNT_3" -gt "1"
