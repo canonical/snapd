@@ -360,7 +360,7 @@ type ExportSetName string
 type AbstractManifest struct {
 	PrimaryKey string
 	SubKey     string
-	ExportSets map[ExportSetName][]ExportEntry
+	ExportSets map[ExportSetName][]*ExportEntry
 }
 
 const snapdTools ExportSetName = "tools"
@@ -384,7 +384,7 @@ func NewAbstractManifest(info *snap.Info) *AbstractManifest {
 		return &AbstractManifest{
 			PrimaryKey: primaryKey,
 			SubKey:     subKey,
-			ExportSets: map[ExportSetName][]ExportEntry{
+			ExportSets: map[ExportSetName][]*ExportEntry{
 				snapdTools: exportedSnapToolsFromSnapdOrCore(info),
 			},
 		}
@@ -393,7 +393,7 @@ func NewAbstractManifest(info *snap.Info) *AbstractManifest {
 		return &AbstractManifest{
 			PrimaryKey: primaryKey,
 			SubKey:     subKey,
-			ExportSets: map[ExportSetName][]ExportEntry{
+			ExportSets: map[ExportSetName][]*ExportEntry{
 				snapdTools: exportedSnapToolsFromSnapdOrCore(info),
 			},
 		}
@@ -420,16 +420,16 @@ func (am *AbstractManifest) Materialize() *Manifest {
 	for exportSetName, entries := range am.ExportSets {
 		for _, entry := range entries {
 			var target string
-			if entry.IsExportedPathValidInHostMountNS() {
-				target = entry.PathInHostMountNS()
+			if entry.IsExportedPathValidInHostMountNS {
+				target = entry.PathInHostMountNS
 			} else {
-				target = entry.PathInSnapMountNS()
+				target = entry.PathInSnapMountNS
 			}
 			symlinks = append(symlinks, SymlinkExport{
 				PrimaryKey: am.PrimaryKey,
 				SubKey:     am.SubKey,
 				ExportSet:  string(exportSetName),
-				Name:       entry.PathInExportSet(),
+				Name:       entry.PathInExportSet,
 				Target:     target,
 			})
 		}
@@ -450,10 +450,9 @@ func (am *AbstractManifest) Materialize() *Manifest {
 //
 // This distinction enables exporting files that are consumed by either other
 // snaps or by the classic system.
-// XXX this maybe can be just a struct with constructions for the host and snap case
-type ExportEntry interface {
-	PathInExportSet() string
-	PathInHostMountNS() string
-	PathInSnapMountNS() string
-	IsExportedPathValidInHostMountNS() bool
+type ExportEntry struct {
+	PathInExportSet                  string
+	PathInHostMountNS                string
+	PathInSnapMountNS                string
+	IsExportedPathValidInHostMountNS bool
 }

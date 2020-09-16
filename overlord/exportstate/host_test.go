@@ -50,11 +50,11 @@ func (s *hostSuite) TestExportManifestForHostSystem(c *C) {
 	c.Assert(exportstate.HostAbstractManifest(), IsNil)
 }
 
-func (s *hostSuite) checkSnapExec(c *C, snapExec exportstate.ExportEntry) {
-	c.Check(snapExec.PathInExportSet(), Equals, "snap-exec")
-	c.Check(snapExec.PathInHostMountNS(), Equals, filepath.Join(dirs.DistroLibExecDir, "snap-exec"))
-	c.Check(snapExec.PathInSnapMountNS(), Equals, filepath.Join("/var/lib/snapd/hostfs", dirs.DistroLibExecDir, "snap-exec"))
-	c.Check(snapExec.IsExportedPathValidInHostMountNS(), Equals, false)
+func (s *hostSuite) checkSnapExec(c *C, snapExec *exportstate.ExportEntry) {
+	c.Check(snapExec.PathInExportSet, Equals, "snap-exec")
+	c.Check(snapExec.PathInHostMountNS, Equals, filepath.Join(dirs.DistroLibExecDir, "snap-exec"))
+	c.Check(snapExec.PathInSnapMountNS, Equals, filepath.Join("/var/lib/snapd/hostfs", dirs.DistroLibExecDir, "snap-exec"))
+	c.Check(snapExec.IsExportedPathValidInHostMountNS, Equals, false)
 }
 
 func (s *hostSuite) TestExportManifestForClassicSystemWithDefaultSnapMountDir(c *C) {

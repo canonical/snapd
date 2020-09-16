@@ -178,13 +178,13 @@ var _ = Suite(&exportstateSuite{
 	am: exportstate.AbstractManifest{
 		PrimaryKey: "primary",
 		SubKey:     "sub",
-		ExportSets: map[exportstate.ExportSetName][]exportstate.ExportEntry{
+		ExportSets: map[exportstate.ExportSetName][]*exportstate.ExportEntry{
 			"export-set": {
-				&testExportEntry{
-					pathInExportSet:                  "local-path",
-					pathInHostMountNS:                "host-path",
-					pathInSnapMountNS:                "snap-path",
-					isExportedPathValidInHostMountNS: false,
+				&exportstate.ExportEntry{
+					PathInExportSet:                  "local-path",
+					PathInHostMountNS:                "host-path",
+					PathInSnapMountNS:                "snap-path",
+					IsExportedPathValidInHostMountNS: false,
 				},
 			},
 		},
@@ -501,53 +501,30 @@ func (s *exportstateSuite) TestCurrentSnapdAndCoreInfo(c *C) {
 	c.Check(coreInfo.SnapName(), Equals, "core")
 }
 
-type testExportEntry struct {
-	pathInExportSet                  string
-	pathInHostMountNS                string
-	pathInSnapMountNS                string
-	isExportedPathValidInHostMountNS bool
-}
-
-func (tee *testExportEntry) PathInExportSet() string {
-	return tee.pathInExportSet
-}
-
-func (tee *testExportEntry) PathInHostMountNS() string {
-	return tee.pathInHostMountNS
-}
-
-func (tee *testExportEntry) PathInSnapMountNS() string {
-	return tee.pathInSnapMountNS
-}
-
-func (tee *testExportEntry) IsExportedPathValidInHostMountNS() bool {
-	return tee.isExportedPathValidInHostMountNS
-}
-
 var sampleAbstractManifest = exportstate.AbstractManifest{
 	PrimaryKey: "primary",
 	SubKey:     "sub",
-	ExportSets: map[exportstate.ExportSetName][]exportstate.ExportEntry{
+	ExportSets: map[exportstate.ExportSetName][]*exportstate.ExportEntry{
 		"for-snaps": {
-			&testExportEntry{
-				pathInExportSet:                  "local-path",
-				pathInHostMountNS:                "host-path",
-				pathInSnapMountNS:                "snap-path",
-				isExportedPathValidInHostMountNS: false,
+			&exportstate.ExportEntry{
+				PathInExportSet:                  "local-path",
+				PathInHostMountNS:                "host-path",
+				PathInSnapMountNS:                "snap-path",
+				IsExportedPathValidInHostMountNS: false,
 			},
-			&testExportEntry{
-				pathInExportSet:                  "local-path-2",
-				pathInHostMountNS:                "host-path2",
-				pathInSnapMountNS:                "snap-path-2",
-				isExportedPathValidInHostMountNS: false,
+			&exportstate.ExportEntry{
+				PathInExportSet:                  "local-path-2",
+				PathInHostMountNS:                "host-path2",
+				PathInSnapMountNS:                "snap-path-2",
+				IsExportedPathValidInHostMountNS: false,
 			},
 		},
 		"for-host": {
-			&testExportEntry{
-				pathInExportSet:                  "local-path",
-				pathInHostMountNS:                "host-path",
-				pathInSnapMountNS:                "snap-path",
-				isExportedPathValidInHostMountNS: true,
+			&exportstate.ExportEntry{
+				PathInExportSet:                  "local-path",
+				PathInHostMountNS:                "host-path",
+				PathInSnapMountNS:                "snap-path",
+				IsExportedPathValidInHostMountNS: true,
 			},
 		},
 	},

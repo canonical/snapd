@@ -27,37 +27,19 @@ import (
 
 // exportedSnapToolsFromSnapdOrCore returns export entries describing
 // essential snapd tools, like snap-exec.
-func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []ExportEntry {
-	entries := make([]ExportEntry, 0, len(toolsToExport))
+func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*ExportEntry {
+	entries := make([]*ExportEntry, 0, len(toolsToExport))
 	for _, tool := range toolsToExport {
-		entries = append(entries, &exportedSnapFile{
-			snap:            info,
-			pathInSnap:      filepath.Join("usr/lib/snapd", tool),
-			pathInExportSet: tool,
-		})
+		entries = append(entries, NewExportedSnapFile(info, filepath.Join("usr/lib/snapd", tool), tool))
 	}
 	return entries
 }
 
-// exportedSnapFile implements ExportEntry describing a file stored inside a snap.
-type exportedSnapFile struct {
-	snap            *snap.Info
-	pathInSnap      string
-	pathInExportSet string
-}
-
-func (esf *exportedSnapFile) PathInHostMountNS() string {
-	return filepath.Join(esf.snap.MountDir(), esf.pathInSnap)
-}
-
-func (esf *exportedSnapFile) PathInSnapMountNS() string {
-	return filepath.Join("/snap", esf.snap.InstanceName(), esf.snap.Revision.String(), esf.pathInSnap)
-}
-
-func (esf *exportedSnapFile) PathInExportSet() string {
-	return esf.pathInExportSet
-}
-
-func (esf *exportedSnapFile) IsExportedPathValidInHostMountNS() bool {
-	return false
+// NewExportedSnapFile returns an entry describing a file stored inside a snap.
+func NewExportedSnapFile(snap *snap.Info, pathInSnap, pathInExportSet string) *ExportEntry {
+	return &ExportEntry{
+		PathInHostMountNS: filepath.Join(snap.MountDir(), pathInSnap),
+		PathInSnapMountNS: filepath.Join("/snap", snap.InstanceName(), snap.Revision.String(), pathInSnap),
+		PathInExportSet:   pathInExportSet,
+	}
 }

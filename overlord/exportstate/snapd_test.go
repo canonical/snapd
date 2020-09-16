@@ -45,13 +45,13 @@ func (s *snapdSuite) TestExportedSnapToolsFromSnapdOrCore(c *C) {
 	s.checkSnapExec(c, tools[5], s.coreInfo)
 }
 
-func (s *snapdSuite) checkSnapExec(c *C, snapExec exportstate.ExportEntry, info *snap.Info) {
-	c.Check(snapExec.PathInExportSet(), Equals, "snap-exec")
-	c.Check(snapExec.PathInHostMountNS(), Equals, filepath.Join(
+func (s *snapdSuite) checkSnapExec(c *C, snapExec *exportstate.ExportEntry, info *snap.Info) {
+	c.Check(snapExec.PathInExportSet, Equals, "snap-exec")
+	c.Check(snapExec.PathInHostMountNS, Equals, filepath.Join(
 		dirs.SnapMountDir, info.SnapName(), info.Revision.String(),
 		"usr/lib/snapd/snap-exec"))
-	c.Check(snapExec.PathInSnapMountNS(), Equals, filepath.Join(
+	c.Check(snapExec.PathInSnapMountNS, Equals, filepath.Join(
 		"/snap", info.SnapName(), info.Revision.String(),
 		"usr/lib/snapd/snap-exec"))
-	c.Check(snapExec.IsExportedPathValidInHostMountNS(), Equals, false)
+	c.Check(snapExec.IsExportedPathValidInHostMountNS, Equals, false)
 }

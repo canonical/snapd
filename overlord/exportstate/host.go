@@ -49,34 +49,20 @@ func abstractManifestForClassicSystem() *AbstractManifest {
 		// The system contains a classic package.
 		PrimaryKey: "snapd",
 		SubKey:     "host",
-		ExportSets: map[ExportSetName][]ExportEntry{
+		ExportSets: map[ExportSetName][]*ExportEntry{
 			snapdTools: exportedSnapdToolsFromHost(),
 		},
 	}
 }
 
-// exportedHostFile implements ExportEntry describing a file from the classic file system.
-//
-// TODO: consider using this to describe nvidia libraries from the host.
-type exportedHostFile struct {
-	pathOnHost      string
-	pathInExportSet string
-}
-
-func (ehf *exportedHostFile) PathInHostMountNS() string {
-	return ehf.pathOnHost
-}
-
-func (ehf *exportedHostFile) PathInSnapMountNS() string {
-	return filepath.Join("/var/lib/snapd/hostfs", ehf.pathOnHost)
-}
-
-func (ehf *exportedHostFile) PathInExportSet() string {
-	return ehf.pathInExportSet
-}
-
-func (ehf *exportedHostFile) IsExportedPathValidInHostMountNS() bool {
-	return false
+// NewExportedHostFile returns an entry describing a file from the classic file system.
+func NewExportedHostFile(pathOnHost, pathInExportSet string) *ExportEntry {
+	// TODO: consider using this to describe nvidia libraries from the host.
+	return &ExportEntry{
+		PathInHostMountNS: pathOnHost,
+		PathInSnapMountNS: filepath.Join("/var/lib/snapd/hostfs", pathOnHost),
+		PathInExportSet:   pathInExportSet,
+	}
 }
 
 var toolsToExport = []string{
@@ -90,13 +76,10 @@ var toolsToExport = []string{
 	"snap-update-ns",
 }
 
-func exportedSnapdToolsFromHost() []ExportEntry {
-	entries := make([]ExportEntry, 0, len(toolsToExport))
+func exportedSnapdToolsFromHost() []*ExportEntry {
+	entries := make([]*ExportEntry, 0, len(toolsToExport))
 	for _, tool := range toolsToExport {
-		entries = append(entries, &exportedHostFile{
-			pathOnHost:      filepath.Join(dirs.DistroLibExecDir, tool),
-			pathInExportSet: tool,
-		})
+		entries = append(entries, NewExportedHostFile(filepath.Join(dirs.DistroLibExecDir, tool), tool))
 	}
 	return entries
 }
