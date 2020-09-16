@@ -136,7 +136,7 @@ nested_create_assertions_disk() {
     else 
         AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
     fi
-    sudo cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
+    cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
     # unmount the partition and the image disk
     sudo umount "$NESTED_ASSETS_DIR/sys-user-partition"
@@ -511,7 +511,7 @@ EOF
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
                     # sign the snapd snap with fakestore if requested
-	                if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
                         make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
                     fi
 
