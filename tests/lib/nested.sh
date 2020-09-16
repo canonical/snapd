@@ -283,12 +283,20 @@ nested_get_snakeoil_key() {
     echo "$KEYNAME"
 }
 
+nested_secboot_sign_gadget_file() {
+    local GADGET_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    local FILE="$4"
+    sbattach --remove "$GADGET_DIR"/"$FILE"
+    sbsign --key "$KEY" --cert "$CERT" --output "$GADGET_DIR"/"$FILE" "$GADGET_DIR"/"$FILE"
+}
+
 nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
-    sbattach --remove "$GADGET_DIR"/shim.efi.signed
-    sbsign --key "$KEY" --cert "$CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+    nested_secboot_sign_gadget_file "$GADGET_DIR" "$KEY" "$CERT" "shim.efi.signed"
 }
 
 nested_prepare_env() {
