@@ -63,4 +63,7 @@ execute: |
     # ensure the "snap recovery" command works
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND="$(snap model --verbose | grep '^brand' | cut -d' ' -f2- | xargs)"
-    snap recovery | MATCH "[0-9]+ +$BRAND +$MODEL +current"
+    if [ "$BRAND" = "canonical" ]; then
+        BRAND="canonical\*"
+    fi
+    snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND +$MODEL +current"
