@@ -13,10 +13,7 @@ prepare: |
   KEY_NAME=$(nested_get_snakeoil_key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  # FIXME: this looks almost like nested_secboot_sign_gadget
-  #        so refactor nested_secboot_sign_gadget
-  sbattach --remove pc-kernel/kernel.efi
-  sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" --output pc-kernel/kernel.efi pc-kernel/kernel.efi
+  nested_secboot_sign_file "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" pc-kernel/kernel.efi
 
   snap pack pc-kernel
   rm -rf pc-kernel
