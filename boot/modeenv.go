@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -40,27 +41,27 @@ type bootAssetsMap map[string][]string
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string
-	RecoverySystem         string
-	CurrentRecoverySystems []string
-	Base                   string
-	TryBase                string
-	BaseStatus             string
-	CurrentKernels         []string
-	Model                  string
-	BrandID                string
-	Grade                  string
+	Mode                   string   `key:"mode"`
+	RecoverySystem         string   `key:"recovery_system"`
+	CurrentRecoverySystems []string `key:"current_recovery_systems"`
+	Base                   string   `key:"base"`
+	TryBase                string   `key:"try_base"`
+	BaseStatus             string   `key:"base_status"`
+	CurrentKernels         []string `key:"current_kernels"`
+	Model                  string   `key:"model"`
+	BrandID                string   `key:"model,secondary"`
+	Grade                  string   `key:"grade"`
 	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
 	// expected to have booted with). The second entry, if present, is the
 	// hash of an entry added when an update of the asset was being applied
 	// and will become the sole entry after a successful boot.
-	CurrentTrustedBootAssets bootAssetsMap
+	CurrentTrustedBootAssets bootAssetsMap `key:"current_trusted_boot_assets"`
 	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
-	CurrentTrustedRecoveryBootAssets bootAssetsMap
+	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -73,6 +74,38 @@ type Modeenv struct {
 	// understand, we keep track of this so that if we read a new modeenv with
 	// extra keys and need to rewrite it, we will write those new keys as well
 	extrakeys map[string]string
+}
+
+var modeenvKnownKeys = make(map[string]bool)
+
+func init() {
+	st := reflect.TypeOf(Modeenv{})
+	num := st.NumField()
+	for i := 0; i < num; i++ {
+		f := st.Field(i)
+		if f.PkgPath != "" {
+			// unexported
+			continue
+		}
+		key := f.Tag.Get("key")
+		if key == "" {
+			panic(fmt.Sprintf("modeenv %s field has no key tag", f.Name))
+		}
+		const secondaryModifier = ",secondary"
+		if strings.HasSuffix(key, secondaryModifier) {
+			// secondary field in a group fields
+			// corresponding to one file key
+			key := key[:len(key)-len(secondaryModifier)]
+			if !modeenvKnownKeys[key] {
+				panic(fmt.Sprintf("modeenv %s field marked as secondary for not yet defined key %q", f.Name, key))
+			}
+			continue
+		}
+		if modeenvKnownKeys[key] {
+			panic(fmt.Sprintf("modeenv key %q repeated on %s", key, f.Name))
+		}
+		modeenvKnownKeys[key] = true
+	}
 }
 
 func modeenvFile(rootdir string) string {
@@ -124,23 +157,8 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err != nil {
 		return nil, err
 	}
-	var knownKeys = map[string]struct{}{
-		"recovery_system":          {},
-		"current_recovery_systems": {},
-		// for gofmt
-		"mode":            {},
-		"base":            {},
-		"base_status":     {},
-		"try_base":        {},
-		"current_kernels": {},
-		"model":           {},
-		"grade":           {},
-		// for gofmt
-		"current_trusted_boot_assets":          {},
-		"current_trusted_recovery_boot_assets": {},
-	}
 	for _, k := range keys {
-		if _, known := knownKeys[k]; !known {
+		if !modeenvKnownKeys[k] {
 			val, err := cfg.Get("", k)
 			if err != nil {
 				return nil, err

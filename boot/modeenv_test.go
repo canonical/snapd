@@ -51,6 +51,23 @@ func (s *modeenvSuite) SetUpTest(c *C) {
 	s.mockModeenvPath = filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
 }
 
+func (s *modeenvSuite) TestKnownKnown(c *C) {
+	// double check keys as found with reflect
+	c.Check(boot.ModeenvKnownKeys, DeepEquals, map[string]bool{
+		"mode":                     true,
+		"recovery_system":          true,
+		"current_recovery_systems": true,
+		"base":            true,
+		"try_base":        true,
+		"base_status":     true,
+		"current_kernels": true,
+		"model":           true,
+		"grade":           true,
+		"current_trusted_boot_assets":          true,
+		"current_trusted_recovery_boot_assets": true,
+	})
+}
+
 func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
 	modeenv, err := boot.ReadModeenv("/no/such/file")
 	c.Assert(os.IsNotExist(err), Equals, true)

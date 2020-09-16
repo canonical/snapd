@@ -53,6 +53,8 @@ func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
 }
 
 var (
+	ModeenvKnownKeys = modeenvKnownKeys
+
 	MarshalModeenvEntryTo        = marshalModeenvEntryTo
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 
