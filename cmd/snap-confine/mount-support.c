@@ -387,8 +387,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	//
 	// However on a core18 (and similar) system the core snap is not
 	// a special base anymore and we should map our own tooling in.
-	if (config->distro == SC_DISTRO_CORE_OTHER
-	    || !sc_streq(config->base_snap_name, "core")) {
+	if (true) {
 
 		// Open the /usr/lib/snapd inside the scratch space.
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
