@@ -167,6 +167,9 @@ var templateCommon = `
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
   # For snappy reexec on 4.8+ kernels
+  /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-exec m,
+  /snap/core/*/usr/lib/snapd/snap-exec m,
+  /snap/snapd/*/usr/lib/snapd/snap-exec m,
   /usr/lib/snapd/snap-exec m,
 
   # For gdb support
@@ -846,6 +849,7 @@ var classicJailmodeSnippet = `
 
   # For snappy reexec on 4.8+ kernels
   @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec m,
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine
