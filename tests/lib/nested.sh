@@ -301,20 +301,20 @@ nested_get_snakeoil_key() {
     echo "$KEYNAME"
 }
 
-nested_secboot_sign_gadget_file() {
-    local GADGET_DIR="$1"
+nested_secboot_sign_file() {
+    local DIR="$1"
     local KEY="$2"
     local CERT="$3"
     local FILE="$4"
-    sbattach --remove "$GADGET_DIR"/"$FILE"
-    sbsign --key "$KEY" --cert "$CERT" --output "$GADGET_DIR"/"$FILE" "$GADGET_DIR"/"$FILE"
+    sbattach --remove "$DIR"/"$FILE"
+    sbsign --key "$KEY" --cert "$CERT" --output "$DIR"/"$FILE" "$DIR"/"$FILE"
 }
 
 nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
-    nested_secboot_sign_gadget_file "$GADGET_DIR" "$KEY" "$CERT" "shim.efi.signed"
+    nested_secboot_sign_file "$GADGET_DIR" "$KEY" "$CERT" "shim.efi.signed"
 }
 
 nested_prepare_env() {
