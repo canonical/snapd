@@ -3,9 +3,6 @@ summary: Check that a gadget refresh reseals
 systems: [ubuntu-20.04-64]
 
 execute: |
-    # Wait for snapd to be seeded
-    nested_exec sudo snap wait system seed.loaded
-
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
@@ -32,8 +29,12 @@ execute: |
     unsquashfs -d pc-gadget pc.snap
     # change a few bytes in the compat header
     sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
-    ./manip_gadget.py pc-gadget/meta/gadget.yaml
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    ./manip_gadget.py pc-gadget/meta/gadget.yaml > modified_gadget.yaml
+    mv modified_gadget.yaml pc-gadget/meta/gadget.yaml
+
+    # resign both assets
+    nested_secboot_sign_gadget_file pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" "shim.efi.signed"
+    nested_secboot_sign_gadget_file pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" "grubx64.efi"
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     snap pack pc-gadget/
 
