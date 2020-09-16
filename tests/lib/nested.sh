@@ -621,11 +621,17 @@ nested_save_serial_log() {
                 break
             fi
         done
+        # make sure we start with clean log file
+        echo > "${NESTED_LOGS_DIR}/serial.log"
     fi
 }
 
 nested_print_serial_log() {
     if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        # here we disable SC2045 because previously it is checked there is at least
+        # 1 file which matches. In this case ls command is needed because it is important
+        # to get the list in reverse order.
+        # shellcheck disable=SC2045
         for logfile in $(ls -r "${NESTED_LOGS_DIR}"/serial.log*); do
             cat "${logfile}"
         done
@@ -980,8 +986,6 @@ nested_start_classic_vm() {
     mkdir -p "$NESTED_LOGS_DIR"
     # save logs from previous runs
     nested_save_serial_log
-    # make sure we start with clean log file
-    echo > "${NESTED_LOGS_DIR}/serial.log"
 
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
