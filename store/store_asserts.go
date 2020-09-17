@@ -52,7 +52,7 @@ type assertionSvcError struct {
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
 
-	// v1+v2 error list; the only field included in v2 error response.
+	// v2 error list - the only field included in v2 error response.
 	// XXX: there is an overlap with searchV2Results (and partially with
 	// errorListEntry), we could share the definition.
 	ErrorList []struct {
@@ -76,17 +76,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		asrt, e = dec.Decode()
 		return e
 	}, func(svcErr *assertionSvcError) error {
-		// applicable to v1 errors only, no Status in v2 error response.
-		if svcErr.Status == 404 {
-			// best-effort
-			headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
-			return &asserts.NotFoundError{
-				Type:    assertType,
-				Headers: headers,
-			}
-		}
-		// v2 error response, only error-list is present.
-		if svcErr.Status == 0 && len(svcErr.ErrorList) > 0 && svcErr.ErrorList[0].Code == "not-found" {
+		// error-list indicates v2 error response.
+		if (len(svcErr.ErrorList) > 0 && svcErr.ErrorList[0].Code == "not-found" /* v2 error */) || svcErr.Status == 404 {
 			// best-effort
 			headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
 			return &asserts.NotFoundError{
@@ -132,8 +123,8 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 				// default error handling
 
 				// is it v2 error?
-				if svcErr.Status == 0 && len(svcErr.ErrorList) > 0 {
-					return fmt.Errorf("assertion service error: [%s] %q", svcErr.ErrorList[0].Code, svcErr.ErrorList[0].Message)
+				if len(svcErr.ErrorList) > 0 {
+					return fmt.Errorf("assertion service error: %q", svcErr.ErrorList[0].Message)
 				}
 				// XXX: v1 error contains error-list which mirrors title and detail,
 				// we could just use error-list for v1?
