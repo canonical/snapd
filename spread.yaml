@@ -53,6 +53,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
+    # Configure nested images to be reused on the following tests
+    NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
 backends:
     google:
@@ -836,7 +838,7 @@ suites:
             NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -981,6 +983,7 @@ suites:
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_start_core_vm
+            nested_wait_for_snap_command
         restore-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -1026,12 +1029,12 @@ suites:
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
         warn-timeout: 10m
-        kill-timeout: 40m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils haveged
             snap install ubuntu-image --classic
 
             # Install the snapd built
@@ -1042,6 +1045,7 @@ suites:
             nested_prepare_env
             nested_create_core_vm
             nested_start_core_vm
+            nested_wait_for_snap_command
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
