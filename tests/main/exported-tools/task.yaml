@@ -1,0 +1,102 @@
+summary: snapd exports tools and optionally uses them at snap runtime
+environment:
+    SNAP_REEXEC/no_reexec: "0"
+    SNAP_REEXEC/auto_reexec: ""
+restore: |
+    snap unset core experimental.use-exported-snapd-tools
+execute: |
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    # Snapd tools are not broken (this is a basic check).
+    tests.invariant check broken-snapd-tools
+
+    tools="etelpmoc.sh info snap-confine snap-discard-ns snap-exec snap-gdb-shim snap-gdbserver-shim snap-update-ns snapctl"
+
+    # TODO: arrange so each of the three happens.
+
+    # Snapd tools point to the exported revision of core/snapd
+    exported_version="$(readlink /var/lib/snapd/export/snapd/current)"
+    test -d "/var/lib/snapd/export/snapd/$exported_version"
+    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-* ]] || ( [ "${SNAP_REEXEC:-}" = "" ] && snap list snapd ); then
+        # Exported version is the revision of snapd
+        snapd_rev="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
+        test "$exported_version" = "$snapd_rev"
+        # The following files are exported as snapd tools and point to the tool
+        # from the snapd snap, as seen from the per-snap mount namespace.
+        for tool in $tools; do
+            test -h "/var/lib/snapd/export/snapd/current/tools/$tool"
+            test "$(readlink "/var/lib/snapd/export/snapd/current/tools/$tool")" = "/snap/snapd/$snapd_rev/usr/lib/snapd/$tool"
+        done
+    elif [ "${SNAP_REEXEC:-}" = "" ] && snap list core; then
+        # Exported version is the revision of core
+        core_rev="$(readlink "$SNAP_MOUNT_DIR/core/current")"
+        test "$exported_version" = "core_${core_rev}"
+        # The following files are exported as snapd tools and point to the tool
+        # from the core snap, as seen from the per-snap mount namespace.
+        for tool in $tools; do
+            test -h "/var/lib/snapd/export/snapd/current/tools/$tool"
+            test "$(readlink "/var/lib/snapd/export/snapd/current/tools/$tool")" = "/snap/core/$core_rev/usr/lib/snapd/$tool"
+        done
+    else
+        # Exported version is the special "host" value.
+        test "$exported_version" = host
+        # The following files are exported as snapd tools and point to the tool
+        # from the classic system package, as seen from the per-snap mount
+        # namespace.
+        for tool in $tools; do
+            test -h "/var/lib/snapd/export/snapd/current/tools/$tool"
+            # -----------------------------------------------------------------------------------------> $LIBEXECDIR starts with /
+            test "$(readlink "/var/lib/snapd/export/snapd/current/tools/$tool")" = "/var/lib/snapd/hostfs$LIBEXECDIR/snapd/$tool"
+        done
+    fi
+
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local_devmode test-snapd-sh
+    install_local_devmode test-snapd-sh-core18
+
+    # By default snapd uses exported tools inside the per-snap mount namespace.
+    snap unset core experimental.use-exported-snapd-tools
+    snapd.tool exec snap-discard-ns test-snapd-sh
+    snapd.tool exec snap-discard-ns test-snapd-sh-core18
+    test ! -e /run/snapd/ns/test-snapd-sh.mnt
+    test ! -e /run/snapd/ns/test-snapd-sh-core18.mnt
+    snap set core experimental.use-exported-snapd-tools=true
+    test-snapd-sh.sh -c true
+    test-snapd-sh-core18.sh -c true
+    for tool in $tools; do
+        # Each tool is a symlink that is not dangling.
+        test-snapd-sh.sh -c "test -h \"/usr/lib/snapd/$tool\""
+        target="$(test-snapd-sh.sh -c "readlink \"/usr/lib/snapd/$tool\"")"
+        test-snapd-sh.sh -c "test -e \"$target\""
+        # Snaps with base: core18 behave exactly the same way
+        test-snapd-sh-core18.sh -c "test -h \"/usr/lib/snapd/$tool\""
+        target="$(test-snapd-sh-core18.sh -c "readlink \"/usr/lib/snapd/$tool\"")"
+        test-snapd-sh-core18.sh -c "test -e \"$target\""
+    done
+
+    # When snapd is explicitly told not to use the exported tools, legacy method
+    # is retained and depending on used base snap, the tools are either used from
+    # the core or from snapd snaps.
+    snapd.tool exec snap-discard-ns test-snapd-sh
+    snapd.tool exec snap-discard-ns test-snapd-sh-core18
+    test ! -e /run/snapd/ns/test-snapd-sh.mnt
+    test ! -e /run/snapd/ns/test-snapd-sh-core18.mnt
+    snap set core experimental.use-exported-snapd-tools=false
+    test-snapd-sh.sh -c true
+    test-snapd-sh-core18.sh -c true
+    for tool in $tools; do
+        # Snaps using core pick tools from core automatically.
+        test-snapd-sh.sh -c "test ! -h \"/usr/lib/snapd/$tool\""
+        test-snapd-sh.sh -c "test -f \"/usr/lib/snapd/$tool\""
+        test-snapd-sh.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\""
+        # Snaps using core18 pick tools from whoever is providing snap-confine.
+            test-snapd-sh-core18.sh -c "test ! -h \"/usr/lib/snapd/$tool\""
+            test-snapd-sh-core18.sh -c "test -f \"/usr/lib/snapd/$tool\""
+        if snap list snapd; then
+            test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/snapd/current/usr/lib/snapd/$tool\""
+        else
+            test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\""
+        fi
+    done
