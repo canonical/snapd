@@ -48,6 +48,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/feature.h"
 #include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
@@ -380,18 +381,23 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 		}
 	}
-	// The "core" base snap is special as it contains snapd and friends.
-	// Other base snaps do not, so whenever a base snap other than core is
-	// in use we need extra provisions for setting up internal tooling to
-	// be available.
-	//
-	// However on a core18 (and similar) system the core snap is not
-	// a special base anymore and we should map our own tooling in.
-	if (true) {
 
+	// Provide /usr/lib/snapd with essential snapd tools. There are two methods
+	// for doing this. The more recent method involves setting up symlink
+	// transpolines pointing to tools exported by snapd from either snapd snap,
+	// the core snap or from the classic host. This method allows tools to
+	// change as snapd snap refreshes and is used by default. The older method
+	// either uses tools embedded in the core snap, if used as base, or provides
+	// a one-time snapshot of snapd tools, matching the revision used when the
+	// first snap process is started.
+	//
+	// The first method is preferred but to cope with for unforeseen problems
+	// the second method can be used by explicitly disable the feature flag
+	// referenced below.
+	if (sc_feature_enabled(SC_FEATURE_USE_EXPORTED_SNAPD_TOOLS)) {
 		// Open the /usr/lib/snapd inside the scratch space and mount a tmpfs
-		// there. MS_NOEXEC is safe as we only place symbolic links to
-		// executables.
+		// there. The use of MS_NOEXEC is safe, as we only place symbolic links
+		// to executables and never execute anything placed there directly.
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
 		sc_do_mount("none", dst, "tmpfs", MS_NODEV|MS_NOEXEC, "mode=755");
 		int tools_dir_fd SC_CLEANUP(sc_cleanup_close)= -1;
@@ -400,7 +406,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot open %s", dst);
 		}
 
-		// Link to all the snap tools.
+		// Create synlinks to all the snap tool files exported by snapd.
 		static const char * const tools[] = {
 			"etelpmoc.sh",
 			"info",
@@ -415,7 +421,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		};
 		for (const char * const *tool = tools; *tool != NULL; ++tool) {
 			char symlink_target[PATH_MAX + 1] = {0};
-			sc_must_snprintf(symlink_target, sizeof symlink_target, "/var/lib/snapd/export/snapd/current/tools/%s", *tool);
+			sc_must_snprintf(symlink_target, sizeof symlink_target,
+				"/var/lib/snapd/export/snapd/current/tools/%s", *tool);
 			if (symlinkat(symlink_target, tools_dir_fd, *tool) < 0) {
 				die("cannot link to %s", *tool);
 			}
@@ -426,6 +433,45 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// system read only.
 		sc_do_mount("none", dst, NULL, MS_REMOUNT|MS_BIND|MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+	} else {
+		// The "core" base snap is special as it contains snapd and friends.
+		// Other base snaps do not, so whenever a base snap other than core is
+		// in use we need extra provisions for setting up internal tooling to
+		// be available.
+		if (config->distro == SC_DISTRO_CORE_OTHER
+			|| !sc_streq(config->base_snap_name, "core")) {
+				sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
+								scratch_dir);
+
+				// bind mount the current $ROOT/usr/lib/snapd path,
+				// where $ROOT is either "/" or the "/snap/{core,snapd}/current"
+				// that we are re-execing from
+				char *src = NULL;
+				char self[PATH_MAX + 1] = { 0 };
+				ssize_t nread;
+				nread = readlink("/proc/self/exe", self, sizeof self - 1);
+				if (nread < 0) {
+						die("cannot read /proc/self/exe");
+				}
+				// Though we initialized self to NULs and passed one less to
+				// readlink, therefore guaranteeing that self is
+				// zero-terminated, perform an explicit assignment to make
+				// Coverity happy.
+				self[nread] = '\0';
+				// this cannot happen except when the kernel is buggy
+				if (strstr(self, "/snap-confine") == NULL) {
+						die("cannot use result from readlink: %s", self);
+				}
+				src = dirname(self);
+				// dirname(path) might return '.' depending on path.
+				// /proc/self/exe should always point
+				// to an absolute path, but let's guarantee that.
+				if (src[0] != '/') {
+					die("cannot use the result of dirname(): %s", src);
+				}
+				sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
+				sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+		}
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
