@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -998,7 +997,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			{Snap: "some-snap_instance", Name: "foo"},
 		},
 	}
-	c.Check(mapLocal(about), check.DeepEquals, expected)
+	c.Check(mapLocal(about, nil), check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
@@ -1010,17 +1009,17 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 	about := aboutSnap{info: &info, snapst: &snapst}
 
 	// if not a 'try', then MountedFrom is just MountFile()
-	c.Check(mapLocal(about).MountedFrom, check.Equals, mountFile)
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, mountFile)
 
 	// if it's a try, then MountedFrom resolves the symlink
 	// (note it doesn't matter, here, whether the target of the link exists)
 	snapst.TryMode = true
 	c.Assert(os.Symlink("/xyzzy", mountFile), check.IsNil)
-	c.Check(mapLocal(about).MountedFrom, check.Equals, "/xyzzy")
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, "/xyzzy")
 
 	// if the readlink fails, it's unset
 	c.Assert(os.Remove(mountFile), check.IsNil)
-	c.Check(mapLocal(about).MountedFrom, check.Equals, "")
+	c.Check(mapLocal(about, nil).MountedFrom, check.Equals, "")
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -4164,7 +4163,26 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestPostSnapsOp(c *check.C) {
+func (s *apiSuite) TestPostSnapOp(c *check.C) {
+	s.testPostSnapsOp(c, "application/json")
+}
+
+func (s *apiSuite) TestPostSnapOpMoreComplexContentType(c *check.C) {
+	s.testPostSnapsOp(c, "application/json; charset=utf-8")
+}
+
+func (s *apiSuite) TestPostSnapOpInvalidCharset(c *check.C) {
+	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "unknown charset in content type")
+}
+
+func (s *apiSuite) testPostSnapsOp(c *check.C, contentType string) {
 	assertstateRefreshSnapDeclarations = func(*state.State, int) error { return nil }
 	snapstateUpdateMany = func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -4175,9 +4193,9 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
-	req, err := http.NewRequest("POST", "/v2/login", buf)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 
 	rsp, ok := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -7036,7 +7054,7 @@ func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7049,7 +7067,7 @@ func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7071,7 +7089,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7622,6 +7640,28 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"change-kind": "some-global-op",
+			},
+		},
+	})
+}
+
+func (s *apiSuite) TestErrToResponseInsufficentSpace(c *check.C) {
+	err := &snapstate.InsufficientSpaceError{
+		Snaps:      []string{"foo", "bar"},
+		ChangeKind: "some-change",
+		Path:       "/path",
+		Message:    "specific error msg",
+	}
+	rsp := errToResponse(err, nil, BadRequest, "%s: %v", "ERR").(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 507,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "specific error msg",
+			Kind:    client.ErrorKindInsufficientDiskSpace,
+			Value: map[string]interface{}{
+				"snap-names":  []string{"foo", "bar"},
+				"change-kind": "some-change",
 			},
 		},
 	})
