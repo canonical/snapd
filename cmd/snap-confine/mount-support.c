@@ -389,9 +389,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// a special base anymore and we should map our own tooling in.
 	if (true) {
 
-		// Open the /usr/lib/snapd inside the scratch space.
+		// Open the /usr/lib/snapd inside the scratch space and mount a tmpfs
+		// there. MS_NOEXEC is safe as we only place symbolic links to
+		// executables.
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
-		sc_do_mount("none", dst, "tmpfs", MS_NODEV|MS_NOEXEC, NULL);
+		sc_do_mount("none", dst, "tmpfs", MS_NODEV|MS_NOEXEC, "mode=755");
 		int tools_dir_fd SC_CLEANUP(sc_cleanup_close)= -1;
 		tools_dir_fd = open(dst, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | __O_PATH);
 		if (tools_dir_fd < 0) {
@@ -418,8 +420,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			}
 		}
 
-		// Prevent modification by most snaps.
-		sc_do_mount("none", dst, NULL, MS_REMOUNT|MS_RDONLY, NULL);
+		// Prevent modification by most snaps. Alter the mount point rather than
+		// the file system as LXD prevents us from mounting the entire file
+		// system read only.
+		sc_do_mount("none", dst, NULL, MS_REMOUNT|MS_BIND|MS_RDONLY, NULL);
 		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of

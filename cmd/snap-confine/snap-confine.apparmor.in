@@ -215,7 +215,7 @@
     mount options=(ro bind) @SNAP_MOUNT_DIR@/snapd/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
 
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/usr/lib/snapd/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
     mount options=(slave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
     /tmp/snap.rootfs_*/usr/lib/snapd/* w,
 
