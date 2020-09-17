@@ -414,7 +414,7 @@ debug-each: |
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
 
-            nested_exec journalctl --no-pager -u snapd || true
+            nested_exec sudo journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'
