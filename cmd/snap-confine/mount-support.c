@@ -401,6 +401,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
 		sc_do_mount("none", dst, "tmpfs", MS_NODEV|MS_NOEXEC, "mode=755");
 		int tools_dir_fd SC_CLEANUP(sc_cleanup_close)= -1;
+		// XXX: O_PATH is unavailable despite the rigth headers and feature flags.
+		// Needs debugging but perhaps not now.
 		tools_dir_fd = open(dst, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | __O_PATH);
 		if (tools_dir_fd < 0) {
 			die("cannot open %s", dst);
