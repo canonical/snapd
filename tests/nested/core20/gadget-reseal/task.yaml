@@ -27,8 +27,10 @@ execute: |
     rm -rf pc-gadget
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
-    # change a few bytes in the compat header
+    # change a few bytes in the compat header and ensure sed worked
     sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+    grep -q -a "This program cannot be run in XXX mode" pc-gadget/grubx64.efi
+
     ./manip_gadget.py pc-gadget/meta/gadget.yaml > modified_gadget.yaml
     mv modified_gadget.yaml pc-gadget/meta/gadget.yaml
 
