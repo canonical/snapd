@@ -5,6 +5,14 @@ environment:
 restore: |
     snap unset core experimental.use-exported-snapd-tools
 execute: |
+    # Fedora disables re-execution with packaging default. Follow along what
+    # snapd does (which sees that value) even though that is not exhaustively
+    # testing all possibilities.
+    if [ -e /etc/sysconfig/snapd ]; then
+        . /etc/sysconfig/snapd
+    fi
+    echo "SNAP_REEXEC=$SNAP_REEXEC"
+
     # shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
@@ -17,8 +25,9 @@ execute: |
 
     # Snapd tools point to the exported revision of core/snapd
     exported_version="$(readlink /var/lib/snapd/export/snapd/current)"
+    echo "$SPREAD_SYSTEM exports $exported_version as tools"
     test -d "/var/lib/snapd/export/snapd/$exported_version"
-    if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-* ]] || ( [ "${SNAP_REEXEC:-}" = "" ] && snap list snapd ); then
+    if [ "${SNAP_REEXEC:-}" = "" ] && snap list snapd; then
         # Exported version is the revision of snapd
         snapd_rev="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
         test "$exported_version" = "$snapd_rev"
@@ -62,7 +71,6 @@ execute: |
     snapd.tool exec snap-discard-ns test-snapd-sh-core18
     test ! -e /run/snapd/ns/test-snapd-sh.mnt
     test ! -e /run/snapd/ns/test-snapd-sh-core18.mnt
-    snap set core experimental.use-exported-snapd-tools=true
     test-snapd-sh.sh -c true
     test-snapd-sh-core18.sh -c true
     for tool in $tools; do
@@ -78,7 +86,7 @@ execute: |
 
     # When snapd is explicitly told not to use the exported tools, legacy method
     # is retained and depending on used base snap, the tools are either used from
-    # the core or from snapd snaps.
+    # the core or from snapd snaps, or from the host.
     snapd.tool exec snap-discard-ns test-snapd-sh
     snapd.tool exec snap-discard-ns test-snapd-sh-core18
     test ! -e /run/snapd/ns/test-snapd-sh.mnt
@@ -90,13 +98,19 @@ execute: |
         # Snaps using core pick tools from core automatically.
         test-snapd-sh.sh -c "test ! -h \"/usr/lib/snapd/$tool\""
         test-snapd-sh.sh -c "test -f \"/usr/lib/snapd/$tool\""
-        test-snapd-sh.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\""
+        # NOTE: this comparison is not true although it looks like it should. On
+        # core system the boot base and the kernel snap are loop-mounted twice,
+        # one time by the initrd and one more time by systemd. Therefore the
+        # files are identical but have different inodes.
+        # test-snapd-sh.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\""
+        test-snapd-sh.sh -c "cmp \"/usr/lib/snapd/$tool\" \"/snap/core/current/usr/lib/snapd/$tool\""
+
         # Snaps using core18 pick tools from whoever is providing snap-confine.
-            test-snapd-sh-core18.sh -c "test ! -h \"/usr/lib/snapd/$tool\""
-            test-snapd-sh-core18.sh -c "test -f \"/usr/lib/snapd/$tool\""
-        if snap list snapd; then
-            test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/snapd/current/usr/lib/snapd/$tool\""
-        else
-            test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\""
-        fi
+        test-snapd-sh-core18.sh -c "test ! -h \"/usr/lib/snapd/$tool\""
+        test-snapd-sh-core18.sh -c "test -f \"/usr/lib/snapd/$tool\""
+
+        # One of those is always true:
+        test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/snapd/current/usr/lib/snapd/$tool\"" || \
+        test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/snap/core/current/usr/lib/snapd/$tool\"" || \
+        test-snapd-sh-core18.sh -c "test \"/usr/lib/snapd/$tool\" -ef \"/var/lib/snapd/hostfs$LIBEXECDIR/snapd/$tool\""
     done
