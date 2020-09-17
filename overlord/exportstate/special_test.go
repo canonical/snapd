@@ -51,8 +51,8 @@ func (s *specialSuite) TestNewManifestForHostWithDefaultSnapMountDir(c *C) {
 	m := exportstate.NewManifestForHost()
 	c.Check(m.PrimaryKey, Equals, "snapd")
 	c.Check(m.SubKey, Equals, "host")
-	c.Assert(m.Symlinks, HasLen, 8)
-	s.checkSnapExecFromHost(c, &m.Symlinks[5])
+	c.Assert(m.Symlinks, HasLen, 9)
+	s.checkSnapExecFromHost(c, &m.Symlinks[4])
 }
 
 func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
@@ -62,8 +62,8 @@ func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
 	m := exportstate.NewManifestForHost()
 	c.Check(m.PrimaryKey, Equals, "snapd")
 	c.Check(m.SubKey, Equals, "host")
-	c.Assert(m.Symlinks, HasLen, 8)
-	s.checkSnapExecFromHost(c, &m.Symlinks[5])
+	c.Assert(m.Symlinks, HasLen, 9)
+	s.checkSnapExecFromHost(c, &m.Symlinks[4])
 }
 
 func (s *specialSuite) checkSnapExecFromHost(c *C, slink *exportstate.SymlinkExport) {
@@ -77,15 +77,15 @@ func (s *specialSuite) checkSnapExecFromHost(c *C, slink *exportstate.SymlinkExp
 func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.Revision{N: 2}})
 	m := exportstate.NewManifestForSnap(snapdInfo)
-	c.Assert(m.Symlinks, HasLen, 8)
-	s.checkSnapExecFromSnap(c, &m.Symlinks[5], snapdInfo)
+	c.Assert(m.Symlinks, HasLen, 9)
+	s.checkSnapExecFromSnap(c, &m.Symlinks[4], snapdInfo)
 }
 
 func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.Revision{N: 3}})
 	m := exportstate.NewManifestForSnap(coreInfo)
-	c.Assert(m.Symlinks, HasLen, 8)
-	s.checkSnapExecFromSnap(c, &m.Symlinks[5], coreInfo)
+	c.Assert(m.Symlinks, HasLen, 9)
+	s.checkSnapExecFromSnap(c, &m.Symlinks[4], coreInfo)
 }
 
 func (s *specialSuite) checkSnapExecFromSnap(c *C, slink *exportstate.SymlinkExport, info *snap.Info) {

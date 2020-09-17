@@ -405,11 +405,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			"etelpmoc.sh",
 			"info",
 			"snap-confine",
-			"snapctl",
 			"snap-discard-ns",
 			"snap-exec",
 			"snap-gdb-shim",
+			"snap-gdbserver-shim",
 			"snap-update-ns",
+			"snapctl",
 			NULL,
 		};
 		for (const char * const *tool = tools; *tool != NULL; ++tool) {

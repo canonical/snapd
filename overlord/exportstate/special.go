@@ -33,14 +33,15 @@ import (
 
 // toolsToExport contains the list of snapd tools to export.
 var toolsToExport = []string{
-	"etelpmoc.sh",     // used by tab completion logic
-	"info",            // used by re-execution logic
-	"snap-confine",    // sometimes used in special cases
-	"snapctl",         // used by snaps to talk to snapd
-	"snap-discard-ns", // used by snap-confine inside the per-snap mount namespace
-	"snap-exec",       // used by snap-confine inside the per-snap mount namespace
-	"snap-gdb-shim",   // used by snap run
-	"snap-update-ns",  // used by snap-confine inside the per-snap mount namespace
+	"etelpmoc.sh",         // used by tab completion logic
+	"info",                // used by re-execution logic
+	"snap-confine",        // sometimes used in special cases
+	"snap-discard-ns",     // used by snap-confine inside the per-snap mount namespace
+	"snap-exec",           // used by snap-confine inside the per-snap mount namespace
+	"snap-gdb-shim",       // used by snap run --gdb
+	"snap-gdbserver-shim", // used by snap run --experimental-gdbserver
+	"snap-update-ns",      // used by snap-confine inside the per-snap mount namespace
+	"snapctl",             // used by snaps to talk to snapd
 }
 
 func manifestForClassicSystem() *Manifest {
