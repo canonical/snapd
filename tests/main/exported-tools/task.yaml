@@ -9,6 +9,7 @@ execute: |
     # snapd does (which sees that value) even though that is not exhaustively
     # testing all possibilities.
     if [ -e /etc/sysconfig/snapd ]; then
+        # shellcheck disable=SC1091
         . /etc/sysconfig/snapd
     fi
     echo "SNAP_REEXEC=$SNAP_REEXEC"
@@ -27,7 +28,7 @@ execute: |
     exported_version="$(readlink /var/lib/snapd/export/snapd/current)"
     echo "$SPREAD_SYSTEM exports $exported_version as tools"
     test -d "/var/lib/snapd/export/snapd/$exported_version"
-    if [ "${SNAP_REEXEC:-}" = "" ] && snap list snapd; then
+    if [[ $SPREAD_SYSTEM =~ ubuntu-core-* ]] || [ "${SNAP_REEXEC:-}" = "" ] && snap list snapd; then
         # Exported version is the revision of snapd
         snapd_rev="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
         test "$exported_version" = "$snapd_rev"
@@ -37,7 +38,7 @@ execute: |
             test -h "/var/lib/snapd/export/snapd/current/tools/$tool"
             test "$(readlink "/var/lib/snapd/export/snapd/current/tools/$tool")" = "/snap/snapd/$snapd_rev/usr/lib/snapd/$tool"
         done
-    elif [ "${SNAP_REEXEC:-}" = "" ] && snap list core; then
+    elif [[ $SPREAD_SYSTEM =~ ubuntu-core-* ]] || [ "${SNAP_REEXEC:-}" = "" ] && snap list core; then
         # Exported version is the revision of core
         core_rev="$(readlink "$SNAP_MOUNT_DIR/core/current")"
         test "$exported_version" = "core_${core_rev}"
