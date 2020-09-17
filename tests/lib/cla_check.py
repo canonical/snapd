@@ -14,7 +14,7 @@ from subprocess import check_call, check_output
 try:
     from launchpadlib.launchpad import Launchpad
 except ImportError:
-    sys.exit("Install launchpadlib: sudo apt install python-launchpadlib")
+    sys.exit("Install launchpadlib: sudo apt install python-launchpadlib python3-launchpadlib")
 
 shortlog_email_rx = re.compile("^\s*\d+\s+.*<(\S+)>$", re.M)
 
@@ -24,7 +24,7 @@ is_github_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
 
 
 def get_emails_for_range(r):
-    output = check_output(["git", "shortlog", "-se", r])
+    output = check_output(["git", "shortlog", "-se", r]).decode("utf-8")
     return set(m.group(1) for m in shortlog_email_rx.finditer(output))
 
 
