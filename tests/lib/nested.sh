@@ -892,7 +892,7 @@ nested_start_core_vm() {
             sync
 
             # compress the current image if it is a generic image
-            if nested_is_generic_image; then
+            if nested_is_generic_image && [ "$NESTED_CONFIGURE_IMAGES" = "true" ]; then
                 # Stop the current image and compress it
                 nested_shutdown
                 nested_compress_image "$CURRENT_NAME"
