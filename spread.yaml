@@ -407,12 +407,14 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl -e --no-pager -u nested-vm || true
+            journalctl --no-pager -u nested-vm || true
 
             if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
+
+            nested_exec journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'
