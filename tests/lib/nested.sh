@@ -912,10 +912,16 @@ nested_start_core_vm() {
 }
 
 nested_shutdown() {
+    # we sometimes have bugs in nested vm's where files that were successfully
+    # written become empty all of a sudden, so doing a sync here in the VM, and
+    # another one in the host when done probably helps to avoid that, and at
+    # least can't hurt anything
+    nested_exec "sync"
     nested_exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
+    sync
 }
 
 nested_start() {
