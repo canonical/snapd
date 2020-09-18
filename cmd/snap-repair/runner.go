@@ -655,11 +655,37 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 	return nil
 }
 
+func findSeedAssertsDir() (string, error) {
+	// uc16/uc18
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
+	if osutil.IsDirectory(assertSeedDir) {
+		return assertSeedDir, nil
+	}
+	// uc20
+	systemsDir := filepath.Join(dirs.SnapSeedDir, "systems")
+	if osutil.IsDirectory(systemsDir) {
+		dirs, err := filepath.Glob(filepath.Join(systemsDir, "*"))
+		if err != nil {
+			return "", fmt.Errorf("cannot glob system dir: %v", err)
+		}
+		// TODO:UC20: support multiple recover systems
+		if len(dirs) != 1 {
+			return "", fmt.Errorf("cannot repair uc20 with %v systems yet", len(dirs))
+		}
+		return dirs[0], nil
+	}
+
+	return "", fmt.Errorf("cannot find an assertion dir")
+}
+
 func (run *Runner) initDeviceInfo() error {
 	const errPrefix = "cannot set device information: "
 
 	workBS := asserts.NewMemoryBackstore()
-	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
+	assertSeedDir, err := findSeedAssertsDir()
+	if err != nil {
+		return err
+	}
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
 		return err
