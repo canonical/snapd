@@ -217,7 +217,8 @@ func findParentDeviceWithWritableFallback() (string, error) {
 //
 // /dev/mapper/ubuntu-data-<uuid> (a symlink)
 //   ⤷ /dev/dm-0 (set up by device mapper)
-//       ⤷ /dev/hda4 (returned by this function)
+//       ⤷ /dev/hda4 (actual partition with the content)
+//          ⤷ /dev/hda (returned by this function)
 //
 func ParentDiskFromMountSource(mountSource string) (string, error) {
 	// mount source can be a symlink
