@@ -76,7 +76,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -106,7 +106,7 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -143,7 +143,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetSnap:    snapContainer,
 	})
