@@ -22,8 +22,6 @@ execute: |
 
     tools="etelpmoc.sh info snap-confine snap-discard-ns snap-exec snap-gdb-shim snap-gdbserver-shim snap-update-ns snapctl"
 
-    # TODO: arrange so each of the three happens.
-
     # Snapd tools point to the exported revision of core/snapd
     exported_version="$(readlink /var/lib/snapd/export/snapd/current)"
     echo "$SPREAD_SYSTEM exports $exported_version as tools"
