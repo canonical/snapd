@@ -16,7 +16,7 @@ prepare: |
   KEY_NAME=$(nested_get_snakeoil_key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  nested_secboot_sign_file "$PWD/pc-kernel" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" kernel.efi
+  nested_secboot_sign_file "$PWD/pc-kernel/kernel.efi" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
   snap pack pc-kernel
   rm -rf pc-kernel
