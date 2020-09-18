@@ -94,7 +94,7 @@ func (s *mgrSuite) TestStartUpOnClassicWithOnlyCore(c *C) {
 		switch snapName {
 		case "core":
 			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: os\n",
-				&snap.SideInfo{Revision: snap.Revision{N: 1}}), nil
+				&snap.SideInfo{Revision: snap.R(1)}), nil
 		case "snapd":
 			return nil, &snap.NotInstalledError{}
 		default:
@@ -102,13 +102,26 @@ func (s *mgrSuite) TestStartUpOnClassicWithOnlyCore(c *C) {
 		}
 	}))
 
-	// The start-up of the export manager elects the new provider of snapd tools.
-	// When core snap is installed, it is used in preference to host tools.
+	// The start-up of the export manager elects the new provider of snapd
+	// tools. When core snap is installed, it is used in preference to host
+	// tools. In addition, since the core snap did not export content yet, as
+	// there's no trace of that in the state, the start-up process exports the
+	// content as well.
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "core_1")
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+		testutil.SymlinkTargetContains, "snap-exec")
+
+	// The state keeps track of the manifest of the core snap.
+	s.st.Lock()
+	defer s.st.Unlock()
+	var m exportstate.Manifest
+	err = exportstate.Get(s.st, "core", snap.R(1), &m)
+	c.Assert(err, IsNil)
+	c.Check(m.IsEmpty(), Equals, false)
 }
 
 func (s *mgrSuite) TestStartUpOnClassicWithOnlySnapd(c *C) {
@@ -119,19 +132,32 @@ func (s *mgrSuite) TestStartUpOnClassicWithOnlySnapd(c *C) {
 			return nil, &snap.NotInstalledError{}
 		case "snapd":
 			return snaptest.MockInfo(c, "name: snapd\nversion: 1\ntype: snapd\n",
-				&snap.SideInfo{Revision: snap.Revision{N: 2}}), nil
+				&snap.SideInfo{Revision: snap.R(2)}), nil
 		default:
 			panic("unexpected")
 		}
 	}))
 
-	// The start-up of the export manager elects the new provider of snapd tools.
-	// When snapd snap is installed, it is used in preference to host tools.
+	// The start-up of the export manager elects the new provider of snapd
+	// tools. When snapd snap is installed, it is used in preference to host
+	// tools. In addition, since the snapd snap did not export content yet, as
+	// there's no trace of that in the state, the start-up process exports the
+	// content as well.
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "2")
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+		testutil.SymlinkTargetContains, "snap-exec")
+
+	// The state keeps track of the manifest of the snapd snap.
+	s.st.Lock()
+	defer s.st.Unlock()
+	var m exportstate.Manifest
+	err = exportstate.Get(s.st, "snapd", snap.R(2), &m)
+	c.Assert(err, IsNil)
+	c.Check(m.IsEmpty(), Equals, false)
 }
 
 func (s *mgrSuite) TestStartUpOnClassicWithBothSnapdAndCore(c *C) {
@@ -140,22 +166,72 @@ func (s *mgrSuite) TestStartUpOnClassicWithBothSnapdAndCore(c *C) {
 		switch snapName {
 		case "core":
 			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: os\n",
-				&snap.SideInfo{Revision: snap.Revision{N: 1}}), nil
+				&snap.SideInfo{Revision: snap.R(1)}), nil
 		case "snapd":
 			return snaptest.MockInfo(c, "name: snapd\nversion: 1\ntype: snapd\n",
-				&snap.SideInfo{Revision: snap.Revision{N: 2}}), nil
+				&snap.SideInfo{Revision: snap.R(2)}), nil
 		default:
 			panic("unexpected")
 		}
 	}))
 
-	// The start-up of the export manager elects the new provider of snapd tools.
-	// When both snapd and core snaps are present, snapd is preferred.
+	// The start-up of the export manager elects the new provider of snapd
+	// tools. When both snapd and core snaps are present, snapd is preferred. In
+	// addition, since those snaps did not export content yet, as there's no
+	// trace of that in the state, the start-up process exports their content as
+	// well.
+
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "2")
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+		testutil.SymlinkTargetContains, "snap-exec")
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+		testutil.SymlinkTargetContains, "snap-exec")
+
+	// The state keeps track of the manifest of both snapd and the core snap.
+	s.st.Lock()
+	defer s.st.Unlock()
+	var m exportstate.Manifest
+	err = exportstate.Get(s.st, "core", snap.R(1), &m)
+	c.Assert(err, IsNil)
+	c.Check(m.IsEmpty(), Equals, false)
+	err = exportstate.Get(s.st, "snapd", snap.R(2), &m)
+	c.Assert(err, IsNil)
+	c.Check(m.IsEmpty(), Equals, false)
+}
+
+func (s *mgrSuite) TestStartUpOnClassicWithExportedContentInState(c *C) {
+	s.AddCleanup(release.MockOnClassic(true))
+	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
+		switch snapName {
+		case "core":
+			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: os\n",
+				&snap.SideInfo{Revision: snap.R(1)}), nil
+		case "snapd":
+			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: snapd\n",
+				&snap.SideInfo{Revision: snap.R(2)}), nil
+		default:
+			panic("unexpected")
+		}
+	}))
+	s.st.Lock()
+	var m exportstate.Manifest
+	exportstate.Set(s.st, "core", snap.R(1), &m)
+	exportstate.Set(s.st, "snapd", snap.R(2), &m)
+	s.st.Unlock()
+
+	// The start-up of the export manager does not export content for snaps if
+	// there's a trace in the manifest that this was already done.
+	mgr := s.manager(c)
+	err := mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+		testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+		testutil.FileAbsent)
 }
 
 func (s *mgrSuite) TestSnapLinkageChangedToLinked(c *C) {

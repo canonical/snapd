@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -68,6 +69,31 @@ func (m *ExportManager) exportSnapdTools() error {
 	// If the host system has an export manifest, create those files.
 	if err := NewManifestForHost().CreateExportedFiles(); err != nil {
 		return err
+	}
+	// If snapd or core are installed but do not have exported content in the
+	// state then export their content. This can happen when snapd or core are
+	// upgraded via re-execution from a version that was not aware of exports to
+	// one that is.
+	for _, snapName := range []string{"snapd", "core"} {
+		info, err := snapstateCurrentInfo(m.state, snapName)
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			// If a snap is not installed them we have nothing to check.
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		var oldManifest Manifest
+		if Get(m.state, info.InstanceName(), info.Revision, &oldManifest) == nil {
+			// If there is an export manifest then presumably there is also content on disk.
+			continue
+		}
+		// Export files to disk and store that in the state.
+		newManifest := NewManifestForSnap(info)
+		if err := newManifest.CreateExportedFiles(); err != nil {
+			return err
+		}
+		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
 	primaryKey, subKey, err := effectiveManifestKeysForSnapdOrCore(m.state)
 	if err != nil {
