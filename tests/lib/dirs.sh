@@ -17,6 +17,10 @@ case "$SPREAD_SYSTEM" in
     opensuse-*)
         export SNAP_MOUNT_DIR=/snap
         export MEDIA_DIR=/run/media
+        if [ "$( . /etc/os-release ; echo "$ID")" = "opensuse-tumbleweed" ]; then
+            # Tumbleweed since snapshot 20200827 is using /usr/libexec as libexecdir
+            export LIBEXECDIR=/usr/libexec
+        fi
         ;;
     *)
         ;;

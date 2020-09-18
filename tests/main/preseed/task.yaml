@@ -19,7 +19,7 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
+  wget "$(nested_get_image_url_for_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/preseed.sh

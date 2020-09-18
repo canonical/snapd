@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -933,6 +934,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1103,6 +1105,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
@@ -1436,6 +1439,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_666.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1599,6 +1603,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1675,6 +1680,12 @@ func (s *snapmgrTestSuite) TestInstalling(c *C) {
 func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+		c.Fatalf("installSize shouldn't be hit with local install")
+		return 0, nil
+	})
+	defer restoreInstallSize()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2774,6 +2785,43 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderCompat(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+		return 0, fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `boom`)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3142,6 +3190,40 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
+	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", false)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {

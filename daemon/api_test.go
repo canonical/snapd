@@ -7645,6 +7645,28 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestErrToResponseInsufficentSpace(c *check.C) {
+	err := &snapstate.InsufficientSpaceError{
+		Snaps:      []string{"foo", "bar"},
+		ChangeKind: "some-change",
+		Path:       "/path",
+		Message:    "specific error msg",
+	}
+	rsp := errToResponse(err, nil, BadRequest, "%s: %v", "ERR").(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 507,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "specific error msg",
+			Kind:    client.ErrorKindInsufficientDiskSpace,
+			Value: map[string]interface{}{
+				"snap-names":  []string{"foo", "bar"},
+				"change-kind": "some-change",
+			},
+		},
+	})
+}
+
 func (s *apiSuite) TestErrToResponse(c *check.C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}

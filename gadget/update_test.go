@@ -711,7 +711,7 @@ type mockUpdateProcessObserver struct {
 }
 
 func (m *mockUpdateProcessObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
 	return false, errors.New("unexpected call")
 }
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -198,7 +198,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 
 	chg, t := s.setupGadgetUpdate(c, grade)
 
-	// procure modeenv
+	// procure modeenv and stamp that we sealed keys
 	if grade != "" {
 		// state after mark-seeded ran
 		modeenv := boot.Modeenv{
@@ -206,6 +206,12 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 			RecoverySystem: "",
 		}
 		err := modeenv.WriteTo("")
+		c.Assert(err, IsNil)
+
+		// sealed keys stamp
+		stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
+		c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
+		err = ioutil.WriteFile(stamp, nil, 0644)
 		c.Assert(err, IsNil)
 	}
 	devicestate.SetBootOkRan(s.mgr, true)

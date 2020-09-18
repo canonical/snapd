@@ -142,15 +142,14 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), testutil.EqualsWrapped, InterfacesDeprecationNotice)
 
-	s.SetUpTest(c)
+	s.ResetStdStreams()
 	// should be the same
 	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "canonical-pi2"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), testutil.EqualsWrapped, InterfacesDeprecationNotice)
-
-	s.SetUpTest(c)
+	s.ResetStdStreams()
 	// and the same again
 	rest, err = Parser(Client()).ParseArgs([]string{"interfaces", "keyboard-lights"})
 	c.Assert(err, IsNil)
