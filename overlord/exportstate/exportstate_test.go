@@ -192,7 +192,7 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 }
 
 func (s *exportstateSuite) TestCurrentExportedVersionSymlinkPath(c *C) {
-	path := exportstate.CurrentExportedVersionSymlinkPath("snap-name")
+	path := exportstate.ExportedVersionSymlinkPath("snap-name")
 	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/snap-name/current")
 }
 

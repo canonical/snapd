@@ -100,9 +100,9 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 	return nil
 }
 
-// currentSymlinkPath returns the path of the current exported version symlink
+// exporetedVersionSymlinkPath returns the path of the current exported version symlink
 // for given snapName.
-func currentExportedVersionSymlinkPath(snapName string) string {
+func exportedVersionSymlinkPath(snapName string) string {
 	return filepath.Join(ExportDir, snapName, "current")
 }
 
@@ -118,7 +118,7 @@ func currentExportedVersionSymlinkPath(snapName string) string {
 //
 // Appropriate version can be computed by exportedVersionForSnap.
 func updateExportedVersion(snapName, exportedVersion string) error {
-	pathName := currentExportedVersionSymlinkPath(snapName)
+	pathName := exportedVersionSymlinkPath(snapName)
 	if exportedVersion != "" {
 		if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot set exported version of %q to %q: %v", snapName, exportedVersion, err)
