@@ -18,14 +18,13 @@ prepare: |
 
     # build an unrelated empty cdrom drive to provide to first boot with no 
     # real files on it to use as a placeholder in qemu args
-    nested_build_seed_cdrom emptykthxbai seed1.iso notcidata emptykthxbai
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
 
-    # build the cloud-init NoCloud cdrom drive
-    nested_build_seed_cdrom seed seed2.iso cidata user-data meta-data
+    # build the attacker cloud-init NoCloud cdrom drive
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
     # first boot will use seed1 which is empty, but the same file name will be 
     # replace while the VM is shutdown to use the second attacker iso
-    mv seed1.iso seed.iso
     NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
 
     nested_create_core_vm

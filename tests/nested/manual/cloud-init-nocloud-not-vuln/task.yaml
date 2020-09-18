@@ -21,10 +21,10 @@ prepare: |
     . "$TESTSLIB/nested.sh"
 
     # first boot - legit NoCloud usage
-    nested_build_seed_cdrom seed1 seed.iso cidata user-data meta-data
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
 
     # second boot - attacker drive
-    nested_build_seed_cdrom seed2 seed2.iso cidata user-data meta-data
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
     # first boot uses seed1 to create the normal-user in addition to the 
     # system-user assertion
