@@ -45,7 +45,7 @@ var toolsToExport = []string{
 }
 
 func manifestForClassicSystem() *Manifest {
-	snapName, exportedVersion := manifestKeysForHost()
+	snapName, exportedVersion := snapNameAndExportedVersionForHost()
 	return &Manifest{
 		SnapName:        snapName,
 		ExportedVersion: exportedVersion,
@@ -54,14 +54,14 @@ func manifestForClassicSystem() *Manifest {
 }
 
 func manifestForCoreSystem() *Manifest {
-	snapName, exportedVersion := manifestKeysForHost()
+	snapName, exportedVersion := snapNameAndExportedVersionForHost()
 	return &Manifest{
 		SnapName:        snapName,
 		ExportedVersion: exportedVersion,
 	}
 }
 
-func manifestKeysForHost() (snapName string, exportedVersion string) {
+func snapNameAndExportedVersionForHost() (snapName string, exportedVersion string) {
 	return "snapd", "host"
 }
 
@@ -74,7 +74,7 @@ func exportedSnapdToolsFromHost() []*exportEntry {
 }
 
 func manifestForSnapdSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := manifestKeysForSnapd(info)
+	snapName, exportedVersion := snapNameAndExportedVersionForSnapd(info)
 	return &Manifest{
 		SnapName:        snapName,
 		ExportedVersion: exportedVersion,
@@ -82,7 +82,7 @@ func manifestForSnapdSnap(info *snap.Info) *Manifest {
 	}
 }
 
-func manifestKeysForSnapd(info *snap.Info) (snapName string, exportedVersion string) {
+func snapNameAndExportedVersionForSnapd(info *snap.Info) (snapName string, exportedVersion string) {
 	return "snapd", info.Revision.String()
 }
 
@@ -95,7 +95,7 @@ func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*exportEntry {
 }
 
 func manifestForCoreSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := manifestKeysForCore(info)
+	snapName, exportedVersion := snapNameAndExportedVersionForCore(info)
 	return &Manifest{
 		SnapName:        snapName,
 		ExportedVersion: exportedVersion,
@@ -103,12 +103,12 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 	}
 }
 
-func manifestKeysForCore(info *snap.Info) (snapName string, exportedVersion string) {
+func snapNameAndExportedVersionForCore(info *snap.Info) (snapName string, exportedVersion string) {
 	return "snapd", fmt.Sprintf("core_%s", info.Revision)
 }
 
 func manifestForRegularSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := manifestKeysForRegularSnap(info)
+	snapName, exportedVersion := snapNameAndExportedVersionForRegularSnap(info)
 	return &Manifest{
 		SnapName:        snapName,
 		ExportedVersion: exportedVersion,
@@ -116,9 +116,9 @@ func manifestForRegularSnap(info *snap.Info) *Manifest {
 	}
 }
 
-func manifestKeysForRegularSnap(info *snap.Info) (snapName string, exportedVersion string) {
+func snapNameAndExportedVersionForRegularSnap(info *snap.Info) (snapName string, exportedVersion string) {
 	if info.SnapName() == "core" || info.SnapName() == "snapd" {
-		panic("internal error, cannot use manifestKeysForRegularSnap with core or snapd")
+		panic("internal error, cannot use snapNameAndExportedVersionForRegularSnap with core or snapd")
 	}
 	snapName = info.SnapName() // Instance key goes to exportedVersion
 	if info.InstanceKey == "" {
@@ -129,8 +129,7 @@ func manifestKeysForRegularSnap(info *snap.Info) (snapName string, exportedVersi
 	return snapName, exportedVersion
 }
 
-// XXX: this is named too similarly to functions above but plays a fundamentally different role.
-func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, exportedVersion string, err error) {
+func effectiveSnapNameAndExportedVersionForSnapdOrCore(st *state.State) (snapName string, exportedVersion string, err error) {
 	snapdInfo, coreInfo, err := currentSnapdAndCoreInfo(st)
 	if err != nil {
 		return "", "", err
@@ -138,10 +137,10 @@ func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, expo
 	var activeSnapdExportedVersion string
 	var activeCoreExportedVersion string
 	if snapdInfo != nil && snapdInfo.Broken == "" {
-		snapName, activeSnapdExportedVersion = manifestKeysForSnapd(snapdInfo)
+		snapName, activeSnapdExportedVersion = snapNameAndExportedVersionForSnapd(snapdInfo)
 	}
 	if coreInfo != nil && coreInfo.Broken == "" {
-		snapName, activeCoreExportedVersion = manifestKeysForCore(coreInfo)
+		snapName, activeCoreExportedVersion = snapNameAndExportedVersionForCore(coreInfo)
 	}
 	exportedVersion = selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
 	if exportedVersion != "" && snapName == "" {

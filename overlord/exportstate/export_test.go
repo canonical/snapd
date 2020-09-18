@@ -26,11 +26,11 @@ import (
 
 var (
 	// exportstate.go
-	ExportedVersionSymlinkPath          = exportedVersionSymlinkPath
-	UpdateExportedVersion               = updateExportedVersion
-	EffectiveManifestKeysForSnapdOrCore = effectiveManifestKeysForSnapdOrCore
-	SelectExportedVersionForSnapdTools  = selectExportedVersionForSnapdTools
-	CurrentSnapdAndCoreInfo             = currentSnapdAndCoreInfo
+	ExportedVersionSymlinkPath                        = exportedVersionSymlinkPath
+	UpdateExportedVersion                             = updateExportedVersion
+	EffectiveSnapNameAndExportedVersionForSnapdOrCore = effectiveSnapNameAndExportedVersionForSnapdOrCore
+	SelectExportedVersionForSnapdTools                = selectExportedVersionForSnapdTools
+	CurrentSnapdAndCoreInfo                           = currentSnapdAndCoreInfo
 )
 
 func MockSnapStateCurrentInfo(fn func(st *state.State, snapName string) (*snap.Info, error)) (restore func()) {

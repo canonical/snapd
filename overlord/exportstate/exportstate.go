@@ -138,7 +138,7 @@ func updateExportedVersion(snapName, exportedVersion string) error {
 func ManifestKeys(st *state.State, instanceName string) (snapName string, exportedVersion string, err error) {
 	switch instanceName {
 	case "core", "snapd":
-		snapName, exportedVersion, err = effectiveManifestKeysForSnapdOrCore(st)
+		snapName, exportedVersion, err = effectiveSnapNameAndExportedVersionForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}
@@ -151,7 +151,7 @@ func ManifestKeys(st *state.State, instanceName string) (snapName string, export
 			snapName, _ = snap.SplitInstanceName(instanceName)
 			return snapName, "", nil
 		}
-		snapName, exportedVersion = manifestKeysForRegularSnap(info)
+		snapName, exportedVersion = snapNameAndExportedVersionForRegularSnap(info)
 	}
 	return snapName, exportedVersion, nil
 }

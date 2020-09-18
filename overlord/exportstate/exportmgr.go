@@ -93,7 +93,7 @@ func (m *ExportManager) exportSnapdTools() error {
 		}
 		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
-	snapName, exportedVersion, err := effectiveManifestKeysForSnapdOrCore(m.state)
+	snapName, exportedVersion, err := effectiveSnapNameAndExportedVersionForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
