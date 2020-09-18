@@ -143,14 +143,14 @@ func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, expo
 	if coreInfo != nil && coreInfo.Broken == "" {
 		snapName, activeCoreExportedVersion = manifestKeysForCore(coreInfo)
 	}
-	exportedVersion = electExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
+	exportedVersion = selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
 	if exportedVersion != "" && snapName == "" {
 		snapName = "snapd"
 	}
 	return snapName, exportedVersion, nil
 }
 
-// electExportedVersionForSnapdTools returns the version to use for snapd tools export set.
+// selectExportedVersionForSnapdTools returns the version to use for snapd tools export set.
 //
 // The snapd tools export set is special as there are providers from snaps other
 // than snapd that need consideration. The result is, in order of preference:
@@ -161,7 +161,7 @@ func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, expo
 // 3) "host" version, if on classic
 //
 // If no provider is available then empty version is returned.
-func electExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion string) string {
+func selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion string) string {
 	if release.OnClassic && os.Getenv("SNAP_REEXEC") == "0" {
 		return "host"
 	}

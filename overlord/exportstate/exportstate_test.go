@@ -304,32 +304,32 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 	c.Check(exportedVersion, Equals, "42_instance")
 }
 
-func (s *exportstateSuite) TestElectExportedVersionForSnapdTools(c *C) {
+func (s *exportstateSuite) TestSelectExportedVersionForSnapdTools(c *C) {
 	// When both snapd and core are present, snapd dominates.
-	exportedVersion := exportstate.ElectExportedVersionForSnapdTools("snapd_version", "core_version")
+	exportedVersion := exportstate.SelectExportedVersionForSnapdTools("snapd_version", "core_version")
 	c.Check(exportedVersion, Equals, "snapd_version")
 
 	// When either only snapd or core is present, it is used.
-	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("snapd_version", "")
+	exportedVersion = exportstate.SelectExportedVersionForSnapdTools("snapd_version", "")
 	c.Check(exportedVersion, Equals, "snapd_version")
-	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "core_version")
+	exportedVersion = exportstate.SelectExportedVersionForSnapdTools("", "core_version")
 	c.Check(exportedVersion, Equals, "core_version")
 
 	// On classic systems when neither snap is present, host tools are used.
 	s.AddCleanup(release.MockOnClassic(true))
-	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "")
+	exportedVersion = exportstate.SelectExportedVersionForSnapdTools("", "")
 	c.Check(exportedVersion, Equals, "host")
 
 	// On core systems when neither snap is present, no tool provider is used.
 	s.AddCleanup(release.MockOnClassic(false))
-	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "")
+	exportedVersion = exportstate.SelectExportedVersionForSnapdTools("", "")
 	c.Check(exportedVersion, Equals, "")
 
 	// On classic systems with disabled re-exec host wins over snaps.
 	s.AddCleanup(release.MockOnClassic(true))
 	os.Setenv("SNAP_REEXEC", "0")
 	s.AddCleanup(func() { os.Unsetenv("SNAP_REEXEC") })
-	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("snapd_version", "core_version")
+	exportedVersion = exportstate.SelectExportedVersionForSnapdTools("snapd_version", "core_version")
 	c.Check(exportedVersion, Equals, "host")
 
 }

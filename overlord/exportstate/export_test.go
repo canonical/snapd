@@ -29,7 +29,7 @@ var (
 	CurrentExportedVersionSymlinkPath   = currentExportedVersionSymlinkPath
 	UpdateExportedVersion               = updateExportedVersion
 	EffectiveManifestKeysForSnapdOrCore = effectiveManifestKeysForSnapdOrCore
-	ElectExportedVersionForSnapdTools   = electExportedVersionForSnapdTools
+	SelectExportedVersionForSnapdTools  = selectExportedVersionForSnapdTools
 	CurrentSnapdAndCoreInfo             = currentSnapdAndCoreInfo
 )
 
