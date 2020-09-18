@@ -138,6 +138,28 @@ func hashkeys(snapshot *client.Snapshot) (keys []string) {
 	return keys
 }
 
+func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
+	tests := []struct {
+		name  string
+		valid bool
+		setID uint64
+	}{
+		{"1_foo.zip", true, 1},
+		{"14_hello-world_6.4_29.zip", true, 14},
+		{"1_foo.zip.bak", false, 0},
+		{"foo_1_foo.zip", false, 0},
+		{"foo_bar_baz.zip", false, 0},
+		{"", false, 0},
+		{"1_", false, 0},
+	}
+
+	for _, t := range tests {
+		ok, setID := backend.IsSnapshotFilename(t.name)
+		c.Check(ok, check.Equals, t.valid)
+		c.Check(setID, check.Equals, t.setID)
+	}
+}
+
 func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -217,7 +239,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
@@ -237,7 +259,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	c.Check(triedToOpenDir, check.Equals, true)
 	c.Check(readNames, check.Equals, 2)
 	c.Check(triedToOpenSnapshot, check.Equals, true)
-	c.Check(logbuf.String(), check.Matches, `(?m).* Cannot open snapshot "hello": invalid argument.`)
+	c.Check(logbuf.String(), check.Matches, `(?m).* Cannot open snapshot "1_hello.zip": invalid argument.`)
 	c.Check(calledF, check.Equals, false)
 }
 
@@ -255,13 +277,14 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		// NOTE non-nil reader, and error, returned
 		r := backend.Reader{}
+		r.SetID = 1
 		r.Broken = "xyzzy"
 		return &r, os.ErrInvalid
 	})()
@@ -297,7 +320,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"42_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
@@ -324,10 +347,68 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 	c.Check(calledF, check.Equals, true)
 }
 
-func (s *snapshotSuite) TestList(c *check.C) {
+func readerForFilename(fname string, c *check.C) *backend.Reader {
+	var snapname string
+	var id uint64
+	fn := strings.TrimSuffix(filepath.Base(fname), ".zip")
+	_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+	c.Assert(err, check.IsNil, check.Commentf(fn))
+	f, err := os.Open(os.DevNull)
+	c.Assert(err, check.IsNil, check.Commentf(fn))
+	return &backend.Reader{
+		File: f,
+		Snapshot: client.Snapshot{
+			SetID: id,
+			Snap:  snapname,
+		},
+	}
+}
+
+func (s *snapshotSuite) TestIterIgnoresSnapshotsWithSetIdMismatches(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
+		return new(os.File), nil
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 2 {
+			return nil, io.EOF
+		}
+		return []string{
+			"1_foo.zip",
+			"2_bar.zip"}, nil
+	})()
+	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
+		r := readerForFilename(fname, c)
+		if r.SetID == 1 {
+			r.SetID = 99
+		}
+		return r, nil
+	})()
+
+	calledF := false
+	f := func(snapshot *backend.Reader) error {
+		calledF = true
+		c.Check(snapshot.SetID, check.Equals, uint64(2))
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(logbuf.String(), check.Matches, `(?m).* Snapshot \"1_foo.zip\" ignored, internal set-id 99 disagrees with filename`)
+	c.Check(calledF, check.Equals, true)
+}
+
+func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
+		return new(os.File), nil
+	})()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		readNames++
@@ -335,15 +416,51 @@ func (s *snapshotSuite) TestList(c *check.C) {
 			return nil, io.EOF
 		}
 		return []string{
-			fmt.Sprintf("%d_foo", readNames),
-			fmt.Sprintf("%d_bar", readNames),
-			fmt.Sprintf("%d_baz", readNames),
+			"_foo.zip",
+			"43_bar.zip",
+			"foo_bar.zip",
+			"bar.",
+		}, nil
+	})()
+	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
+		return readerForFilename(fname, c), nil
+	})()
+
+	calledF := false
+	f := func(snapshot *backend.Reader) error {
+		calledF = true
+		c.Check(snapshot.SetID, check.Equals, uint64(43))
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(logbuf.String(), check.Equals, "")
+	c.Check(calledF, check.Equals, true)
+}
+
+func (s *snapshotSuite) TestList(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 4 {
+			return nil, io.EOF
+		}
+		return []string{
+			fmt.Sprintf("%d_foo.zip", readNames),
+			fmt.Sprintf("%d_bar.zip", readNames),
+			fmt.Sprintf("%d_baz.zip", readNames),
 		}, nil
 	})()
 	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
 		var id uint64
 		var snapname string
-		fn = filepath.Base(fn)
+		c.Assert(strings.HasSuffix(fn, ".zip"), check.Equals, true)
+		fn = strings.TrimSuffix(filepath.Base(fn), ".zip")
 		_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
 		c.Assert(err, check.IsNil, check.Commentf(fn))
 		f, err := os.Open(os.DevNull)
