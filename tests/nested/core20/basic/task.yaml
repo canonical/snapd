@@ -31,3 +31,8 @@ execute: |
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
     ! nested_exec "snap list test-snapd-sh"
+
+    echo "Ensure 'snap debug show-recovery-key' works as root"
+    nested_exec "sudo snap debug show-recovery-key" | MATCH '[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    echo "But not as user (normal file permissions prevent this)"
+    ! nested_exec "snap debug show-recovery-key"

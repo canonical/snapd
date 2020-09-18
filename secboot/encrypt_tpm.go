@@ -55,6 +55,12 @@ func (key RecoveryKey) Save(filename string) error {
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
+// String provides a recovery key representation that can be read by
+// secboot.ParseRecoveryKey() to contruct the recovery key from a string
+func (key RecoveryKey) String() string {
+	return sb.RecoveryKey(key).String()
+}
+
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the
 // volume is provided using the key argument.
