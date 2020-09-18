@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
 )
 
 // See https://github.com/snapcore/core20/pull/46
@@ -46,6 +47,10 @@ type Options struct {
 
 	// GadgetDir is the path of the mounted gadget snap.
 	GadgetDir string
+
+	// GadgetSnap is a snap.Container of the gadget snap. This is used in
+	// priority over GadgetDir if set.
+	GadgetSnap snap.Container
 }
 
 // FilesystemOnlyApplyOptions is the set of options for
@@ -77,12 +82,21 @@ func ConfigureRunSystem(opts *Options) error {
 		return err
 	}
 
-	if opts.GadgetDir != "" {
-		ginf, err := gadget.ReadInfo(opts.GadgetDir, nil)
-		if err != nil {
-			return err
-		}
-		defaults := gadget.SystemDefaults(ginf.Defaults)
+	var gadgetInfo *gadget.Info
+	var err error
+	switch {
+	case opts.GadgetSnap != nil:
+		gadgetInfo, err = gadget.ReadInfoFromSnapFile(opts.GadgetSnap, nil)
+	case opts.GadgetDir != "":
+		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if gadgetInfo != nil {
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
 			// options are nil which implies core system
 			var options *FilesystemOnlyApplyOptions
