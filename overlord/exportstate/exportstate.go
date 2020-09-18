@@ -37,8 +37,8 @@ import (
 //
 // The directory contains a structure which exposes certain files, known as
 // export sets, from snaps to the classic system or to other snaps. The general
-// pattern is /var/lib/snapd/export/<snapName>/<subKey>/<exportSet>, where
-// <snapName> is usually the snap name, <subKey> is usually the revision and
+// pattern is /var/lib/snapd/export/<snapName>/<exportedVersion>/<exportSet>, where
+// <snapName> is usually the snap name, <exportedVersion> is usually the revision and
 // instance key and <exportSet> is the name of a related set of files, usually
 // of a common type.
 var ExportDir = defaultExportDir
@@ -100,42 +100,43 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 	return nil
 }
 
-// currentSymlinkPath returns the path of the current subkey symlink for given  snapName.
-func currentSubKeySymlinkPath(snapName string) string {
+// currentSymlinkPath returns the path of the current exported version symlink
+// for given snapName.
+func currentExportedVersionSymlinkPath(snapName string) string {
 	return filepath.Join(ExportDir, snapName, "current")
 }
 
-// setCurrentSubKey replaces the "current" symlink for the given snap name to
-// point to the given subKey. Appropriate subKey can be computed by
-// subKeyForSnap.
+// setCurrentExportedVersion replaces the "current" symlink for the given snap
+// name to point to the given version. Appropriate version can be computed by
+// exportedVersionForSnap.
 //
 // If the symbolic link cannot be created because the export directory does not
 // exist no error is reported. This is because this function is most often
-// called from link-snap where it runs unconditionally but most snaps do not
+// called from link-snap, where it runs unconditionally, but most snaps do not
 // have any content to export and the symlink would be dangling.
-func setCurrentSubKey(snapName, subKey string) error {
-	pathName := currentSubKeySymlinkPath(snapName)
-	if err := osutil.AtomicSymlink(subKey, pathName); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot set current subkey of %q to %q: %v", snapName, subKey, err)
+func setCurrentExportedVersion(snapName, exportedVersion string) error {
+	pathName := currentExportedVersionSymlinkPath(snapName)
+	if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot set currently exported version of %q to %q: %v", snapName, exportedVersion, err)
 	}
 	return nil
 }
 
-// removeCurrentSubKey removes the "current" symlink for the given snap name.
-func removeCurrentSubKey(snapName string) error {
-	if err := os.Remove(currentSubKeySymlinkPath(snapName)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove current subkey of %q: %v", snapName, err)
+// removeCurrentExportedVersion removes the "current" symlink for the given snap name.
+func removeCurrentExportedVersion(snapName string) error {
+	if err := os.Remove(currentExportedVersionSymlinkPath(snapName)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot unset currently exported version of %q: %v", snapName, err)
 	}
 	return nil
 }
 
-// ManifestKeys returns the (snapName, subKey) tuple to use as the current
-// provider of all the export sets of a given snap. The returned subKey may be
+// ManifestKeys returns the (snapName, exportedVersion) tuple to use as the current
+// provider of all the export sets of a given snap. The returned exportedVersion may be
 // empty, indicating that given snap has no current revision.
-func ManifestKeys(st *state.State, instanceName string) (snapName string, subKey string, err error) {
+func ManifestKeys(st *state.State, instanceName string) (snapName string, exportedVersion string, err error) {
 	switch instanceName {
 	case "core", "snapd":
-		snapName, subKey, err = effectiveManifestKeysForSnapdOrCore(st)
+		snapName, exportedVersion, err = effectiveManifestKeysForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}
@@ -148,7 +149,7 @@ func ManifestKeys(st *state.State, instanceName string) (snapName string, subKey
 			snapName, _ = snap.SplitInstanceName(instanceName)
 			return snapName, "", nil
 		}
-		snapName, subKey = manifestKeysForRegularSnap(info)
+		snapName, exportedVersion = manifestKeysForRegularSnap(info)
 	}
-	return snapName, subKey, nil
+	return snapName, exportedVersion, nil
 }

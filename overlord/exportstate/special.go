@@ -45,23 +45,23 @@ var toolsToExport = []string{
 }
 
 func manifestForClassicSystem() *Manifest {
-	snapName, subKey := manifestKeysForHost()
+	snapName, exportedVersion := manifestKeysForHost()
 	return &Manifest{
-		SnapName: snapName,
-		SubKey:   subKey,
-		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapdToolsFromHost()),
+		SnapName:        snapName,
+		ExportedVersion: exportedVersion,
+		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapdToolsFromHost()),
 	}
 }
 
 func manifestForCoreSystem() *Manifest {
-	snapName, subKey := manifestKeysForHost()
+	snapName, exportedVersion := manifestKeysForHost()
 	return &Manifest{
-		SnapName: snapName,
-		SubKey:   subKey,
+		SnapName:        snapName,
+		ExportedVersion: exportedVersion,
 	}
 }
 
-func manifestKeysForHost() (snapName string, subKey string) {
+func manifestKeysForHost() (snapName string, exportedVersion string) {
 	return "snapd", "host"
 }
 
@@ -74,15 +74,15 @@ func exportedSnapdToolsFromHost() []*ExportEntry {
 }
 
 func manifestForSnapdSnap(info *snap.Info) *Manifest {
-	snapName, subKey := manifestKeysForSnapd(info)
+	snapName, exportedVersion := manifestKeysForSnapd(info)
 	return &Manifest{
-		SnapName: snapName,
-		SubKey:   subKey,
-		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		SnapName:        snapName,
+		ExportedVersion: exportedVersion,
+		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapToolsFromSnapdOrCore(info)),
 	}
 }
 
-func manifestKeysForSnapd(info *snap.Info) (snapName string, subKey string) {
+func manifestKeysForSnapd(info *snap.Info) (snapName string, exportedVersion string) {
 	return "snapd", info.Revision.String()
 }
 
@@ -95,81 +95,81 @@ func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*ExportEntry {
 }
 
 func manifestForCoreSnap(info *snap.Info) *Manifest {
-	snapName, subKey := manifestKeysForCore(info)
+	snapName, exportedVersion := manifestKeysForCore(info)
 	return &Manifest{
-		SnapName: snapName,
-		SubKey:   subKey,
-		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		SnapName:        snapName,
+		ExportedVersion: exportedVersion,
+		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapToolsFromSnapdOrCore(info)),
 	}
 }
 
-func manifestKeysForCore(info *snap.Info) (snapName string, subKey string) {
+func manifestKeysForCore(info *snap.Info) (snapName string, exportedVersion string) {
 	return "snapd", fmt.Sprintf("core_%s", info.Revision)
 }
 
 func manifestForRegularSnap(info *snap.Info) *Manifest {
-	snapName, subKey := manifestKeysForRegularSnap(info)
+	snapName, exportedVersion := manifestKeysForRegularSnap(info)
 	return &Manifest{
-		SnapName: snapName,
-		SubKey:   subKey,
+		SnapName:        snapName,
+		ExportedVersion: exportedVersion,
 		// TODO: eventually get this from the snap.yaml
 	}
 }
 
-func manifestKeysForRegularSnap(info *snap.Info) (snapName string, subKey string) {
+func manifestKeysForRegularSnap(info *snap.Info) (snapName string, exportedVersion string) {
 	if info.SnapName() == "core" || info.SnapName() == "snapd" {
 		panic("internal error, cannot use manifestKeysForRegularSnap with core or snapd")
 	}
-	snapName = info.SnapName() // Instance key goes to subKey
+	snapName = info.SnapName() // Instance key goes to exportedVersion
 	if info.InstanceKey == "" {
-		subKey = info.Revision.String()
+		exportedVersion = info.Revision.String()
 	} else {
-		subKey = fmt.Sprintf("%s_%s", info.Revision.String(), info.InstanceKey)
+		exportedVersion = fmt.Sprintf("%s_%s", info.Revision.String(), info.InstanceKey)
 	}
-	return snapName, subKey
+	return snapName, exportedVersion
 }
 
 // XXX: this is named too similarly to functions above but plays a fundamentally different role.
-func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, subKey string, err error) {
+func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, exportedVersion string, err error) {
 	snapdInfo, coreInfo, err := currentSnapdAndCoreInfo(st)
 	if err != nil {
 		return "", "", err
 	}
-	var activeSnapdSubKey string
-	var activeCoreSubKey string
+	var activeSnapdExportedVersion string
+	var activeCoreExportedVersion string
 	if snapdInfo != nil && snapdInfo.Broken == "" {
-		snapName, activeSnapdSubKey = manifestKeysForSnapd(snapdInfo)
+		snapName, activeSnapdExportedVersion = manifestKeysForSnapd(snapdInfo)
 	}
 	if coreInfo != nil && coreInfo.Broken == "" {
-		snapName, activeCoreSubKey = manifestKeysForCore(coreInfo)
+		snapName, activeCoreExportedVersion = manifestKeysForCore(coreInfo)
 	}
-	subKey = electSubKeyForSnapdTools(activeSnapdSubKey, activeCoreSubKey)
-	if subKey != "" && snapName == "" {
+	exportedVersion = electExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
+	if exportedVersion != "" && snapName == "" {
 		snapName = "snapd"
 	}
-	return snapName, subKey, nil
+	return snapName, exportedVersion, nil
 }
 
-// electSubKeyForSnapdTools returns the subkey to use for snapd tools export set.
+// electExportedVersionForSnapdTools returns the version to use for snapd tools export set.
 //
 // The snapd tools export set is special as there are providers from snaps other
 // than snapd that need consideration. The result is, in order of preference:
 //
 // 0) "host" if on classic with disabled re-execution.
-// 1) snapd subkey, if available
-// 2) core subkey, if available
-// 3) "host" subkey, if on classic
+// 1) snapd version, if available
+// 2) core version, if available
+// 3) "host" version, if on classic
 //
-// If no provider is available then empty subkey is returned.
-func electSubKeyForSnapdTools(activeSnapdSubKey, activeCoreSubKey string) string {
+// If no provider is available then empty version is returned.
+func electExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion string) string {
 	if release.OnClassic && os.Getenv("SNAP_REEXEC") == "0" {
 		return "host"
 	}
-	if subKey := activeSnapdSubKey; subKey != "" {
-		return subKey
+	if exportedVersion := activeSnapdExportedVersion; exportedVersion != "" {
+		return exportedVersion
 	}
-	if subKey := activeCoreSubKey; subKey != "" {
-		return subKey
+	if exportedVersion := activeCoreExportedVersion; exportedVersion != "" {
+		return exportedVersion
 	}
 	if release.OnClassic {
 		return "host"

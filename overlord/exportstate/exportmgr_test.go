@@ -73,7 +73,7 @@ func (s *mgrSuite) TestStartUpOnClassicWithoutSnaps(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(exportstate.CurrentSubKeySymlinkPath("snapd"), testutil.SymlinkTargetEquals, "host")
+	c.Check(exportstate.CurrentExportedVersionSymlinkPath("snapd"), testutil.SymlinkTargetEquals, "host")
 }
 
 func (s *mgrSuite) TestStartUpOnCoreWithoutSnaps(c *C) {

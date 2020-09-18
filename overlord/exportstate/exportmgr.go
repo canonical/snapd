@@ -29,13 +29,12 @@ import (
 )
 
 // ExportManager is responsible for maintenance of content exported from snaps
-// to other snaps or to the host system and, in some cases, for content
-// exported from the host system to snaps.
+// to other snaps or to the host system and, in some cases, for content exported
+// from the host system to snaps.
 //
-// The export manager does not store any state directly. Instead it relies on
-// snapstate, as all the information that is required so far can be derived
-// from snap.Info of each snap on the system, coupled with the information
-// about the current revision of each snap.
+// The export manager stores state describing the content exported by each
+// particular revision. Content exported by the host is a special case and is
+// not stored in the state.
 type ExportManager struct {
 	state  *state.State
 	runner *state.TaskRunner
@@ -70,8 +69,8 @@ func (m *ExportManager) exportSnapdTools() error {
 	if err := NewManifestForHost().CreateExportedFiles(); err != nil {
 		return err
 	}
-	// If snapd or core are installed but do not have exported content in the
-	// state then export their content. This can happen when snapd or core are
+	// If snapd or core snaps are installed but do not have manifests in the
+	// statem then export their content. This can happen when snapd or core are
 	// upgraded via re-execution from a version that was not aware of exports to
 	// one that is.
 	for _, snapName := range []string{"snapd", "core"} {
@@ -88,21 +87,20 @@ func (m *ExportManager) exportSnapdTools() error {
 			// If there is an export manifest then presumably there is also content on disk.
 			continue
 		}
-		// Export files to disk and store that in the state.
 		newManifest := NewManifestForSnap(info)
 		if err := newManifest.CreateExportedFiles(); err != nil {
 			return err
 		}
 		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
-	snapName, subKey, err := effectiveManifestKeysForSnapdOrCore(m.state)
+	snapName, exportedVersion, err := effectiveManifestKeysForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
-	if subKey != "" {
-		return setCurrentSubKey(snapName, subKey)
+	if exportedVersion != "" {
+		return setCurrentExportedVersion(snapName, exportedVersion)
 	}
-	return removeCurrentSubKey(snapName)
+	return removeCurrentExportedVersion(snapName)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -115,19 +113,21 @@ type LinkSnapParticipant struct{}
 
 // SnapLinkageChanged implements LinkParticipant.SnapLinkageChanged.
 func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
-	snapName, subKey, err := ManifestKeys(st, instanceName)
+	snapName, exportedVersion, err := ManifestKeys(st, instanceName)
 	if err != nil {
 		return err
 	}
-	if subKey != "" {
-		return setCurrentSubKey(snapName, subKey)
+	// TODO: use UpdateCurrentExportedVersion(snapName, exportedVersion)
+	if exportedVersion != "" {
+		return setCurrentExportedVersion(snapName, exportedVersion)
 	}
-	return removeCurrentSubKey(snapName)
+	return removeCurrentExportedVersion(snapName)
 }
 
 var once sync.Once
 
-// delayedCrossMgrInit installs a link participant managing the current subkey provider.
+// delayedCrossMgrInit installs a link participant synchronizing the content
+// version exported by each snap as it undergoes link and unlink operations.
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddLinkSnapParticipant(&LinkSnapParticipant{})

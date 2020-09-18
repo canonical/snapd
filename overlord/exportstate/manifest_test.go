@@ -50,7 +50,7 @@ func (s *manifestSuite) TestNewManifestForRegularSnap(c *C) {
 		snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 42}}))
 	c.Check(m.SnapName, Equals, "foo")
-	c.Check(m.SubKey, Equals, "42")
+	c.Check(m.ExportedVersion, Equals, "42")
 	c.Check(m.Symlinks, HasLen, 0)
 }
 
@@ -65,7 +65,7 @@ func (s *manifestSuite) TestNewManifestForSnapdSnap(c *C) {
 		snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{
 			Revision: snap.Revision{N: 1}}))
 	c.Check(m.SnapName, Equals, "snapd")
-	c.Check(m.SubKey, Equals, "1")
+	c.Check(m.ExportedVersion, Equals, "1")
 	c.Check(len(m.Symlinks) > 0, Equals, true)
 	// Details checked in special_test.go
 }
@@ -81,7 +81,7 @@ func (s *manifestSuite) TestNewManifestForCoreSnap(c *C) {
 		snaptest.MockInfo(c, coreYaml, &snap.SideInfo{
 			Revision: snap.Revision{N: 2}}))
 	c.Check(m.SnapName, Equals, "snapd")
-	c.Check(m.SubKey, Equals, "core_2")
+	c.Check(m.ExportedVersion, Equals, "core_2")
 	c.Check(len(m.Symlinks) > 0, Equals, true)
 	// Details checked in special_test.go
 }
@@ -90,14 +90,14 @@ func (s *manifestSuite) TestNewManifestForHost(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 	m := exportstate.NewManifestForHost()
 	c.Check(m.SnapName, Equals, "snapd")
-	c.Check(m.SubKey, Equals, "host")
+	c.Check(m.ExportedVersion, Equals, "host")
 	c.Check(len(m.Symlinks) > 0, Equals, true)
 	// Details checked in special_test.go
 
 	s.AddCleanup(release.MockOnClassic(false))
 	m = exportstate.NewManifestForHost()
 	c.Check(m.SnapName, Equals, "snapd")
-	c.Check(m.SubKey, Equals, "host")
+	c.Check(m.ExportedVersion, Equals, "host")
 	c.Check(m.Symlinks, HasLen, 0)
 }
 
@@ -106,14 +106,14 @@ func (s *manifestSuite) TestIsEmpty(c *C) {
 	c.Check(m.IsEmpty(), Equals, true)
 
 	m = exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set",
-			Name:      "symlink-name",
-			Target:    "symlink-target",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set",
+			Name:            "symlink-name",
+			Target:          "symlink-target",
 		}},
 	}
 	c.Check(m.IsEmpty(), Equals, false)
@@ -121,29 +121,29 @@ func (s *manifestSuite) TestIsEmpty(c *C) {
 
 func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 	m := exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
 			// Export set A, only entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-a",
-			Name:      "symlink-name-1",
-			Target:    "symlink-target-1",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-a",
+			Name:            "symlink-name-1",
+			Target:          "symlink-target-1",
 		}, {
 			// Export set B, first entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-b",
-			Name:      "symlink-name-2",
-			Target:    "symlink-target-2",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-b",
+			Name:            "symlink-name-2",
+			Target:          "symlink-target-2",
 		}, {
 			// Export set B, second entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-b",
-			Name:      "symlink-name-3",
-			Target:    "symlink-target-3",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-b",
+			Name:            "symlink-name-3",
+			Target:          "symlink-target-3",
 		}},
 	}
 	err := m.CreateExportedFiles()
@@ -153,12 +153,12 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 		// The symbolic links point from export set name to a path that is valid in
 		// either the host or snap mount namespace.
 		c.Check(filepath.Join(
-			exportstate.ExportDir, "snap-name", "sub-key", "export-set-a", "symlink-name-1"),
+			exportstate.ExportDir, "snap-name", "exported-version", "export-set-a", "symlink-name-1"),
 			testutil.SymlinkTargetEquals, "symlink-target-1")
 		c.Check(filepath.Join(
-			exportstate.ExportDir, "snap-name", "sub-key", "export-set-b", "symlink-name-2"),
+			exportstate.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-2"),
 			testutil.SymlinkTargetEquals, "symlink-target-2")
-		c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "sub-key", "export-set-b", "symlink-name-3"),
+		c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-3"),
 			testutil.SymlinkTargetEquals, "symlink-target-3")
 	}
 	checkFiles()
@@ -172,76 +172,76 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 	// If the file system contains symlinks with different targets that clash
 	// with the exported content then the operation fails.
-	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "sub-key", "export-set", "symlink-name")
+	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = os.Symlink("wrong-target", pathName)
 	c.Assert(err, IsNil)
 
 	m := exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set",
-			Name:      "symlink-name",
-			Target:    "symlink-target",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set",
+			Name:            "symlink-name",
+			Target:          "symlink-target",
 		}},
 	}
 	err = m.CreateExportedFiles()
-	c.Check(err, ErrorMatches, "symlink symlink-target .*/var/lib/snapd/export/snap-name/sub-key/export-set/symlink-name: file exists")
+	c.Check(err, ErrorMatches, "symlink symlink-target .*/var/lib/snapd/export/snap-name/exported-version/export-set/symlink-name: file exists")
 }
 
 func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
 	// If the file system contains non-symlinks that clash with the exported
 	// content then the operation fails.
-	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "sub-key", "export-set", "symlink-name")
+	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(pathName, nil, 0644)
 	c.Assert(err, IsNil)
 
 	m := exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set",
-			Name:      "symlink-name",
-			Target:    "symlink-target",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set",
+			Name:            "symlink-name",
+			Target:          "symlink-target",
 		}},
 	}
 	err = m.CreateExportedFiles()
-	c.Check(err, ErrorMatches, "symlink symlink-target .*/var/lib/snapd/export/snap-name/sub-key/export-set/symlink-name: file exists")
+	c.Check(err, ErrorMatches, "symlink symlink-target .*/var/lib/snapd/export/snap-name/exported-version/export-set/symlink-name: file exists")
 }
 
 func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	m := exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
 			// Export set A, only entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-a",
-			Name:      "symlink-name-1",
-			Target:    "symlink-target-1",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-a",
+			Name:            "symlink-name-1",
+			Target:          "symlink-target-1",
 		}, {
 			// Export set B, first entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-b",
-			Name:      "symlink-name-2",
-			Target:    "symlink-target-2",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-b",
+			Name:            "symlink-name-2",
+			Target:          "symlink-target-2",
 		}, {
 			// Export set B, second entry
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set-b",
-			Name:      "symlink-name-3",
-			Target:    "symlink-target-3",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set-b",
+			Name:            "symlink-name-3",
+			Target:          "symlink-target-3",
 		}},
 	}
 	// Creating and then removing exported files completes successfully.
@@ -251,19 +251,19 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	c.Assert(err, IsNil)
 	// The symbolic links are removed.
 	c.Check(filepath.Join(exportstate.ExportDir,
-		"snap-name", "sub-key", "export-set-a", "symlink-name-1"),
+		"snap-name", "exported-version", "export-set-a", "symlink-name-1"),
 		testutil.FileAbsent)
 	c.Check(filepath.Join(exportstate.ExportDir,
-		"snap-name", "sub-key", "export-set-b", "symlink-name-2"),
+		"snap-name", "exported-version", "export-set-b", "symlink-name-2"),
 		testutil.FileAbsent)
 	c.Check(filepath.Join(exportstate.ExportDir,
-		"snap-name", "sub-key", "export-set-b", "symlink-name-3"),
+		"snap-name", "exported-version", "export-set-b", "symlink-name-3"),
 		testutil.FileAbsent)
 
 	// The empty directories are pruned.
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "sub-key", "export-set-a"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "sub-key", "export-set-b"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "sub-key"), testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-a"), testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-b"), testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version"), testutil.FileAbsent)
 	c.Check(filepath.Join(exportstate.ExportDir, "snap-name"), testutil.FileAbsent)
 
 	// Removing exported files doesn't fail if they are no longer present.
@@ -275,11 +275,11 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	err = m.CreateExportedFiles()
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(exportstate.ExportDir,
-		"snap-name", "sub-key", "export-set-a", "unrelated"), nil, 0644)
+		"snap-name", "exported-version", "export-set-a", "unrelated"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = m.RemoveExportedFiles()
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir,
-		"snap-name", "sub-key", "export-set-a", "unrelated"), testutil.FilePresent)
+		"snap-name", "exported-version", "export-set-a", "unrelated"), testutil.FilePresent)
 }

@@ -45,14 +45,14 @@ type exportstateSuite struct {
 
 var _ = Suite(&exportstateSuite{
 	m: exportstate.Manifest{
-		SnapName: "snap-name",
-		SubKey:   "sub-key",
+		SnapName:        "snap-name",
+		ExportedVersion: "exported-version",
 		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:  "snap-name",
-			SubKey:    "sub-key",
-			ExportSet: "export-set",
-			Name:      "symlink-name",
-			Target:    "symlink-target",
+			SnapName:        "snap-name",
+			ExportedVersion: "exported-version",
+			ExportSet:       "export-set",
+			Name:            "symlink-name",
+			Target:          "symlink-target",
 		},
 		},
 	},
@@ -76,15 +76,15 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	st.Get("exports", &exportsRaw)
 	expected := map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
-			"snap-name": "snap-name",
-			"sub-key":   "sub-key",
+			"snap-name":        "snap-name",
+			"exported-version": "exported-version",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"snap-name":  "snap-name",
-					"sub-key":    "sub-key",
-					"export-set": "export-set",
-					"name":       "symlink-name",
-					"target":     "symlink-target",
+					"snap-name":        "snap-name",
+					"exported-version": "exported-version",
+					"export-set":       "export-set",
+					"name":             "symlink-name",
+					"target":           "symlink-target",
 				},
 			},
 		},
@@ -113,15 +113,15 @@ func (s *exportstateSuite) TestSetRemovingState(c *C) {
 			"unrelated": "stuff",
 		},
 		"snap-name/42": map[string]interface{}{
-			"snap-name": "snap-name",
-			"sub-key":   "sub-key",
+			"snap-name":        "snap-name",
+			"exported-version": "exported-version",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"snap-name":  "snap-name",
-					"sub-key":    "sub-key",
-					"export-set": "export-set",
-					"name":       "symlink-name",
-					"target":     "symlink-target",
+					"snap-name":        "snap-name",
+					"exported-version": "exported-version",
+					"export-set":       "export-set",
+					"name":             "symlink-name",
+					"target":           "symlink-target",
 				},
 			},
 		},
@@ -172,15 +172,15 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	// Get returns the stored snap manifest for given snap revision.
 	st.Set("exports", map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
-			"snap-name": "snap-name",
-			"sub-key":   "sub-key",
+			"snap-name":        "snap-name",
+			"exported-version": "exported-version",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"snap-name":  "snap-name",
-					"sub-key":    "sub-key",
-					"export-set": "export-set",
-					"name":       "symlink-name",
-					"target":     "symlink-target",
+					"snap-name":        "snap-name",
+					"exported-version": "exported-version",
+					"export-set":       "export-set",
+					"name":             "symlink-name",
+					"target":           "symlink-target",
 				},
 			},
 		},
@@ -191,50 +191,50 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	c.Check(m, DeepEquals, s.m)
 }
 
-func (s *exportstateSuite) TestCurrentSubKeySymlinkPath(c *C) {
-	path := exportstate.CurrentSubKeySymlinkPath("snap-name")
+func (s *exportstateSuite) TestCurrentExportedVersionSymlinkPath(c *C) {
+	path := exportstate.CurrentExportedVersionSymlinkPath("snap-name")
 	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/snap-name/current")
 }
 
-func (s *exportstateSuite) TestRemoveCurrentSubKey(c *C) {
-	// It is not an error to remove the current subkey link
+func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
+	// It is not an error to remove the current version link
 	// if it does not exist.
-	err := exportstate.RemoveCurrentSubKey(s.m.SnapName)
+	err := exportstate.RemoveCurrentExportedVersion(s.m.SnapName)
 	c.Assert(err, IsNil)
 
-	// Removing the current subkey symlink works correctly.
+	// Removing the current version symlink works correctly.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
+	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
-		testutil.SymlinkTargetEquals, s.m.SubKey)
-	err = exportstate.RemoveCurrentSubKey(s.m.SnapName)
+		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
+	err = exportstate.RemoveCurrentExportedVersion(s.m.SnapName)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.FileAbsent)
 }
 
-func (s *exportstateSuite) TestSetCurrentSubKey(c *C) {
-	// Current subkey cannot be selected without exporting the content first
+func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
+	// Current version cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
+	err := exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Check(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
 
-	// With a manifest in place, we can set the current subkey at will.
+	// With a manifest in place, we can set the current version at will.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
+	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
-		testutil.SymlinkTargetEquals, s.m.SubKey)
+		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
 
-	// The current subkey can be replaced to point to another value.
-	err = exportstate.SetCurrentSubKey(s.m.SnapName, "other-"+s.m.SubKey)
+	// The current version can be replaced to point to another value.
+	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, "other-"+s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
-		testutil.SymlinkTargetEquals, "other-"+s.m.SubKey)
+		testutil.SymlinkTargetEquals, "other-"+s.m.ExportedVersion)
 }
 
 func (s *exportstateSuite) TestManifestKeys(c *C) {
@@ -257,10 +257,10 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, subKey, err := exportstate.ManifestKeys(s.st, "core")
+	snapName, exportedVersion, err := exportstate.ManifestKeys(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
-	c.Check(subKey, Equals, "2")
+	c.Check(exportedVersion, Equals, "2")
 
 	// Because we have both core and snapd installed, core with revision 1 wins.
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
@@ -273,20 +273,20 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, subKey, err = exportstate.ManifestKeys(s.st, "core")
+	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
-	c.Check(subKey, Equals, "core_1")
+	c.Check(exportedVersion, Equals, "core_1")
 
-	// Non-special snaps just use their revision as sub-key.
+	// Non-special snaps just use their revision as exported-version.
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 42}}), nil
 	}))
-	snapName, subKey, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
-	c.Check(subKey, Equals, "42")
+	c.Check(exportedVersion, Equals, "42")
 
 	// TODO: test broken snapd/core
 
@@ -298,39 +298,39 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		info.InstanceKey = "instance"
 		return info, nil
 	}))
-	snapName, subKey, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
-	c.Check(subKey, Equals, "42_instance")
+	c.Check(exportedVersion, Equals, "42_instance")
 }
 
-func (s *exportstateSuite) TestElectSubKeyForSnapdTools(c *C) {
+func (s *exportstateSuite) TestElectExportedVersionForSnapdTools(c *C) {
 	// When both snapd and core are present, snapd dominates.
-	subKey := exportstate.ElectSubKeyForSnapdTools("snapd_subkey", "core_subkey")
-	c.Check(subKey, Equals, "snapd_subkey")
+	exportedVersion := exportstate.ElectExportedVersionForSnapdTools("snapd_version", "core_version")
+	c.Check(exportedVersion, Equals, "snapd_version")
 
 	// When either only snapd or core is present, it is used.
-	subKey = exportstate.ElectSubKeyForSnapdTools("snapd_subkey", "")
-	c.Check(subKey, Equals, "snapd_subkey")
-	subKey = exportstate.ElectSubKeyForSnapdTools("", "core_subkey")
-	c.Check(subKey, Equals, "core_subkey")
+	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("snapd_version", "")
+	c.Check(exportedVersion, Equals, "snapd_version")
+	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "core_version")
+	c.Check(exportedVersion, Equals, "core_version")
 
 	// On classic systems when neither snap is present, host tools are used.
 	s.AddCleanup(release.MockOnClassic(true))
-	subKey = exportstate.ElectSubKeyForSnapdTools("", "")
-	c.Check(subKey, Equals, "host")
+	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "")
+	c.Check(exportedVersion, Equals, "host")
 
 	// On core systems when neither snap is present, no tool provider is used.
 	s.AddCleanup(release.MockOnClassic(false))
-	subKey = exportstate.ElectSubKeyForSnapdTools("", "")
-	c.Check(subKey, Equals, "")
+	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("", "")
+	c.Check(exportedVersion, Equals, "")
 
 	// On classic systems with disabled re-exec host wins over snaps.
 	s.AddCleanup(release.MockOnClassic(true))
 	os.Setenv("SNAP_REEXEC", "0")
 	s.AddCleanup(func() { os.Unsetenv("SNAP_REEXEC") })
-	subKey = exportstate.ElectSubKeyForSnapdTools("snapd_subkey", "core_subkey")
-	c.Check(subKey, Equals, "host")
+	exportedVersion = exportstate.ElectExportedVersionForSnapdTools("snapd_version", "core_version")
+	c.Check(exportedVersion, Equals, "host")
 
 }
 
