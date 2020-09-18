@@ -238,7 +238,6 @@ func ParentDiskFromMountSource(mountSource string) (string, error) {
 
 	if strings.HasPrefix(devname, "dm-") {
 		// looks like a device set up by device mapper
-		var err error
 		resolved, err := resolveParentOfDeviceMapperDevice(devname)
 		if err != nil {
 			return "", fmt.Errorf("cannot resolve device mapper device %v: %v", devname, err)
@@ -273,9 +272,9 @@ func ParentDiskFromMountSource(mountSource string) (string, error) {
 }
 
 func resolveParentOfDeviceMapperDevice(devname string) (string, error) {
-	// devices set up by device mapper have /dev/block/dm-*/slaves/ which
-	// lists the devices that are upper in the chain, follow that to find
-	// the first device that is non-dm one
+	// devices set up by device mapper have /dev/block/dm-*/slaves directory
+	// which lists the devices that are upper in the chain, follow that to
+	// find the first device that is non-dm one
 	dmSlavesLevel := 0
 	const maxDmSlavesLevel = 5
 	for strings.HasPrefix(devname, "dm-") {
