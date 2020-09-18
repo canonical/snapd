@@ -106,8 +106,7 @@ execute: |
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    nested_exec "sudo shutdown -h now" || true
-    nested_wait_for_no_ssh
+    nested_shutdown
 
     # now if we reboot and add a cloud-init drive, it will not be imported onto
     # the system
