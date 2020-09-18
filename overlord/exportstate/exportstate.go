@@ -106,7 +106,7 @@ func exportedVersionSymlinkPath(snapName string) string {
 	return filepath.Join(ExportDir, snapName, "current")
 }
 
-// updateExportedVersion updates or removes the exported version symlink.
+// UpdateExportedVersion updates or removes the exported version symlink.
 //
 // If exportedVersion is not empty then it indicates the new version to use.
 // If the symbolic link cannot be created because the export directory does not
@@ -117,7 +117,7 @@ func exportedVersionSymlinkPath(snapName string) string {
 // if exportedVersion is empty then then it indicates that no version is exported
 //
 // Appropriate version can be computed by exportedVersionForSnap.
-func updateExportedVersion(snapName, exportedVersion string) error {
+func UpdateExportedVersion(snapName, exportedVersion string) error {
 	pathName := exportedVersionSymlinkPath(snapName)
 	if exportedVersion != "" {
 		if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {

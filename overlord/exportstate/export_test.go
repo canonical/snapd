@@ -27,7 +27,6 @@ import (
 var (
 	// exportstate.go
 	ExportedVersionSymlinkPath                        = exportedVersionSymlinkPath
-	UpdateExportedVersion                             = updateExportedVersion
 	EffectiveSnapNameAndExportedVersionForSnapdOrCore = effectiveSnapNameAndExportedVersionForSnapdOrCore
 	SelectExportedVersionForSnapdTools                = selectExportedVersionForSnapdTools
 	CurrentSnapdAndCoreInfo                           = currentSnapdAndCoreInfo
