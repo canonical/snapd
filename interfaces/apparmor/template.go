@@ -857,9 +857,9 @@ var classicJailmodeSnippet = `
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 
   # For snappy reexec on 4.8+ kernels
-  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec mr,
-  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec mr,
-  /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-exec mr,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-exec mr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-exec mr, # exported from snapd or core
+  /usr/lib/snapd/snap-exec mr, # legacy bind-mounted or provided by base: core
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine
