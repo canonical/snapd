@@ -37,7 +37,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -139,10 +143,11 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
+
+	opts := &sysconfig.Options{
+		TargetRootDir: boot.InitramfsWritableDir,
+	}
+	if err := sysconfig.ConfigureTargetSystem(opts); err != nil {
 		return err
 	}
 
@@ -310,10 +315,22 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
+
+	_, essSnaps, err := mst.ReadEssential("", []snap.Type{snap.TypeGadget})
+	if err != nil {
+		return err
+	}
+
+	// should only be one seed snap
+	gadgetSnap := squashfs.New(essSnaps[0].Path)
+
+	// we need to configure the recover system with defaults and such setup from
+	// the seed gadget
+	opts := &sysconfig.Options{
+		TargetRootDir: boot.InitramfsWritableDir,
+		GadgetSnap:    gadgetSnap,
+	}
+	if err := sysconfig.ConfigureTargetSystem(opts); err != nil {
 		return err
 	}
 

@@ -39,6 +39,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -1671,6 +1672,81 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	defer restore()
 
 	s.testRecoverModeHappy(c)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeGadgetDefaultsHappy(c *C) {
+	// setup a seed with default gadget yaml
+	const gadgetYamlDefaults = `
+defaults:
+  system:
+    service:
+      rsyslog.disable: true
+      ssh.disable: true
+      console-conf.disable: true
+    journal.persistent: true
+`
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeed(c, [][]string{
+		{"meta/gadget.yaml", gadgetYamlDefaults},
+	})
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsHostUbuntuDataDir,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// we will call out to systemctl in the initramfs, but only using --root
+	// which doesn't talk to systemd, just manipulates files around
+	var sysctlArgs [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlRestorer()
+
+	s.testRecoverModeHappy(c)
+
+	// check that everything from the gadget defaults was setup
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	exists, _, _ := osutil.DirExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal"))
+	c.Assert(exists, Equals, true)
+
+	// systemctl was called the way we expect
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
