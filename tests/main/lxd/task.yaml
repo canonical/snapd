@@ -27,7 +27,6 @@ environment:
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
 
-
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -44,9 +43,14 @@ restore: |
         exit
     fi
 
+    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ] && [ "$REFRESH_APP_AWARENESS_OUTER" = false ] && [ "$REFRESH_APP_AWARENESS_INNER" = true ]; then
+        echo "Not running old xenial combination which lacks proper patches"
+        exit 0
+    fi
+
     for cont_name in my-nesting-ubuntu my-ubuntu; do
-        lxd.lxc stop $cont_name --force
-        lxd.lxc delete $cont_name
+        lxd.lxc stop $cont_name --force || true
+        lxd.lxc delete $cont_name || true
     done
     snap remove --purge lxd
     snap remove --purge lxd-demo-server
@@ -69,6 +73,11 @@ execute: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
         echo "No run lxd test when there are not .deb files built"
         exit
+    fi
+
+    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ] && [ "$REFRESH_APP_AWARENESS_OUTER" = false ] && [ "$REFRESH_APP_AWARENESS_INNER" = true ]; then
+        echo "Not running old xenial combination which lacks proper patches"
+        exit 0
     fi
 
     echo "Install lxd"
