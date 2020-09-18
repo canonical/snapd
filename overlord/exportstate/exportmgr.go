@@ -97,10 +97,7 @@ func (m *ExportManager) exportSnapdTools() error {
 	if err != nil {
 		return err
 	}
-	if exportedVersion != "" {
-		return setCurrentExportedVersion(snapName, exportedVersion)
-	}
-	return removeCurrentExportedVersion(snapName)
+	return updateExportedVersion(snapName, exportedVersion)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -117,11 +114,7 @@ func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName s
 	if err != nil {
 		return err
 	}
-	// TODO: use UpdateCurrentExportedVersion(snapName, exportedVersion)
-	if exportedVersion != "" {
-		return setCurrentExportedVersion(snapName, exportedVersion)
-	}
-	return removeCurrentExportedVersion(snapName)
+	return updateExportedVersion(snapName, exportedVersion)
 }
 
 var once sync.Once

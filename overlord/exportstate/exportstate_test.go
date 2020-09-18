@@ -199,17 +199,17 @@ func (s *exportstateSuite) TestCurrentExportedVersionSymlinkPath(c *C) {
 func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 	// It is not an error to remove the current version link
 	// if it does not exist.
-	err := exportstate.RemoveCurrentExportedVersion(s.m.SnapName)
+	err := exportstate.UpdateExportedVersion(s.m.SnapName, "")
 	c.Assert(err, IsNil)
 
 	// Removing the current version symlink works correctly.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
-	err = exportstate.RemoveCurrentExportedVersion(s.m.SnapName)
+	err = exportstate.UpdateExportedVersion(s.m.SnapName, "")
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.FileAbsent)
@@ -218,20 +218,20 @@ func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
 	// Current version cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err := exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Check(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current version at will.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
 
 	// The current version can be replaced to point to another value.
-	err = exportstate.SetCurrentExportedVersion(s.m.SnapName, "other-"+s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.SnapName, "other-"+s.m.ExportedVersion)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, "other-"+s.m.ExportedVersion)

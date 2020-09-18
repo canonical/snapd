@@ -106,28 +106,30 @@ func currentExportedVersionSymlinkPath(snapName string) string {
 	return filepath.Join(ExportDir, snapName, "current")
 }
 
-// setCurrentExportedVersion replaces the "current" symlink for the given snap
-// name to point to the given version. Appropriate version can be computed by
-// exportedVersionForSnap.
+// updateExportedVersion updates or removes the exported version symlink.
 //
+// If exportedVersion is not empty then it indicates the new version to use.
 // If the symbolic link cannot be created because the export directory does not
 // exist no error is reported. This is because this function is most often
 // called from link-snap, where it runs unconditionally, but most snaps do not
 // have any content to export and the symlink would be dangling.
-func setCurrentExportedVersion(snapName, exportedVersion string) error {
+//
+// if exportedVersion is empty then then it indicates that no version is exported
+//
+// Appropriate version can be computed by exportedVersionForSnap.
+func updateExportedVersion(snapName, exportedVersion string) error {
 	pathName := currentExportedVersionSymlinkPath(snapName)
-	if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot set currently exported version of %q to %q: %v", snapName, exportedVersion, err)
+	if exportedVersion != "" {
+		if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot set exported version of %q to %q: %v", snapName, exportedVersion, err)
+		}
+	} else {
+		if err := os.Remove(pathName); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot unset exported version of %q: %v", snapName, err)
+		}
 	}
 	return nil
-}
 
-// removeCurrentExportedVersion removes the "current" symlink for the given snap name.
-func removeCurrentExportedVersion(snapName string) error {
-	if err := os.Remove(currentExportedVersionSymlinkPath(snapName)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot unset currently exported version of %q: %v", snapName, err)
-	}
-	return nil
 }
 
 // ManifestKeys returns the (snapName, exportedVersion) tuple to use as the current
