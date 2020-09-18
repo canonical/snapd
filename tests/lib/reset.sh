@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e -x
-
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh

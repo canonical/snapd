@@ -111,6 +111,8 @@ var templateCommon = `
 
   # for perl apps/services
   #include <abstractions/perl>
+  # Missing from perl abstraction
+  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
 
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
@@ -276,8 +278,12 @@ var templateCommon = `
   # unprivilged, dedicated user).
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
-  /sys/fs/cgroup/memory/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
+  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
+  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
+  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.shares r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -1016,6 +1022,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Commonly needed permissions for writable mimics.
   /tmp/ r,
   /tmp/.snap/{,**} rw,
+
+  # snapd logger.go checks /proc/cmdline
+  @{PROC}/cmdline r,
 
 ###SNIPPETS###
 }

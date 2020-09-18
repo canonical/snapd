@@ -3,6 +3,10 @@ summary: Check that the basic snapshots functionality is ok
 prepare: |
     snap install test-snapd-sh
     snap install --edge test-snapd-just-edge
+    snap install --edge test-snapd-tools
+
+restore: |
+    rm -f /var/snap/test-snapd-tools/common/huge
 
 debug: |
     snap list || true
@@ -18,7 +22,7 @@ execute: |
        echo "hello versioned $snap"  > ~/snap/$snap/current/canary.txt
        echo "hello common $snap" > ~/snap/$snap/common/canary.txt
     done
-    # create snapshot, grab its id
+    # create snapshot, grab its ID
     SET_ID=$( snap save test-snapd-sh test-snapd-just-edge | cut -d\  -f1 | tail -n1 )
 
     # check it includes both snaps
@@ -29,8 +33,26 @@ execute: |
     # and is valid
     snap check-snapshot "$SET_ID"
 
+    # and is exportable
+    snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
+    test -e "${SET_ID}_export.snapshot"
+    test "$( tar -tvf "${SET_ID}_export.snapshot" | wc -l )" = "3"
+    # do it again and ensure it has the files have the same size
+    snap export-snapshot "$SET_ID" "${SET_ID}_export-2.snapshot"
+    test "$( tar -tvf "${SET_ID}_export-2.snapshot" | wc -l )" = "3"
+    s1="$(stat -c%s "${SET_ID}_export.snapshot" )"
+    s2="$(stat -c%s "${SET_ID}_export-2.snapshot" )"
+    test "$s1" = "$s2"
+    echo "and the same files are snapshoted"
+    f1="$(tar -tf "${SET_ID}_export.snapshot" )"
+    f2="$(tar -tf "${SET_ID}_export-2.snapshot" )"
+    test "$f1" = "$f2"
+
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
+
+    # remove the exports
+    rm "${SET_ID}"_export*.snapshot
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
@@ -78,9 +100,28 @@ execute: |
         exit 1
     fi
 
-    # check validatation of the automatic snapshot expiration range
+    # check validation of the automatic snapshot expiration range
     (snap set core snapshots.automatic.retention=1s 2>&1 || true) | MATCH "must be"
 
     # check that expiration can be read back
     snap get core snapshots.automatic.retention | MATCH "30h"
     snap get core -d snapshots.automatic | MATCH '"retention"'
+
+    # check memory usage for larger snap snapshot data exporting
+    mkdir -p /var/snap/test-snapd-tools/common/
+    dd if=/dev/urandom of=/var/snap/test-snapd-tools/common/huge bs=1M count=100
+    # create snapshot, grab its ID
+    SET_ID=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep test-snapd-tools
+    snap check-snapshot "$SET_ID"
+    # export the large snap and record memory usage
+    "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
+        "$SET_ID" "${SET_ID}_export.snapshot"
+    test -e "${SET_ID}_export.snapshot"
+    # Ensure our snapshot export file is at least 50MB. The data we created
+    # is 100MB of randomness so even with amazing compression we should never
+    # have a smaller file
+    test "$(stat -c%s "${SET_ID}_export.snapshot")" -gt 50000000
+    # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
+    # The threshold in this test is set to about 40MB
+    test "$(cat memory-kb.txt)" -lt 40000

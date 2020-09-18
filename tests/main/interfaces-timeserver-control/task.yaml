@@ -25,10 +25,6 @@ prepare: |
             apt-get remove -y ntp
             tests.cleanup defer apt-get install -y ntp
             ;;
-        ubuntu-19.10-*)
-            apt-get remove -y chrony
-            tests.cleanup defer apt-get install -y chrony
-            ;;
         *)
             case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
                 "b true")

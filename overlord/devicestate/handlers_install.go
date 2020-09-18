@@ -45,19 +45,36 @@ var (
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	// TODO: add support for a single cloud-init `cloud.conf` file
-	//       that is then passed to sysconfig
+	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
-	// check cloud.cfg.d on the ubuntu-seed partition
-	//
-	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
-	// during install when in grade "dangerous".
-	//
-	// XXX: maybe move policy decision into configureRunSystem later?
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
-		opts.CloudInitSrcDir = cloudCfg
-		return
+	switch {
+	// if the gadget has a cloud.conf file, always use that regardless of grade
+	case sysconfig.HasGadgetCloudConf(gadgetDir):
+		// this is implicitly handled by ConfigureRunSystem when it configures
+		// cloud-init if none of the other options are set, so just break here
+		opts.AllowCloudInit = true
+
+	// next thing is if are in secured grade and didn't have gadget config, we
+	// disable cloud-init always, clouds should have their own config via
+	// gadgets for grade secured
+	case model.Grade() == asserts.ModelSecured:
+		opts.AllowCloudInit = false
+
+	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
+	//            filtering on the resultant cloud config
+
+	// next if we are grade dangerous, then we also install cloud configuration
+	// from ubuntu-seed if it exists
+	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
+		opts.AllowCloudInit = true
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+
+	// note that if none of the conditions were true, it means we are on grade
+	// dangerous or signed, and cloud-init is still allowed to run without
+	// additional configuration on first-boot, so that NoCloud CIDATA can be
+	// provided for example
+	default:
+		opts.AllowCloudInit = true
 	}
 }
 
@@ -93,7 +110,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
-	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -111,23 +127,20 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if useEncryption {
-		fdeDir := "var/lib/snapd/device/fde"
-		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
-			if err := os.MkdirAll(p, 0755); err != nil {
-				return err
-			}
-		}
 
+	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	// get a nice nil interface by default
+	var installObserver install.SystemInstallObserver
+	if useEncryption {
 		bopts.Encrypt = true
-		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
-		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
-		bopts.Model = deviceCtx.Model()
-		bopts.SystemLabel = modeEnv.RecoverySystem
+
+		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
+		if err != nil && err != boot.ErrObserverNotApplicable {
+			return fmt.Errorf("cannot setup asset install observer: %v", err)
+		}
+		if err == nil {
+			installObserver = trustedInstallObserver
+		}
 	}
 
 	// run the create partition code
@@ -135,10 +148,16 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts)
+		err = installRun(gadgetDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
+	}
+
+	if trustedInstallObserver != nil {
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
 	}
 
 	// keep track of the model we installed
@@ -171,7 +190,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
+	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 

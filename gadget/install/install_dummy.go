@@ -24,6 +24,6 @@ import (
 	"fmt"
 )
 
-func Run(gadgetRoot, device string, options Options) error {
+func Run(gadgetRoot, device string, options Options, _ SystemInstallObserver) error {
 	return fmt.Errorf("build without secboot support")
 }

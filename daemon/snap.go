@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/healthstate"
@@ -281,14 +281,14 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		}
 	}
 
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	return appInfos, nil
 }
 
-func mapLocal(about aboutSnap) *client.Snap {
+func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
-	result, err := cmd.ClientSnapFromSnapInfo(localSnap)
+	result, err := clientutil.ClientSnapFromSnapInfo(localSnap, sd)
 	if err != nil {
 		logger.Noticef("cannot get full app info for snap %q: %v", localSnap.InstanceName(), err)
 	}
@@ -323,7 +323,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 }
 
 func mapRemote(remoteSnap *snap.Info) *client.Snap {
-	result, err := cmd.ClientSnapFromSnapInfo(remoteSnap)
+	result, err := clientutil.ClientSnapFromSnapInfo(remoteSnap, nil)
 	if err != nil {
 		logger.Noticef("cannot get full app info for snap %q: %v", remoteSnap.SnapName(), err)
 	}

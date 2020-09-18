@@ -21,10 +21,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 var (
@@ -43,25 +43,21 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
-func MockStdout(newStdout io.Writer) (restore func()) {
-	oldStdout := stdout
-	stdout = newStdout
-	return func() {
-		stdout = oldStdout
-	}
-}
-
-func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
-	oldOsutilIsMounted := osutilIsMounted
+func MockOsutilIsMounted(f func(string) (bool, error)) (restore func()) {
+	old := osutilIsMounted
 	osutilIsMounted = f
 	return func() {
-		osutilIsMounted = oldOsutilIsMounted
+		osutilIsMounted = old
 	}
 }
 
-type InitramfsMountsState = initramfsMountsState
-
-var NewInitramfsMountsState = newInitramfsMountsState
+func MockSystemdMount(f func(_, _ string, opts *SystemdMountOptions) error) (restore func()) {
+	old := doSystemdMount
+	doSystemdMount = f
+	return func() {
+		doSystemdMount = old
+	}
+}
 
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
@@ -81,7 +77,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+func MockSecbootUnlockVolumeIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)) (restore func()) {
 	old := secbootUnlockVolumeIfEncrypted
 	secbootUnlockVolumeIfEncrypted = f
 	return func() {
