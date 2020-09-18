@@ -120,28 +120,14 @@ func (m *mockedWrappedError) Unwrap() error { return m.err }
 
 func (m *mockedWrappedError) Error() string { return fmt.Sprintf(m.fmt, m.err) }
 
-func (s *initramfsMountsSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	s.Stdout = bytes.NewBuffer(nil)
-
-	_, restore := logger.MockLogger()
-	s.AddCleanup(restore)
-
-	s.tmpDir = c.MkDir()
-
-	// mock /run/mnt
-	dirs.SetRootDir(s.tmpDir)
-	restore = func() { dirs.SetRootDir("") }
-	s.AddCleanup(restore)
-
+func (s *initramfsMountsSuite) setupSeed(c *C, gadgetSnapFiles [][]string) {
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
 
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{SeedDir: s.seedDir}
 	seed20.SetupAssertSigning("canonical")
-	restore = seed.MockTrusted(seed20.StoreSigning.Trusted)
+	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
 	s.AddCleanup(restore)
 
 	// XXX: we don't really use this but seedtest always expects my-brand
@@ -151,7 +137,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	// add a bunch of snaps
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
@@ -174,6 +160,26 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 				"default-channel": "20",
 			}},
 	}, nil)
+
+}
+
+func (s *initramfsMountsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.Stdout = bytes.NewBuffer(nil)
+
+	_, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+
+	s.tmpDir = c.MkDir()
+
+	// mock /run/mnt
+	dirs.SetRootDir(s.tmpDir)
+	restore = func() { dirs.SetRootDir("") }
+	s.AddCleanup(restore)
+
+	// setup the seed
+	s.setupSeed(c, nil)
 
 	// make test snap PlaceInfo's for various boot functionality
 	var err error
