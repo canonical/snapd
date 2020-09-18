@@ -67,3 +67,6 @@ execute: |
         BRAND_ID="$BRAND_ID\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
+
+    echo "snap repair does not fail"
+    /usr/lib/snapd/snap-repair run

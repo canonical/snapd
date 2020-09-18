@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -575,7 +576,7 @@ func (run *Runner) initState() error {
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
 	// initialize time lower bound with image built time/seed.yaml time
-	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	info, err := os.Stat(findTimeLowerBoundHintFile())
 	if err != nil {
 		return err
 	}
@@ -655,14 +656,52 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 	return nil
 }
 
-func (run *Runner) initDeviceInfo() error {
-	const errPrefix = "cannot set device information: "
+func findTimeLowerBoundHintFile() string {
+	// uc20+
+	if osutil.FileExists(dirs.SnapModeenvFile) {
+		return dirs.SnapModeenvFile
+	}
+	// uc16,uc18
+	return filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+}
 
+func findBrandAndModel() (string, string, error) {
+	if osutil.FileExists(dirs.SnapModeenvFile) {
+		return findBrandAndModel20()
+	}
+	return findBrandAndModel16()
+}
+
+// XXX: be more precise about brand/model(?)
+var modeenvBrandModelRE = regexp.MustCompile(`^model=(.*)/(.*)$`)
+
+func findBrandAndModel20() (string, string, error) {
+	// implement own modeenv scanner to ensure are insulated from
+	// failures in the snapd codebase
+	//
+	// XXX: can we trust modeenv enough on unencrypted devices?
+	f, err := os.Open(dirs.SnapModeenvFile)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		match := modeenvBrandModelRE.FindStringSubmatch(scanner.Text())
+		if len(match) > 0 {
+			return match[1], match[2], nil
+		}
+	}
+	return "", "", fmt.Errorf("cannot find model definition in modeenv")
+}
+
+func findBrandAndModel16() (string, string, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	var model *asserts.Model
 	for _, fi := range dc {
@@ -682,7 +721,7 @@ func (run *Runner) initDeviceInfo() error {
 			switch a.Type() {
 			case asserts.ModelType:
 				if model != nil {
-					return fmt.Errorf(errPrefix + "multiple models in seed assertions")
+					return "", "", fmt.Errorf("multiple models in seed assertions")
 				}
 				model = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
@@ -691,11 +730,11 @@ func (run *Runner) initDeviceInfo() error {
 		}
 	}
 	if model == nil {
-		return fmt.Errorf(errPrefix + "no model assertion in seed data")
+		return "", "", fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
 	if err := verifySignatures(model, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+		return "", "", err
 	}
 	acctPK := []string{model.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
@@ -704,14 +743,22 @@ func (run *Runner) initDeviceInfo() error {
 		var err error
 		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 		if err != nil {
-			return fmt.Errorf(errPrefix + "no brand account assertion in seed data")
+			return "", "", fmt.Errorf("no brand account assertion in seed data")
 		}
 	}
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+		return "", "", err
 	}
-	run.state.Device.Brand = model.BrandID()
-	run.state.Device.Model = model.Model()
+	return model.BrandID(), model.Model(), nil
+}
+
+func (run *Runner) initDeviceInfo() error {
+	brandID, model, err := findBrandAndModel()
+	if err != nil {
+		return fmt.Errorf("cannot set device information: %v", err)
+	}
+	run.state.Device.Brand = brandID
+	run.state.Device.Model = model
 	return nil
 }
 
