@@ -132,10 +132,11 @@ func updateExportedVersion(snapName, exportedVersion string) error {
 
 }
 
-// ManifestKeys returns the (snapName, exportedVersion) tuple to use as the current
-// provider of all the export sets of a given snap. The returned exportedVersion may be
-// empty, indicating that given snap has no current revision.
-func ManifestKeys(st *state.State, instanceName string) (snapName string, exportedVersion string, err error) {
+// SnapNameAndExportedVersion returns the (snapName, exportedVersion) tuple to
+// use as the current provider of all the export sets of a given snap. The
+// returned exportedVersion may be empty, indicating that given snap has no
+// current revision.
+func SnapNameAndExportedVersion(st *state.State, instanceName string) (snapName string, exportedVersion string, err error) {
 	switch instanceName {
 	case "core", "snapd":
 		snapName, exportedVersion, err = effectiveSnapNameAndExportedVersionForSnapdOrCore(st)

@@ -110,7 +110,7 @@ type LinkSnapParticipant struct{}
 
 // SnapLinkageChanged implements LinkParticipant.SnapLinkageChanged.
 func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
-	snapName, exportedVersion, err := ManifestKeys(st, instanceName)
+	snapName, exportedVersion, err := SnapNameAndExportedVersion(st, instanceName)
 	if err != nil {
 		return err
 	}

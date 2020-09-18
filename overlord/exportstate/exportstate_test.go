@@ -257,7 +257,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, exportedVersion, err := exportstate.ManifestKeys(s.st, "core")
+	snapName, exportedVersion, err := exportstate.SnapNameAndExportedVersion(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "2")
@@ -273,7 +273,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "core")
+	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "core_1")
@@ -283,7 +283,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 42}}), nil
 	}))
-	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
 	c.Check(exportedVersion, Equals, "42")
@@ -298,7 +298,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		info.InstanceKey = "instance"
 		return info, nil
 	}))
-	snapName, exportedVersion, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
 	c.Check(exportedVersion, Equals, "42_instance")
