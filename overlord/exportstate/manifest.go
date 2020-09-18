@@ -150,7 +150,7 @@ func (s *SymlinkExport) Remove() error {
 }
 
 // exportSetSymlinks returns symlink exports for given snap and export entries.
-func exportSetSymlinks(snapName, snapRev, exportSetName string, entries []*ExportEntry) []SymlinkExport {
+func exportSetSymlinks(snapName, snapRev, exportSetName string, entries []*exportEntry) []SymlinkExport {
 	symlinks := make([]SymlinkExport, 0, len(entries))
 	for _, entry := range entries {
 		var target string
@@ -170,7 +170,7 @@ func exportSetSymlinks(snapName, snapRev, exportSetName string, entries []*Expor
 	return symlinks
 }
 
-// ExportEntry describes a single file placed in a specific export set.
+// exportEntry describes a single file placed in a specific export set.
 //
 // The original file is described by two paths. PathInHostMountNS is is valid
 // in the host mount namespace while PathInSnapMountNS is valid in the per-snap
@@ -183,7 +183,7 @@ func exportSetSymlinks(snapName, snapRev, exportSetName string, entries []*Expor
 //
 // This distinction enables exporting files that are consumed by either other
 // snaps or by the classic system.
-type ExportEntry struct {
+type exportEntry struct {
 	PathInExportSet   string
 	PathInHostMountNS string
 	PathInSnapMountNS string
@@ -191,19 +191,19 @@ type ExportEntry struct {
 	IsExportedPathValidInHostMountNS bool
 }
 
-// NewExportedHostFile returns an entry describing a file from the classic file system.
-func NewExportedHostFile(pathOnHost, pathInExportSet string) *ExportEntry {
+// newExportedHostFile returns an entry describing a file from the classic file system.
+func newExportedHostFile(pathOnHost, pathInExportSet string) *exportEntry {
 	// TODO: consider using this to describe nvidia libraries from the host.
-	return &ExportEntry{
+	return &exportEntry{
 		PathInHostMountNS: pathOnHost,
 		PathInSnapMountNS: filepath.Join("/var/lib/snapd/hostfs", pathOnHost),
 		PathInExportSet:   pathInExportSet,
 	}
 }
 
-// NewExportedSnapFile returns an entry describing a file stored inside a snap.
-func NewExportedSnapFile(snap *snap.Info, pathInSnap, pathInExportSet string) *ExportEntry {
-	return &ExportEntry{
+// newExportedSnapFile returns an entry describing a file stored inside a snap.
+func newExportedSnapFile(snap *snap.Info, pathInSnap, pathInExportSet string) *exportEntry {
+	return &exportEntry{
 		PathInHostMountNS: filepath.Join(snap.MountDir(), pathInSnap),
 		PathInSnapMountNS: filepath.Join("/snap", snap.InstanceName(), snap.Revision.String(), pathInSnap),
 		PathInExportSet:   pathInExportSet,

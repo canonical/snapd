@@ -65,10 +65,10 @@ func manifestKeysForHost() (snapName string, exportedVersion string) {
 	return "snapd", "host"
 }
 
-func exportedSnapdToolsFromHost() []*ExportEntry {
-	entries := make([]*ExportEntry, 0, len(toolsToExport))
+func exportedSnapdToolsFromHost() []*exportEntry {
+	entries := make([]*exportEntry, 0, len(toolsToExport))
 	for _, tool := range toolsToExport {
-		entries = append(entries, NewExportedHostFile(filepath.Join(dirs.DistroLibExecDir, tool), tool))
+		entries = append(entries, newExportedHostFile(filepath.Join(dirs.DistroLibExecDir, tool), tool))
 	}
 	return entries
 }
@@ -86,10 +86,10 @@ func manifestKeysForSnapd(info *snap.Info) (snapName string, exportedVersion str
 	return "snapd", info.Revision.String()
 }
 
-func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*ExportEntry {
-	entries := make([]*ExportEntry, 0, len(toolsToExport))
+func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*exportEntry {
+	entries := make([]*exportEntry, 0, len(toolsToExport))
 	for _, tool := range toolsToExport {
-		entries = append(entries, NewExportedSnapFile(info, filepath.Join("usr/lib/snapd", tool), tool))
+		entries = append(entries, newExportedSnapFile(info, filepath.Join("usr/lib/snapd", tool), tool))
 	}
 	return entries
 }
