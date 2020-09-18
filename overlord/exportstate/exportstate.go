@@ -37,8 +37,8 @@ import (
 //
 // The directory contains a structure which exposes certain files, known as
 // export sets, from snaps to the classic system or to other snaps. The general
-// pattern is /var/lib/snapd/export/<primaryKey>/<subKey>/<exportSet>, where
-// <primaryKey> is usually the snap name, <subKey> is usually the revision and
+// pattern is /var/lib/snapd/export/<snapName>/<subKey>/<exportSet>, where
+// <snapName> is usually the snap name, <subKey> is usually the revision and
 // instance key and <exportSet> is the name of a related set of files, usually
 // of a common type.
 var ExportDir = defaultExportDir
@@ -100,12 +100,12 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 	return nil
 }
 
-// currentSymlinkPath returns the path of the current subkey symlink for given primaryKey.
-func currentSubKeySymlinkPath(primaryKey string) string {
-	return filepath.Join(ExportDir, primaryKey, "current")
+// currentSymlinkPath returns the path of the current subkey symlink for given  snapName.
+func currentSubKeySymlinkPath(snapName string) string {
+	return filepath.Join(ExportDir, snapName, "current")
 }
 
-// setCurrentSubKey replaces the "current" symlink for the given primary key to
+// setCurrentSubKey replaces the "current" symlink for the given snap name to
 // point to the given subKey. Appropriate subKey can be computed by
 // subKeyForSnap.
 //
@@ -113,29 +113,29 @@ func currentSubKeySymlinkPath(primaryKey string) string {
 // exist no error is reported. This is because this function is most often
 // called from link-snap where it runs unconditionally but most snaps do not
 // have any content to export and the symlink would be dangling.
-func setCurrentSubKey(primaryKey, subKey string) error {
-	pathName := currentSubKeySymlinkPath(primaryKey)
+func setCurrentSubKey(snapName, subKey string) error {
+	pathName := currentSubKeySymlinkPath(snapName)
 	if err := osutil.AtomicSymlink(subKey, pathName); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot set current subkey of %q to %q: %v", primaryKey, subKey, err)
+		return fmt.Errorf("cannot set current subkey of %q to %q: %v", snapName, subKey, err)
 	}
 	return nil
 }
 
-// removeCurrentSubKey removes the "current" symlink for the given primary key.
-func removeCurrentSubKey(primaryKey string) error {
-	if err := os.Remove(currentSubKeySymlinkPath(primaryKey)); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove current subkey of %q: %v", primaryKey, err)
+// removeCurrentSubKey removes the "current" symlink for the given snap name.
+func removeCurrentSubKey(snapName string) error {
+	if err := os.Remove(currentSubKeySymlinkPath(snapName)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot remove current subkey of %q: %v", snapName, err)
 	}
 	return nil
 }
 
-// ManifestKeys returns the (primaryKey, subKey) tuple to use as the current
+// ManifestKeys returns the (snapName, subKey) tuple to use as the current
 // provider of all the export sets of a given snap. The returned subKey may be
 // empty, indicating that given snap has no current revision.
-func ManifestKeys(st *state.State, instanceName string) (primaryKey string, subKey string, err error) {
+func ManifestKeys(st *state.State, instanceName string) (snapName string, subKey string, err error) {
 	switch instanceName {
 	case "core", "snapd":
-		primaryKey, subKey, err = effectiveManifestKeysForSnapdOrCore(st)
+		snapName, subKey, err = effectiveManifestKeysForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}
@@ -145,10 +145,10 @@ func ManifestKeys(st *state.State, instanceName string) (primaryKey string, subK
 			return "", "", err
 		}
 		if info == nil || info.Broken != "" {
-			primaryKey, _ = snap.SplitInstanceName(instanceName)
-			return primaryKey, "", nil
+			snapName, _ = snap.SplitInstanceName(instanceName)
+			return snapName, "", nil
 		}
-		primaryKey, subKey = manifestKeysForRegularSnap(info)
+		snapName, subKey = manifestKeysForRegularSnap(info)
 	}
-	return primaryKey, subKey, nil
+	return snapName, subKey, nil
 }

@@ -214,11 +214,11 @@ func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {
 	st.Lock()
 	initialManifest := exportstate.Manifest{
 		Symlinks: []exportstate.SymlinkExport{{
-			PrimaryKey: "snapd",
-			SubKey:     "1",
-			ExportSet:  "tools",
-			Name:       "snap-exec",
-			Target:     "/snap/snapd/1/usr/lib/snapd/snap-exec",
+			SnapName:  "snapd",
+			SubKey:    "1",
+			ExportSet: "tools",
+			Name:      "snap-exec",
+			Target:    "/snap/snapd/1/usr/lib/snapd/snap-exec",
 		}},
 	}
 	c.Assert(initialManifest.CreateExportedFiles(), IsNil)
@@ -259,11 +259,11 @@ func (s *handlersSuite) TestUndoUnexportContentSnapd(c *C) {
 	st.Lock()
 	initialManifest := exportstate.Manifest{
 		Symlinks: []exportstate.SymlinkExport{{
-			PrimaryKey: "snapd",
-			SubKey:     "1",
-			ExportSet:  "tools",
-			Name:       "snap-exec",
-			Target:     "/snap/snapd/1/usr/lib/snapd/snap-exec",
+			SnapName:  "snapd",
+			SubKey:    "1",
+			ExportSet: "tools",
+			Name:      "snap-exec",
+			Target:    "/snap/snapd/1/usr/lib/snapd/snap-exec",
 		}},
 	}
 	c.Assert(initialManifest.CreateExportedFiles(), IsNil)

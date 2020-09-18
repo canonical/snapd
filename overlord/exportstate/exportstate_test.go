@@ -45,14 +45,14 @@ type exportstateSuite struct {
 
 var _ = Suite(&exportstateSuite{
 	m: exportstate.Manifest{
-		PrimaryKey: "primary-key",
-		SubKey:     "sub-key",
+		SnapName: "snap-name",
+		SubKey:   "sub-key",
 		Symlinks: []exportstate.SymlinkExport{{
-			PrimaryKey: "primary-key",
-			SubKey:     "sub-key",
-			ExportSet:  "export-set",
-			Name:       "symlink-name",
-			Target:     "symlink-target",
+			SnapName:  "snap-name",
+			SubKey:    "sub-key",
+			ExportSet: "export-set",
+			Name:      "symlink-name",
+			Target:    "symlink-target",
 		},
 		},
 	},
@@ -76,15 +76,15 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	st.Get("exports", &exportsRaw)
 	expected := map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
-			"primary-key": "primary-key",
-			"sub-key":     "sub-key",
+			"snap-name": "snap-name",
+			"sub-key":   "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary-key",
-					"sub-key":     "sub-key",
-					"export-set":  "export-set",
-					"name":        "symlink-name",
-					"target":      "symlink-target",
+					"snap-name":  "snap-name",
+					"sub-key":    "sub-key",
+					"export-set": "export-set",
+					"name":       "symlink-name",
+					"target":     "symlink-target",
 				},
 			},
 		},
@@ -113,15 +113,15 @@ func (s *exportstateSuite) TestSetRemovingState(c *C) {
 			"unrelated": "stuff",
 		},
 		"snap-name/42": map[string]interface{}{
-			"primary-key": "primary-key",
-			"sub-key":     "sub-key",
+			"snap-name": "snap-name",
+			"sub-key":   "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary-key",
-					"sub-key":     "sub-key",
-					"export-set":  "export-set",
-					"name":        "symlink-name",
-					"target":      "symlink-target",
+					"snap-name":  "snap-name",
+					"sub-key":    "sub-key",
+					"export-set": "export-set",
+					"name":       "symlink-name",
+					"target":     "symlink-target",
 				},
 			},
 		},
@@ -172,15 +172,15 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	// Get returns the stored snap manifest for given snap revision.
 	st.Set("exports", map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
-			"primary-key": "primary-key",
-			"sub-key":     "sub-key",
+			"snap-name": "snap-name",
+			"sub-key":   "sub-key",
 			"symlinks": []interface{}{
 				map[string]interface{}{
-					"primary-key": "primary-key",
-					"sub-key":     "sub-key",
-					"export-set":  "export-set",
-					"name":        "symlink-name",
-					"target":      "symlink-target",
+					"snap-name":  "snap-name",
+					"sub-key":    "sub-key",
+					"export-set": "export-set",
+					"name":       "symlink-name",
+					"target":     "symlink-target",
 				},
 			},
 		},
@@ -192,48 +192,48 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 }
 
 func (s *exportstateSuite) TestCurrentSubKeySymlinkPath(c *C) {
-	path := exportstate.CurrentSubKeySymlinkPath("primary")
-	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/primary/current")
+	path := exportstate.CurrentSubKeySymlinkPath("snap-name")
+	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/snap-name/current")
 }
 
 func (s *exportstateSuite) TestRemoveCurrentSubKey(c *C) {
 	// It is not an error to remove the current subkey link
 	// if it does not exist.
-	err := exportstate.RemoveCurrentSubKey(s.m.PrimaryKey)
+	err := exportstate.RemoveCurrentSubKey(s.m.SnapName)
 	c.Assert(err, IsNil)
 
 	// Removing the current subkey symlink works correctly.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.SubKey)
-	err = exportstate.RemoveCurrentSubKey(s.m.PrimaryKey)
+	err = exportstate.RemoveCurrentSubKey(s.m.SnapName)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.FileAbsent)
 }
 
 func (s *exportstateSuite) TestSetCurrentSubKey(c *C) {
 	// Current subkey cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
+	err := exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
 	c.Check(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current subkey at will.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, s.m.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.SnapName, s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.SubKey)
 
 	// The current subkey can be replaced to point to another value.
-	err = exportstate.SetCurrentSubKey(s.m.PrimaryKey, "other-"+s.m.SubKey)
+	err = exportstate.SetCurrentSubKey(s.m.SnapName, "other-"+s.m.SubKey)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.PrimaryKey, "current"),
+	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, "other-"+s.m.SubKey)
 }
 
@@ -257,9 +257,9 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	primaryKey, subKey, err := exportstate.ManifestKeys(s.st, "core")
+	snapName, subKey, err := exportstate.ManifestKeys(s.st, "core")
 	c.Assert(err, IsNil)
-	c.Check(primaryKey, Equals, "snapd")
+	c.Check(snapName, Equals, "snapd")
 	c.Check(subKey, Equals, "2")
 
 	// Because we have both core and snapd installed, core with revision 1 wins.
@@ -273,9 +273,9 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	primaryKey, subKey, err = exportstate.ManifestKeys(s.st, "core")
+	snapName, subKey, err = exportstate.ManifestKeys(s.st, "core")
 	c.Assert(err, IsNil)
-	c.Check(primaryKey, Equals, "snapd")
+	c.Check(snapName, Equals, "snapd")
 	c.Check(subKey, Equals, "core_1")
 
 	// Non-special snaps just use their revision as sub-key.
@@ -283,9 +283,9 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 42}}), nil
 	}))
-	primaryKey, subKey, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, subKey, err = exportstate.ManifestKeys(s.st, "foo")
 	c.Assert(err, IsNil)
-	c.Check(primaryKey, Equals, "foo")
+	c.Check(snapName, Equals, "foo")
 	c.Check(subKey, Equals, "42")
 
 	// TODO: test broken snapd/core
@@ -298,9 +298,9 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		info.InstanceKey = "instance"
 		return info, nil
 	}))
-	primaryKey, subKey, err = exportstate.ManifestKeys(s.st, "foo")
+	snapName, subKey, err = exportstate.ManifestKeys(s.st, "foo")
 	c.Assert(err, IsNil)
-	c.Check(primaryKey, Equals, "foo")
+	c.Check(snapName, Equals, "foo")
 	c.Check(subKey, Equals, "42_instance")
 }
 

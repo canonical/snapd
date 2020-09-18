@@ -49,7 +49,7 @@ func (s *specialSuite) TestNewManifestForHostWithDefaultSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
-	c.Check(m.PrimaryKey, Equals, "snapd")
+	c.Check(m.SnapName, Equals, "snapd")
 	c.Check(m.SubKey, Equals, "host")
 	c.Assert(m.Symlinks, HasLen, 9)
 	s.checkSnapExecFromHost(c, &m.Symlinks[4])
@@ -60,14 +60,14 @@ func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
-	c.Check(m.PrimaryKey, Equals, "snapd")
+	c.Check(m.SnapName, Equals, "snapd")
 	c.Check(m.SubKey, Equals, "host")
 	c.Assert(m.Symlinks, HasLen, 9)
 	s.checkSnapExecFromHost(c, &m.Symlinks[4])
 }
 
 func (s *specialSuite) checkSnapExecFromHost(c *C, slink *exportstate.SymlinkExport) {
-	c.Check(slink.PrimaryKey, Equals, "snapd")
+	c.Check(slink.SnapName, Equals, "snapd")
 	c.Check(slink.SubKey, Equals, "host")
 	c.Check(slink.ExportSet, Equals, "tools")
 	c.Check(slink.Name, Equals, "snap-exec")
@@ -89,7 +89,7 @@ func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
 }
 
 func (s *specialSuite) checkSnapExecFromSnap(c *C, slink *exportstate.SymlinkExport, info *snap.Info) {
-	c.Check(slink.PrimaryKey, Equals, "snapd")
+	c.Check(slink.SnapName, Equals, "snapd")
 	// SubKey varies by provider
 	c.Check(slink.ExportSet, Equals, "tools")
 	c.Check(slink.Name, Equals, "snap-exec")

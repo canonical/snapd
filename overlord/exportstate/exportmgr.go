@@ -95,14 +95,14 @@ func (m *ExportManager) exportSnapdTools() error {
 		}
 		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
-	primaryKey, subKey, err := effectiveManifestKeysForSnapdOrCore(m.state)
+	snapName, subKey, err := effectiveManifestKeysForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
 	if subKey != "" {
-		return setCurrentSubKey(primaryKey, subKey)
+		return setCurrentSubKey(snapName, subKey)
 	}
-	return removeCurrentSubKey(primaryKey)
+	return removeCurrentSubKey(snapName)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -115,14 +115,14 @@ type LinkSnapParticipant struct{}
 
 // SnapLinkageChanged implements LinkParticipant.SnapLinkageChanged.
 func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
-	primaryKey, subKey, err := ManifestKeys(st, instanceName)
+	snapName, subKey, err := ManifestKeys(st, instanceName)
 	if err != nil {
 		return err
 	}
 	if subKey != "" {
-		return setCurrentSubKey(primaryKey, subKey)
+		return setCurrentSubKey(snapName, subKey)
 	}
-	return removeCurrentSubKey(primaryKey)
+	return removeCurrentSubKey(snapName)
 }
 
 var once sync.Once

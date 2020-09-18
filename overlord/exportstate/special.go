@@ -45,23 +45,23 @@ var toolsToExport = []string{
 }
 
 func manifestForClassicSystem() *Manifest {
-	primaryKey, subKey := manifestKeysForHost()
+	snapName, subKey := manifestKeysForHost()
 	return &Manifest{
-		PrimaryKey: primaryKey,
-		SubKey:     subKey,
-		Symlinks:   exportSetSymlinks(primaryKey, subKey, "tools", exportedSnapdToolsFromHost()),
+		SnapName: snapName,
+		SubKey:   subKey,
+		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapdToolsFromHost()),
 	}
 }
 
 func manifestForCoreSystem() *Manifest {
-	primaryKey, subKey := manifestKeysForHost()
+	snapName, subKey := manifestKeysForHost()
 	return &Manifest{
-		PrimaryKey: primaryKey,
-		SubKey:     subKey,
+		SnapName: snapName,
+		SubKey:   subKey,
 	}
 }
 
-func manifestKeysForHost() (primaryKey string, subKey string) {
+func manifestKeysForHost() (snapName string, subKey string) {
 	return "snapd", "host"
 }
 
@@ -74,15 +74,15 @@ func exportedSnapdToolsFromHost() []*ExportEntry {
 }
 
 func manifestForSnapdSnap(info *snap.Info) *Manifest {
-	primaryKey, subKey := manifestKeysForSnapd(info)
+	snapName, subKey := manifestKeysForSnapd(info)
 	return &Manifest{
-		PrimaryKey: primaryKey,
-		SubKey:     subKey,
-		Symlinks:   exportSetSymlinks(primaryKey, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		SnapName: snapName,
+		SubKey:   subKey,
+		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
 	}
 }
 
-func manifestKeysForSnapd(info *snap.Info) (primaryKey string, subKey string) {
+func manifestKeysForSnapd(info *snap.Info) (snapName string, subKey string) {
 	return "snapd", info.Revision.String()
 }
 
@@ -95,42 +95,42 @@ func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*ExportEntry {
 }
 
 func manifestForCoreSnap(info *snap.Info) *Manifest {
-	primaryKey, subKey := manifestKeysForCore(info)
+	snapName, subKey := manifestKeysForCore(info)
 	return &Manifest{
-		PrimaryKey: primaryKey,
-		SubKey:     subKey,
-		Symlinks:   exportSetSymlinks(primaryKey, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		SnapName: snapName,
+		SubKey:   subKey,
+		Symlinks: exportSetSymlinks(snapName, subKey, "tools", exportedSnapToolsFromSnapdOrCore(info)),
 	}
 }
 
-func manifestKeysForCore(info *snap.Info) (primaryKey string, subKey string) {
+func manifestKeysForCore(info *snap.Info) (snapName string, subKey string) {
 	return "snapd", fmt.Sprintf("core_%s", info.Revision)
 }
 
 func manifestForRegularSnap(info *snap.Info) *Manifest {
-	primaryKey, subKey := manifestKeysForRegularSnap(info)
+	snapName, subKey := manifestKeysForRegularSnap(info)
 	return &Manifest{
-		PrimaryKey: primaryKey,
-		SubKey:     subKey,
+		SnapName: snapName,
+		SubKey:   subKey,
 		// TODO: eventually get this from the snap.yaml
 	}
 }
 
-func manifestKeysForRegularSnap(info *snap.Info) (primaryKey string, subKey string) {
+func manifestKeysForRegularSnap(info *snap.Info) (snapName string, subKey string) {
 	if info.SnapName() == "core" || info.SnapName() == "snapd" {
 		panic("internal error, cannot use manifestKeysForRegularSnap with core or snapd")
 	}
-	primaryKey = info.SnapName() // Instance key goes to subKey
+	snapName = info.SnapName() // Instance key goes to subKey
 	if info.InstanceKey == "" {
 		subKey = info.Revision.String()
 	} else {
 		subKey = fmt.Sprintf("%s_%s", info.Revision.String(), info.InstanceKey)
 	}
-	return primaryKey, subKey
+	return snapName, subKey
 }
 
 // XXX: this is named too similarly to functions above but plays a fundamentally different role.
-func effectiveManifestKeysForSnapdOrCore(st *state.State) (primaryKey string, subKey string, err error) {
+func effectiveManifestKeysForSnapdOrCore(st *state.State) (snapName string, subKey string, err error) {
 	snapdInfo, coreInfo, err := currentSnapdAndCoreInfo(st)
 	if err != nil {
 		return "", "", err
@@ -138,16 +138,16 @@ func effectiveManifestKeysForSnapdOrCore(st *state.State) (primaryKey string, su
 	var activeSnapdSubKey string
 	var activeCoreSubKey string
 	if snapdInfo != nil && snapdInfo.Broken == "" {
-		primaryKey, activeSnapdSubKey = manifestKeysForSnapd(snapdInfo)
+		snapName, activeSnapdSubKey = manifestKeysForSnapd(snapdInfo)
 	}
 	if coreInfo != nil && coreInfo.Broken == "" {
-		primaryKey, activeCoreSubKey = manifestKeysForCore(coreInfo)
+		snapName, activeCoreSubKey = manifestKeysForCore(coreInfo)
 	}
 	subKey = electSubKeyForSnapdTools(activeSnapdSubKey, activeCoreSubKey)
-	if subKey != "" && primaryKey == "" {
-		primaryKey = "snapd"
+	if subKey != "" && snapName == "" {
+		snapName = "snapd"
 	}
-	return primaryKey, subKey, nil
+	return snapName, subKey, nil
 }
 
 // electSubKeyForSnapdTools returns the subkey to use for snapd tools export set.

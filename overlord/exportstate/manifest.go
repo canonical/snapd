@@ -29,9 +29,9 @@ import (
 
 // Manifest describes content content exported to snaps or the host.
 type Manifest struct {
-	PrimaryKey string          `json:"primary-key"`
-	SubKey     string          `json:"sub-key"`
-	Symlinks   []SymlinkExport `json:"symlinks,omitempty"`
+	SnapName string          `json:"snap-name"`
+	SubKey   string          `json:"sub-key"`
+	Symlinks []SymlinkExport `json:"symlinks,omitempty"`
 }
 
 // NewManifest returns the manifest of a given snap.
@@ -76,7 +76,7 @@ func (m *Manifest) IsEmpty() bool {
 
 // CreateExportedFiles creates all the files constituting the export manifest.
 //
-// The directory /var/lib/snapd/export/$primaryKey/$subKey is created
+// The directory /var/lib/snapd/export/$snapName/$subKey is created
 // if necessary. For each export set in the manifest, additional sub-directory
 // is created and populated with symbolic links pointing to the exported files.
 //
@@ -92,7 +92,7 @@ func (m *Manifest) CreateExportedFiles() error {
 
 // RemoveExportedFiles removes all the files constituting the export state.
 //
-// In addition the path /var/lib/snapd/export/$primaryKey/$subKey
+// In addition the path /var/lib/snapd/export/$snapName/$subKey
 // is pruned, removing empty directories if possible.
 //
 // On failure removal continues and the first error is returned.
@@ -108,8 +108,7 @@ func (m *Manifest) RemoveExportedFiles() error {
 
 // SymlinkExport describes content exported as symbolic link.
 type SymlinkExport struct {
-	// XXX PrimaryKey => SnapName ??
-	PrimaryKey string `json:"primary-key"`
+	SnapName string `json:"snap-name"`
 	// XXX SubKey => ExportedVersion ??
 	SubKey    string `json:"sub-key"`
 	ExportSet string `json:"export-set"`
@@ -119,7 +118,7 @@ type SymlinkExport struct {
 
 // PathName returns the full path of the symbolic link.
 func (s *SymlinkExport) PathName() string {
-	return filepath.Join(ExportDir, s.PrimaryKey, s.SubKey, s.ExportSet, s.Name)
+	return filepath.Join(ExportDir, s.SnapName, s.SubKey, s.ExportSet, s.Name)
 }
 
 // Create creates a symbolic link and necessary directories.
@@ -145,9 +144,9 @@ func (s *SymlinkExport) Remove() error {
 		return err
 	}
 	// XXX: or iterate upwards until we reach ExportDir
-	os.Remove(filepath.Join(ExportDir, s.PrimaryKey, s.SubKey, s.ExportSet))
-	os.Remove(filepath.Join(ExportDir, s.PrimaryKey, s.SubKey))
-	os.Remove(filepath.Join(ExportDir, s.PrimaryKey))
+	os.Remove(filepath.Join(ExportDir, s.SnapName, s.SubKey, s.ExportSet))
+	os.Remove(filepath.Join(ExportDir, s.SnapName, s.SubKey))
+	os.Remove(filepath.Join(ExportDir, s.SnapName))
 	return nil
 }
 
@@ -162,11 +161,11 @@ func exportSetSymlinks(snapName, snapRev, exportSetName string, entries []*Expor
 			target = entry.PathInSnapMountNS
 		}
 		symlinks = append(symlinks, SymlinkExport{
-			PrimaryKey: snapName,
-			SubKey:     snapRev,
-			ExportSet:  exportSetName,
-			Name:       entry.PathInExportSet,
-			Target:     target,
+			SnapName:  snapName,
+			SubKey:    snapRev,
+			ExportSet: exportSetName,
+			Name:      entry.PathInExportSet,
+			Target:    target,
 		})
 	}
 	return symlinks
