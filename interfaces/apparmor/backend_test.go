@@ -903,7 +903,9 @@ profile "snap.samba.smbd" (attach_disconnected,mediate_deleted) {
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 
   # For snappy reexec on 4.8+ kernels
-  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec mr,
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec mr,
+  /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-exec mr,
 
 snippet
 }
