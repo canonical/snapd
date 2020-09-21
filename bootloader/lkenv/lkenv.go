@@ -51,7 +51,7 @@ const (
 /**
  * Following structure has to be kept in sync with c structure defined by
  * include/lk/snappy-boot_v1.h
- * c headerfile is used by bootloader, this ensures sync of  the environment
+ * c headerfile is used by bootloader, this ensures sync of the environment
  * between snapd and bootloader
 
  * when this structure needs to be updated,
