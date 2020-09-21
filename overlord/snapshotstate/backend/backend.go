@@ -119,7 +119,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 					// with internal set id. This may be the case in the future
 					// with new enhanced snapshot format.
 					// XXX: warning instead?
-					logger.Noticef("Snapshot %q ignored, internal set-id %d disagrees with filename", name, reader.SetID)
+					logger.Debugf("Snapshot %q ignored, internal set-id %d disagrees with filename", name, reader.SetID)
 					continue
 				}
 				err = f(reader)
