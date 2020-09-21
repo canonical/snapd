@@ -17,11 +17,12 @@ show_help() {
 
 pack_local() {
     local SNAP_NAME="$1"
+    local SNAP_VERSION="${2:-1.0}"
     local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
     if [ $# -gt 1 ]; then
         SNAP_DIR="$2"
     fi
-    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
+    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_${SNAP_VERSION}_all.snap"
     # assigned in a separate step to avoid hiding a failure
     if [ ! -f "$SNAP_FILE" ]; then
         snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
