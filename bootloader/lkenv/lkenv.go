@@ -404,18 +404,21 @@ func (l *Env) GetBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
 }
 
-// FreeBootPartition free passed kernel revision from any boot partition
-// ignore if there is no boot partition with given kernel revision
-func (l *Env) FreeBootPartition(kernel string) (bool, error) {
+// RemoveKernelRevisionFromBootPartition removes from the boot image matrix the
+// first found boot partition that contains a reference to the given kernel
+// revision. If the referenced kernel revision was not found, a non-nil err is
+// returned, otherwise the reference is removed and nil is returned.
+// Note that to persist this change the env must be saved afterwards with Save.
+func (l *Env) RemoveKernelRevisionFromBootPartition(kernel string) error {
 	for x := range l.env.Bootimg_matrix {
 		if "" != cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
 			if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
 				l.env.Bootimg_matrix[x][1][MATRIX_ROW_PARTITION] = 0
-				return true, nil
+				return nil
 			}
 		}
 	}
-	return false, fmt.Errorf("cannot find defined [%s] boot image partition", kernel)
+	return fmt.Errorf("cannot find defined [%s] boot image partition", kernel)
 }
 
 // GetBootImageName return expected boot image file name in kernel snap
