@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
@@ -51,6 +53,8 @@ func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
 }
 
 var (
+	ModeenvKnownKeys = modeenvKnownKeys
+
 	MarshalModeenvEntryTo        = marshalModeenvEntryTo
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 
@@ -58,6 +62,9 @@ var (
 
 	ObserveSuccessfulBootWithAssets = observeSuccessfulBootAssets
 	SealKeyToModeenv                = sealKeyToModeenv
+	ResealKeyToModeenv              = resealKeyToModeenv
+	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	SealKeyModelParams              = sealKeyModelParams
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -89,6 +96,22 @@ func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKe
 	}
 }
 
+func MockSecbootResealKey(f func(params *secboot.ResealKeyParams) error) (restore func()) {
+	old := secbootResealKey
+	secbootResealKey = f
+	return func() {
+		secbootResealKey = old
+	}
+}
+
+func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
+	old := seedReadSystemEssential
+	seedReadSystemEssential = f
+	return func() {
+		seedReadSystemEssential = old
+	}
+}
+
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
 	ta := &trackedAsset{
 		blName: blName,
@@ -104,8 +127,13 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 
 type BootAsset = bootAsset
 type BootChain = bootChain
-type ByBootAssetOrder = byBootAssetOrder
 type PredictableBootChains = predictableBootChains
+
+const (
+	BootChainEquivalent   = bootChainEquivalent
+	BootChainDifferent    = bootChainDifferent
+	BootChainUnrevisioned = bootChainUnrevisioned
+)
 
 var (
 	ToPredictableBootAsset              = toPredictableBootAsset
@@ -113,6 +141,10 @@ var (
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
 	BootAssetsToLoadChains              = bootAssetsToLoadChains
+	BootAssetLess                       = bootAssetLess
+	WriteBootChains                     = writeBootChains
+	ReadBootChains                      = readBootChains
+	IsResealNeeded                      = isResealNeeded
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
@@ -121,4 +153,8 @@ func (b *bootChain) SetModelAssertion(model *asserts.Model) {
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 	b.kernelBootFile = kbf
+}
+
+func (b *bootChain) KernelBootFile() bootloader.BootFile {
+	return b.kernelBootFile
 }

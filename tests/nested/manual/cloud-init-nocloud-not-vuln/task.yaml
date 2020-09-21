@@ -40,17 +40,13 @@ prepare: |
     nested_create_core_vm
     nested_start_core_vm
 
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_destroy_vm
-    nested_cleanup_env
-
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
         echo "logs before reboot"
         cat snapd-before-reboot.logs
     fi
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
     nested_exec "sudo journalctl -e --no-pager -u snapd" || true
 
@@ -131,8 +127,7 @@ execute: |
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    nested_exec "sudo shutdown -h now" || true
-    nested_wait_for_no_ssh
+    nested_shutdown
 
     # now if we reboot and add a cloud-init drive, it will not be imported onto
     # the system

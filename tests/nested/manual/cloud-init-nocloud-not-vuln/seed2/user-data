@@ -4,4 +4,4 @@ users:
   - name: attacker-user
     sudo: ALL=(ALL) NOPASSWD:ALL
     lock_passwd: false
-    passwd: $6$rounds=4096$ftDwPSSVP0Jq9$4hXIcusbcZMxbSnfv8D/vp/bdzgVAds9qGcFjeBvv1Ths9mLiNPKAxW8/1zOtGLPKsEcorUOzl16hn9jxswDz0
+    passwd: $6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0
