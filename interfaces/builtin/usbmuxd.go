@@ -20,7 +20,7 @@
 package builtin
 
 const usbmuxdSummary = `allows access to usbmuxd socket`
- 
+
 const usbmuxdBaseDeclarationSlots = `
   usbmuxd:
     allow-installation: false
