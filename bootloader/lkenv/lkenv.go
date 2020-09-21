@@ -384,7 +384,9 @@ func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find free partition for boot image")
 }
 
-// SetBootPartition set kernel revision name to passed boot partition
+// SetBootPartition sets the kernel revision reference in the provided boot
+// partition reference to the provided kernel revision. It returns a non-nil err
+// if the provided boot partition reference was not found.
 func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	for x := range l.env.Bootimg_matrix {
 		if bootpart == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
@@ -395,6 +397,9 @@ func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	return fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
 }
 
+// GetBootPartition returns the first found boot partition that contains a
+// reference to the given kernel revision. If the revision was not found, a
+// non-nil error is returned.
 func (l *Env) GetBootPartition(kernel string) (string, error) {
 	for x := range l.env.Bootimg_matrix {
 		if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
