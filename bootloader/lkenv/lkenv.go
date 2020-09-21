@@ -170,7 +170,7 @@ type SnapBootSelect_v1 struct {
 	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Kye_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
