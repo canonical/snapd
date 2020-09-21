@@ -337,20 +337,20 @@ func (l *Env) Save() error {
 	w.Truncate(ss - 4)
 	binary.Write(w, binary.LittleEndian, &l.env.Crc32)
 
-	err := l.SaveEnv(l.path, w)
+	err := l.saveEnv(l.path, w)
 	if err != nil {
 		logger.Debugf("Save: failed to save main environment")
 	}
 	// if there is backup environment file save to it as well
 	if osutil.FileExists(l.pathbak) {
-		if err := l.SaveEnv(l.pathbak, w); err != nil {
+		if err := l.saveEnv(l.pathbak, w); err != nil {
 			logger.Debugf("Save: failed to save backup environment %v", err)
 		}
 	}
 	return err
 }
 
-func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
+func (l *Env) saveEnv(path string, buf *bytes.Buffer) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
 	if err != nil {
 		return fmt.Errorf("cannot open LK env file for env storing: %v", err)
