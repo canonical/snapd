@@ -231,7 +231,7 @@ var templateCommon = `
   # example, allow access to /dev/std{in,out,err} which are all symlinks to
   # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
   # linkat() temporary file technique, allow all fds. Importantly, access to
-  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # another task's fd via this proc interface is mediated via 'ptrace (read)'
   # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
   # this rule by itself doesn't allow opening another snap's fds via proc.
   owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
