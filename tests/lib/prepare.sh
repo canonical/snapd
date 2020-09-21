@@ -340,7 +340,7 @@ repack_snapd_snap_with_deb_content() {
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -358,7 +358,7 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
 
     if [ "$ENABLE_SSH" = "true" ]; then
         # now install a unit that sets up enough so that we can connect
