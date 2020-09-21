@@ -643,6 +643,7 @@ var (
 		"classic-support": nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"usbmuxd":         nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -769,6 +770,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"ubuntu-download-manager":   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
+		"usbmuxd":                   true,
 	}
 
 	for _, iface := range all {
