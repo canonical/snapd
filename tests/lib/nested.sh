@@ -1125,3 +1125,17 @@ nested_fetch_spread() {
         echo "$NESTED_WORK_DIR/spread"
     fi
 }
+
+nested_build_seed_cdrom() {
+    local SEED_DIR="$1"
+    local SEED_NAME="$2"
+    local LABEL="$3"
+
+    shift 3
+
+    local ORIG_DIR=$PWD
+
+    pushd "$SEED_DIR" || return 1 
+    genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
+    popd || return 1 
+}
