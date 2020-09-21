@@ -53,6 +53,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
+    # Configure nested images to be reused on the following tests
+    NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
 backends:
     google:
@@ -405,12 +407,14 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl -e --no-pager -u nested-vm || true
+            journalctl --no-pager -u nested-vm || true
 
             if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
                 cat "${NESTED_LOGS_DIR}/serial.log"
             fi
+
+            nested_exec sudo journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'

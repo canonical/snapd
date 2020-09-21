@@ -88,3 +88,9 @@ func (d *mockDevice) Base() string {
 	}
 	return d.bootSnap
 }
+func (d *mockDevice) Model() *asserts.Model {
+	if d.model == nil {
+		panic("Device.Model called but MockUC20Device not used")
+	}
+	return d.model
+}

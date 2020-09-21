@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
@@ -226,6 +227,26 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 			"service.console-conf.disable": true,
 		},
 	})
+	c.Assert(err, IsNil)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
+	c.Assert(err, IsNil)
+	restore = boot.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	// no error because we are in install mode
 	c.Assert(err, IsNil)
 }
 

@@ -382,7 +382,12 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.ResealKeyToModeenv(rootdir, model, modeenv)
+		// here we don't have unasserted kernels so just set
+		// expectReseal to false as it doesn't matter;
+		// the behavior with unasserted kernel is tested in
+		// boot_test.go specific tests
+		const expectReseal = false
+		err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
 		if !tc.sealedKeys || tc.prevPbc {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -574,6 +579,8 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 
 		bl, err := bootloader.Find(grubDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 		c.Assert(err, IsNil)
+		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+		c.Assert(ok, Equals, true)
 
 		model := boottest.MakeMockUC20Model()
 
@@ -581,7 +588,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
 		}
 
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, bl, model, modeenv)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, model, modeenv)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(bc, HasLen, len(tc.recoverySystems))
@@ -748,12 +755,12 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
 	c.Assert(err, IsNil)
 
-	needed, _, err := boot.IsResealNeeded(pbc, rootdir)
+	needed, _, err := boot.IsResealNeeded(pbc, rootdir, false)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, false)
 
 	otherchain := []boot.BootChain{pbc[0]}
-	needed, cnt, err := boot.IsResealNeeded(otherchain, rootdir)
+	needed, cnt, err := boot.IsResealNeeded(otherchain, rootdir, false)
 	c.Assert(err, IsNil)
 	// chains are different
 	c.Check(needed, Equals, true)
@@ -761,7 +768,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 
 	// boot-chains does not exist, we cannot compare so advise to reseal
 	otherRootdir := c.MkDir()
-	needed, cnt, err = boot.IsResealNeeded(otherchain, otherRootdir)
+	needed, cnt, err = boot.IsResealNeeded(otherchain, otherRootdir, false)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 1)
@@ -769,7 +776,29 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	// exists but cannot be read
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	needed, _, err = boot.IsResealNeeded(otherchain, rootdir)
+	needed, _, err = boot.IsResealNeeded(otherchain, rootdir, false)
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
+
+	// unrevioned kernel chain
+	unrevchain := []boot.BootChain{pbc[0], pbc[1]}
+	unrevchain[1].KernelRevision = ""
+	// write on disk
+	err = boot.WriteBootChains(unrevchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
+	c.Assert(err, IsNil)
+
+	needed, cnt, err = boot.IsResealNeeded(pbc, rootdir, false)
+	c.Assert(err, IsNil)
+	c.Check(needed, Equals, true)
+	c.Check(cnt, Equals, 3)
+
+	// cases falling back to expectReseal
+	needed, _, err = boot.IsResealNeeded(unrevchain, rootdir, false)
+	c.Assert(err, IsNil)
+	c.Check(needed, Equals, false)
+
+	needed, cnt, err = boot.IsResealNeeded(unrevchain, rootdir, true)
+	c.Assert(err, IsNil)
+	c.Check(needed, Equals, true)
+	c.Check(cnt, Equals, 3)
 }

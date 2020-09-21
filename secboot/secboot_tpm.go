@@ -54,6 +54,7 @@ var (
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
+	sbAddEFIBootManagerProfile       = sb.AddEFIBootManagerProfile
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
@@ -374,11 +375,12 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 	for _, mp := range modelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
 
-		// Add EFI secure boot policy profile
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
+
+		// Add EFI secure boot policy profile
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
@@ -390,6 +392,15 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+		}
+
+		// Add EFI boot manager profile
+		bootManagerParams := sb.EFIBootManagerProfileParams{
+			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+			LoadSequences: loadSequences,
+		}
+		if err := sbAddEFIBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
+			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
@@ -409,7 +420,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 			snapModelParams := sb.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 				PCRIndex:     tpmPCR,
-				Models:       []*asserts.Model{mp.Model},
+				Models:       []sb.SnapModel{mp.Model},
 			}
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)

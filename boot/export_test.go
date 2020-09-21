@@ -53,6 +53,8 @@ func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
 }
 
 var (
+	ModeenvKnownKeys = modeenvKnownKeys
+
 	MarshalModeenvEntryTo        = marshalModeenvEntryTo
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 
@@ -126,6 +128,12 @@ func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash
 type BootAsset = bootAsset
 type BootChain = bootChain
 type PredictableBootChains = predictableBootChains
+
+const (
+	BootChainEquivalent   = bootChainEquivalent
+	BootChainDifferent    = bootChainDifferent
+	BootChainUnrevisioned = bootChainUnrevisioned
+)
 
 var (
 	ToPredictableBootAsset              = toPredictableBootAsset
