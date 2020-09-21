@@ -146,6 +146,7 @@ func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	}{
 		{"1_foo.zip", true, 1},
 		{"14_hello-world_6.4_29.zip", true, 14},
+		{"1_.zip", true, 1}, // we're only validating set id, so this is ok too
 		{"1_foo.zip.bak", false, 0},
 		{"foo_1_foo.zip", false, 0},
 		{"foo_bar_baz.zip", false, 0},
@@ -155,7 +156,7 @@ func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 
 	for _, t := range tests {
 		ok, setID := backend.IsSnapshotFilename(t.name)
-		c.Check(ok, check.Equals, t.valid)
+		c.Check(ok, check.Equals, t.valid, check.Commentf("fail: %s", t.name))
 		c.Check(setID, check.Equals, t.setID)
 	}
 }
@@ -365,16 +366,13 @@ func readerForFilename(fname string, c *check.C) *backend.Reader {
 }
 
 func (s *snapshotSuite) TestIterIgnoresSnapshotsWithSetIdMismatches(c *check.C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		return new(os.File), nil
 	})()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		readNames++
-		if readNames > 2 {
+		if readNames > 1 {
 			return nil, io.EOF
 		}
 		return []string{
@@ -389,17 +387,16 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithSetIdMismatches(c *check.C) 
 		return r, nil
 	})()
 
-	calledF := false
+	var calledF int
 	f := func(snapshot *backend.Reader) error {
-		calledF = true
+		calledF++
 		c.Check(snapshot.SetID, check.Equals, uint64(2))
 		return nil
 	}
 
 	err := backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
-	c.Check(logbuf.String(), check.Matches, `(?m).* Snapshot \"1_foo.zip\" ignored, internal set-id 99 disagrees with filename`)
-	c.Check(calledF, check.Equals, true)
+	c.Check(calledF, check.Equals, 1)
 }
 
 func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
@@ -412,7 +409,7 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		readNames++
-		if readNames > 4 {
+		if readNames > 1 {
 			return nil, io.EOF
 		}
 		return []string{
@@ -426,9 +423,9 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 		return readerForFilename(fname, c), nil
 	})()
 
-	calledF := false
+	var calledF int
 	f := func(snapshot *backend.Reader) error {
-		calledF = true
+		calledF++
 		c.Check(snapshot.SetID, check.Equals, uint64(43))
 		return nil
 	}
@@ -436,7 +433,7 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	err := backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
 	c.Check(logbuf.String(), check.Equals, "")
-	c.Check(calledF, check.Equals, true)
+	c.Check(calledF, check.Equals, 1)
 }
 
 func (s *snapshotSuite) TestList(c *check.C) {
