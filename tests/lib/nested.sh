@@ -302,19 +302,18 @@ nested_get_snakeoil_key() {
 }
 
 nested_secboot_sign_file() {
-    local DIR="$1"
+    local FILE="$1"
     local KEY="$2"
     local CERT="$3"
-    local FILE="$4"
-    sbattach --remove "$DIR"/"$FILE"
-    sbsign --key "$KEY" --cert "$CERT" --output "$DIR"/"$FILE" "$DIR"/"$FILE"
+    sbattach --remove "$FILE"
+    sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
 nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
-    nested_secboot_sign_file "$GADGET_DIR" "$KEY" "$CERT" "shim.efi.signed"
+    nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
 }
 
 nested_prepare_env() {
@@ -912,10 +911,16 @@ nested_start_core_vm() {
 }
 
 nested_shutdown() {
+    # we sometimes have bugs in nested vm's where files that were successfully
+    # written become empty all of a sudden, so doing a sync here in the VM, and
+    # another one in the host when done probably helps to avoid that, and at
+    # least can't hurt anything
+    nested_exec "sync"
     nested_exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
+    sync
 }
 
 nested_start() {
