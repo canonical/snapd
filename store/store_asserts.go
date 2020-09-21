@@ -61,6 +61,19 @@ type assertionSvcError struct {
 	} `json:"error-list"`
 }
 
+func (e *assertionSvcError) isNotFound() bool {
+	return (len(e.ErrorList) > 0 && e.ErrorList[0].Code == "not-found" /* v2 error */) || e.Status == 404
+}
+
+func (e *assertionSvcError) toError() error {
+	// is it v2 error?
+	if len(e.ErrorList) > 0 {
+		return fmt.Errorf("assertion service error: %q", e.ErrorList[0].Message)
+	}
+	// v1 error
+	return fmt.Errorf("assertion service error: [%s] %q", e.Title, e.Detail)
+}
+
 // Assertion retrieves the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	v := url.Values{}
@@ -77,7 +90,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		return e
 	}, func(svcErr *assertionSvcError) error {
 		// error-list indicates v2 error response.
-		if (len(svcErr.ErrorList) > 0 && svcErr.ErrorList[0].Code == "not-found" /* v2 error */) || svcErr.Status == 404 {
+		if svcErr.isNotFound() {
 			// best-effort
 			headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
 			return &asserts.NotFoundError{
@@ -121,14 +134,7 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 					}
 				}
 				// default error handling
-
-				// is it v2 error?
-				if len(svcErr.ErrorList) > 0 {
-					return fmt.Errorf("assertion service error: %q", svcErr.ErrorList[0].Message)
-				}
-				// XXX: v1 error contains error-list which mirrors title and detail,
-				// we could just use error-list for v1?
-				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+				return svcErr.toError()
 			}
 		}
 		return e
