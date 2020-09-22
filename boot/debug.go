@@ -24,6 +24,8 @@ import (
 	"io"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // DumpBootVars writes a dump of the snapd bootvars to the given writer
@@ -39,6 +41,12 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	case InitramfsUbuntuSeedDir:
 		opts.Role = bootloader.RoleRecovery
 		uc20 = true
+	}
+	if !opts.NoSlashBoot && !uc20 {
+		// this may still be a UC20 system
+		if osutil.FileExists(dirs.SnapModeenvFile) {
+			uc20 = true
+		}
 	}
 	allKeys := []string{
 		"snap_mode",
