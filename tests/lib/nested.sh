@@ -741,9 +741,6 @@ nested_start_core_vm_unit() {
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
-        # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-        # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-        PARAM_SMP="-smp 1"
     fi
 
     local PARAM_MACHINE

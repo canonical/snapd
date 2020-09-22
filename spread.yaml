@@ -1015,7 +1015,7 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-false}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
