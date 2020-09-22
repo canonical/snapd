@@ -8,7 +8,9 @@ environment:
     IMAGE_FILE: /tmp/work-dir/images/ubuntu-core-new.img
 
 debug: |
-    systemctl stop nested-vm || true
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
+    nested_force_stop_vm
     if [ -f "$IMAGE_FILE" ]; then
         loops=$(kpartx -avs "$IMAGE_FILE" | cut -d' ' -f 3)
 

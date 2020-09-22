@@ -11,111 +11,116 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
 
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
 
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
-  # install the snapd deb from spread so we are using the same version to 
-  # validate the seed as well as call preseed, etc. 
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+    #shellcheck source=tests/lib/preseed.sh
+    . "$TESTSLIB/preseed.sh"
 
-  # create a VM and mount a cloud image
-  nested_create_classic_vm
-  mkdir -p "$IMAGE_MOUNTPOINT"
-  IMAGE_NAME=$(nested_get_image_name classic)
-  mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
+    # install the snapd deb from spread so we are using the same version to 
+    # validate the seed as well as call preseed, etc. 
+    dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-  # on 20.04 snapd from the deb is newer than snapd from seeds;
-  # this is not a sensible scenario for preseeding but since
-  # we're cheating and preseeding images that were not meant to be
-  # preseeded in their current state, we need to inject newer snapd
-  # into seeds/ to make snap-preseed and the test happy.
+    # create a VM and mount a cloud image
+    nested_create_classic_vm
+    mkdir -p "$IMAGE_MOUNTPOINT"
+    IMAGE_NAME=$(nested_get_image_name classic)
+    mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
 
-  # add snapd from this branch into the seed
-  repack_snapd_deb_into_snapd_snap "$PWD"
-  mv snapd-from-deb.snap snapd.snap
-  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+    # on 20.04 snapd from the deb is newer than snapd from seeds;
+    # this is not a sensible scenario for preseeding but since
+    # we're cheating and preseeding images that were not meant to be
+    # preseeded in their current state, we need to inject newer snapd
+    # into seeds/ to make snap-preseed and the test happy.
 
-  # for images that are already preseeded, we need to undo the preseeding there
-  echo "Running preseed --reset for already preseeded cloud images"
-  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+    # add snapd from this branch into the seed
+    repack_snapd_deb_into_snapd_snap "$PWD"
+    mv snapd-from-deb.snap snapd.snap
+    inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+
+    # for images that are already preseeded, we need to undo the preseeding there
+    echo "Running preseed --reset for already preseeded cloud images"
+    SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  nested_destroy_vm
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
+    nested_destroy_vm
 
-  # any of the restore commands can fail depending on where execute part stopped,
-  # account for that with ||true.
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+    # any of the restore commands can fail depending on where execute part stopped,
+    # account for that with ||true.
+    #shellcheck source=tests/lib/preseed.sh
+    . "$TESTSLIB/preseed.sh"
+    umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
 
 execute: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
+    #shellcheck source=tests/lib/preseed.sh
+    . "$TESTSLIB/preseed.sh"
 
-  echo "Running pre-seeding"
-  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
+    echo "Running pre-seeding"
+    /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
 
-  # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
-  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
-  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json | MATCH "Doing .+ Initialize system state"
+    # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
+    snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
+    snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json | MATCH "Doing .+ Initialize system state"
 
-  cp "$IMAGE_MOUNTPOINT/var/lib/snapd/system-key" system-key.preseeded
+    cp "$IMAGE_MOUNTPOINT/var/lib/snapd/system-key" system-key.preseeded
 
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
+    #shellcheck source=tests/lib/preseed.sh
+    . "$TESTSLIB/preseed.sh"
+    umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  nested_start_classic_vm
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_start_classic_vm
 
-  echo "Waiting for firstboot seeding to finish"
-  nested_exec "sudo snap wait system seed.loaded"
-  nested_exec "snap changes" | MATCH "Done .+ Initialize system state"
+    echo "Waiting for firstboot seeding to finish"
+    nested_exec "sudo snap wait system seed.loaded"
+    nested_exec "snap changes" | MATCH "Done .+ Initialize system state"
 
-  echo "Checking that the system-key after first boot is the same as that from preseeding"
+    echo "Checking that the system-key after first boot is the same as that from preseeding"
 
-  # TODO: re-enable the system-key check when we are using the same kernel for 
-  # the host VM as the nested VM, currently we are not, and as such there is a 
-  # diff between the preseed apparmor-features and the nested VM actual 
-  # system-key
-  if [ "$SPREAD_SYSTEM" != "ubuntu-20.04-64" ]; then
-    # note, this doesn't actually test the functionality, but acts as a canary:
-    # the test is run against a vm image with ubuntu release matching that from spread host;
-    # system-key check can fail if the nested vm image differs too much from the spread host system,
-    # e.g. when the list of apparmor features differs due to significant kernel update.
-    nested_exec "cat /var/lib/snapd/system-key" > system-key.real
-    diff -u -w system-key.real system-key.preseeded
+    # TODO: re-enable the system-key check when we are using the same kernel for 
+    # the host VM as the nested VM, currently we are not, and as such there is a 
+    # diff between the preseed apparmor-features and the nested VM actual 
+    # system-key
+    if [ "$SPREAD_SYSTEM" != "ubuntu-20.04-64" ]; then
+      # note, this doesn't actually test the functionality, but acts as a canary:
+      # the test is run against a vm image with ubuntu release matching that from spread host;
+      # system-key check can fail if the nested vm image differs too much from the spread host system,
+      # e.g. when the list of apparmor features differs due to significant kernel update.
+      nested_exec "cat /var/lib/snapd/system-key" > system-key.real
+      diff -u -w system-key.real system-key.preseeded
 
-    # also check the system-key diff using snap debug seeding
+      # also check the system-key diff using snap debug seeding
 
-    # we should not have had any system-key difference as per above, so we 
-    # shouldn't output the preseed system-key or the seed-restart-system-key
-    nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
-    nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
-  fi
+      # we should not have had any system-key difference as per above, so we 
+      # shouldn't output the preseed system-key or the seed-restart-system-key
+      nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
+      nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+    fi
 
-  nested_exec "snap debug seeding" | MATCH "preseeded:\s+true"
-  nested_exec "snap debug seeding" | MATCH "seeded:\s+true"
-  # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
-  # break if the preseeding takes more than 60s and golang formats the 
-  # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  nested_exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+    nested_exec "snap debug seeding" | MATCH "preseeded:\s+true"
+    nested_exec "snap debug seeding" | MATCH "seeded:\s+true"
+    # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
+    # break if the preseeding takes more than 60s and golang formats the 
+    # time.Duration as "1m2.03s", etc. but for now this should be good enough
+    nested_exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+    nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
-  echo "Checking that lxd snap is operational"
-  nested_exec "snap list" | not MATCH "broken"
-  nested_exec "snap services" | MATCH "lxd.activate +enabled +inactive"
-  nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
-  nested_exec "sudo lxd init --auto"
-  nested_exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+    echo "Checking that lxd snap is operational"
+    nested_exec "snap list" | not MATCH "broken"
+    nested_exec "snap services" | MATCH "lxd.activate +enabled +inactive"
+    nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+    nested_exec "sudo lxd init --auto"
+    nested_exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"

@@ -5,12 +5,16 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
     nested_fetch_spread
     nested_create_core_vm
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
 
     # see https://docs.ubuntu.com/core/en/#advantages-for-iot for minimum
     # requirements

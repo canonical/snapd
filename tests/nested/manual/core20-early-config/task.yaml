@@ -11,6 +11,8 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
 
     mkdir extra-snaps
 

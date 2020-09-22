@@ -32,8 +32,8 @@ environment:
     TRACK/base: latest
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
     
     FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
     TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"

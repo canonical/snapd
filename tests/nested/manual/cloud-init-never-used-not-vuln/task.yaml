@@ -15,6 +15,8 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
 
     # build an unrelated empty cdrom drive to provide to first boot with no 
     # real files on it to use as a placeholder in qemu args
@@ -43,6 +45,8 @@ debug: |
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/nested-tool.sh
+    . "$TESTSLIB/nested-tool.sh"
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
