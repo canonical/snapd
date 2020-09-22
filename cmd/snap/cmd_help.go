@@ -194,7 +194,7 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("manage services"),
 		Commands:    []string{"services", "start", "stop", "restart", "logs"},
 	}, {
-		Label:       i18n.G("Commands"),
+		Label:       i18n.G("Paths"),
 		Description: i18n.G("manage aliases"),
 		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
 	}, {
