@@ -597,6 +597,7 @@ uc20_build_initramfs_kernel_snap() {
     )
 
     snap pack repacked-kernel "$TARGET"
+    rm -rf repacked-kernel
 }
 
 
