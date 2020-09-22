@@ -385,7 +385,7 @@ backends:
                   username: external
                   password: ubuntu
 
-    classic:
+    classic-desktop:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: '$(HOST: echo "${SPREAD_EXTERNAL_ADDRESS:-localhost:8022}")'
@@ -568,7 +568,7 @@ prepare: |
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* ]] || ( [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [ "$SPREAD_BACKEND" == "classic" ] ); then
+    if [[ "$SPREAD_SYSTEM" == debian-* ]] || ( [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [ "$SPREAD_BACKEND" == "classic-desktop" ] ); then
         apt-get update && apt-get install -y eatmydata
     fi
 
