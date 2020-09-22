@@ -188,15 +188,15 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
-		Commands:    []string{"changes", "tasks", "abort", "watch"},
+		Commands:    []string{"abort", "changes", "tasks", "watch"},
 	}, {
 		Label:       i18n.G("Daemons"),
 		Description: i18n.G("manage services"),
-		Commands:    []string{"services", "start", "stop", "restart", "logs"},
+		Commands:    []string{"logs", "restart", "services", "start", "stop"},
 	}, {
 		Label:       i18n.G("Paths"),
 		Description: i18n.G("manage aliases"),
-		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
+		Commands:    []string{"alias", "aliases", "prefer", "unalias"},
 	}, {
 		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
@@ -208,19 +208,23 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Permissions"),
 		Description: i18n.G("manage permissions"),
-		Commands:    []string{"connections", "interface", "connect", "disconnect"},
+		Commands:    []string{"connect", "connections", "disconnect", "interface"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
-		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
+		Commands:    []string{"check-snapshot", "forget", "restore", "save", "saved"},
 	}, {
-		Label:       i18n.G("Other"),
-		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "recovery", "reboot"},
+		Label:       i18n.G("Status"),
+		Description: i18n.G("information output and support"),
+		Commands:    []string{"known", "okay", "version", "warnings"},
+	}, {
+		Label:       i18n.G("Devices"),
+		Description: i18n.G("system management"),
+		Commands:    []string{"model", "prepare-image", "reboot", "recovery"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"run", "pack", "try", "download", "prepare-image"},
+		Commands:    []string{"ack", "download", "pack", "run", "try"},
 	},
 }
 
