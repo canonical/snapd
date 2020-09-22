@@ -7,6 +7,10 @@ is_core_system(){
     return 1
 }
 
+is_xenial_system() {
+    test "$(lsb_release -cs)" = xenial
+}
+
 is_core16_system(){
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         return 0
@@ -14,11 +18,19 @@ is_core16_system(){
     return 1
 }
 
+is_bionic_system() {
+    test "$(lsb_release -cs)" = bionic
+}
+
 is_core18_system(){
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
         return 0
     fi
     return 1
+}
+
+is_focal_system() {
+    test "$(lsb_release -cs)" = focal
 }
 
 is_core20_system(){

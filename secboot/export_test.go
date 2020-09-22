@@ -24,8 +24,6 @@ import (
 	"io"
 
 	sb "github.com/snapcore/secboot"
-
-	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -56,6 +54,14 @@ func MockSbAddEFISecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile
 	}
 }
 
+func MockSbAddEFIBootManagerProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error) (restore func()) {
+	old := sbAddEFIBootManagerProfile
+	sbAddEFIBootManagerProfile = f
+	return func() {
+		sbAddEFIBootManagerProfile = old
+	}
+}
+
 func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error) (restore func()) {
 	old := sbAddSystemdEFIStubProfile
 	sbAddSystemdEFIStubProfile = f
@@ -77,6 +83,14 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	sbSealKeyToTPM = f
 	return func() {
 		sbSealKeyToTPM = old
+	}
+}
+
+func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, policyUpdatePath string, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+	old := sbUpdateKeyPCRProtectionPolicy
+	sbUpdateKeyPCRProtectionPolicy = f
+	return func() {
+		sbUpdateKeyPCRProtectionPolicy = old
 	}
 }
 
@@ -114,7 +128,7 @@ func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex in
 	}
 }
 
-func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model sb.SnapModel) error) (restore func()) {
 	old := sbMeasureSnapModelToTPM
 	sbMeasureSnapModelToTPM = f
 	return func() {
@@ -138,7 +152,7 @@ func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte)
 	}
 }
 
-func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey [16]byte) error) (restore func()) {
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error) (restore func()) {
 	old := sbAddRecoveryKeyToLUKS2Container
 	sbAddRecoveryKeyToLUKS2Container = f
 	return func() {

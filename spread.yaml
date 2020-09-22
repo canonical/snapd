@@ -53,6 +53,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
+    # Configure nested images to be reused on the following tests
+    NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
 backends:
     google:
@@ -148,11 +150,11 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 2
+                  workers: 3
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 2
+                  workers: 3
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
@@ -211,6 +213,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -428,15 +433,17 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if is_nested_system; then
+        if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl -e --no-pager -u nested-vm || true
+            journalctl --no-pager -u nested-vm || true
 
-            if [ -f "${WORK_DIR}/serial.log" ]; then
+            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial.log"
+                cat "${NESTED_LOGS_DIR}/serial.log"
             fi
+
+            nested_exec sudo journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'
@@ -843,49 +850,58 @@ suites:
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
-        kill-timeout: 40m
+        warn-timeout: 10m
+        kill-timeout: 60m
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+                cat "${NESTED_LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
+        prepare-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_prepare_env
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_destroy_vm
+            nested_cleanup_env
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -894,56 +910,60 @@ suites:
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+                cat "${NESTED_LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
+
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            create_nested_classic_vm
+            nested_prepare_env
+            nested_create_classic_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            start_nested_classic_vm
+            nested_start_classic_vm
         restore-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+            nested_destroy_vm
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -952,56 +972,61 @@ suites:
         environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+                cat "${NESTED_LOGS_DIR}/serial.log"
             fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
+
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            create_nested_core_vm
+            nested_prepare_env
+            nested_create_core_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            start_nested_core_vm
+            nested_start_core_vm
+            nested_wait_for_snap_command
         restore-each: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+            nested_destroy_vm
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core20/:
         summary: Tests for nested uc20 images
@@ -1010,50 +1035,56 @@ suites:
         environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
+            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-false}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
             # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+                cat "${NESTED_LOGS_DIR}/serial.log"
             fi
-        kill-timeout: 40m
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils haveged
             snap install ubuntu-image --classic
 
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-            snap install core --beta
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            create_nested_core_vm
-            start_nested_core_vm
+            nested_prepare_env
+            nested_create_core_vm
+            nested_start_core_vm
+            nested_wait_for_snap_command
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
-            cleanup_nested_env
+            nested_destroy_vm
+            nested_cleanup_env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
 # vim:ts=4:sw=4:et

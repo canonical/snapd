@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -89,6 +90,8 @@ type Device interface {
 	Base() string
 
 	HasModeenv() bool
+
+	Model() *asserts.Model
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -190,6 +193,14 @@ type bootState interface {
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
+// successfulBootState exposes the state of resources requiring bookkeeping on a
+// successful boot.
+type successfulBootState interface {
+	// markSuccessful lazily implements marking the boot
+	// successful for the given type of resource.
+	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
+}
+
 // bootStateFor finds the right bootState implementation of the given
 // snap type and Device, if applicable.
 func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
@@ -202,9 +213,9 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState(snap.TypeBase), nil
+		return newBootState(snap.TypeBase, dev), nil
 	case snap.TypeKernel:
-		return newBootState(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel, dev), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
@@ -323,6 +334,15 @@ func MarkBootSuccessful(dev Device) error {
 			return err
 		}
 		u, err = s.markSuccessful(u)
+		if err != nil {
+			return fmt.Errorf(errPrefix, err)
+		}
+	}
+
+	if dev.HasModeenv() {
+		b := trustedAssetsBootState(dev)
+		var err error
+		u, err = b.markSuccessful(u)
 		if err != nil {
 			return fmt.Errorf(errPrefix, err)
 		}

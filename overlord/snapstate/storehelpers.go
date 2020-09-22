@@ -89,7 +89,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
-func installSize(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return 0, err
