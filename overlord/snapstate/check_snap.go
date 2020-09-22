@@ -174,6 +174,7 @@ var featureSet = map[string]bool{
 // https://github.com/lxc/lxd/blob/master/doc/userns-idmap.md
 var supportedSystemUsernames = map[string]uint32{
 	"snap_daemon": 584788,
+	"snap_docker": 584789,
 }
 
 func checkAssumes(si *snap.Info) error {
