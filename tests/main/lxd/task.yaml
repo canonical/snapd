@@ -149,6 +149,7 @@ execute: |
     # container
 
     if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+        # related bug: https://bugs.launchpad.net/snapd/+bug/1892468
         echo "Not running old xenial combination which lacks proper patches"
         exit 0
     fi
