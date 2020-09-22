@@ -39,6 +39,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.46
     DELTA_PREFIX: snapd-$DELTA_REF/
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
@@ -472,9 +473,20 @@ repack: |
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
-        trap "rm -f delta-ref.tar current.delta" EXIT
+        tmpdir="$(mktemp -d)"
+        #shellcheck disable=SC2064
+        trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
+        if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
+            tar -C "$tmpdir" -xvf - <&3
+            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
+                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
+                -delete
+            tar -C "$tmpdir" -c "$DELTA_PREFIX" > repacked-current.tar
+        else
+            cat <&3 > repacked-current.tar
+        fi
         git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
-        xdelta3 -S none -s delta-ref.tar <&3 > current.delta
+        xdelta3 -S none -s delta-ref.tar repacked-current.tar > current.delta
         tar c current.delta >&4
     fi
 
@@ -581,7 +593,7 @@ prepare: |
         esac
         rm -f "$tf"
         curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
-        xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
+        xdelta3 -q -c -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
