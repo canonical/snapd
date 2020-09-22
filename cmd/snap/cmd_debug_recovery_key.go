@@ -60,7 +60,7 @@ func (x *cmdRecoveryKey) Execute(args []string) error {
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("cannot stat %v: %v", recoveryKeyFile, err)
+		return fmt.Errorf("cannot stat recovery key: %v", err)
 	}
 	if st.Size() != int64(len(secboot.RecoveryKey{})) {
 		return fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file", st.Size())

@@ -38,7 +38,7 @@ func (s *SnapSuite) TestDebugRecoveryKeyOnClassicErrors(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "show-recovery-key"})
-	c.Assert(err, ErrorMatches, `cannot use the "show-recovery-key" command is not available on classic systems`)
+	c.Assert(err, ErrorMatches, `command "show-recovery-key" is not available on classic systems`)
 }
 
 func makeMockRecoveryKeyFile(c *C, rkeybuf []byte) {
