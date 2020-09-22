@@ -180,11 +180,11 @@ var helpCategories = []helpCategory{
 	{
 		Label:       i18n.G("Basics"),
 		Description: i18n.G("basic snap management"),
-		Commands:    []string{"find", "info", "install", "list", "remove"},
+		Commands:    []string{"find", "info", "install", "list", "refresh", "remove"},
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"refresh", "revert", "switch", "disable", "enable"},
+		Commands:    []string{"revert", "switch", "disable", "enable"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
