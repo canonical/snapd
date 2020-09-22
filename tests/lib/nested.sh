@@ -6,15 +6,25 @@
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB"/systems.sh
 
+# shellcheck source=tests/lib/store.sh
+. "$TESTSLIB"/store.sh
+
 NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
 NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
 NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
 NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
+
 NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
+
+NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
+NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
+NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
+NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
+NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -118,7 +128,15 @@ nested_create_assertions_disk() {
     # mount the partition and copy the files 
     mkdir -p "$NESTED_ASSETS_DIR/sys-user-partition"
     mount "/dev/mapper/loop${LOOP_DEV}p1" "$NESTED_ASSETS_DIR/sys-user-partition"
-    sudo cp "$TESTSLIB/assertions/auto-import.assert" "$NESTED_ASSETS_DIR/sys-user-partition"
+    
+    # use custom assertion if set
+    local AUTO_IMPORT_ASSERT
+    if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
+        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+    else 
+        AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+    fi
+    cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
     # unmount the partition and the image disk
     sudo umount "$NESTED_ASSETS_DIR/sys-user-partition"
@@ -283,12 +301,19 @@ nested_get_snakeoil_key() {
     echo "$KEYNAME"
 }
 
+nested_secboot_sign_file() {
+    local FILE="$1"
+    local KEY="$2"
+    local CERT="$3"
+    sbattach --remove "$FILE"
+    sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
+}
+
 nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
-    sbattach --remove "$GADGET_DIR"/shim.efi.signed
-    sbsign --key "$KEY" --cert "$CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+    nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
 }
 
 nested_prepare_env() {
@@ -365,6 +390,11 @@ nested_download_image() {
 }
 
 nested_get_model() {
+    # use custom model if defined
+    if [ -n "$NESTED_CUSTOM_MODEL" ]; then
+        echo "$NESTED_CUSTOM_MODEL"
+        return
+    fi
     case "$SPREAD_SYSTEM" in
         ubuntu-16.04-64)
             echo "$TESTSLIB/assertions/nested-amd64.model"
@@ -379,7 +409,7 @@ nested_get_model() {
             echo "unsupported system"
             exit 1
             ;;
-        esac
+    esac
 }
 
 nested_create_core_vm() {
@@ -429,6 +459,11 @@ nested_create_core_vm() {
                     chmod 0600 "$KERNEL_SNAP"
                     EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
+                    # sign the pc-kernel snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                    fi
+
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
                     local GADGET_SNAP
                     GADGET_SNAP=""
@@ -462,13 +497,31 @@ EOF
                         rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
+                    # sign the pc gadget snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+                    fi
+
+                    # repack the snapd snap
                     snap download --channel="latest/edge" snapd
                     repack_snapd_deb_into_snapd_snap "$PWD"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
+
+                    # sign the snapd snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+                    fi
+
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
                     repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+
+                    # sign the snapd snap with fakestore if requested
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+                    fi
+
                 else
                     echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
@@ -478,11 +531,27 @@ EOF
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
-            "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
-                --channel "$NESTED_CORE_CHANNEL" \
+            
+            # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
+            # anywhere else but here, where snap prepare-image as called by 
+            # ubuntu-image will look for assertions for the snaps we provide
+            # to it
+            SNAPPY_FORCE_SAS_URL="$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
+            export SNAPPY_FORCE_SAS_URL
+            UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
+            export UBUNTU_IMAGE_SNAP_CMD
+            if [ -n "$NESTED_CORE_CHANNEL" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
+            else 
+                UBUNTU_IMAGE_CHANNEL_ARG=""
+            fi
+            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
+                "$UBUNTU_IMAGE_CHANNEL_ARG" \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
+            unset SNAPPY_FORCE_SAS_URL
+            unset UBUNTU_IMAGE_SNAP_CMD
         fi
     fi
 
@@ -850,7 +919,7 @@ nested_start_core_vm() {
             sync
 
             # compress the current image if it is a generic image
-            if nested_is_generic_image; then
+            if nested_is_generic_image && [ "$NESTED_CONFIGURE_IMAGES" = "true" ]; then
                 # Stop the current image and compress it
                 nested_shutdown
                 nested_compress_image "$CURRENT_NAME"
@@ -870,10 +939,16 @@ nested_start_core_vm() {
 }
 
 nested_shutdown() {
+    # we sometimes have bugs in nested vm's where files that were successfully
+    # written become empty all of a sudden, so doing a sync here in the VM, and
+    # another one in the host when done probably helps to avoid that, and at
+    # least can't hurt anything
+    nested_exec "sync"
     nested_exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
+    sync
 }
 
 nested_start() {
@@ -1079,4 +1154,18 @@ nested_fetch_spread() {
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"
     fi
+}
+
+nested_build_seed_cdrom() {
+    local SEED_DIR="$1"
+    local SEED_NAME="$2"
+    local LABEL="$3"
+
+    shift 3
+
+    local ORIG_DIR=$PWD
+
+    pushd "$SEED_DIR" || return 1 
+    genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
+    popd || return 1 
 }

@@ -689,15 +689,12 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
 		// or if we installed cloud-init configuration from the gadget
 		if model.Grade() != asserts.ModelGradeUnset {
-			// always disable NoCloud after first boot on uc20, this is because
-			// even if the gadget has a cloud.conf configuring NoCloud, the
-			// config installed by cloud-init should not work differently for
-			// later boots, so it's sufficient that NoCloud runs on first-boot
-			// and never again
-			// note that the name DisableNoCloud is slightly misleading, it's
-			// more specifically "disable cloud-init after first boot if
-			// NoCloud, but just restrict after first boot if not NoCloud"
-			opts.DisableNoCloud = true
+			// always disable NoCloud/local datasources after first boot on
+			// uc20, this is because even if the gadget has a cloud.conf
+			// configuring NoCloud, the config installed by cloud-init should
+			// not work differently for later boots, so it's sufficient that
+			// NoCloud runs on first-boot and never again
+			opts.DisableAfterLocalDatasourcesRun = true
 		}
 
 		// now restrict/disable cloud-init

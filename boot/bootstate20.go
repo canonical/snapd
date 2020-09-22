@@ -168,8 +168,9 @@ func (u20 *bootStateUpdate20) commit() error {
 	// still boot properly
 	if u20.resealModel != nil {
 		// if there is ambiguity whether the boot chains have
-		// changed because of unasserted kernels use whether we
-		// wrote the modeenv as hint whether to reseal
+		// changed because of unasserted kernels, then pass a
+		// flag as hint whether to reseal based on whether we
+		// wrote the modeenv
 		expectReseal := modeenvRewritten
 		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.resealModel, u20.writeModeenv, expectReseal); err != nil {
 			return err

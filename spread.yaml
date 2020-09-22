@@ -53,7 +53,6 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
-
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
     # Channel used to create the nested vm
@@ -66,7 +65,8 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
     # Download and use an custom image from this url
     NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
-
+    # Configure nested images to be reused on the following tests
+    NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
 backends:
     google:
@@ -225,6 +225,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -419,8 +422,10 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl -e --no-pager -u nested-vm || true
+            journalctl --no-pager -u nested-vm || true
             nested_print_serial_log
+
+            nested_exec sudo journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'
