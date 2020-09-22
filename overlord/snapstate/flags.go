@@ -42,6 +42,9 @@ type Flags struct {
 	// to ignore refresh control validation.
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 
+	// IgnoreRunning is set to indicate that running apps or hooks should be ignored.
+	IgnoreRunning bool `json:"ignore-running,omitempty"`
+
 	// Required is set to mark that a snap is required
 	// and cannot be removed
 	Required bool `json:"required,omitempty"`

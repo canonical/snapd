@@ -796,6 +796,7 @@ type snapInstruction struct {
 	JailMode         bool `json:"jailmode"`
 	Classic          bool `json:"classic"`
 	IgnoreValidation bool `json:"ignore-validation"`
+	IgnoreRunning    bool `json:"ignore-running"`
 	Unaliased        bool `json:"unaliased"`
 	Purge            bool `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
@@ -831,6 +832,10 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.Unaliased {
 		flags.Unaliased = true
 	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
+	}
+
 	return flags, nil
 }
 
@@ -1024,6 +1029,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
 	}
 	if inst.Amend {
 		flags.Amend = true
@@ -1423,6 +1431,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	flags.RemoveSnapPath = true
 
 	flags.Unaliased = isTrue(form, "unaliased")
+	flags.IgnoreRunning = isTrue(form, "ignore-running")
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File

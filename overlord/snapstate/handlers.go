@@ -833,7 +833,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if experimentalRefreshAppAwareness {
+	if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
 		// A process may be created after the soft refresh done upon
 		// the request to refresh a snap. If such process is alive by
 		// the time this code is reached the refresh process is stopped.
