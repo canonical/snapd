@@ -146,7 +146,7 @@ func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	}{
 		{"1_foo.zip", true, 1},
 		{"14_hello-world_6.4_29.zip", true, 14},
-		{"1_.zip", true, 1}, // we're only validating set id, so this is ok too
+		{"1_.zip", false, 0},
 		{"1_foo.zip.bak", false, 0},
 		{"foo_1_foo.zip", false, 0},
 		{"foo_bar_baz.zip", false, 0},
@@ -157,7 +157,7 @@ func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	for _, t := range tests {
 		ok, setID := backend.IsSnapshotFilename(t.name)
 		c.Check(ok, check.Equals, t.valid, check.Commentf("fail: %s", t.name))
-		c.Check(setID, check.Equals, t.setID)
+		c.Check(setID, check.Equals, t.setID, check.Commentf("fail: %s", t.name))
 	}
 }
 

@@ -183,11 +183,18 @@ func isSnapshotFilename(fname string) (ok bool, setID uint64) {
 	// of the filename following Filename() above, but perhaps it's better no to
 	// go overboard with it in case the format evolves in the future. Only check
 	// if the name starts with a set-id and ends with .zip.
-	if ext := filepath.Ext(fname); ext != ".zip" {
+	//
+	// Filename is "<sid>_<snapName>.zip", e.g. "13_foo.zip"
+	ext := filepath.Ext(fname)
+	if ext != ".zip" {
 		return false, 0
 	}
 	parts := strings.SplitN(fname, "_", 2)
 	if len(parts) != 2 {
+		return false, 0
+	}
+	// invalid: no <snapName> part
+	if parts[1] == ext {
 		return false, 0
 	}
 	id, err := strconv.Atoi(parts[0])
