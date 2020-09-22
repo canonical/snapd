@@ -184,7 +184,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"revert", "switch", "disable", "enable"},
+		Commands:    []string{"create-cohort", "disable", "enable", "revert", "switch", },
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
@@ -216,7 +216,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "create-cohort", "recovery", "reboot"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "recovery", "reboot"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
