@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"encoding/hex"
 	"errors"
 
 	sb "github.com/snapcore/secboot"
@@ -97,4 +98,20 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+func mustDecodeString(s string) []byte {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func (s *encryptSuite) TestRecoveryString(c *C) {
+	// same inputs/outputs as snapcore/secboot:crypt_test.go in this test
+	var rkey secboot.RecoveryKey
+	copy(rkey[:], mustDecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
+	c.Check(rkey.String(), Equals, "61665-00531-54469-09783-47273-19035-40077-28287")
+
 }
