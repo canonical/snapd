@@ -23,14 +23,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type cmdRecoveryKey struct{}
@@ -50,29 +49,9 @@ func (x *cmdRecoveryKey) Execute(args []string) error {
 		return errors.New(`command "show-recovery-key" is not available on classic systems`)
 	}
 
-	// XXX: should this be defined more centrally? OTOH we have an
-	//      integration test that will catch out-of-syncness
-	recoveryKeyFile := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	f, err := os.Open(recoveryKeyFile)
+	rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
 	if err != nil {
-		return fmt.Errorf("cannot open recovery key: %v", err)
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("cannot stat recovery key: %v", err)
-	}
-	if st.Size() != int64(len(secboot.RecoveryKey{})) {
-		return fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file", st.Size())
-	}
-
-	var rkey secboot.RecoveryKey
-	n, err := f.Read(rkey[:])
-	if err != nil {
-		return fmt.Errorf("cannot read recovery key: %v", err)
-	}
-	if n != len(secboot.RecoveryKey{}) {
-		return fmt.Errorf("cannot use recovery key: unexpected size %v", n)
+		return err
 	}
 	fmt.Fprintf(Stdout, "%s\n", rkey)
 	return nil

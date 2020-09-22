@@ -23,6 +23,8 @@ package secboot_test
 import (
 	"encoding/hex"
 	"errors"
+	"io/ioutil"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
@@ -114,4 +116,34 @@ func (s *encryptSuite) TestRecoveryString(c *C) {
 	copy(rkey[:], mustDecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e"))
 	c.Check(rkey.String(), Equals, "61665-00531-54469-09783-47273-19035-40077-28287")
 
+}
+
+func (s *encryptSuite) TestRecoveryKeyFromFileUnhappy(c *C) {
+	for _, tc := range []struct {
+		rkey        []byte
+		expectedErr string
+	}{
+		{nil, `cannot open recovery key: open .*/recovery.key: no such file or directory`},
+		{[]byte{}, `cannot read recovery key: unexpected size 0 for the recovery key file`},
+		{[]byte{0, 1}, `cannot read recovery key: unexpected size 2 for the recovery key file`},
+		{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}, `cannot read recovery key: unexpected size 17 for the recovery key file`},
+	} {
+		fname := filepath.Join(c.MkDir(), "recovery.key")
+		if tc.rkey != nil {
+			err := ioutil.WriteFile(fname, tc.rkey, 0600)
+			c.Assert(err, IsNil)
+		}
+		_, err := secboot.RecoveryKeyFromFile(fname)
+		c.Assert(err, ErrorMatches, tc.expectedErr)
+	}
+}
+
+func (s *encryptSuite) TestRecoveryKeyFromFile(c *C) {
+	fname := filepath.Join(c.MkDir(), "recovery.key")
+	err := ioutil.WriteFile(fname, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, 0600)
+	c.Assert(err, IsNil)
+
+	rkey, err := secboot.RecoveryKeyFromFile(fname)
+	c.Assert(err, IsNil)
+	c.Check(rkey, DeepEquals, &secboot.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
 }
