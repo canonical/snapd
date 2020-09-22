@@ -696,14 +696,17 @@ nested_save_serial_log() {
 }
 
 nested_print_serial_log() {
-    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+    if [ -f "${NESTED_LOGS_DIR}/serial.log.1" ]; then
         # here we disable SC2045 because previously it is checked there is at least
         # 1 file which matches. In this case ls command is needed because it is important
         # to get the list in reverse order.
         # shellcheck disable=SC2045
-        for logfile in $(ls -r "${NESTED_LOGS_DIR}"/serial.log*); do
-            cat "${logfile}"
+        for logfile in $(ls "${NESTED_LOGS_DIR}"/serial.log.*); do
+            cat "$logfile"
         done
+    fi
+    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        cat "${NESTED_LOGS_DIR}/serial.log"
     fi
 }
 
