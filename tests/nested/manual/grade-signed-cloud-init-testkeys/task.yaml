@@ -60,7 +60,7 @@ prepare: |
 
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  mkdir extra-snaps
+  mkdir "$(nested_get_extra_snaps_path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
   KEY_NAME=$(nested_get_snakeoil_key)
@@ -86,6 +86,7 @@ prepare: |
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack pc-gadget/ extra-snaps/
+  rm -rf pc-gadget/
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
