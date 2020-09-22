@@ -148,7 +148,7 @@ execute: |
     # Ensure that we can run lxd as a snap inside a container to create a nested
     # container
 
-    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ] && [ "$REFRESH_APP_AWARENESS_OUTER" = false ] && [ "$REFRESH_APP_AWARENESS_INNER" = true ]; then
+    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
         echo "Not running old xenial combination which lacks proper patches"
         exit 0
     fi
