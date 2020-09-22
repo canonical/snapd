@@ -47,7 +47,7 @@ func init() {
 
 func (x *cmdRecoveryKey) Execute(args []string) error {
 	if release.OnClassic {
-		return errors.New(`cannot use the "show-recovery-key" command is not available on classic systems`)
+		return errors.New(`command "show-recovery-key" is not available on classic systems`)
 	}
 
 	// XXX: should this be defined more centrally? OTOH we have an
