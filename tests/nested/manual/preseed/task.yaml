@@ -84,12 +84,26 @@ execute: |
   nested_exec "snap changes" | MATCH "Done .+ Initialize system state"
 
   echo "Checking that the system-key after first boot is the same as that from preseeding"
-  # note, this doesn't actually test the functionality, but acts as a canary:
-  # the test is run against a vm image with ubuntu release matching that from spread host;
-  # system-key check can fail if the nested vm image differs too much from the spread host system,
-  # e.g. when the list of apparmor features differs due to significant kernel update.
-  nested_exec "cat /var/lib/snapd/system-key" > system-key.real
-  diff -u -w system-key.real system-key.preseeded
+
+  # TODO: re-enable the system-key check when we are using the same kernel for 
+  # the host VM as the nested VM, currently we are not, and as such there is a 
+  # diff between the preseed apparmor-features and the nested VM actual 
+  # system-key
+  if [ "$SPREAD_SYSTEM" != "ubuntu-20.04-64" ]; then
+    # note, this doesn't actually test the functionality, but acts as a canary:
+    # the test is run against a vm image with ubuntu release matching that from spread host;
+    # system-key check can fail if the nested vm image differs too much from the spread host system,
+    # e.g. when the list of apparmor features differs due to significant kernel update.
+    nested_exec "cat /var/lib/snapd/system-key" > system-key.real
+    diff -u -w system-key.real system-key.preseeded
+
+    # also check the system-key diff using snap debug seeding
+
+    # we should not have had any system-key difference as per above, so we 
+    # shouldn't output the preseed system-key or the seed-restart-system-key
+    nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
+    nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+  fi
 
   nested_exec "snap debug seeding" | MATCH "preseeded:\s+true"
   nested_exec "snap debug seeding" | MATCH "seeded:\s+true"
@@ -98,11 +112,6 @@ execute: |
   # time.Duration as "1m2.03s", etc. but for now this should be good enough
   nested_exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
   nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
-
-  # we should not have had any system-key difference as per above, so we 
-  # shouldn't output the preseed system-key or the seed-restart-system-key
-  nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
-  nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
 
   echo "Checking that lxd snap is operational"
   nested_exec "snap list" | not MATCH "broken"

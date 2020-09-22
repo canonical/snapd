@@ -741,9 +741,6 @@ nested_start_core_vm_unit() {
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
-        # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-        # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-        PARAM_SMP="-smp 1"
     fi
 
     local PARAM_MACHINE
@@ -1124,4 +1121,18 @@ nested_fetch_spread() {
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"
     fi
+}
+
+nested_build_seed_cdrom() {
+    local SEED_DIR="$1"
+    local SEED_NAME="$2"
+    local LABEL="$3"
+
+    shift 3
+
+    local ORIG_DIR=$PWD
+
+    pushd "$SEED_DIR" || return 1 
+    genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
+    popd || return 1 
 }
