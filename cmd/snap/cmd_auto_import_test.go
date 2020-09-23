@@ -463,3 +463,48 @@ func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
 	})
 }
+
+func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
+
+	mountDirs := []string{
+		"/writable/system-data/var/lib/snapd/seed",
+		"/var/lib/snapd/seed",
+		"/run/mnt/ubuntu-boot",
+		"/run/mnt/ubuntu-seed",
+		"/run/mnt/ubuntu-data",
+		"/mnt/real-device",
+	}
+
+	rootDir := c.MkDir()
+	dirs.SetRootDir(rootDir)
+	defer func() { dirs.SetRootDir("") }()
+
+	args := make([]interface{}, 0, len(mountDirs)+1)
+	args = append(args, dirs.GlobalRootDir)
+	// pretend there are auto-import.asserts on all of them
+	for _, dir := range mountDirs {
+		args = append(args, dir)
+		file := filepath.Join(rootDir, dir, "auto-import.assert")
+		c.Assert(os.MkdirAll(filepath.Dir(file), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(file, nil, 0644), IsNil)
+	}
+
+	mockMountInfoFmtWithLoop := `
+24 0 8:18 / %[1]s%[2]s rw,relatime foo ext3 /dev/meep2 no,separator
+24 0 8:18 / %[1]s%[3]s rw,relatime - ext3 /dev/meep2 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[4]s rw,relatime opt:1 - ext4 /dev/meep3 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[5]s rw,relatime opt:1 opt:2 - ext2 /dev/meep4 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[6]s rw,relatime opt:1 opt:2 - ext2 /dev/meep5 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[7]s rw,relatime opt:1 opt:2 - ext2 /dev/meep78 rw,errors=remount-ro,data=ordered
+`
+
+	content := fmt.Sprintf(mockMountInfoFmtWithLoop, args...)
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	l, err := snap.AutoImportCandidates()
+	c.Check(err, IsNil)
+
+	// only device should be the /mnt/real-device one
+	c.Check(l, DeepEquals, []string{filepath.Join(rootDir, "/mnt/real-device", "auto-import.assert")})
+}
