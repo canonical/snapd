@@ -212,8 +212,9 @@ func (s *poolSuite) TestFetch(c *C) {
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -247,8 +248,9 @@ func (s *poolSuite) TestCompleteFetch(c *C) {
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -264,14 +266,17 @@ func (s *poolSuite) TestCompleteFetch(c *C) {
 		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt, decl1At},
 	})
 
-	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	b := asserts.NewBatch(nil)
+	err = b.Add(s.decl1)
+	c.Assert(err, IsNil)
+	err = b.Add(storeKey)
+	c.Assert(err, IsNil)
+	err = b.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
 
-	err = pool.Add(storeKey, asserts.MakePoolGrouping(0))
+	ok, err = pool.AddBatch(b, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
-
-	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -306,12 +311,14 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 		asserts.MakePoolGrouping(0): {at1111},
 	})
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	// push prerequisite suggestion
-	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -325,8 +332,9 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -361,12 +369,14 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 
-	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.decl1, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	// new push suggestion
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -380,8 +390,9 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -443,8 +454,10 @@ func (s *poolSuite) TestAddFormatTooNew(c *C) {
 	gSuggestion, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
 
-	err = pool.Add(a, gSuggestion)
-	c.Assert(err, ErrorMatches, `proposed "test-only-decl" assertion has format 2 but 0 is latest supported`)
+	ok, err := pool.Add(a, gSuggestion)
+	c.Check(err, IsNil)
+	c.Check(ok, Equals, false)
+	c.Assert(pool.Err("suggestion"), ErrorMatches, `proposed "test-only-decl" assertion has format 2 but 0 is latest supported`)
 }
 
 func (s *poolSuite) TestAddOlderIgnored(c *C) {
@@ -456,11 +469,13 @@ func (s *poolSuite) TestAddOlderIgnored(c *C) {
 	gSuggestion, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
 
-	err = pool.Add(s.decl1_1, gSuggestion)
+	ok, err := pool.Add(s.decl1_1, gSuggestion)
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
-	err = pool.Add(s.decl1, gSuggestion)
+	ok, err = pool.Add(s.decl1, gSuggestion)
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err := pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -512,15 +527,18 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 	// re-adding of current revisions, is not what we expect
 	// but needs not to produce unneeded roundtrips
 
-	err = pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	// this will be kept marked as unresolved until the ToResolve
-	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
-	err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	ok, err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -552,8 +570,9 @@ func (s *poolSuite) TestUpdate(c *C) {
 		asserts.MakePoolGrouping(1):    {s.dev2Acct.At(), s.decl2.At()},
 	})
 
-	err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -607,8 +626,9 @@ func (s *poolSuite) TestAddErrorEarly(c *C) {
 	err = pool.AddError(errBoom, storeKey.Ref())
 	c.Assert(err, IsNil)
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -641,8 +661,9 @@ func (s *poolSuite) TestAddErrorLater(c *C) {
 		asserts.MakePoolGrouping(1): {at1111},
 	})
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	err = pool.AddError(errBoom, storeKey.Ref())
 	c.Assert(err, IsNil)
@@ -681,8 +702,9 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 	gSuggestion, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
 
-	err = pool.Add(s.rev1_3333, gSuggestion)
+	ok, err := pool.Add(s.rev1_3333, gSuggestion)
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -779,8 +801,9 @@ func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
 		asserts.MakePoolGrouping(1): {at1111},
 	})
 
-	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	ok, err := pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -813,8 +836,9 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 		asserts.MakePoolGrouping(0): {atOne},
 	})
 
-	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	ok, err := pool.Add(s.decl1, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
 
 	toResolve, err = pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -847,4 +871,37 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 	c.Check(err, IsNil)
 	c.Check(pool.Err("one"), Equals, errBoom)
 	c.Check(pool.Err("other"), ErrorMatches, "cannot resolve prerequisite assertion.*")
+}
+
+func (s *poolSuite) TestAddErrors(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
+	c.Assert(err, IsNil)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 2)
+
+	err = pool.AddError(errBoom, storeKey.Ref())
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Errors(), DeepEquals, map[string]error{
+		"store_key": errBoom,
+		"for_one":   asserts.ErrUnresolved,
+	})
 }
