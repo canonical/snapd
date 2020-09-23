@@ -257,7 +257,7 @@ type mockWriteObserver struct {
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
 	m.c.Assert(data, NotNil)
 	m.c.Assert(op, Equals, gadget.ContentWrite, Commentf("unexpected operation %v", op))
 	if m.content == nil {
@@ -276,7 +276,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
-	return true, m.observeErr
+	return gadget.ChangeExecute, m.observeErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
@@ -839,7 +839,7 @@ type mockContentUpdateObserver struct {
 }
 
 func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
 	if m.contentUpdate == nil {
 		m.contentUpdate = make(map[string][]*mockContentChange)
 	}
@@ -870,7 +870,7 @@ func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceSt
 
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
-	return true, m.observeErr
+	return gadget.ChangeExecute, m.observeErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
