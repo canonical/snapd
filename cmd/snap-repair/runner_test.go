@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -1794,6 +1795,7 @@ type runner20Suite struct {
 var _ = Suite(&runner20Suite{})
 
 var mockModeenv = []byte(`
+mode=run
 model=my-brand/my-model-uc20
 `)
 
@@ -1802,11 +1804,15 @@ func (s *runner20Suite) SetUpTest(c *C) {
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
 
-	// dummy modeenv
+	// write dummy modeenv
 	err := os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
 	c.Assert(err, IsNil)
+	// validate that modeenv is actually valid
+	_, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+
 	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
 	c.Assert(err, IsNil)
 	err = os.Chtimes(dirs.SnapModeenvFile, seedTime, seedTime)
