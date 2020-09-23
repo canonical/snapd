@@ -35,7 +35,7 @@ func IsHomeUsingNFS() (bool, error) {
 		return false, fmt.Errorf("cannot parse mountinfo: %s", err)
 	}
 	for _, entry := range mountinfo {
-		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
+		if (entry.FsType == "nfs4" || entry.FsType == "nfs" || entry.FsType == "autofs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
 			return true, nil
 		}
 	}

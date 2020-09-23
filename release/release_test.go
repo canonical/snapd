@@ -165,3 +165,27 @@ func (s *ReleaseTestSuite) TestWSL(c *C) {
 
 	c.Check(release.IsWSL(), Equals, true)
 }
+
+func (s *ReleaseTestSuite) TestSystemctlSupportsUserUnits(c *C) {
+	for _, t := range []struct {
+		id, versionID string
+		supported     bool
+	}{
+		// Non-Ubuntu releases are assumed to be new enough
+		{"distro-id", "version", true},
+		// Ubuntu 14.04's systemd is too old for user units
+		{"ubuntu", "14.04", false},
+		// Other Ubuntu releases are fine
+		{"ubuntu", "16.04", true},
+		{"ubuntu", "18.04", true},
+		{"ubuntu", "20.04", true},
+	} {
+		reset := release.MockReleaseInfo(&release.OS{
+			ID:        t.id,
+			VersionID: t.versionID,
+		})
+		defer reset()
+
+		c.Check(release.SystemctlSupportsUserUnits(), Equals, t.supported)
+	}
+}

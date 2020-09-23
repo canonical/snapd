@@ -595,6 +595,8 @@ var (
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
 		"core-support":            {"core"},
+		"cups":                    {"app"},
+		"cups-control":            {"app", "core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
 		"dummy":                   {"app"},
@@ -711,6 +713,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"uinput":                true,
 		"unity8":                true,
 	}
 
@@ -751,6 +754,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// case-by-case basis
 	noconnect := map[string]bool{
 		"content":          true,
+		"cups":             true,
 		"docker":           true,
 		"fwupd":            true,
 		"location-control": true,
@@ -822,6 +826,103 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionImplicitOnClassicOrAppSnap(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	all := builtin.Interfaces()
+
+	// These interfaces represent when the interface might be implicit on
+	// classic or when the interface is provided via an app snap. As such,
+	// they all share the following:
+	//
+	// - implicitOnCore: false
+	// - implicitOnClassis: true
+	// - base declaration uses:
+	//     allow-installation:
+	//       slot-snap-type:
+	//         - app
+	//         - core
+	//     deny-connection:
+	//       on-classic: false
+	//     deny-auto-connection: true|false|unspecified
+	//
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	ifaces := map[string]bool{
+		"audio-playback":  true,
+		"audio-record":    true,
+		"cups-control":    true,
+		"modem-manager":   true,
+		"network-manager": true,
+		"ofono":           true,
+		"pulseaudio":      true,
+		"upower-observe":  true,
+	}
+
+	for _, iface := range all {
+		if !ifaces[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// verify the interface is setup as expected wrt
+		// implicitOnCore, implicitOnClassic, no plugs and has
+		// expected slots (ignoring AutoConnection)
+		si := interfaces.StaticInfoOf(iface)
+		c.Assert(si.ImplicitOnCore, Equals, false)
+		c.Assert(si.ImplicitOnClassic, Equals, true)
+
+		c.Assert(s.baseDecl.PlugRule(iface.Name()), IsNil)
+
+		sr := s.baseDecl.SlotRule(iface.Name())
+		c.Assert(sr, Not(IsNil))
+		c.Assert(sr.AllowInstallation, HasLen, 1)
+		c.Check(sr.AllowInstallation[0].SlotSnapTypes, DeepEquals, []string{"app", "core"}, comm)
+		c.Assert(sr.DenyConnection, HasLen, 1)
+		c.Check(sr.DenyConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: false}, comm)
+
+		for _, onClassic := range []bool{true, false} {
+			release.OnClassic = onClassic
+
+			for _, implicit := range []bool{true, false} {
+				// When implicitOnCore is false, there is
+				// nothing to test on Core
+				if implicit && !onClassic {
+					continue
+				}
+
+				snapType := "app"
+				if implicit {
+					snapType = "os"
+				}
+				slotYaml := fmt.Sprintf(`name: slot-snap
+version: 0
+type: %s
+slots:
+  %s:
+`, snapType, iface.Name())
+
+				// XXX: eventually 'onClassic && !implicit' but
+				// the current declaration allows connection on
+				// Core when 'type: app'. See:
+				// https://github.com/snapcore/snapd/pull/8920/files#r471678529
+				expected := onClassic
+
+				// check base declaration
+				cand := s.connectCand(c, iface.Name(), slotYaml, "")
+				err := cand.Check()
+
+				if expected {
+					c.Check(err, IsNil, comm)
+				} else {
+					c.Check(err, NotNil, comm)
+				}
+			}
+		}
+	}
+}
+
 func (s *baseDeclSuite) TestSanity(c *C) {
 	all := builtin.Interfaces()
 
@@ -845,6 +946,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"snapd-control":         true,
 		"system-files":          true,
 		"udisks2":               true,
+		"uinput":                true,
 		"unity8":                true,
 		"wayland":               true,
 	}

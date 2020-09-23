@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -403,7 +403,7 @@ confinement: devmode`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
@@ -425,7 +425,7 @@ confinement: classic`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Confinement, Equals, snap.ClassicConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
@@ -445,7 +445,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
@@ -468,7 +468,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.GetType(), Equals, snap.TypeApp)
+	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
 }
 
@@ -1105,12 +1105,14 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
+	c.Check(snapInfo.DesktopPrefix(), Equals, "sample")
 
 	// snap with instance key
 	snapInfo.InstanceKey = "instance"
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
-	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_app.desktop`)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_sample.desktop`)
+	c.Check(snapInfo.DesktopPrefix(), Equals, "sample+instance")
 }
 
 const coreSnapYaml = `name: core
@@ -1566,14 +1568,14 @@ func (s *infoSuite) TestIsActive(c *C) {
 	c.Check(info2.IsActive(), Equals, false)
 }
 
-func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
+func (s *infoSuite) TestInfoTypeSnapdBackwardCompatibility(c *C) {
 	const snapdYaml = `
 name: snapd
 type: app
 version: 1
 `
 	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
-	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
+	c.Check(snapInfo.Type(), Equals, snap.TypeSnapd)
 }
 
 func (s *infoSuite) TestDirAndFileHelpers(c *C) {
@@ -1739,4 +1741,23 @@ func (s *infoSuite) TestSortApps(c *C) {
 			c.Assert(sortedNames, DeepEquals, tc.sorted)
 		}
 	}
+}
+
+func (s *infoSuite) TestSortAppInfoBySnapApp(c *C) {
+	snap1 := &snap.Info{SuggestedName: "snapa"}
+	snap2 := &snap.Info{SuggestedName: "snapb"}
+	infos := []*snap.AppInfo{
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "b"},
+		{Snap: snap1, Name: "a"},
+		{Snap: snap2, Name: "a"},
+	}
+	sort.Stable(snap.AppInfoBySnapApp(infos))
+
+	c.Check(infos, DeepEquals, []*snap.AppInfo{
+		{Snap: snap1, Name: "a"},
+		{Snap: snap1, Name: "b"},
+		{Snap: snap2, Name: "a"},
+		{Snap: snap2, Name: "b"},
+	})
 }

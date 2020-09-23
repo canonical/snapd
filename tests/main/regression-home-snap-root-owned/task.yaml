@@ -1,5 +1,6 @@
 summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
-
+systems:
+    - -ubuntu-14.04-*  # no support for tests.session
 prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
@@ -7,13 +8,15 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
-
+    tests.session -u test prepare
+restore: |
+    tests.session -u test restore
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
     # run a snap command via sudo
-    output=$(su -l -c "sudo $SNAP_MOUNT_DIR/bin/test-snapd-sh.sh -c 'env'" test)
+    output="$(tests.session -u test exec sudo "$SNAP_MOUNT_DIR/bin/test-snapd-sh.sh" -c env)"
 
     # ensure SNAP_USER_DATA points to the right place
     echo "$output" | MATCH SNAP_USER_DATA=/root/snap/test-snapd-sh/x[0-9]+

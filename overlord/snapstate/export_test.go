@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type ManagerBackend managerBackend
@@ -90,14 +91,21 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
 
+	CurrentSnaps = currentSnaps
+
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
+
+	SafetyMarginDiskSpace = safetyMarginDiskSpace
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }
+
+// helpers
+var InstallSize = installSize
 
 // aliases v2
 var (
@@ -107,6 +115,11 @@ var (
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
 	SwitchSummary         = switchSummary
+)
+
+// dbus
+var (
+	CheckDBusServiceConflicts = checkDBusServiceConflicts
 )
 
 // readme files
@@ -208,14 +221,6 @@ var (
 
 type AuxStoreInfo = auxStoreInfo
 
-func MockPidsCgroupDir(dir string) (restore func()) {
-	old := pidsCgroupDir
-	pidsCgroupDir = dir
-	return func() {
-		pidsCgroupDir = old
-	}
-}
-
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
@@ -223,6 +228,30 @@ var (
 
 func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
 	return m.maybeUndoRemodelBootChanges(t)
+}
+
+func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
+	old := pidsOfSnap
+	pidsOfSnap = f
+	return func() {
+		pidsOfSnap = old
+	}
+}
+
+func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) func() {
+	old := currentSnaps
+	currentSnaps = f
+	return func() {
+		currentSnaps = old
+	}
+}
+
+func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+	old := installSize
+	installSize = f
+	return func() {
+		installSize = old
+	}
 }
 
 // autorefresh

@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -90,12 +91,12 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 	c.Assert(s.o.StartUp(), IsNil)
 }
 
-func (s *serviceControlSuite) mockTestSnap(c *C) {
+func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	si := snap.SideInfo{
 		RealName: "test-snap",
 		Revision: snap.R(7),
 	}
-	snaptest.MockSnap(c, servicesSnapYaml1, &si)
+	info := snaptest.MockSnap(c, servicesSnapYaml1, &si)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -108,6 +109,224 @@ func (s *serviceControlSuite) mockTestSnap(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
 	c.Assert(err, IsNil)
+
+	return info
+}
+
+func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction string, expectedServices ...string) {
+	// sanity, ensures test checks below are hit
+	c.Assert(len(tasks) > 0, Equals, true)
+	var i int
+	for i < len(tasks) {
+		var argv []string
+		if tasks[i].Kind() == "exec-command" {
+			switch expectedAction {
+			case "start":
+				if supportAction != "" {
+					c.Assert(tasks[i].Get("argv", &argv), IsNil)
+					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					i++
+					wt := tasks[i].WaitTasks()
+					c.Assert(wt, HasLen, 1)
+					c.Assert(wt[0].ID(), Equals, tasks[i-1].ID())
+				}
+				c.Assert(tasks[i].Get("argv", &argv), IsNil)
+				c.Check(argv, DeepEquals, append([]string{"systemctl", "start"}, expectedServices...))
+			case "stop":
+				if supportAction != "" {
+					c.Assert(tasks[i].Get("argv", &argv), IsNil)
+					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					i++
+					wt := tasks[i].WaitTasks()
+					c.Assert(wt, HasLen, 1)
+					c.Assert(wt[0].ID(), Equals, tasks[i-1].ID())
+				}
+				c.Assert(tasks[i].Get("argv", &argv), IsNil)
+				c.Check(argv, DeepEquals, append([]string{"systemctl", "stop"}, expectedServices...))
+			case "restart":
+				if supportAction != "" {
+					c.Assert(tasks[i].Get("argv", &argv), IsNil)
+					c.Check(argv, DeepEquals, append([]string{"systemctl", "reload-or-restart"}, expectedServices...))
+				} else {
+					c.Assert(tasks[i].Get("argv", &argv), IsNil)
+					c.Check(argv, DeepEquals, append([]string{"systemctl", "restart"}, expectedServices...))
+				}
+			default:
+				c.Fatalf("unhandled action %s", expectedAction)
+			}
+		} else {
+			c.Fatalf("unexpected task: %s", tasks[i].Kind())
+		}
+		i++
+	}
+}
+
+func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, info *snap.Info) *state.Change {
+	apps := []*snap.AppInfo{}
+	for _, name := range inst.Names {
+		c.Assert(info.Apps[name], NotNil)
+		apps = append(apps, info.Apps[name])
+	}
+	st.Unlock()
+	tss, err := servicestate.Control(st, apps, inst, nil)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("service-control", "...")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+	return chg
+}
+
+func (s *serviceControlSuite) TestControlConflict(c *C) {
+	st := s.state
+	st.Lock()
+
+	inf := s.mockTestSnap(c)
+
+	// create conflicting change
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-snap"}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("manip", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
+	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
+}
+
+func (s *serviceControlSuite) TestControlStartInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"foo"},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "start", "", "snap.test-snap.foo.service")
+}
+
+func (s *serviceControlSuite) TestControlStartEnableMultipleInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action:       "start",
+		Names:        []string{"foo", "bar"},
+		StartOptions: client.StartOptions{Enable: true},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "start", "enable", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
+}
+
+func (s *serviceControlSuite) TestControlStopInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "stop",
+		Names:  []string{"foo"},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "stop", "", "snap.test-snap.foo.service")
+}
+
+func (s *serviceControlSuite) TestControlStopDisableInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action:      "stop",
+		Names:       []string{"bar"},
+		StopOptions: client.StopOptions{Disable: true},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "stop", "disable", "snap.test-snap.bar.service")
+}
+
+func (s *serviceControlSuite) TestControlRestartInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "restart",
+		Names:  []string{"bar"},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "restart", "", "snap.test-snap.bar.service")
+}
+
+func (s *serviceControlSuite) TestControlRestartReloadMultipleInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action:         "restart",
+		Names:          []string{"foo", "bar"},
+		RestartOptions: client.RestartOptions{Reload: true},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "restart", "reload", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
+}
+
+func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inst := &servicestate.Instruction{
+		Action:         "boo",
+		Names:          []string{"foo"},
+		RestartOptions: client.RestartOptions{Reload: true},
+	}
+
+	_, err := servicestate.Control(st, []*snap.AppInfo{}, inst, nil)
+	c.Assert(err, ErrorMatches, `unknown action "boo"`)
+}
+
+func (s *serviceControlSuite) TestControlStopDisableMultipleInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action:      "stop",
+		Names:       []string{"foo", "bar"},
+		StopOptions: client.StopOptions{Disable: true},
+	}
+
+	chg := makeControlChange(c, st, inst, inf)
+	verifyControlTasks(c, chg.Tasks(), "stop", "disable", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
 }
 
 func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
@@ -475,4 +694,74 @@ func (s *serviceControlSuite) TestConflict(c *C) {
 
 	_, err := snapstate.Remove(st, "test-snap", snap.Revision{}, nil)
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "service-control" change in progress`)
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
+	var tests = []struct {
+		enable                    []string
+		disable                   []string
+		expectedSnapstateEnabled  []string
+		expectedSnapstateDisabled []string
+		changed                   bool
+	}{
+		// These test scenarios share a single SnapState instance and accumulate
+		// changes to ServicesEnabledByHooks and ServicesDisabledByHooks.
+		{
+			changed: false,
+		},
+		{
+			enable: []string{"a"},
+			expectedSnapstateEnabled: []string{"a"},
+			changed:                  true,
+		},
+		// enable again does nothing
+		{
+			enable: []string{"a"},
+			expectedSnapstateEnabled: []string{"a"},
+			changed:                  false,
+		},
+		{
+			disable:                   []string{"a"},
+			expectedSnapstateDisabled: []string{"a"},
+			changed:                   true,
+		},
+		{
+			enable: []string{"a", "c"},
+			expectedSnapstateEnabled: []string{"a", "c"},
+			changed:                  true,
+		},
+		{
+			disable:                   []string{"b"},
+			expectedSnapstateEnabled:  []string{"a", "c"},
+			expectedSnapstateDisabled: []string{"b"},
+			changed:                   true,
+		},
+		{
+			disable:                   []string{"b", "c"},
+			expectedSnapstateEnabled:  []string{"a"},
+			expectedSnapstateDisabled: []string{"b", "c"},
+			changed:                   true,
+		},
+	}
+
+	snapst := snapstate.SnapState{}
+
+	for _, tst := range tests {
+		var enable, disable []*snap.AppInfo
+		for _, srv := range tst.enable {
+			enable = append(enable, &snap.AppInfo{Name: srv})
+		}
+		for _, srv := range tst.disable {
+			disable = append(disable, &snap.AppInfo{Name: srv})
+		}
+		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable)
+		c.Assert(err, IsNil)
+		c.Check(result, Equals, tst.changed)
+		c.Check(snapst.ServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
+		c.Check(snapst.ServicesDisabledByHooks, DeepEquals, tst.expectedSnapstateDisabled)
+	}
+
+	services := []*snap.AppInfo{{Name: "foo"}}
+	_, err := servicestate.UpdateSnapstateServices(nil, services, services)
+	c.Assert(err, ErrorMatches, `internal error: cannot handle enabled and disabled services at the same time`)
 }

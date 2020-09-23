@@ -116,6 +116,15 @@ func isWSL() bool {
 	return false
 }
 
+// SystemctlSupportsUserUnits returns true if the systemctl utility
+// supports user units.
+func SystemctlSupportsUserUnits() bool {
+	// Ubuntu 14.04's systemctl does not support the arguments
+	// needed to enable user session units. Further more, it does
+	// not ship with a systemd user instance.
+	return !(ReleaseInfo.ID == "ubuntu" && ReleaseInfo.VersionID == "14.04")
+}
+
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool

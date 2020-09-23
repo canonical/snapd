@@ -67,6 +67,8 @@ func (vss *validationSetSuite) TestDecodeOK(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ValidationSetType)
+	_, ok := a.(asserts.SequenceMember)
+	c.Assert(ok, Equals, true)
 	valset := a.(*asserts.ValidationSet)
 	c.Check(valset.AuthorityID(), Equals, "brand-id1")
 	c.Check(valset.Timestamp(), Equals, vss.ts)
@@ -109,6 +111,9 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 		{"sequence: 2\n", "sequence: one\n", `"sequence" header is not an integer: one`},
 		{"sequence: 2\n", "sequence: 0\n", `"sequence" must be >=1: 0`},
 		{"sequence: 2\n", "sequence: -1\n", `"sequence" must be >=1: -1`},
+		{"sequence: 2\n", "sequence: 00\n", `"sequence" header has invalid prefix zeros: 00`},
+		{"sequence: 2\n", "sequence: 01\n", `"sequence" header has invalid prefix zeros: 01`},
+		{"sequence: 2\n", "sequence: 010\n", `"sequence" header has invalid prefix zeros: 010`},
 		{snapsStanza, "", `"snaps" header is mandatory`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
 		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},

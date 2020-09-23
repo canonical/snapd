@@ -63,6 +63,14 @@ func MockSquashFsType(f func() (string, []string)) func() {
 	}
 }
 
+func MockSystemdSysctlPath(p string) (restore func()) {
+	old := systemdSysctlPath
+	systemdSysctlPath = p
+	return func() {
+		systemdSysctlPath = old
+	}
+}
+
 func (e *Error) SetExitCode(i int) {
 	e.exitCode = i
 }

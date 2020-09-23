@@ -42,11 +42,6 @@ type lkTestSuite struct {
 
 var _ = Suite(&lkTestSuite{})
 
-func (s *lkTestSuite) TestNewLkNolkReturnsNil(c *C) {
-	l := bootloader.NewLk("/does/not/exist", nil)
-	c.Assert(l, IsNil)
-}
-
 func (s *lkTestSuite) TestNewLk(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
 	l := bootloader.NewLk(s.rootdir, nil)
@@ -227,7 +222,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// now remove the kernel
 	err = lk.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
-	// and ensure its no longer available in the boot partions
+	// and ensure its no longer available in the boot partitions
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
 	bootPart, err = lkenv.GetBootPartition("ubuntu-kernel_42.snap")

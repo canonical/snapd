@@ -24,6 +24,8 @@ import (
 	"errors"
 )
 
+var errUnsupported = errors.New("unsupported on non-Linux systems")
+
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 // On this OS this is a stub.
@@ -36,5 +38,12 @@ func ExecInSnapdOrCoreSnap() {
 //
 // On this OS this is a stub and always returns an error.
 func InternalToolPath(tool string) (string, error) {
-	return "", errors.New("unsupported on non-Linux systems")
+	return "", errUnsupported
+}
+
+// IsReexecd returns true when the current process binary is running from a snap.
+//
+// On this OS this is a stub and always returns an error.
+func IsReexecd() (bool, error) {
+	return false, errUnsupported
 }

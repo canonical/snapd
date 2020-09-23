@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -35,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type installTestSuite struct {
+type contentTestSuite struct {
 	testutil.BaseTest
 
 	dir string
@@ -49,11 +48,9 @@ type installTestSuite struct {
 	mockMountErr error
 }
 
-var _ = Suite(&installTestSuite{})
+var _ = Suite(&contentTestSuite{})
 
-func TestRun(t *testing.T) { TestingT(t) }
-
-func (s *installTestSuite) SetUpTest(c *C) {
+func (s *contentTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.dir = c.MkDir()
@@ -175,26 +172,52 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
+type mockContentChange struct {
+	path   string
+	change *gadget.ContentChange
+}
+
+type mockWriteObserver struct {
+	content        map[string][]*mockContentChange
+	observeErr     error
+	expectedStruct *gadget.LaidOutStructure
+	c              *C
+}
+
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	if m.content == nil {
+		m.content = make(map[string][]*mockContentChange)
+	}
+	m.content[targetRootDir] = append(m.content[targetRootDir],
+		&mockContentChange{path: relativeTargetPath, change: data})
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
+	return true, m.observeErr
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
+		observeErr error
 		err        string
 	}{
 		{
 			mountErr:   nil,
 			unmountErr: nil,
 			err:        "",
-		},
-		{
+		}, {
 			mountErr:   errors.New("mount error"),
 			unmountErr: nil,
 			err:        "cannot mount filesystem .*: mount error",
-		},
-		{
+		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
 			err:        "unmount error",
+		}, {
+			observeErr: errors.New("observe error"),
+			err:        "cannot create filesystem image: cannot write filesystem content of source:grubx64.efi: cannot observe file write: observe error",
 		},
 	} {
 		mockMountpoint := c.MkDir()
@@ -222,8 +245,12 @@ func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
 				},
 			},
 		}
-
-		err := install.WriteContent(&m, s.gadgetRoot)
+		obs := &mockWriteObserver{
+			c:              c,
+			observeErr:     tc.observeErr,
+			expectedStruct: &m.LaidOutStructure,
+		}
+		err := install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -235,11 +262,19 @@ func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
 			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
+			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
+				filepath.Join(mockMountpoint, "2"): {
+					{
+						path:   "EFI/boot/grubx64.efi",
+						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},
+					},
+				},
+			})
 		}
 	}
 }
 
-func (s *installTestSuite) TestWriteRawContent(c *C) {
+func (s *contentTestSuite) TestWriteRawContent(c *C) {
 	mockNode := filepath.Join(s.dir, "mock-node")
 	err := ioutil.WriteFile(mockNode, nil, 0644)
 	c.Assert(err, IsNil)
@@ -257,7 +292,7 @@ func (s *installTestSuite) TestWriteRawContent(c *C) {
 		},
 	}
 
-	err = install.WriteContent(&m, s.gadgetRoot)
+	err = install.WriteContent(&m, s.gadgetRoot, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)
@@ -266,7 +301,7 @@ func (s *installTestSuite) TestWriteRawContent(c *C) {
 	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
 }
 
-func (s *installTestSuite) TestMountFilesystem(c *C) {
+func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -433,9 +433,9 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-// GetType returns the type of the snap, including additional snap ID check
+// Type returns the type of the snap, including additional snap ID check
 // for the legacy snapd snap definitions.
-func (s *Info) GetType() Type {
+func (s *Info) Type() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
 	}
@@ -594,6 +594,21 @@ func BadInterfacesSummary(snapInfo *Info) string {
 		fmt.Fprintf(&buf, " (%s); ", reason)
 	}
 	return strings.TrimSuffix(buf.String(), "; ")
+}
+
+// DesktopPrefix returns the prefix string for the desktop files that
+// belongs to the given snapInstance. We need to do something custom
+// here because a) we need to be compatible with the world before we had
+// parallel installs b) we can't just use the usual "_" parallel installs
+// separator because that is already used as the separator between snap
+// and desktop filename.
+func (s *Info) DesktopPrefix() string {
+	if s.InstanceKey == "" {
+		return s.SnapName()
+	}
+	// we cannot use the usual "_" separator because that is also used
+	// to separate "$snap_$desktopfile"
+	return fmt.Sprintf("%s+%s", s.SnapName(), s.InstanceKey)
 }
 
 // DownloadInfo contains the information to download a snap.
@@ -953,7 +968,7 @@ func (app *AppInfo) SecurityTag() string {
 // DesktopFile returns the path to the installed optional desktop file for the
 // application.
 func (app *AppInfo) DesktopFile() string {
-	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.InstanceName(), app.Name))
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
@@ -1284,7 +1299,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].GetType().SortsBefore(r[j].GetType())
+	return r[i].Type().SortsBefore(r[j].Type())
 }
 
 // SortServices sorts the apps based on their Before and After specs, such that
@@ -1354,4 +1369,19 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 		return nil, fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
 	}
 	return sorted, nil
+}
+
+// AppInfoBySnapApp supports sorting the given slice of app infos by
+// (instance name, app name).
+type AppInfoBySnapApp []*AppInfo
+
+func (a AppInfoBySnapApp) Len() int      { return len(a) }
+func (a AppInfoBySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a AppInfoBySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
 }

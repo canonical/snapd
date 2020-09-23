@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -129,6 +130,12 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 			return nil, err
 		}
 	}
+	if info.SnapType == snap.TypeKernel {
+		if err := kernel.Validate(sourceDir); err != nil {
+			return nil, err
+		}
+	}
+
 	return info, nil
 }
 
@@ -220,7 +227,7 @@ func Snap(sourceDir string, opts *Options) (string, error) {
 	snapName := snapPath(info, opts.TargetDir, opts.SnapName)
 	d := squashfs.New(snapName)
 	if err = d.Build(sourceDir, &squashfs.BuildOpts{
-		SnapType:     string(info.GetType()),
+		SnapType:     string(info.Type()),
 		Compression:  opts.Compression,
 		ExcludeFiles: []string{excludes},
 	}); err != nil {

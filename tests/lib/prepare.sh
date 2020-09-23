@@ -81,7 +81,9 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove --purge jq jq-core18 jq-core20
+    snap remove --purge jq
+    snap remove --purge jq-core18
+    snap remove --purge jq-core20
 }
 
 setup_systemd_snapd_overrides() {
@@ -285,11 +287,15 @@ prepare_classic() {
             cache_snaps test-snapd-profiler
         fi
 
-        snap list | not grep core || exit 1
-        # use parameterized core channel (defaults to edge) instead
+        # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
-        snap install --"$CORE_CHANNEL" core
+        if snap list core ; then
+            snap refresh --"$CORE_CHANNEL" core
+        else
+            snap install --"$CORE_CHANNEL" core
+        fi
+
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
@@ -334,14 +340,41 @@ repack_snapd_snap_with_deb_content() {
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
 
+repack_core20_snap_with_tweaks() {
+    local CORE20SNAP="$1"
+    local TARGET="$2"
+
+    local UNPACK_DIR="/tmp/core20-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+
+    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
+    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
+[Journal]
+ForwardToConsole=yes
+TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
+EOF
+    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
+cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF
+
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf "$UNPACK_DIR"
+}
+
+
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
-    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -352,11 +385,10 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
 
-    if [ "$ENABLE_SSH" = "true" ]; then
-        # now install a unit that sets up enough so that we can connect
-        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    # now install a unit that sets up enough so that we can connect
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -370,8 +402,8 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -421,8 +453,7 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
-    fi
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
 
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
@@ -436,9 +467,16 @@ uc20_build_initramfs_kernel_snap() {
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
+
+    local injectKernelPanic=false
+    injectKernelPanicArg=${3:-}
+    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
+        injectKernelPanic=true
+    fi
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
+
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
@@ -470,6 +508,27 @@ uc20_build_initramfs_kernel_snap() {
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
         echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
+
+
+        # patch the initramfs to go back to isolating the initrd units and to 
+        # not specify to mount /run/mnt/ubuntu-boot via fstab, these were all 
+        # done as interim changes until snap-bootstrap took control of things,
+        # now that snap-bootstrap is in control, we don't want those hacks, but 
+        # we still want accurate test results so drop those hacks to let 
+        # snap-bootstrap do everything for the spread run
+
+        # TODO:UC20: drop these patches when the associated changes have landed
+        #            upstream
+        rm -rf "$skeletondir/main/usr/lib/systemd/system/initrd-cleanup.service.d/core-override.conf"
+        sed -i "$skeletondir/main/usr/lib/systemd/system/populate-writable.service" \
+            -e "s@ExecStartPost=/usr/bin/systemctl --no-block start initrd.target@ExecStartPost=/usr/bin/systemctl --no-block isolate initrd.target@"
+        sed -i "$skeletondir/main/usr/lib/the-modeenv" \
+            -e "s@echo 'LABEL=ubuntu-boot /run/mnt/ubuntu-boot auto defaults 0 0' >> /run/image.fstab@echo not doing anything@"
+
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
+        fi
 
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
@@ -635,6 +694,22 @@ EOF
 
     mkdir -p /mnt/system-data/var/lib/console-conf
 
+    # NOTE: The here-doc below must use tabs for proper operation.
+    cat >/mnt/system-data/etc/systemd/system/var-lib-systemd-linger.mount <<-UNIT
+	[Mount]
+	What=/writable/system-data/var/lib/systemd/linger
+	Where=/var/lib/systemd/linger
+	Options=bind
+	UNIT
+    ln -s /etc/systemd/system/var-lib-systemd-linger.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/var-lib-systemd-linger.mount
+
+    # NOTE: The here-doc below must use tabs for proper operation.
+    mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+    cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 }
@@ -731,6 +806,12 @@ slots:
         interface: iio
         path: /dev/iio:device0
 EOF
+
+        # Make /var/lib/systemd writable so that we can get linger enabled.
+        # This only applies to Ubuntu Core 16 where individual directories were
+        # writable. In Core 18 and beyond all of /var/lib/systemd is writable.
+        mkdir -p $UNPACK_DIR/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill,linger}
+        touch "$UNPACK_DIR"/var/lib/systemd/random-seed
 
         # build new core snap for the image
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"

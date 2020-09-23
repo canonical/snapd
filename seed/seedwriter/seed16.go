@@ -89,7 +89,7 @@ func (pol *policy16) extraSnapDefaultChannel() string {
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {
-		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
+		if info.Type() == snap.TypeGadget || info.Type() == snap.TypeApp {
 			// remember to make sure we have core installed
 			pol.needsCore = append(pol.needsCore, info.SnapName())
 		}

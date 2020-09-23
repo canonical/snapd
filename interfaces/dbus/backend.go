@@ -39,7 +39,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 // Backend is responsible for maintaining DBus policy files.
@@ -55,20 +57,35 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
+func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
+	// Only copy config files on classic distros
+	if !release.OnClassic {
+		return false
+	}
+	// Only copy config files if we have been reexecuted
+	if reexecd, _ := snapdtool.IsReexecd(); !reexecd {
+		return false
+	}
+	switch snapInfo.Type() {
+	case snap.TypeOS:
+		// XXX: ugly but we need to make sure that the content
+		// of the "snapd" snap wins
+		//
+		// TODO: this is also racy but the content of the
+		// files in core and snapd is identical.  Cleanup
+		// after link-snap and setup-profiles are unified
+		return !osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))
+	case snap.TypeSnapd:
+		return true
+	default:
+		return false
+	}
+}
+
 // setupDbusServiceForUserd will setup the service file for the new
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreOrSnapdRoot := snapInfo.MountDir()
-
-	// fugly - but we need to make sure that the content of the
-	// "snapd" snap wins
-	//
-	// TODO: this is also racy but the content of the files in core and
-	// snapd is identical cleanup after link-snap and
-	// setup-profiles are unified
-	if snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(coreOrSnapdRoot, "../..", "snapd/current")) {
-		return nil
-	}
 
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
@@ -88,6 +105,35 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	return nil
 }
 
+func setupHostDBusConf(snapInfo *snap.Info) error {
+	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(snapInfo)
+	if err != nil {
+		return err
+	}
+
+	// We don't use `dirs.SnapDBusSessionPolicyDir because we want
+	// to match the path the package on the host system uses.
+	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
+	if err = os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", sessionContent)
+	if err != nil {
+		return err
+	}
+
+	dest = filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/system.d")
+	if err = os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", systemContent)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
@@ -99,10 +145,15 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
 
-	// core/snapd on classic are special
-	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
+	// copy some config files when installing core/snapd if we reexec
+	if shouldCopyConfigFiles(snapInfo) {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		}
+		// TODO: Make this conditional on the dbus-activation
+		// feature flag.
+		if err := setupHostDBusConf(snapInfo); err != nil {
+			logger.Noticef("cannot create host dbus config: %s", err)
 		}
 	}
 
@@ -112,7 +163,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	dir := dirs.SnapBusPolicyDir
+	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
@@ -128,7 +179,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}

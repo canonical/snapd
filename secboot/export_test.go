@@ -24,8 +24,10 @@ import (
 	"io"
 
 	sb "github.com/snapcore/secboot"
+)
 
-	"github.com/snapcore/snapd/asserts"
+var (
+	EFIImageFromBootFile = efiImageFromBootFile
 )
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
@@ -52,6 +54,14 @@ func MockSbAddEFISecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile
 	}
 }
 
+func MockSbAddEFIBootManagerProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error) (restore func()) {
+	old := sbAddEFIBootManagerProfile
+	sbAddEFIBootManagerProfile = f
+	return func() {
+		sbAddEFIBootManagerProfile = old
+	}
+}
+
 func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error) (restore func()) {
 	old := sbAddSystemdEFIStubProfile
 	sbAddSystemdEFIStubProfile = f
@@ -73,6 +83,14 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	sbSealKeyToTPM = f
 	return func() {
 		sbSealKeyToTPM = old
+	}
+}
+
+func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, policyUpdatePath string, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+	old := sbUpdateKeyPCRProtectionPolicy
+	sbUpdateKeyPCRProtectionPolicy = f
+	return func() {
+		sbUpdateKeyPCRProtectionPolicy = old
 	}
 }
 
@@ -110,7 +128,7 @@ func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex in
 	}
 }
 
-func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model sb.SnapModel) error) (restore func()) {
 	old := sbMeasureSnapModelToTPM
 	sbMeasureSnapModelToTPM = f
 	return func() {
@@ -118,18 +136,34 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, mod
 	}
 }
 
-func MockDevDiskByLabelDir(new string) (restore func()) {
-	old := devDiskByLabelDir
-	devDiskByLabelDir = new
+func MockRandomKernelUUID(f func() string) (restore func()) {
+	old := randutilRandomKernelUUID
+	randutilRandomKernelUUID = f
 	return func() {
-		devDiskByLabelDir = old
+		randutilRandomKernelUUID = old
 	}
 }
 
-func MockRandomKernelUUID(new func() string) (restore func()) {
-	old := randutilRandomKernelUUID
-	randutilRandomKernelUUID = new
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte) error) (restore func()) {
+	old := sbInitializeLUKS2Container
+	sbInitializeLUKS2Container = f
 	return func() {
-		randutilRandomKernelUUID = old
+		sbInitializeLUKS2Container = old
+	}
+}
+
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error) (restore func()) {
+	old := sbAddRecoveryKeyToLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = f
+	return func() {
+		sbAddRecoveryKeyToLUKS2Container = old
+	}
+}
+
+func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
+	old := isTPMEnabled
+	isTPMEnabled = f
+	return func() {
+		isTPMEnabled = old
 	}
 }

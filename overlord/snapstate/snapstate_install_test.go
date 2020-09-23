@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -264,7 +265,7 @@ epoch: 1*
 	})
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -287,7 +288,7 @@ func dummyInUseCheck(snap.Type) (boot.InUseFunc, error) {
 	}, nil
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -318,12 +319,15 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 		}
 		return info, nil
 	})
-	mockPidsCgroupDir := c.MkDir()
-	restore := snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
-	defer restore()
 
-	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.app"), []int{1234})
+	// mock that "some-snap" has an app and that this app has pids running
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
@@ -340,7 +344,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	c.Check(snapst.RefreshInhibitedTime, NotNil)
 }
 
-func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -376,8 +380,14 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		}
 		return info, nil
 	})
-	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.app"), []int{1234})
+	// And with cgroup information indicating the app has a process with pid 1234.
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.some-app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
@@ -389,7 +399,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -513,7 +523,7 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -924,6 +934,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1094,6 +1105,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
@@ -1427,6 +1439,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_666.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1590,6 +1603,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1666,6 +1680,12 @@ func (s *snapmgrTestSuite) TestInstalling(c *C) {
 func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+		c.Fatalf("installSize shouldn't be hit with local install")
+		return 0, nil
+	})
+	defer restoreInstallSize()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2397,7 +2417,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 
 		// we use our own settle as we need a bigger timeout
 		s.state.Unlock()
-		err = s.o.Settle(15 * time.Second)
+		err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
 		s.state.Lock()
 		c.Assert(err, IsNil)
 
@@ -2765,6 +2785,43 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderCompat(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+		return 0, fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `boom`)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2893,6 +2950,10 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("Ubuntu 14.04 does not support user daemons")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2928,6 +2989,23 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+}
+
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", true)
+	tr.Commit()
+
+	// Even with the experimental.user-daemons flag set, user
+	// daemons are not supported on Trusty
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
@@ -3112,6 +3190,40 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
+	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", false)
+	tr.Commit()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {

@@ -205,6 +205,18 @@ func ExecInSnapdOrCoreSnap() {
 	panic(syscallExec(full, os.Args, os.Environ()))
 }
 
+// IsReexecd returns true when the current process binary is running from a snap.
+func IsReexecd() (bool, error) {
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return false, err
+	}
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return true, nil
+	}
+	return false, nil
+}
+
 // MockOsReadlink is for use in tests
 func MockOsReadlink(f func(string) (string, error)) func() {
 	realOsReadlink := osReadlink

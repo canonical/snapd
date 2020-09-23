@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -177,11 +177,11 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	return nil
 }
 
-func (s *seed20) Model() (*asserts.Model, error) {
+func (s *seed20) Model() *asserts.Model {
 	if s.model == nil {
-		return nil, fmt.Errorf("internal error: model assertion unset")
+		panic("internal error: model assertion unset (LoadAssertions not called)")
 	}
-	return s.model, nil
+	return s.model
 }
 
 func (s *seed20) Brand() (*asserts.Account, error) {
@@ -213,7 +213,7 @@ func (s *seed20) loadOptions() error {
 func (s *seed20) nextOptSnap(modSnap *asserts.ModelSnap) (optSnap *internal.Snap20, done bool) {
 	// we can merge model snaps and options snaps because
 	// both seed20.go and writer.go follow the order:
-	// system snap, model.AllSnaps()...
+	// system snap, model.EssentialSnaps(), model.SnapsWithoutEssential()
 	if s.optSnapsIdx == len(s.optSnaps) {
 		return nil, true
 	}
@@ -361,7 +361,7 @@ var errFiltered = errors.New("filtered out")
 
 func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filter func(*asserts.ModelSnap) bool, tm timings.Measurer) (*Snap, error) {
 	optSnap, _ := s.nextOptSnap(modelSnap)
-	if !filter(modelSnap) {
+	if filter != nil && !filter(modelSnap) {
 		return nil, errFiltered
 	}
 	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.Modes, modelSnap.DefaultChannel, "../../snaps", tm)
@@ -380,7 +380,10 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filt
 }
 
 func (s *seed20) LoadMeta(tm timings.Measurer) error {
-	if err := s.loadModelMeta(nil, tm); err != nil {
+	if err := s.loadEssentialMeta(nil, tm); err != nil {
+		return err
+	}
+	if err := s.loadModelRestMeta(tm); err != nil {
 		return err
 	}
 
@@ -404,7 +407,7 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
 	filterEssential := essentialSnapTypesToModelFilter(essentialTypes)
 
-	if err := s.loadModelMeta(filterEssential, tm); err != nil {
+	if err := s.loadEssentialMeta(filterEssential, tm); err != nil {
 		return err
 	}
 
@@ -416,11 +419,8 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return nil
 }
 
-func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
-	model, err := s.Model()
-	if err != nil {
-		return err
-	}
+func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
+	model := s.Model()
 
 	if err := s.loadOptions(); err != nil {
 		return err
@@ -430,41 +430,21 @@ func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm
 		return err
 	}
 
-	essentialOnly := filterEssential != nil
-	filter := filterEssential
-	if !essentialOnly {
-		// no filtering
-		filter = func(*asserts.ModelSnap) bool {
-			return true
-		}
-	}
+	essSnaps := model.EssentialSnaps()
+	const essential = true
 
-	allSnaps := model.AllSnaps()
 	// an explicit snapd is the first of all of snaps
-	if allSnaps[0].SnapType != "snapd" {
+	if essSnaps[0].SnapType != "snapd" {
 		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-		if _, err := s.addModelSnap(snapdSnap, true, filter, tm); err != nil && err != errFiltered {
+		if _, err := s.addModelSnap(snapdSnap, essential, filterEssential, tm); err != nil && err != errFiltered {
 			return err
 		}
 	}
 
-	modelSnaps := allSnaps
-	if essentialOnly {
-		// TODO:UC20: maybe just have Model.EssentialSnaps ?
-		expectedEssentialSnaps := len(model.RequiredWithEssentialSnaps()) - len(model.RequiredNoEssentialSnaps())
-		// we don't need to look further than the essential snaps
-		modelSnaps = modelSnaps[:expectedEssentialSnaps]
-	}
-
-	essential := true
-	for _, modelSnap := range modelSnaps {
-		seedSnap, err := s.addModelSnap(modelSnap, essential, filter, tm)
+	for _, modelSnap := range essSnaps {
+		seedSnap, err := s.addModelSnap(modelSnap, essential, filterEssential, tm)
 		if err != nil {
 			if err == errFiltered {
-				continue
-			}
-			if _, ok := err.(*noSnapDeclarationError); ok && modelSnap.Presence == "optional" {
-				// skipped optional snap is ok
 				continue
 			}
 			return err
@@ -480,13 +460,24 @@ func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm
 			}
 			// TODO: when we allow extend models for classic
 			// we need to add the gadget base here
+		}
+	}
 
-			// done with essential snaps, gadget is the last one
-			essential = false
-			if essentialOnly {
-				// will not find more
-				break
+	return nil
+}
+
+func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
+	model := s.Model()
+
+	const notEssential = false
+	for _, modelSnap := range model.SnapsWithoutEssential() {
+		_, err := s.addModelSnap(modelSnap, notEssential, nil, tm)
+		if err != nil {
+			if _, ok := err.(*noSnapDeclarationError); ok && modelSnap.Presence == "optional" {
+				// skipped optional snap is ok
+				continue
 			}
+			return err
 		}
 	}
 

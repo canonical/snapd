@@ -70,6 +70,8 @@ if [ "$1" = "purge" ]; then
                     rmdir --ignore-fail-on-non-empty "$d" || true
                 fi
             done
+            # modules
+            rm -f "/etc/modules-load.d/snap.${snap}.conf"
             # udev rules
             find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
             # dbus policy files
@@ -122,6 +124,12 @@ if [ "$1" = "purge" ]; then
         fi
         find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
+    fi
+
+    # inside containers we have a generator that creates a bind mount to /snap
+    if [ -e /run/systemd/container ]; then
+        echo "Unmount /snap inside a container"
+        umount /snap || true
     fi
 
     echo "Removing extra snap-confine apparmor rules"

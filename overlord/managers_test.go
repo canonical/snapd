@@ -155,6 +155,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	// needed by hooks
 	s.AddCleanup(testutil.MockCommand(c, "snap", "").Restore)
 
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -351,6 +354,14 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		return errors.New("error out")
 	}
 	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
+
+	// setup cloud-init as restricted so that tests by default don't run the
+	// full EnsureCloudInitRestricted logic in the devicestate mgr
+	snapdCloudInitRestrictedFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
+	err = os.MkdirAll(filepath.Dir(snapdCloudInitRestrictedFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapdCloudInitRestrictedFile, nil, 0644)
+	c.Assert(err, IsNil)
 }
 
 type mgrsSuite struct {
@@ -513,6 +524,14 @@ hooks:
 }
 
 func (s *mgrsSuite) TestHappyRemove(c *C) {
+	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
+		return 0, nil
+	}
+	defer func() {
+		snapstate.EstimateSnapshotSize = oldEstimateSnapshotSize
+	}()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -569,7 +588,8 @@ const (
 	    "all"
 	],
         "download": {
-            "url": "@URL@"
+			"url": "@URL@",
+			"size": 123
         },
         "epoch": @EPOCH@,
         "type": "@TYPE@",
@@ -700,7 +720,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
-		hit = strings.Replace(hit, `@TYPE@`, string(info.GetType()), -1)
+		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		return hit
 	}
@@ -2381,7 +2401,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 func (s *mgrsSuite) removeSnap(c *C, name string) {
 	st := s.o.State()
 
-	ts, err := snapstate.Remove(st, name, snap.R(0), nil)
+	ts, err := snapstate.Remove(st, name, snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -3343,7 +3363,7 @@ func (s *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	_ = s.installLocalTestSnap(c, snapYamlContent1+"version: 1.0")
 
-	ts, err := snapstate.Remove(st, "snap1", snap.R(0), nil)
+	ts, err := snapstate.Remove(st, "snap1", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -3640,7 +3660,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)
@@ -3755,13 +3775,14 @@ hooks:
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
+	flags := &snapstate.RemoveFlags{Purge: true}
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), flags)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), flags)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("uninstall", "...")
 	chg2.AddAll(ts2)
@@ -3843,7 +3864,7 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
@@ -5211,7 +5232,7 @@ volumes:
 	s.serveSnap(snapPath, "2")
 
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 		c.Assert(ps.Name, Equals, "foo")
 		return &mockUpdater{}, nil
@@ -5690,7 +5711,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)

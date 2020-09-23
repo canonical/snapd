@@ -417,3 +417,35 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapDisabled(c *C) {
 	snapdtool.ExecInSnapdOrCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
 }
+
+func (s *toolSuite) TestIsReexecd(c *C) {
+	mockedSelfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	restore := snapdtool.MockSelfExe(mockedSelfExe)
+	defer restore()
+
+	// pretend the binary reexecd from snap mount location
+	err := os.Symlink(filepath.Join(s.snapdPath, "usr/lib/snapd/snapd"), mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	is, err := snapdtool.IsReexecd()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, true)
+
+	err = os.Remove(mockedSelfExe)
+	c.Assert(err, IsNil)
+	// now it's not
+	err = os.Symlink(filepath.Join(dirs.DistroLibExecDir, "snapd"), mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	is, err = snapdtool.IsReexecd()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, false)
+
+	// trouble reading the symlink
+	err = os.Remove(mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	is, err = snapdtool.IsReexecd()
+	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
+	c.Assert(is, Equals, false)
+}

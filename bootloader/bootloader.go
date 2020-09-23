@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -39,6 +40,18 @@ var (
 	ErrNoTryKernelRef = errors.New("no try-kernel referenced")
 )
 
+// Role indicates whether the bootloader is used for recovery or run mode.
+type Role string
+
+const (
+	// RoleSole applies to the sole bootloader used by UC16/18.
+	RoleSole Role = ""
+	// RoleRunMode applies to the run mode booloader.
+	RoleRunMode Role = "run-mode"
+	// RoleRecovery apllies to the recovery bootloader.
+	RoleRecovery Role = "recovery"
+)
+
 // Options carries bootloader options.
 type Options struct {
 	// PrepareImageTime indicates whether the booloader is being
@@ -46,16 +59,25 @@ type Options struct {
 	// system.
 	PrepareImageTime bool
 
-	// Recovery indicates to use the recovery bootloader. Note that
-	// UC16/18 do not have a recovery partition.
-	Recovery bool
+	// Role specifies to use the bootloader for the given role.
+	Role Role
 
-	// NoSlashBoot indicates to use the run mode bootloader but
-	// under the native layout and not the /boot mount.
+	// NoSlashBoot indicates to use the native layout of the
+	// bootloader partition and not the /boot mount.
+	// It applies only for RoleRunMode.
+	// It is implied and ignored for RoleRecovery.
+	// It is an error to set it for RoleSole.
 	NoSlashBoot bool
+}
 
-	// ExtractedRunKernelImage is whether to force kernel asset extraction.
-	ExtractedRunKernelImage bool
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.NoSlashBoot && o.Role == RoleSole {
+		return fmt.Errorf("internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
+	}
+	return nil
 }
 
 // Bootloader provides an interface to interact with the system
@@ -93,6 +115,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -139,6 +162,47 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ManagedAssetsBootloader has its boot assets (typically boot config) managed
+// by snapd.
+type ManagedAssetsBootloader interface {
+	Bootloader
+
+	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
+	IsCurrentlyManaged() (bool, error)
+	// ManagedAssets returns a list of boot assets managed by the bootloader
+	// in the boot filesystem.
+	ManagedAssets() []string
+	// UpdateBootConfig updates the boot config assets used by the bootloader.
+	UpdateBootConfig(*Options) error
+	// CommandLine returns the kernel command line composed of mode and
+	// system arguments, built-in bootloader specific static arguments
+	// corresponding to the on-disk boot asset edition, followed by any
+	// extra arguments. The command line may be different when using a
+	// recovery bootloader.
+	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	// CandidateCommandLine is similar to CommandLine, but uses the current
+	// edition of managed built-in boot assets as reference.
+	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
+}
+
+// TrustedAssetsBootloader has boot assets that take part in secure boot
+// process.
+type TrustedAssetsBootloader interface {
+	// TrustedAssets returns the list of relative paths to assets inside
+	// the bootloader's rootdir that are measured in the boot process in the
+	// order of loading during the boot.
+	TrustedAssets() ([]string, error)
+
+	// RecoveryBootChain returns the load chain for recovery modes.
+	// It should be called on a RoleRecovery bootloader.
+	RecoveryBootChain(kernelPath string) ([]BootFile, error)
+
+	// BootChain returns the load chain for run mode.
+	// It should be called on a RoleRecovery bootloader passing the
+	// RoleRunMode bootloader.
+	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
@@ -149,9 +213,48 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
+func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
+}
+
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
+	if err != nil && err != errNoEdition {
+		return err
+	}
+	if err == errNoEdition {
+		return nil
+	}
+	newBootConfig := assets.Internal(assetName)
+	if len(newBootConfig) == 0 {
+		return fmt.Errorf("no boot config asset with name %q", assetName)
+	}
+	bc, err := configAssetFrom(newBootConfig)
+	if err != nil {
+		return err
+	}
+	if bc.Edition() <= currentBootConfigEdition {
+		// edition of the candidate boot config is lower than or equal
+		// to one currently installed
+		return nil
+	}
+	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
+	if err := opts.validate(); err != nil {
+		return err
+	}
+	// TODO:UC20 use ForGadget() to obtain the right bootloader
 	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
 		bl.setRootDir(rootDir)
 		ok, err := bl.InstallBootConfig(gadgetDir, opts)
@@ -162,6 +265,19 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
+
+type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
+
+var (
+	//  bootloaders list all possible bootloaders by their constructor
+	//  function.
+	bootloaders = []bootloaderNewFunc{
+		newUboot,
+		newGrub,
+		newAndroidBoot,
+		newLk,
+	}
+)
 
 var (
 	forcedBootloader Bootloader
@@ -175,6 +291,9 @@ var (
 // can also be used to find the recovery bootloader, e.g. on uc20:
 //   bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}
@@ -186,26 +305,12 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 		opts = &Options{}
 	}
 
-	// try uboot
-	if uboot := newUboot(rootdir, opts); uboot != nil {
-		return uboot, nil
+	for _, blNew := range bootloaders {
+		bl := blNew(rootdir, opts)
+		if osutil.FileExists(bl.ConfigFile()) {
+			return bl, nil
+		}
 	}
-
-	// no, try grub
-	if grub := newGrub(rootdir, opts); grub != nil {
-		return grub, nil
-	}
-
-	// no, try androidboot
-	if androidboot := newAndroidBoot(rootdir); androidboot != nil {
-		return androidboot, nil
-	}
-
-	// no, try lk
-	if lk := newLk(rootdir, opts); lk != nil {
-		return lk, nil
-	}
-
 	// no, weeeee
 	return nil, ErrBootloader
 }
@@ -255,4 +360,52 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	}
 
 	return nil
+}
+
+// ForGadget returns a bootloader matching a given gadget by inspecting the
+// contents of gadget directory or an error if no matching bootloader is found.
+func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
+	if forcedBootloader != nil || forcedError != nil {
+		return forcedBootloader, forcedError
+	}
+	for _, blNew := range bootloaders {
+		bl := blNew(rootDir, opts)
+		// do we have a marker file?
+		if osutil.FileExists(filepath.Join(gadgetDir, bl.Name()+".conf")) {
+			return bl, nil
+		}
+	}
+	return nil, ErrBootloader
+}
+
+// BootFile represents each file in the chains of trusted assets and
+// kernels used in the boot process. For example a boot file can be an
+// EFI binary or a snap file containing an EFI binary.
+type BootFile struct {
+	// Path is the path to the file in the filesystem or, if Snap
+	// is set, the relative path inside the snap file.
+	Path string
+	// Snap contains the path to the snap file if a snap file is used.
+	Snap string
+	// Role is set to the role of the bootloader this boot file
+	// originates from.
+	Role Role
+}
+
+func NewBootFile(snap, path string, role Role) BootFile {
+	return BootFile{
+		Snap: snap,
+		Path: path,
+		Role: role,
+	}
+}
+
+// WithPath returns a copy of the BootFile with path updated to the
+// specified value.
+func (b BootFile) WithPath(path string) BootFile {
+	b.Path = path
+	return b
 }

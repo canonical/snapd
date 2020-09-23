@@ -35,7 +35,7 @@ var (
 		"core":   "xMNMpEm0COPZy7jq9YRwWVLCD9q5peow",
 		"snapd":  "Z44rtQD1v4r1LXGPCDZAJO3AOw1EDGqy",
 		"core18": "NhSvwckvNdvgdiVGlsO1vYmi3FPdTZ9U",
-		// XXX no core20 uploaded to staging yet
+		// TODO:UC20 no core20 uploaded to staging yet
 		"core20": "",
 	}
 )

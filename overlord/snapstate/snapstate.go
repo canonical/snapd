@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -69,6 +71,37 @@ const (
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
+
+var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+// InsufficientSpaceError represents an error where there is not enough disk
+// space to perform an operation.
+type InsufficientSpaceError struct {
+	// Path is the filesystem path checked for available disk space
+	Path string
+	// Snaps affected by the failing operation
+	Snaps []string
+	// Kind of the change that failed
+	ChangeKind string
+	// Message is optional, otherwise one is composed from the other information
+	Message string
+}
+
+func (e *InsufficientSpaceError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if len(e.Snaps) > 0 {
+		snaps := strings.Join(e.Snaps, ", ")
+		return fmt.Sprintf("insufficient space in %q to perform %q change for the following snaps: %s", e.Path, e.ChangeKind, snaps)
+	}
+	return fmt.Sprintf("insufficient space in %q", e.Path)
+}
+
+// safetyMarginDiskSpace returns size plus a safety margin (5Mb)
+func safetyMarginDiskSpace(size uint64) uint64 {
+	return size + 5*1024*1024
+}
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -582,6 +615,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if !flag {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
+		if !release.SystemctlSupportsUserUnits() {
+			return fmt.Errorf("user session daemons are not supported on this release")
+		}
 	}
 
 	if usesDbusActivation {
@@ -597,14 +633,22 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+	if flags.Classic && !info.NeedsClassic() {
+		// snap does not require classic confinement, silently drop the flag
+		flags.Classic = false
+	}
+
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
-		return err
+		return flags, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return err
+		return flags, err
 	}
-	return nil
+	if err := checkDBusServiceConflicts(st, info); err != nil {
+		return flags, err
+	}
+	return flags, nil
 }
 
 // InstallPath returns a set of tasks for installing a snap from a file path
@@ -672,12 +716,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
@@ -692,7 +732,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		SnapPath:    path,
 		Channel:     channel,
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
@@ -759,17 +799,39 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 	info := sar.Info
 
-	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
-		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
+	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
+		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, err
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceInstall {
+		// check if there is enough disk space for requested snap and its
+		// prerequisites.
+		totalSize, err := installSize(st, []*snap.Info{info}, userID)
+		if err != nil {
+			return nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      []string{info.InstanceName()},
+					ChangeKind: "install",
+				}
+			}
+			return nil, err
+		}
 	}
 
 	snapsup := &SnapSetup{
@@ -780,7 +842,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
-		Type:         info.GetType(),
+		Type:         info.Type(),
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -834,13 +896,45 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	tr := config.NewTransaction(st)
+	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if checkDiskSpaceInstall {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		snapInfos := make([]*snap.Info, len(installs))
+		for i, sar := range installs {
+			snapInfos[i] = sar.Info
+		}
+		totalSize, err := installSize(st, snapInfos, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      toInstall,
+					ChangeKind: "install",
+				}
+			}
+			return nil, nil, err
+		}
+	}
+
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
 		var snapst SnapState
 		var flags Flags
 
-		if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		if err != nil {
 			return nil, nil, err
 		}
 
@@ -857,7 +951,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
-			Type:         info.GetType(),
+			Type:         info.Type(),
 			PlugsOnly:    len(info.Slots) == 0,
 			InstanceKey:  info.InstanceKey,
 		}
@@ -943,11 +1037,6 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
-		updateFlags := snapst.Flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
-		}
 		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
 			Channel:   snapst.TrackingChannel,
@@ -955,6 +1044,36 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		}
 		return opts, snapst.Flags, snapst
 
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snap and its
+		// prerequisites.
+		totalSize, err := installSize(st, updates, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, nil, err
+		}
 	}
 
 	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
@@ -1026,7 +1145,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
+		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1056,7 +1176,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
-			Type:         update.GetType(),
+			Type:         update.Type(),
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
@@ -1079,7 +1199,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.GetType(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
@@ -1485,13 +1605,38 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, infoErr
 	}
 
-	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		updateFlags := flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snap and its
+		// prerequisites.
+		totalSize, err := installSize(st, updates, userID)
+		if err != nil {
+			return nil, err
 		}
-		return opts, updateFlags, &snapst
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, err
+		}
+	}
+
+	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
+		return opts, flags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, fromChange)
@@ -1636,18 +1781,18 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	switch info.GetType() {
+	switch info.Type() {
 	case snap.TypeOS, snap.TypeBase, snap.TypeKernel:
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.GetType())
+		return nil, fmt.Errorf("cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1692,7 +1837,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1751,7 +1896,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: snap.InstanceSnap(name),
 			Revision: snapst.Current,
 		},
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1778,7 +1923,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == si.GetType() {
+		if importantSnapType == si.Type() {
 			return false
 		}
 	}
@@ -1793,7 +1938,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
+	return PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -1805,23 +1950,46 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
+	ts, snapshotSize, err := removeTasks(st, name, revision, flags)
+	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
+	// will only be greater than 0 if the feature is enabled.
+	if snapshotSize > 0 {
+		requiredSpace := safetyMarginDiskSpace(snapshotSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      []string{name},
+					ChangeKind: "remove",
+					Message:    fmt.Sprintf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
+			}
+			return nil, err
+		}
+	}
+	return ts, err
+}
+
+// removeTasks provides the task set to remove snap name after taking a snapshot
+// if flags.Purge is not true, it also computes an estimate of the latter size.
+func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err = Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
+		return nil, 0, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
 	if err := CheckChangeConflict(st, name, nil); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	deviceCtx, err := DeviceCtxFromState(st, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	active := snapst.Active
@@ -1836,13 +2004,13 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				if len(snapst.Sequence) > 1 {
 					msg += " (revert first?)"
 				}
-				return nil, fmt.Errorf(msg, revision, name)
+				return nil, 0, fmt.Errorf(msg, revision, name)
 			}
 			active = false
 		}
 
 		if !revisionInSequence(&snapst, revision) {
-			return nil, &snap.NotInstalledError{Snap: name, Rev: revision}
+			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 
 		removeAll = len(snapst.Sequence) == 1
@@ -1850,12 +2018,12 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 	info, err := Info(st, name, revision)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// check if this is something that can be removed
 	if err := canRemove(st, info, &snapst, removeAll, deviceCtx); err != nil {
-		return nil, fmt.Errorf("snap %q is not removable: %v", name, err)
+		return nil, 0, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup
@@ -1865,21 +2033,21 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
 
 	// trigger remove
 
-	full := state.NewTaskSet()
+	removeTs = state.NewTaskSet()
 	var chain *state.TaskSet
 
 	addNext := func(ts *state.TaskSet) {
 		if chain != nil {
 			ts.WaitAll(chain)
 		}
-		full.AddAll(ts)
+		removeTs.AddAll(ts)
 		chain = ts
 	}
 
@@ -1914,10 +2082,21 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
+				tr := config.NewTransaction(st)
+				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
+				if err != nil && !config.IsNoOption(err) {
+					return nil, 0, err
+				}
+				if checkDiskSpaceRemove {
+					snapshotSize, err = EstimateSnapshotSize(st, name, nil)
+					if err != nil {
+						return nil, 0, err
+					}
+				}
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
-					return nil, err
+					return nil, 0, err
 				}
 			}
 		}
@@ -1952,7 +2131,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
 	}
 
-	return full, nil
+	return removeTs, snapshotSize, nil
 }
 
 func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
@@ -1981,8 +2160,12 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
+
+	var totalSnapshotsSize uint64
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+
 	for _, name := range names {
-		ts, err := Remove(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
@@ -1990,9 +2173,26 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 		if err != nil {
 			return nil, nil, err
 		}
+		totalSnapshotsSize += snapshotSize
 		removed = append(removed, name)
 		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
+	}
+
+	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
+	// will only be greater than 0 if the feature is enabled.
+	if totalSnapshotsSize > 0 {
+		requiredSpace := safetyMarginDiskSpace(totalSnapshotsSize)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      names,
+					ChangeKind: "remove",
+				}
+			}
+			return nil, nil, err
+		}
 	}
 
 	return removed, tasksets, nil
@@ -2058,7 +2258,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		Base:        info.Base,
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2102,7 +2302,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-			Type:         newInfo.GetType(),
+			Type:         newInfo.Type(),
 		}, 0, "", nil)
 		if err != nil {
 			return nil, err
@@ -2241,6 +2441,8 @@ func NumSnaps(st *state.State) (int, error) {
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
+// Note that a SnapState with an empty Sequence will be treated as if snapst was
+// nil and name will be deleted from the state.
 func Set(st *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
@@ -2477,4 +2679,10 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
+	old := osutilCheckFreeSpace
+	osutilCheckFreeSpace = mock
+	return func() { osutilCheckFreeSpace = old }
 }

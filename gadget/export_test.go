@@ -19,10 +19,6 @@
 
 package gadget
 
-import (
-	"time"
-)
-
 type (
 	ValidationState          = validationState
 	MountedFilesystemUpdater = mountedFilesystemUpdater
@@ -44,8 +40,7 @@ var (
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 
-	WriteFile      = writeFileOrSymlink
-	WriteDirectory = writeDirectory
+	WriteFile = writeFileOrSymlink
 
 	RawContentBackupPath = rawContentBackupPath
 
@@ -56,10 +51,7 @@ var (
 	Flatten = flatten
 
 	FilesystemInfo                 = filesystemInfo
-	BuildPartitionList             = buildPartitionList
-	EnsureNodesExist               = ensureNodesExist
-	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
-	ListCreatedPartitions          = listCreatedPartitions
+	OnDiskVolumeFromPartitionTable = onDiskVolumeFromPartitionTable
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
@@ -79,18 +71,6 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) error) (restore func()) {
-	old := ensureNodesExist
-	ensureNodesExist = f
-	return func() {
-		ensureNodesExist = old
-	}
-}
-
-func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
-	old := internalUdevTrigger
-	internalUdevTrigger = f
-	return func() {
-		internalUdevTrigger = old
-	}
+func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
+	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
 }

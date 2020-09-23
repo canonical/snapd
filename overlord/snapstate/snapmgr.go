@@ -152,6 +152,10 @@ type SnapState struct {
 	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
 
+	// tracking services enabled and disabled by hooks
+	ServicesEnabledByHooks  []string `json:"services-enabled-by-hooks,omitempty"`
+	ServicesDisabledByHooks []string `json:"services-disabled-by-hooks,omitempty"`
+
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
@@ -288,6 +292,7 @@ var snapReadInfo = snap.ReadInfo
 // AutomaticSnapshot allows to hook snapshot manager's AutomaticSnapshot.
 var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.TaskSet, err error)
 var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
+var EstimateSnapshotSize func(st *state.State, instanceName string, users []string) (uint64, error)
 
 func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)

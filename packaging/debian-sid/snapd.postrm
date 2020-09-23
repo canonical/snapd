@@ -76,6 +76,8 @@ if [ "$1" = "purge" ]; then
             if [ -d /etc/dbus-1/system.d ]; then
                 find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             fi
+            # modules
+            rm -f "/etc/modules-load.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
@@ -122,6 +124,12 @@ if [ "$1" = "purge" ]; then
         fi
         find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
+    fi
+
+    # inside containers we have a generator that creates a bind mount to /snap
+    if [ -e /run/systemd/container ]; then
+        echo "Unmount /snap inside a container"
+        umount /snap || true
     fi
 
     echo "Removing extra snap-confine apparmor rules"
