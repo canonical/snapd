@@ -294,6 +294,11 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 		"EFI/boot/bootx64.efi", writeChange)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
+	// a managed boot asset is to be held
+	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		"EFI/ubuntu/grub.cfg", writeChange)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
 
 	// a single file in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), []string{
@@ -1411,6 +1416,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 				{"grubx64.efi", "new grub efi"},
 				// SHA3-384: cc0663cc7e6c7ada990261c3ff1d72da001dc02451558716422d3d2443b8789463363c9ff0cd1b853c6ced3e8e7dc39d
 				{"bootx64.efi", "new recovery shim efi"},
+				{"grub.conf", "grub from gadget"},
 			},
 		},
 		// just the markers
@@ -1474,6 +1480,16 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
+	// grub.cfg on ubuntu-seed and ubuntu-boot is managed by snapd
+	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, seedDir, "EFI/ubuntu/grub.cfg",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, seedDir, "EFI/ubuntu/grub.cfg",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+
 	// verify cache contents
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), []string{
 		// recovery shim
