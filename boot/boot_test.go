@@ -1101,7 +1101,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
 		resealCalls++
-		return nil
+		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -1111,7 +1111,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":[""]}]}`
+	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=run"]}]}`
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
 	c.Assert(err, IsNil)
 
@@ -1199,7 +1199,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
 		resealCalls++
-		return nil
+		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -1209,7 +1209,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":[""]}]}`
+	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":["snapd_recovery_mode=run"]}]}`
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
 	c.Assert(err, IsNil)
 
@@ -2172,10 +2172,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 1},
-				RealName: "pc-linux",
+				RealName: "pc-kernel-recovery",
 			},
 		}
 		return uc20Model, []*seed.Snap{kernelSnap}, nil
@@ -2218,7 +2218,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":[""]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-linux","kernel-revision":"1","kernel-cmdlines":[""]}]}`
+	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=run"]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=recover snapd_recovery_system=system"]}]}`
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
 	c.Assert(err, IsNil)
 
@@ -2292,10 +2292,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 1},
-				RealName: "pc-linux",
+				RealName: "pc-kernel-recovery",
 			},
 		}
 		return uc20Model, []*seed.Snap{kernelSnap}, nil
@@ -2338,7 +2338,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":[""]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-linux","kernel-revision":"1","kernel-cmdlines":[""]}]}`
+	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":["snapd_recovery_mode=run"]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=recover snapd_recovery_system=system"]}]}`
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
 	c.Assert(err, IsNil)
 
