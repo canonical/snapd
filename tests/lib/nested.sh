@@ -3,16 +3,16 @@
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB"/systems.sh
 
-NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
-NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
-NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
-NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
-NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
+export NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
+export NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
+export NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
+export NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
+export NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
+export NESTED_VM=nested-vm
+export NESTED_SSH_PORT=8022
+export NESTED_MON_PORT=8888
 
-NESTED_VM=nested-vm
-NESTED_SSH_PORT=8022
-NESTED_MON_PORT=8888
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
