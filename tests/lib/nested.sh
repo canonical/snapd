@@ -684,7 +684,7 @@ nested_configure_cloud_init_on_core20_vm() {
 
 nested_save_serial_log() {
     if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-        for i in $(seq 50); do
+        for i in $(seq 1 9); do
             if [ ! -f "${NESTED_LOGS_DIR}/serial.log.${i}" ]; then
                 cp "${NESTED_LOGS_DIR}/serial.log" "${NESTED_LOGS_DIR}/serial.log.${i}"
                 break
