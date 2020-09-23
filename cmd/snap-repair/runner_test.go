@@ -611,6 +611,18 @@ func (s *runnerSuite) TestLoadState(c *C) {
 	c.Check(model, Equals, "my-model")
 }
 
+func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	c.Assert(err, IsNil)
+
+	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
+	defer restore()
+
+	runner := repair.NewRunner()
+	err = runner.LoadState()
+	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
+}
+
 func (s *runnerSuite) TestSaveStateFail(c *C) {
 	s.freshState(c)
 
@@ -1658,24 +1670,16 @@ ls -l ${PATH##*:}/repair
 
 }
 
-type commonRunnerSuite struct {
+// shared1620RunnerSuite is embedded by runner16Suite and
+// runner20Suite and the tests are run once with a simulated uc16 and
+// once with a simulated uc20 environment
+type shared1620RunnerSuite struct {
 	baseRunnerSuite
 
-	initSeed        func(c *C)
 	writeSeedAssert func(c *C, fname string, a asserts.Assertion)
-	rmSeedAssert    func(c *C, fname string)
 }
 
-func (s *commonRunnerSuite) TestLoadStateInitStateFail(c *C) {
-	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
-	defer restore()
-
-	runner := repair.NewRunner()
-	err := runner.LoadState()
-	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
-}
-
-func (s *commonRunnerSuite) TestTLSTime(c *C) {
+func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
 	s.freshState(c)
 	runner := repair.NewRunner()
 	err := runner.LoadState()
@@ -1688,14 +1692,13 @@ func (s *commonRunnerSuite) TestTLSTime(c *C) {
 	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
 }
 
-func (s *commonRunnerSuite) TestLoadStateInitState(c *C) {
+func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	// sanity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()
-	s.initSeed(c)
 	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
 	s.writeSeedAssert(c, "brand.account", s.brandAcct)
 	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
@@ -1714,18 +1717,18 @@ func (s *commonRunnerSuite) TestLoadStateInitState(c *C) {
 }
 
 type runner16Suite struct {
-	commonRunnerSuite
+	shared1620RunnerSuite
 }
 
 var _ = Suite(&runner16Suite{})
 
 func (s *runner16Suite) SetUpTest(c *C) {
-	s.commonRunnerSuite.SetUpTest(c)
+	s.shared1620RunnerSuite.SetUpTest(c)
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 
 	// dummy seed yaml
-	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	err := os.MkdirAll(s.seedAssertsDir, 0755)
 	c.Assert(err, IsNil)
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
@@ -1738,14 +1741,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 
 	s.t0 = time.Now().UTC().Truncate(time.Minute)
 
-	s.initSeed = s.initSeed16
 	s.writeSeedAssert = s.writeSeedAssert16
-	s.rmSeedAssert = s.rmSeedAssert16
-}
-
-func (s *runner16Suite) initSeed16(c *C) {
-	err := os.MkdirAll(s.seedAssertsDir, 0775)
-	c.Assert(err, IsNil)
 }
 
 func (s *runner16Suite) writeSeedAssert16(c *C, fname string, a asserts.Assertion) {
@@ -1765,16 +1761,15 @@ func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 	// setup realistic seed/assertions
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()
-	s.initSeed(c)
 
 	const errPrefix = "cannot set device information: "
 	tests := []struct {
 		breakFunc   func()
 		expectedErr string
 	}{
-		{func() { s.rmSeedAssert(c, "model") }, errPrefix + "no model assertion in seed data"},
-		{func() { s.rmSeedAssert(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
-		{func() { s.rmSeedAssert(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
+		{func() { s.rmSeedAssert16(c, "model") }, errPrefix + "no model assertion in seed data"},
+		{func() { s.rmSeedAssert16(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
+		{func() { s.rmSeedAssert16(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
 		{func() {
 			// broken signature
 			blob := asserts.Encode(s.brandAcct)
@@ -1799,7 +1794,7 @@ func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 }
 
 type runner20Suite struct {
-	commonRunnerSuite
+	shared1620RunnerSuite
 }
 
 var _ = Suite(&runner20Suite{})
@@ -1810,12 +1805,14 @@ model=my-brand/my-model-2
 `)
 
 func (s *runner20Suite) SetUpTest(c *C) {
-	s.commonRunnerSuite.SetUpTest(c)
+	s.shared1620RunnerSuite.SetUpTest(c)
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
+	err := os.MkdirAll(s.seedAssertsDir, 0755)
+	c.Assert(err, IsNil)
 
 	// write dummy modeenv
-	err := os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
 	c.Assert(err, IsNil)
@@ -1830,14 +1827,7 @@ func (s *runner20Suite) SetUpTest(c *C) {
 	s.seedTime = seedTime
 	s.t0 = time.Now().UTC().Truncate(time.Minute)
 
-	s.initSeed = s.initSeed20
 	s.writeSeedAssert = s.writeSeedAssert20
-	s.rmSeedAssert = s.rmSeedAssert20
-}
-
-func (s *runner20Suite) initSeed20(c *C) {
-	err := os.MkdirAll(s.seedAssertsDir, 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertion) {
@@ -1850,10 +1840,6 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 
 	err := ioutil.WriteFile(fn, asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
-}
-
-func (s *runner20Suite) rmSeedAssert20(c *C, fname string) {
-	panic("not used in uc20 runner tests")
 }
 
 func (s *runner20Suite) TestLoadStateInitDeviceInfoFail(c *C) {
