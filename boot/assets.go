@@ -227,10 +227,10 @@ type TrustedAssetsInstallObserver struct {
 // of the secure boot.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
+func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if affectedStruct.Role != gadget.SystemBoot {
 		// only care about system-boot
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 
 	if o.blName == "" {
@@ -242,7 +242,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		o.blName = bl.Name()
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		if !ok {
-			return gadget.ChangeExecute, nil
+			return gadget.ChangeApply, nil
 		}
 		trustedAssets, err := tbl.TrustedAssets()
 		if err != nil {
@@ -252,7 +252,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	}
 	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 	ta, err := o.cache.Add(data.After, o.blName, filepath.Base(relativeTarget))
 	if err != nil {
@@ -270,7 +270,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		}
 		o.trackedAssets[ta.name] = append(o.trackedAssets[ta.name], ta.hash)
 	}
-	return gadget.ChangeExecute, nil
+	return gadget.ChangeApply, nil
 }
 
 // ObserveExistingTrustedRecoveryAssets observes existing trusted assets of a
@@ -380,7 +380,7 @@ func findMaybeTrustedAssetsBootloader(root string, opts *bootloader.Options) (fo
 // the bootloader binary which is measured as part of the secure boot.
 //
 // Implements gadget.ContentUpdateObserver.
-func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
+func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	var whichBootloader bootloader.Bootloader
 	var whichAssets []string
 	var err error
@@ -413,11 +413,11 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 		isRecovery = true
 	default:
 		// only system-seed and system-boot are of interest
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 	if len(whichAssets) == 0 || !strutil.ListContains(whichAssets, relativeTarget) {
 		// not one of the trusted assets
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
@@ -433,11 +433,11 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 		return o.observeRollback(whichBootloader, isRecovery, root, relativeTarget, data)
 	default:
 		// we only care about update and rollback actions
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 }
 
-func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
+func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
 		return gadget.ChangeAbort, fmt.Errorf("cannot copy modeenv: %v", err)
@@ -496,15 +496,15 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	}
 
 	if o.modeenv.deepEqual(modeenvBefore) {
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 	if err := o.modeenv.Write(); err != nil {
 		return gadget.ChangeAbort, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
-	return gadget.ChangeExecute, nil
+	return gadget.ChangeApply, nil
 }
 
-func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
+func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
 	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
 	if recovery {
@@ -516,7 +516,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 	hashList, ok := (*trustedAssets)[assetName]
 	if !ok || len(hashList) == 0 {
 		// asset not tracked in modeenv
-		return gadget.ChangeExecute, nil
+		return gadget.ChangeApply, nil
 	}
 
 	// new assets are appended to the list
@@ -571,7 +571,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 		return gadget.ChangeAbort, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	return gadget.ChangeExecute, nil
+	return gadget.ChangeApply, nil
 }
 
 // BeforeWrite is called when the update process has been staged for execution.

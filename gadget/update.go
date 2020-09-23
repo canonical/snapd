@@ -61,15 +61,15 @@ type ContentChange struct {
 }
 
 type ContentOperation int
-type ContentChangeDisposition int
+type ContentChangeAction int
 
 const (
 	ContentWrite ContentOperation = iota
 	ContentUpdate
 	ContentRollback
 
-	ChangeExecute ContentChangeDisposition = iota
-	ChangeAbort
+	ChangeAbort ContentChangeAction = iota
+	ChangeApply
 	ChangePreserveBefore
 )
 
@@ -88,13 +88,13 @@ type ContentObserver interface {
 	// happens after the original file has been restored (or removed if the
 	// file was added during the update), the source path is empty.
 	//
-	// Returning ChangeExecute indicates that the observer agrees for a
-	// given change to be executed. When called with a ContentUpdate
-	// operation, returning ChangePreserveBefore indicates that the 'before'
-	// content shall be preserved. Returning ChangeAbort is returned along
-	// with a non-nil error.
+	// Returning ChangeApply indicates that the observer agrees for a given
+	// change to be executed. When called with a ContentUpdate operation,
+	// returning ChangePreserveBefore indicates that the 'before' content
+	// shall be preserved. ChangeAbort is expected to be returned along with
+	// a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeDisposition, error)
+		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a

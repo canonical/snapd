@@ -185,7 +185,7 @@ type mockWriteObserver struct {
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeDisposition, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
 		m.content = make(map[string][]*mockContentChange)
 	}
@@ -193,7 +193,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 		&mockContentChange{path: relativeTargetPath, change: data})
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
-	return gadget.ChangeExecute, m.observeErr
+	return gadget.ChangeApply, m.observeErr
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
