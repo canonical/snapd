@@ -294,7 +294,7 @@ func (m *autoRefresh) Ensure() error {
 		}
 
 		err = m.launchAutoRefresh()
-		if _, ok := err.(*httputil.PerstistentNetworkError); !ok {
+		if _, ok := err.(*httputil.PersistentNetworkError); !ok {
 			m.nextRefresh = time.Time{}
 		} // else - refresh will be retried after refreshRetryDelay
 	}
@@ -394,7 +394,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	m.lastRefreshAttempt = time.Now()
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
-	if _, ok := err.(*httputil.PerstistentNetworkError); ok {
+	if _, ok := err.(*httputil.PersistentNetworkError); ok {
 		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
 	}
