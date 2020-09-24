@@ -36,7 +36,7 @@ func (s *validationSetTrackingSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 }
 
-func (s *validationSetTrackingSuite) TestSet(c *C) {
+func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -47,7 +47,7 @@ func (s *validationSetTrackingSuite) TestSet(c *C) {
 	tr := assertstate.ValidationSetTracking{
 		AccountID: "foo",
 		Name:      "bar",
-		Mode:      assertstate.Monitor,
+		Mode:      assertstate.Enforce,
 		PinnedAt:  1,
 		Current:   2,
 	}
@@ -58,7 +58,24 @@ func (s *validationSetTrackingSuite) TestSet(c *C) {
 	c.Assert(all, HasLen, 1)
 	for k, v := range all {
 		c.Check(k, Equals, "foo/bar")
-		c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 1, Current: 2})
+		c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Enforce, PinnedAt: 1, Current: 2})
+	}
+
+	tr = assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   3,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr)
+
+	all, err = assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	for k, v := range all {
+		c.Check(k, Equals, "foo/bar")
+		c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 2, Current: 3})
 	}
 
 	tr = assertstate.ValidationSetTracking{
@@ -77,7 +94,7 @@ func (s *validationSetTrackingSuite) TestSet(c *C) {
 	for k, v := range all {
 		if k == "foo/bar" {
 			gotFirst = true
-			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 1, Current: 2})
+			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 2, Current: 3})
 		} else {
 			gotSecond = true
 			c.Check(k, Equals, "foo/baz")
