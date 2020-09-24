@@ -48,8 +48,8 @@ import (
 type deviceMgrInstallModeSuite struct {
 	deviceMgrBaseSuite
 
-	configureRunSystemOptsPassed []*sysconfig.Options
-	configureRunSystemErr        error
+	ConfigureTargetSystemOptsPassed []*sysconfig.Options
+	ConfigureTargetSystemErr        error
 }
 
 var _ = Suite(&deviceMgrInstallModeSuite{})
@@ -66,11 +66,11 @@ func (s *deviceMgrInstallModeSuite) findInstallSystem() *state.Change {
 func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
-	s.configureRunSystemOptsPassed = nil
-	s.configureRunSystemErr = nil
-	restore := devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
-		s.configureRunSystemOptsPassed = append(s.configureRunSystemOptsPassed, opts)
-		return s.configureRunSystemErr
+	s.ConfigureTargetSystemOptsPassed = nil
+	s.ConfigureTargetSystemErr = nil
+	restore := devicestate.MockSysconfigConfigureTargetSystem(func(opts *sysconfig.Options) error {
+		s.ConfigureTargetSystemOptsPassed = append(s.ConfigureTargetSystemOptsPassed, opts)
+		return s.ConfigureTargetSystemErr
 	})
 	s.AddCleanup(restore)
 
@@ -451,8 +451,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
-	// and sysconfig.ConfigureRunSystem was run exactly once
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+	// and sysconfig.ConfigureTargetSystem was run exactly once
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
 			TargetRootDir:  boot.InstallHostWritableDir,
@@ -462,7 +462,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
-	s.configureRunSystemErr = fmt.Errorf("error from sysconfig.ConfigureRunSystem")
+	s.ConfigureTargetSystemErr = fmt.Errorf("error from sysconfig.ConfigureTargetSystem")
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
@@ -471,9 +471,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	// the install-system was run but errorred as specified in the above mock
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
-	// and sysconfig.ConfigureRunSystem was run exactly once
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+- Setup system for run mode \(error from sysconfig.ConfigureTargetSystem\)`)
+	// and sysconfig.ConfigureTargetSystem was run exactly once
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
 			TargetRootDir:  boot.InstallHostWritableDir,
@@ -495,7 +495,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	// and did tell sysconfig about the cloud-init files
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit:  true,
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
@@ -519,7 +519,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSignedNoUbuntuSeedCloudInit(c
 
 	// and did NOT tell sysconfig about the cloud-init file, but also did not
 	// explicitly disable cloud init
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
 			TargetRootDir:  boot.InstallHostWritableDir,
@@ -539,7 +539,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudIn
 	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
 	c.Assert(err, IsNil)
 
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
 			TargetRootDir:  boot.InstallHostWritableDir,
@@ -563,7 +563,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(
 
 	// and did NOT tell sysconfig about the cloud-init files, instead it was
 	// disabled because only gadget cloud-init is allowed
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: false,
 			TargetRootDir:  boot.InstallHostWritableDir,
