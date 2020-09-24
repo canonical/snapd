@@ -100,10 +100,12 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 }
 
 func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
+	// mockSnapshotServer will return set-id 42 and three snaps for all
+	// import calls
 	s.mockSnapshotsServer(c)
 
-	exportedSnapshotPath := filepath.Join(c.MkDir(), "export-snapshot.snapshot")
-	ioutil.WriteFile(exportedSnapshotPath, []byte("Hello World!"), 0644)
+	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
+	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)

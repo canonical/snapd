@@ -326,15 +326,15 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
+	// mock snapshot export file
+	data := []byte("mocked snapshot import data file!")
+
 	setID := uint64(3)
-	size := int64(len("Hello world!"))
+	size := int64(len(data))
 	snapNames := []string{"baz", "bar", "foo"}
 	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
 		return setID, snapNames, size, nil
 	})()
-
-	// mock snapshot export file
-	data := []byte("Hello world!")
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
@@ -351,7 +351,7 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	})()
 
 	// mock snapshot export file
-	data := []byte("Hello world!")
+	data := []byte("mocked snapshot import data file")
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
