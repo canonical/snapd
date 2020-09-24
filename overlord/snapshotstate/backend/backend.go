@@ -60,11 +60,10 @@ var (
 	// Stop is used to ask Iter to stop iteration, without it being an error.
 	Stop = errors.New("stop iteration")
 
-	osOpen                  = os.Open
-	dirNames                = (*os.File).Readdirnames
-	backendOpen             = Open
-	backendSnapshotFromFile = snapshotFromFilename
-	timeNow                 = time.Now
+	osOpen      = os.Open
+	dirNames    = (*os.File).Readdirnames
+	backendOpen = Open
+	timeNow     = time.Now
 
 	usersForUsernames = usersForUsernamesImpl
 )
@@ -188,7 +187,10 @@ func setIDFromFilename(f string) (uint64, error) {
 	return strconv.ParseUint(parts[0], 10, 64)
 }
 
-func snapshotFromFilename(f string) (*client.Snapshot, error) {
+// snapshotFromFilename is a var to easier mocking
+var snapshotFromFilename = snapshotFromFilenameImpl
+
+func snapshotFromFilenameImpl(f string) (*client.Snapshot, error) {
 	r, err := Open(f)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open snapshot: %v", err)
@@ -529,7 +531,7 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 			continue
 		}
 		old := path.Join(p, name)
-		snapshot, err := backendSnapshotFromFile(old)
+		snapshot, err := snapshotFromFilename(old)
 		if err != nil {
 			return nil, err
 		}

@@ -103,11 +103,11 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	}
 }
 
-func MockBackendSnapshot(newSnapshot func(string) (*client.Snapshot, error)) func() {
-	oldSnapshot := backendSnapshotFromFile
-	backendSnapshotFromFile = newSnapshot
+func MockSnapshotFromFilename(f func(string) (*client.Snapshot, error)) func() {
+	old := snapshotFromFilename
+	snapshotFromFilename = f
 	return func() {
-		backendSnapshotFromFile = oldSnapshot
+		snapshotFromFilename = old
 	}
 }
 

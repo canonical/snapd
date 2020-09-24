@@ -837,7 +837,7 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
-	defer backend.MockBackendSnapshot(func(f string) (*client.Snapshot, error) {
+	defer backend.MockSnapshotFromFilename(func(f string) (*client.Snapshot, error) {
 		var sid uint64
 		var revision int
 		var snapName, version string
