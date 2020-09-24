@@ -15,7 +15,6 @@ prepare: |
   #            running system, we should look into that, but for now just 
   #            re-download the snap
   snap download pc-kernel --channel=20/edge --basename=pc-kernel
-  rm -rf repacked-kernel
   uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 

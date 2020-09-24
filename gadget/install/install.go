@@ -43,7 +43,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
 			}
-			return gadget.ParentDiskFromPartition(device)
+			return gadget.ParentDiskFromMountSource(device)
 		}
 	}
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
