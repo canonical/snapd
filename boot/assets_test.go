@@ -698,6 +698,9 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		"nested/other-asset",
 		"shim",
 	})
+	tab.ManagedAssetsList = []string{
+		"managed-asset",
+	}
 
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserver(c)
@@ -755,6 +758,12 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 		"other-asset": {dataHash},
 	})
 
+	// verify that managed assets are to be preserved
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+
 	// everything is set up, trigger a reseal
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
@@ -776,6 +785,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		"asset",
 		"shim",
 	})
+	tab.ManagedAssetsList = []string{
+		"managed-asset",
+		"nested/managed-asset",
+	}
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -846,6 +859,16 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		"shim":  {shimHash},
 	})
 
+	// verify that managed assets are to be preserved
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "nested/managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+
 	// everything is set up, trigger reseal
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
@@ -854,6 +877,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	})
 	defer restore()
 
+	// execute before-write action
 	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 1)
