@@ -509,22 +509,6 @@ uc20_build_initramfs_kernel_snap() {
         echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
 
-
-        # patch the initramfs to go back to isolating the initrd units and to 
-        # not specify to mount /run/mnt/ubuntu-boot via fstab, these were all 
-        # done as interim changes until snap-bootstrap took control of things,
-        # now that snap-bootstrap is in control, we don't want those hacks, but 
-        # we still want accurate test results so drop those hacks to let 
-        # snap-bootstrap do everything for the spread run
-
-        # TODO:UC20: drop these patches when the associated changes have landed
-        #            upstream
-        rm -rf "$skeletondir/main/usr/lib/systemd/system/initrd-cleanup.service.d/core-override.conf"
-        sed -i "$skeletondir/main/usr/lib/systemd/system/populate-writable.service" \
-            -e "s@ExecStartPost=/usr/bin/systemctl --no-block start initrd.target@ExecStartPost=/usr/bin/systemctl --no-block isolate initrd.target@"
-        sed -i "$skeletondir/main/usr/lib/the-modeenv" \
-            -e "s@echo 'LABEL=ubuntu-boot /run/mnt/ubuntu-boot auto defaults 0 0' >> /run/image.fstab@echo not doing anything@"
-
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
@@ -597,6 +581,7 @@ uc20_build_initramfs_kernel_snap() {
     )
 
     snap pack repacked-kernel "$TARGET"
+    rm -rf repacked-kernel
 }
 
 

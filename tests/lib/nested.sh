@@ -45,11 +45,10 @@ nested_get_boot_id() {
 
 nested_wait_for_reboot() {
     local initial_boot_id="$1"
-    local retry wait last_boot_id
-    retry=150
-    wait=5
+    local last_boot_id="$initial_boot_id"
+    local retry=150
+    local wait=5
 
-    last_boot_id=""
     while [ $retry -ge 0 ]; do
         retry=$(( retry - 1 ))
         # The get_boot_id could fail because the connection is broken due to the reboot
@@ -772,9 +771,6 @@ nested_start_core_vm_unit() {
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
-        # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-        # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-        PARAM_SMP="-smp 1"
     fi
 
     local PARAM_MACHINE
