@@ -872,19 +872,11 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
+            "$TESTSTOOLS"/nested-state prepare-env
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state destroy-vm
+            "$TESTSTOOLS"/nested-state cleanup-env
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
-
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
@@ -930,22 +922,14 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_classic_vm
+            "$TESTSTOOLS"/nested-state prepare-env
+            "$TESTSTOOLS"/nested-state create-classic-vm
         prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_classic_vm
+            "$TESTSTOOLS"/nested-state start-classic-vm
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
+            "$TESTSTOOLS"/nested-state destroy-vm
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state cleanup-env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -992,23 +976,14 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
+            "$TESTSTOOLS"/nested-state prepare-env
+            "$TESTSTOOLS"/nested-state create-core-vm
         prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state start-core-vm
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
+            "$TESTSTOOLS"/nested-state destroy-vm
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state cleanup-env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1057,17 +1032,14 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state prepare-env
+            "$TESTSTOOLS"/nested-state create-core-vm
+        prepare-each: |
+            "$TESTSTOOLS"/nested-state start-core-vm
+        restore-each: |
+            "$TESTSTOOLS"/nested-state destroy-vm
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state cleanup-env
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

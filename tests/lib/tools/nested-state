@@ -1,0 +1,78 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: prepare-env"
+    echo "       cleanup-env"
+    echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo ""
+    echo "Available options:"
+    echo "  --devmode --jailmode --classic"
+    echo ""
+    echo "Pack and install commands save the packed snap for future uses,"
+    echo "which is reused on the following calls."
+    echo "The paths for locating the sources of the snaps to either pack or"
+    echo "install are the local path and then 'tests/lib/snaps/'"
+}
+
+prepare_env() {
+    nested_prepare_env
+}
+
+cleanup_env() {
+    nested_cleanup_env
+}
+
+create_core_vm() {
+    nested_create_core_vm
+}
+
+start_core_vm() {
+    nested_start_core_vm
+}
+
+create_classic_vm() {
+    nested_create_classic_vm
+}
+
+start_classic_vm() {
+    nested_start_classic_vm
+}
+
+destroy_vm() {
+    nested_destroy_vm
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "nested-state: no such command: $subcommand"
+        show_help
+        exit 1
+    fi
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    "$action" "$@"
+}
+
+main "$@"
