@@ -161,8 +161,9 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
-// TrustedAssetsBootloader has boot assets that take part in secure boot
-// process, while other boot asses (typically boot config) is managed by snapd.
+// TrustedAssetsBootloader has boot assets that take part in the secure boot
+// process and need to be tracked, while other boot asses (typically boot
+// config) is managed by snapd.
 type TrustedAssetsBootloader interface {
 	Bootloader
 
