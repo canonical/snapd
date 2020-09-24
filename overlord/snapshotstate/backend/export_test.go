@@ -35,6 +35,8 @@ var (
 	AddDirToZip     = addDirToZip
 	TarAsUser       = tarAsUser
 	PickUserWrapper = pickUserWrapper
+
+	IsSnapshotFilename = isSnapshotFilename
 )
 
 func MockIsTesting(newIsTesting bool) func() {

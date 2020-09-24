@@ -1,7 +1,5 @@
 summary: Test journal.persistent core config option
 
-systems: [ubuntu-core-*]
-
 prepare: |
     systemctl status snapd > before.txt
 

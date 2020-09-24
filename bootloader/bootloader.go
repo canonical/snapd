@@ -192,6 +192,15 @@ type TrustedAssetsBootloader interface {
 	// the bootloader's rootdir that are measured in the boot process in the
 	// order of loading during the boot.
 	TrustedAssets() ([]string, error)
+
+	// RecoveryBootChain returns the load chain for recovery modes.
+	// It should be called on a RoleRecovery bootloader.
+	RecoveryBootChain(kernelPath string) ([]BootFile, error)
+
+	// BootChain returns the load chain for run mode.
+	// It should be called on a RoleRecovery bootloader passing the
+	// RoleRunMode bootloader.
+	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
@@ -372,16 +381,16 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// BootFile represents each file in the chains of trusted assets and kernels
-// used in the boot process. A boot file can be an EFI binary or a snap file
-// containing an EFI binary.
+// BootFile represents each file in the chains of trusted assets and
+// kernels used in the boot process. For example a boot file can be an
+// EFI binary or a snap file containing an EFI binary.
 type BootFile struct {
 	// Path is the path to the file in the filesystem or, if Snap
 	// is set, the relative path inside the snap file.
 	Path string
 	// Snap contains the path to the snap file if a snap file is used.
 	Snap string
-	// Role is set to the role of the bootloader this boot image
+	// Role is set to the role of the bootloader this boot file
 	// originates from.
 	Role Role
 }

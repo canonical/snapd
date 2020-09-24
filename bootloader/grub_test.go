@@ -1052,3 +1052,58 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native host-partition layout")
 	c.Check(ta, IsNil)
 }
+
+func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	chain, err := tab.RecoveryBootChain("kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+}
+
+func (s *grubTestSuite) TestRecoveryBootChainsNotRecoveryBootloader(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	_, err := tab.RecoveryBootChain("kernel.snap")
+	c.Assert(err, ErrorMatches, "not a recovery bootloader")
+}
+
+func (s *grubTestSuite) TestBootChains(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
+
+	_, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, ErrorMatches, "not a recovery bootloader")
+}

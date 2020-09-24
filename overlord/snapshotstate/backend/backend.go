@@ -103,6 +103,11 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				break
 			}
 
+			// filter out non-snapshot directory entries
+			ok, setID := isSnapshotFilename(name)
+			if !ok {
+				continue
+			}
 			filename := filepath.Join(dirs.SnapshotsDir, name)
 			reader, openError := backendOpen(filename)
 			// reader can be non-nil even when openError is not nil (in
@@ -110,6 +115,13 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			// check and either ignore or return an error when
 			// finding a broken snapshot.
 			if reader != nil {
+				if reader.SetID != setID && openError == nil {
+					// ignore snapshots where set id of the filename disagree
+					// with internal set id. This may be the case in the future
+					// with new enhanced snapshot format.
+					logger.Noticef("Snapshot %q ignored, internal set-id %d disagrees with filename", name, reader.SetID)
+					continue
+				}
 				err = f(reader)
 			} else {
 				// TODO: use warnings instead
@@ -183,6 +195,32 @@ func snapshotFromFilename(f string) (*client.Snapshot, error) {
 	}
 	defer r.Close()
 	return &r.Snapshot, nil
+}
+
+func isSnapshotFilename(fname string) (ok bool, setID uint64) {
+	// XXX: we could use a regexp here to match very precisely all the elements
+	// of the filename following Filename() above, but perhaps it's better no to
+	// go overboard with it in case the format evolves in the future. Only check
+	// if the name starts with a set-id and ends with .zip.
+	//
+	// Filename is "<sid>_<snapName>_version_revision.zip", e.g. "16_snapcraft_4.2_5407.zip"
+	ext := filepath.Ext(fname)
+	if ext != ".zip" {
+		return false, 0
+	}
+	parts := strings.SplitN(fname, "_", 2)
+	if len(parts) != 2 {
+		return false, 0
+	}
+	// invalid: no parts following <sid>_
+	if parts[1] == ext {
+		return false, 0
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false, 0
+	}
+	return true, uint64(id)
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
