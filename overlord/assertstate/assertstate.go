@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -60,26 +61,37 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 	if err != nil {
 		return err
 	}
-	modelAs := deviceCtx.Model()
 
 	snapStates, err := snapstate.All(s)
 	if err != nil {
 		return nil
 	}
+
+	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx)
+	if err == nil {
+		// done
+		return nil
+	}
+	if _, ok := err.(*bulkAssertionFallbackError); !ok {
+		// not an error that indicates the server rejecting/failing
+		// the bulk request itself
+		return err
+	}
+	logger.Noticef("bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching: %v", err)
+
+	modelAs := deviceCtx.Model()
+
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapst := range snapStates {
-			info, err := snapst.CurrentInfo()
-			if err != nil {
-				return err
-			}
-			if info.SnapID == "" {
+		for instanceName, snapst := range snapStates {
+			sideInfo := snapst.CurrentSideInfo()
+			if sideInfo.SnapID == "" {
 				continue
 			}
-			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
-				if notRetried, ok := err.(*httputil.PerstistentNetworkError); ok {
+			if err := snapasserts.FetchSnapDeclaration(f, sideInfo.SnapID); err != nil {
+				if notRetried, ok := err.(*httputil.PersistentNetworkError); ok {
 					return notRetried
 				}
-				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", instanceName, err)
 			}
 		}
 
