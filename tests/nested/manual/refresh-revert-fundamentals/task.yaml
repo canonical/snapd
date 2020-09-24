@@ -4,11 +4,6 @@ description: |
     This test validates the fundamental snaps can be refreshed
     and reverted to the new snaps published to edge channel.
 
-# TODO:UC20: re-enable this test when kernel snap has been re-built with new
-# initramfs, currently beta or newer snapd snapd + any published kernel snap
-# results in broken install
-manual: true
-
 systems: [ubuntu-20.04-*]
 
 environment:

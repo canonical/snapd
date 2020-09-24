@@ -184,7 +184,7 @@ func isSnapshotFilename(fname string) (ok bool, setID uint64) {
 	// go overboard with it in case the format evolves in the future. Only check
 	// if the name starts with a set-id and ends with .zip.
 	//
-	// Filename is "<sid>_<snapName>.zip", e.g. "13_foo.zip"
+	// Filename is "<sid>_<snapName>_version_revision.zip", e.g. "16_snapcraft_4.2_5407.zip"
 	ext := filepath.Ext(fname)
 	if ext != ".zip" {
 		return false, 0
@@ -193,7 +193,7 @@ func isSnapshotFilename(fname string) (ok bool, setID uint64) {
 	if len(parts) != 2 {
 		return false, 0
 	}
-	// invalid: no <snapName> part
+	// invalid: no parts following <sid>_
 	if parts[1] == ext {
 		return false, 0
 	}
