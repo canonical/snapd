@@ -89,7 +89,7 @@ type ContentObserver interface {
 	// file was added during the update), the source path is empty.
 	//
 	// Returning ChangeApply indicates that the observer agrees for a given
-	// change to be executed. When called with a ContentUpdate operation,
+	// change to be applied. When called with a ContentUpdate operation,
 	// returning ChangePreserveBefore indicates that the 'before' content
 	// shall be preserved. ChangeAbort is expected to be returned along with
 	// a non-nil error.
