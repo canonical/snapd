@@ -606,7 +606,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -634,8 +634,8 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.bar.service"},
+		{"enable", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 	})
@@ -695,7 +695,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snap.test-snap.foo.service"},
+		{"disable", "snap.test-snap.foo.service"},
 	})
 }
 

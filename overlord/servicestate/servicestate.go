@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -214,7 +213,7 @@ func NewStatusDecorator(rep interface {
 	Notify(string)
 }) *StatusDecorator {
 	return &StatusDecorator{
-		sysd: systemd.New(dirs.GlobalRootDir, systemd.SystemMode, rep),
+		sysd: systemd.New(systemd.SystemMode, rep),
 	}
 }
 

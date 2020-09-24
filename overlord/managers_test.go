@@ -815,6 +815,13 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					Name        string     `json:"name"`
 					InstanceKey string     `json:"instance-key"`
 					Epoch       snap.Epoch `json:"epoch"`
+					// assertions
+					Key        string `json:"key"`
+					Assertions []struct {
+						Type        string   `json:"type"`
+						PrimaryKey  []string `json:"primary-key"`
+						IfNewerThan *int     `json:"if-newer-than"`
+					}
 				} `json:"actions"`
 				Context []struct {
 					SnapID string     `json:"snap-id"`
@@ -834,9 +841,33 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				Name        string          `json:"name"`
 				Snap        json.RawMessage `json:"snap"`
 				InstanceKey string          `json:"instance-key"`
+				// For assertions
+				Key           string   `json:"key"`
+				AssertionURLs []string `json:"assertion-stream-urls"`
 			}
 			var results []resultJSON
 			for _, a := range input.Actions {
+				if a.Action == "fetch-assertions" {
+					urls := []string{}
+					for _, ar := range a.Assertions {
+						ref := &asserts.Ref{
+							Type:       asserts.Type(ar.Type),
+							PrimaryKey: ar.PrimaryKey,
+						}
+						_, err := ref.Resolve(s.storeSigning.Find)
+						if err != nil {
+							panic("missing assertions not supported")
+						}
+						urls = append(urls, fmt.Sprintf("%s/api/v1/snaps/assertions/%s", baseURL.String(), ref.Unique()))
+
+					}
+					results = append(results, resultJSON{
+						Result:        "fetch-assertions",
+						Key:           a.Key,
+						AssertionURLs: urls,
+					})
+					continue
+				}
 				name := s.serveIDtoName[a.SnapID]
 				epoch := id2epoch[a.SnapID]
 				if a.Action == "install" {

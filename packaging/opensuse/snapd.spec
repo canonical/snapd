@@ -14,6 +14,9 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+# takes an absolute path with slashes and turns it into an AppArmor profile path
+%define as_apparmor_path() %(echo "%1" | tr / . | cut -c2-)
+
 # Test keys: used for internal testing in snapd.
 %bcond_with testkeys
 
@@ -70,6 +73,9 @@
 # GOPATH so that nothing needs to be moved or copied for "go build" to work.
 %global indigo_srcdir   %{indigo_gopath}/src/%{import_path}
 
+# path to snap-confine encoded as AppArmor profile
+%define apparmor_snapconfine_profile %as_apparmor_path %{_libexecdir}/snapd/snap-confine
+
 # Set if multilib is enabled for supported arches
 %ifarch x86_64 aarch64 %{power64} s390x
 %global with_multilib 1
@@ -77,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.46
+Version:        2.46.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -443,7 +449,7 @@ fi
 %config %{_sysconfdir}/apparmor.d
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
-%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%{_sysconfdir}/apparmor.d/%{apparmor_snapconfine_profile}
 %{_unitdir}/snapd.apparmor.service
 %endif
 

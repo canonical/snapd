@@ -270,8 +270,14 @@ type reporter interface {
 	Notify(string)
 }
 
-// New returns a Systemd that uses the given rootDir
-func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+// New returns a Systemd that uses the default root directory and omits
+// --root argument when executing systemctl.
+func New(mode InstanceMode, rep reporter) Systemd {
+	return &systemd{mode: mode, reporter: rep}
+}
+
+// NewUnderRoot returns a Systemd that operates on the given rootdir.
+func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
@@ -354,7 +360,7 @@ func (s *systemd) DaemonReexec() error {
 
 func (s *systemd) Enable(serviceName string) error {
 	var err error
-	if s.rootDir != "/" {
+	if s.rootDir != "" {
 		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
 	} else {
 		_, err = s.systemctl("enable", serviceName)
@@ -363,13 +369,18 @@ func (s *systemd) Enable(serviceName string) error {
 }
 
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	} else {
+		_, err = s.systemctl("unmask", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Disable(serviceName string) error {
 	var err error
-	if s.rootDir != "/" {
+	if s.rootDir != "" {
 		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
 	} else {
 		_, err = s.systemctl("disable", serviceName)
@@ -378,7 +389,12 @@ func (s *systemd) Disable(serviceName string) error {
 }
 
 func (s *systemd) Mask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	} else {
+		_, err = s.systemctl("mask", serviceName)
+	}
 	return err
 }
 
@@ -554,7 +570,12 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	} else {
+		_, err = s.systemctl("is-enabled", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
@@ -571,7 +592,12 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-active with GlobalUserMode")
 	}
-	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	} else {
+		_, err = s.systemctl("is-active", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}

@@ -96,6 +96,8 @@ var (
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
+
+	SafetyMarginDiskSpace = safetyMarginDiskSpace
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -241,6 +243,14 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	currentSnaps = f
 	return func() {
 		currentSnaps = old
+	}
+}
+
+func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+	old := installSize
+	installSize = f
+	return func() {
+		installSize = old
 	}
 }
 
