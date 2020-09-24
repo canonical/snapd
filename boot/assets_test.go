@@ -323,13 +323,10 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	d := c.MkDir()
 
-	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
-	bootloader.Force(tab)
-	defer bootloader.Force(nil)
-	tab.TrustedAssetsList = []string{
+	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"nested/other-asset",
-	}
+	})
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
@@ -365,9 +362,9 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 		"non-trusted", writeChange)
 	c.Assert(err, IsNil)
 	// a single file in cache
-	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", "*"), []string{
-		filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", fmt.Sprintf("asset-%s", dataHash)),
-		filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", fmt.Sprintf("other-asset-%s", dataHash)),
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
 	})
 	// the list of trusted assets was asked for just once
 	c.Check(tab.TrustedAssetsCalls, Equals, 1)
@@ -433,14 +430,10 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	d := c.MkDir()
 
-	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
-	bootloader.Force(tab)
-	defer bootloader.Force(nil)
-
-	tab.TrustedAssetsList = []string{
+	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"nested/asset",
-	}
+	})
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
@@ -494,15 +487,11 @@ func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	d := c.MkDir()
 
-	tab := bootloadertest.Mock("recovery-bootloader", "").WithTrustedAssets()
-	// MockBootloader does not implement trusted assets
-	bootloader.Force(tab)
-	defer bootloader.Force(nil)
-	tab.TrustedAssetsList = []string{
+	tab := s.bootloaderWithTrustedAssets(c, []string{
 		"asset",
 		"nested/other-asset",
 		"shim",
-	}
+	})
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
@@ -526,11 +515,10 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	c.Assert(err, IsNil)
-	// a single file in cache
-	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", "*"), []string{
-		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("asset-%s", dataHash)),
-		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("other-asset-%s", dataHash)),
-		filepath.Join(dirs.SnapBootAssetsDir, "recovery-bootloader", fmt.Sprintf("shim-%s", shimHash)),
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
 	// the list of trusted assets was asked for just once
 	c.Check(tab.TrustedAssetsCalls, Equals, 1)
