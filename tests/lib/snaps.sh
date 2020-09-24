@@ -2,12 +2,16 @@
 
 make_snap() {
     local SNAP_NAME="$1"
-    local SNAP_VERSION="${2:-1.0}"
-    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
-    if [ $# -gt 1 ]; then
-        SNAP_DIR="$2"
+    local SNAP_DIR="${2:-$TESTSLIB/snaps/${SNAP_NAME}}"
+    local SNAP_VERSION="${3:-1.0}"
+
+    local META_FILE="$SNAP_DIR/meta/snap.yaml"
+    if [ ! -f "$META_FILE" ]; then
+        echo "snap.yaml file not found for $SNAP_NAME snap"
+        return 1
     fi
-    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_${SNAP_VERSION}_all.snap"
+    local META_NAME="$(grep '^name:' "$META_FILE" | awk '{ print $2 }' | tr -d ' ')"
+    local SNAP_FILE="${SNAP_DIR}/${META_NAME}_${SNAP_VERSION}_all.snap"
     # assigned in a separate step to avoid hiding a failure
     if [ ! -f "$SNAP_FILE" ]; then
         snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
@@ -16,7 +20,7 @@ make_snap() {
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
-        find "$SNAP_DIR" -name '*.snap' | head -n1
+        find "$SNAP_DIR" -name "${META_NAME}_*.snap"| head -n1
     fi
 }
 
