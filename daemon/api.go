@@ -113,6 +113,7 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	validateCmd,
 }
 
 var servicestateControl = servicestate.Control
@@ -235,6 +236,12 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getWarnings,
 		POST:     ackWarnings,
+	}
+
+	validateCmd = &Command{
+		Path: "/v2/validation-sets",
+		GET:  getValidationSets,
+		POST: applyValidationSets,
 	}
 
 	buildID = "unknown"
