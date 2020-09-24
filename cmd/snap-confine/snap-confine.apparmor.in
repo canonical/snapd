@@ -84,7 +84,7 @@
     capability setgid,
 
     # changing profile
-    @{PROC}/[0-9]*/attr/exec w,
+    @{PROC}/[0-9]*/attr/{,apparmor/}exec w,
     # Reading current profile
     @{PROC}/[0-9]*/attr/{,apparmor/}current r,
     # Reading available filesystems
