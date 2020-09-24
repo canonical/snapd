@@ -40,56 +40,48 @@ func (s *validationSetTrackingSuite) TestSet(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	all, err := assertstate.All(s.st)
+	all, err := assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
 
-	key := assertstate.ValidationTrackingKey{
-		AccoundID: "foo",
-		Name:      "bar",
-	}
 	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
 		Mode:      assertstate.Monitor,
-		PinnedSeq: 1,
-		LastSeq:   2,
+		PinnedAt:  1,
+		Current:   2,
 	}
-	assertstate.SetValidationTracking(s.st, key, &tr)
+	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.All(s.st)
+	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	for k, v := range all {
-		c.Check(k.AccoundID, Equals, "foo")
-		c.Check(k.Name, Equals, "bar")
-		c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{Mode: assertstate.Monitor, PinnedSeq: 1, LastSeq: 2})
+		c.Check(k, Equals, "foo/bar")
+		c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 1, Current: 2})
 	}
 
-	key = assertstate.ValidationTrackingKey{
-		AccoundID: "foo",
-		Name:      "baz",
-	}
 	tr = assertstate.ValidationSetTracking{
-		Mode:    assertstate.Enforce,
-		LastSeq: 3,
+		AccountID: "foo",
+		Name:      "baz",
+		Mode:      assertstate.Enforce,
+		Current:   3,
 	}
-	assertstate.SetValidationTracking(s.st, key, &tr)
+	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.All(s.st)
+	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 2)
 
 	var gotFirst, gotSecond bool
 	for k, v := range all {
-		if k.Name == "bar" {
+		if k == "foo/bar" {
 			gotFirst = true
-			c.Check(k.AccoundID, Equals, "foo")
-			c.Check(k.Name, Equals, "bar")
-			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{Mode: assertstate.Monitor, PinnedSeq: 1, LastSeq: 2})
+			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "bar", Mode: assertstate.Monitor, PinnedAt: 1, Current: 2})
 		} else {
 			gotSecond = true
-			c.Check(k.AccoundID, Equals, "foo")
-			c.Check(k.Name, Equals, "baz")
-			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{Mode: assertstate.Enforce, PinnedSeq: 0, LastSeq: 3})
+			c.Check(k, Equals, "foo/baz")
+			c.Check(v, DeepEquals, &assertstate.ValidationSetTracking{AccountID: "foo", Name: "baz", Mode: assertstate.Enforce, PinnedAt: 0, Current: 3})
 		}
 	}
 	c.Check(gotFirst, Equals, true)
@@ -100,29 +92,26 @@ func (s *validationSetTrackingSuite) TestDelete(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	key := assertstate.ValidationTrackingKey{
-		AccoundID: "foo",
-		Name:      "bar",
-	}
-
 	// delete non-existing one is fine
-	assertstate.SetValidationTracking(s.st, key, nil)
-	all, err := assertstate.All(s.st)
+	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	all, err := assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
 
 	tr := assertstate.ValidationSetTracking{
-		Mode: assertstate.Monitor,
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
 	}
-	assertstate.SetValidationTracking(s.st, key, &tr)
+	assertstate.UpdateValidationSet(s.st, &tr)
 
-	all, err = assertstate.All(s.st)
+	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 
 	// deletes existing one
-	assertstate.SetValidationTracking(s.st, key, nil)
-	all, err = assertstate.All(s.st)
+	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
 }
@@ -131,30 +120,23 @@ func (s *validationSetTrackingSuite) TestGet(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	key := assertstate.ValidationTrackingKey{
-		AccoundID: "foo",
-		Name:      "bar",
-	}
-
-	err := assertstate.GetValidationTracking(s.st, key, nil)
+	err := assertstate.GetValidationSet(s.st, "foo", "bar", nil)
 	c.Assert(err, ErrorMatches, `internal error: tr is nil`)
 
 	tr := assertstate.ValidationSetTracking{
-		Mode:    assertstate.Enforce,
-		LastSeq: 3,
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   3,
 	}
-	assertstate.SetValidationTracking(s.st, key, &tr)
+	assertstate.UpdateValidationSet(s.st, &tr)
 
 	var res assertstate.ValidationSetTracking
-	err = assertstate.GetValidationTracking(s.st, key, &res)
+	err = assertstate.GetValidationSet(s.st, "foo", "bar", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, tr)
 
 	// non-existing
-	key = assertstate.ValidationTrackingKey{
-		AccoundID: "foo",
-		Name:      "baz",
-	}
-	err = assertstate.GetValidationTracking(s.st, key, &res)
+	err = assertstate.GetValidationSet(s.st, "foo", "baz", &res)
 	c.Assert(err, Equals, state.ErrNoState)
 }

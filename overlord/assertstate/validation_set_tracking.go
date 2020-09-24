@@ -22,96 +22,88 @@ package assertstate
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// ValidationMode reflects the mode of respective validation set, which is
+// ValidationSetMode reflects the mode of respective validation set, which is
 // either monitoring or enforcing.
-type ValidationMode int
+type ValidationSetMode int
 
 const (
-	Monitor ValidationMode = iota
+	Monitor ValidationSetMode = iota
 	Enforce
 )
 
-// ValidationTrackingKey is a key for tracking the given validation set.
-type ValidationTrackingKey struct {
-	AccoundID string
-	Name      string
-}
-
-func (v *ValidationTrackingKey) String() string {
-	return fmt.Sprintf("%s/%s", v.AccoundID, v.Name)
-}
-
-// MarshalText implements TextMarshaler and allows for using ValidationTrackingKey
-// as map key when marshaling into JSON.
-func (v ValidationTrackingKey) MarshalText() (text []byte, err error) {
-	return []byte(v.String()), nil
-}
-
-// UnmarshalText implements TextUnmarshaler and allows for using ValidationTrackingKey
-// as map key when unmarshaling from JSON.
-func (v *ValidationTrackingKey) UnmarshalText(text []byte) error {
-	parts := strings.Split(string(text), "/")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid validation set tracking key: %q", string(text))
-	}
-	v.AccoundID = parts[0]
-	v.Name = parts[1]
-	return nil
-}
-
 // ValidationSetTracking holds tracking parameters for associated validation set.
 type ValidationSetTracking struct {
-	Mode ValidationMode `json:"mode"`
+	AccountID string            `json:"account"`
+	Name      string            `json:"name"`
+	Mode      ValidationSetMode `json:"mode"`
 
-	// PinnedSeq is an optional pinned sequence point, or 0 if not pinned.
-	PinnedSeq int `json:"pinned-seq,omitempty"`
+	// PinnedAt is an optional pinned sequence point, or 0 if not pinned.
+	PinnedAt int `json:"pinned-at,omitempty"`
 
-	// LastSeq is the last known sequence point obtained from the store.
-	LastSeq int `json:"last-seq,omitempty"`
+	// Current is the current sequence point.
+	Current int `json:"cuurent,omitempty"`
 }
 
-// SetValidationTracking sets ValidationSetTracking for the given key. Passing nil
-// for ValidationSetTracking removes the given key from state.
-func SetValidationTracking(st *state.State, key ValidationTrackingKey, tr *ValidationSetTracking) {
-	var vsmap map[ValidationTrackingKey]*json.RawMessage
+// ValidationSetKey formats the given account id and name into a validation set key.
+func ValidationSetKey(accountID, name string) string {
+	return fmt.Sprintf("%s/%s", accountID, name)
+}
+
+// UpdateValidationSet updates ValidationSetTracking.
+// The method assumes valid tr fields.
+func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
+	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-set-tracking", &vsmap)
 	if err != nil && err != state.ErrNoState {
 		panic("internal error: cannot unmarshal validation-set-tracking state: " + err.Error())
 	}
 	if vsmap == nil {
-		vsmap = make(map[ValidationTrackingKey]*json.RawMessage)
+		vsmap = make(map[string]*json.RawMessage)
 	}
-	if tr == nil {
-		delete(vsmap, key)
-	} else {
-		data, err := json.Marshal(tr)
-		if err != nil {
-			panic("internal error: cannot marshal validation set tracking data: " + err.Error())
-		}
-		raw := json.RawMessage(data)
-		vsmap[key] = &raw
+	data, err := json.Marshal(tr)
+	if err != nil {
+		panic("internal error: cannot marshal validation set tracking data: " + err.Error())
 	}
+	raw := json.RawMessage(data)
+	key := ValidationSetKey(tr.AccountID, tr.Name)
+	vsmap[key] = &raw
 	st.Set("validation-set-tracking", vsmap)
 }
 
-// GetValidationTracking retrieves the ValidationSetTracking for the given key.
-func GetValidationTracking(st *state.State, key ValidationTrackingKey, tr *ValidationSetTracking) error {
+// DeleteValidationSet deletes a validation set for the given accoundID and name.
+// It is not an error to delete a non-existing one.
+func DeleteValidationSet(st *state.State, accountID, name string) error {
+	var vsmap map[string]*json.RawMessage
+	err := st.Get("validation-set-tracking", &vsmap)
+	if err != nil && err != state.ErrNoState {
+		panic("internal error: cannot unmarshal validation-set-tracking state: " + err.Error())
+	}
+	if len(vsmap) == 0 {
+		return nil
+	}
+	delete(vsmap, ValidationSetKey(accountID, name))
+	st.Set("validation-set-tracking", vsmap)
+	return nil
+}
+
+// GetValidationSet retrieves the ValidationSetTracking for the given account and name.
+func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSetTracking) error {
 	if tr == nil {
 		return fmt.Errorf("internal error: tr is nil")
 	}
 
 	*tr = ValidationSetTracking{}
 
-	var vset map[ValidationTrackingKey]*json.RawMessage
+	var vset map[string]*json.RawMessage
 	err := st.Get("validation-set-tracking", &vset)
 	if err != nil {
 		return err
 	}
+	key := ValidationSetKey(accountID, name)
 	raw, ok := vset[key]
 	if !ok {
 		return state.ErrNoState
@@ -123,14 +115,14 @@ func GetValidationTracking(st *state.State, key ValidationTrackingKey, tr *Valid
 	return nil
 }
 
-// All retrieves all ValidationSetTracking data.
-func All(st *state.State) (map[ValidationTrackingKey]*ValidationSetTracking, error) {
-	var vsmap map[ValidationTrackingKey]*ValidationSetTracking
+// ValidationSets retrieves all ValidationSetTracking data.
+func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) {
+	var vsmap map[string]*ValidationSetTracking
 	if err := st.Get("validation-set-tracking", &vsmap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	validationSetMap := make(map[ValidationTrackingKey]*ValidationSetTracking, len(vsmap))
+	validationSetMap := make(map[string]*ValidationSetTracking, len(vsmap))
 	for key, trackingInfo := range vsmap {
 		validationSetMap[key] = trackingInfo
 	}
