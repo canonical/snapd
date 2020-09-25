@@ -57,6 +57,27 @@ func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
 	c.Assert(err, ErrorMatches, `unknown snap related security label "snap.weird"`)
 }
 
+func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
+	d := c.MkDir()
+	restore := apparmor.MockFsRootPath(d)
+	defer restore()
+
+	// when the new file exists we use that one
+	newProcFile := filepath.Join(d, "proc/42/attr/apparmor/current")
+	c.Assert(os.MkdirAll(filepath.Dir(newProcFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(newProcFile, []byte("snap.foo.app"), 0644), IsNil)
+
+	oldProcFile := filepath.Join(d, "proc/42/attr/current")
+	c.Assert(os.MkdirAll(filepath.Dir(oldProcFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(oldProcFile, []byte("random-other-unread-data"), 0644), IsNil)
+
+	name, app, hook, err := apparmor.SnapAppFromPid(42)
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "foo")
+	c.Assert(app, Equals, "app")
+	c.Assert(hook, Equals, "")
+}
+
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 	d := c.MkDir()
 	restore := apparmor.MockFsRootPath(d)
