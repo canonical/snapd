@@ -1837,9 +1837,14 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 	} else {
 		fn = filepath.Join(s.seedAssertsDir, fname)
 	}
-
 	err := ioutil.WriteFile(fn, asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
+
+	// ensure model assertion file has the correct seed time
+	if _, ok := a.(*asserts.Model); ok {
+		err = os.Chtimes(fn, s.seedTime, s.seedTime)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {

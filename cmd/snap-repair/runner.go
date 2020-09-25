@@ -576,11 +576,9 @@ func (run *Runner) initState() error {
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
 	// initialize time lower bound with image built time/seed.yaml time
-	info, err := os.Stat(findTimeLowerBoundHintFile())
-	if err != nil {
+	if err := run.findTimeLowerBound(); err != nil {
 		return err
 	}
-	run.moveTimeLowerBound(info.ModTime())
 	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
@@ -656,13 +654,32 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 	return nil
 }
 
-func findTimeLowerBoundHintFile() string {
-	// uc20+
-	if osutil.FileExists(dirs.SnapModeenvFile) {
-		return dirs.SnapModeenvFile
+func (run *Runner) findTimeLowerBound() error {
+	timeLowerBoundSources := []string{
+		// uc16
+		filepath.Join(dirs.SnapSeedDir, "seed.yaml"),
+		// uc20+
+		dirs.SnapModeenvFile,
 	}
-	// uc16,uc18
-	return filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	// add all model files from uc20 seeds
+	allModels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems/*/model"))
+	if err != nil {
+		return err
+	}
+	timeLowerBoundSources = append(timeLowerBoundSources, allModels...)
+
+	// use all files as potential time inputs
+	for _, p := range timeLowerBoundSources {
+		info, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		run.moveTimeLowerBound(info.ModTime())
+	}
+	return nil
 }
 
 func findBrandAndModel() (string, string, error) {
