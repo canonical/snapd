@@ -74,7 +74,9 @@ type Pool struct {
 	unresolved    map[string]*unresolvedRec
 	prerequisites map[string]*unresolvedRec
 
-	bs     Backstore
+	bs        Backstore
+	unchanged map[string]bool
+
 	groups map[uint16]*groupRec
 
 	curPhase poolPhase
@@ -96,6 +98,7 @@ func NewPool(groundDB RODatabase, n int) *Pool {
 		unresolved:    make(map[string]*unresolvedRec),
 		prerequisites: make(map[string]*unresolvedRec),
 		bs:            NewMemoryBackstore(),
+		unchanged:     make(map[string]bool),
 		groups:        make(map[uint16]*groupRec),
 	}
 }
@@ -226,6 +229,9 @@ func (p *Pool) isPredefined(ref *Ref) (bool, error) {
 }
 
 func (p *Pool) isResolved(ref *Ref) (bool, error) {
+	if p.unchanged[ref.Unique()] {
+		return true, nil
+	}
 	_, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 	if err == nil {
 		return true, nil
@@ -556,6 +562,9 @@ func (p *Pool) unresolvedBookkeeping() {
 		if e == nil {
 			if u.at.Revision == RevisionNotKnown {
 				e = ErrUnresolved
+			} else {
+				// unchanged
+				p.unchanged[uniq] = true
 			}
 		}
 		if e != nil {
@@ -718,5 +727,27 @@ NextGroup:
 		}
 	}
 
+	return nil
+}
+
+// ClearGroups clears the pool in terms of information associated with groups
+// while preserving information about already resolved or unchanged assertions.
+// It is useful for reusing a pool once the maximum of usable groups
+// that was set with NewPool has been exhausted. Group errors must be
+// queried before calling it otherwise they are lost. It is an error
+// to call it when there are still pending unresolved assertions in
+// the pool.
+func (p *Pool) ClearGroups() error {
+	if len(p.unresolved) != 0 || len(p.prerequisites) != 0 {
+		return fmt.Errorf("internal error: trying to clear groups of asserts.Pool with pending unresolved or prerequisites")
+	}
+
+	p.numbering = make(map[string]uint16)
+	// use a fresh Groupings as well so that max group tracking starts
+	// from scratch.
+	// NewGroupings cannot fail on a value accepted by it previously
+	p.groupings, _ = internal.NewGroupings(p.groupings.N())
+	p.groups = make(map[uint16]*groupRec)
+	p.curPhase = poolPhaseAdd
 	return nil
 }

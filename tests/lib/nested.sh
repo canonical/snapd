@@ -686,6 +686,11 @@ nested_force_stop_vm() {
 }
 
 nested_force_start_vm() {
+    # if the nested-vm is using a swtpm, we need to wait until the file exists
+    # because the file disappears temporarily after qemu exits
+    if systemctl show nested-vm -p ExecStart | grep -q swtpm-mvo; then
+        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    fi
     systemctl start nested-vm
 }
 
