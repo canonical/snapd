@@ -163,8 +163,8 @@ type ExtractedRunKernelImageBootloader interface {
 }
 
 // TrustedAssetsBootloader has boot assets that take part in the secure boot
-// process and need to be tracked, while other boot asses (typically boot
-// config) is managed by snapd.
+// process and need to be tracked, while other boot assets (typically boot
+// config) are managed by snapd.
 type TrustedAssetsBootloader interface {
 	Bootloader
 
