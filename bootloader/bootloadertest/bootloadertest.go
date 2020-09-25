@@ -460,3 +460,30 @@ func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, ker
 	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
 	return b.BootChainList, b.BootChainErr
 }
+
+// MockTrustedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
+// bootloader.TrustedAssetsBootloader and bootloader.RecoveryAwareBootloader
+// interfaces.
+type MockTrustedAssetsRecoveryAwareBootloader struct {
+	*MockTrustedAssetsBootloader
+
+	EnvVars map[string]string
+}
+
+func (b *MockBootloader) WithTrustedAssetsRecoveryAware() *MockTrustedAssetsRecoveryAwareBootloader {
+	return &MockTrustedAssetsRecoveryAwareBootloader{
+		MockTrustedAssetsBootloader: &MockTrustedAssetsBootloader{
+			MockBootloader: b,
+		},
+		EnvVars: make(map[string]string),
+	}
+}
+
+func (b *MockTrustedAssetsRecoveryAwareBootloader) SetRecoverySystemEnv(systemDir string, env map[string]string) error {
+	b.EnvVars = env
+	return nil
+}
+
+func (b *MockTrustedAssetsRecoveryAwareBootloader) GetRecoverySystemEnv(systemDir, key string) (string, error) {
+	return b.EnvVars[key], nil
+}
