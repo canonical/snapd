@@ -416,6 +416,8 @@ debug-each: |
             if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
                 cat "${NESTED_LOGS_DIR}/serial.log"
+                # add another echo in case the serial log is missing a newline
+                echo
             fi
 
             nested_exec sudo journalctl --no-pager -u snapd || true
