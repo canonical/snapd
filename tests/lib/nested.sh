@@ -45,11 +45,10 @@ nested_get_boot_id() {
 
 nested_wait_for_reboot() {
     local initial_boot_id="$1"
-    local retry wait last_boot_id
-    retry=150
-    wait=5
+    local last_boot_id="$initial_boot_id"
+    local retry=150
+    local wait=5
 
-    last_boot_id=""
     while [ $retry -ge 0 ]; do
         retry=$(( retry - 1 ))
         # The get_boot_id could fail because the connection is broken due to the reboot
@@ -687,6 +686,11 @@ nested_force_stop_vm() {
 }
 
 nested_force_start_vm() {
+    # if the nested-vm is using a swtpm, we need to wait until the file exists
+    # because the file disappears temporarily after qemu exits
+    if systemctl show nested-vm -p ExecStart | grep -q swtpm-mvo; then
+        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    fi
     systemctl start nested-vm
 }
 

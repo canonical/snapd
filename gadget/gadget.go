@@ -381,18 +381,14 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 }
 
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
-// root directory. If constraints is nil, ReadInfo will just check for
-// self-consistency, otherwise rules for the classic or system seed cases are
-// enforced.
+// root directory.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	return readInfo(ioutil.ReadFile, gadgetYamlFn, model)
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
-// meta/gadget.yaml in the given snap container. If constraints is
-// nil, ReadInfo will just check for self-consistency, otherwise rules
-// for the classic or system seed cases are enforced.
+// meta/gadget.yaml in the given snap container.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
 	gadgetYamlFn := "meta/gadget.yaml"
 	return readInfo(snapf.ReadFile, gadgetYamlFn, model)

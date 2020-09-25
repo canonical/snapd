@@ -100,9 +100,9 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
 			return []byte(s), nil
 		}
-		if len(cmd) == 4 && cmd[2] == "is-enabled" {
+		if len(cmd) == 2 && cmd[0] == "is-enabled" {
 			// pretend snapd.socket is disabled
-			if cmd[3] == "snapd.socket" {
+			if cmd[1] == "snapd.socket" {
 				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
 			}
 			return []byte("enabled"), nil
@@ -173,34 +173,34 @@ WantedBy=snapd.service
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"--root", dirs.GlobalRootDir, "enable", "usr-lib-snapd.mount"},
+		{"enable", "usr-lib-snapd.mount"},
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.snap-repair.timer"},
+		{"is-enabled", "snapd.autoimport.service"},
+		{"is-enabled", "snapd.service"},
+		{"is-enabled", "snapd.snap-repair.timer"},
 		// test pretends snapd.socket is disabled and needs enabling
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.system-shutdown.service"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
+		{"is-enabled", "snapd.socket"},
+		{"enable", "snapd.socket"},
+		{"is-enabled", "snapd.system-shutdown.service"},
+		{"is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
 		{"start", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.snap-repair.timer"},
+		{"is-active", "snapd.snap-repair.timer"},
 		{"stop", "snapd.snap-repair.timer"},
 		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
 		{"start", "snapd.snap-repair.timer"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.socket"},
+		{"is-active", "snapd.socket"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
+		{"--user", "--global", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "enable", "snapd.session-agent.socket"},
 	})
 }
 
