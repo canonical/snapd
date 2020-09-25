@@ -1111,8 +1111,25 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=run"]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -1209,8 +1226,25 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":["snapd_recovery_mode=run"]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -2218,8 +2252,44 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=run"]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=recover snapd_recovery_system=system"]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}, {
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel-recovery",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+	}}
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2338,8 +2408,45 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":["snapd_recovery_mode=run"]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1","kernel-cmdlines":["snapd_recovery_mode=recover snapd_recovery_system=system"]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel: "pc-kernel",
+		// unasserted kernel snap
+		KernelRevision: "",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}, {
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel-recovery",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+	}}
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
