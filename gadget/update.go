@@ -76,9 +76,6 @@ const (
 // ContentObserver allows for observing operations on the content of the gadget
 // structures.
 type ContentObserver interface {
-	// TODO:UC20: add Observe() result value indicating that a file should
-	// be preserved
-
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
 	// the scenarios, the target path is relative under the root.
@@ -89,10 +86,10 @@ type ContentObserver interface {
 	// file was added during the update), the source path is empty.
 	//
 	// Returning ChangeApply indicates that the observer agrees for a given
-	// change to be applied. When called with a ContentUpdate operation,
-	// returning ChangePreserveBefore indicates that the 'before' content
-	// shall be preserved. ChangeAbort is expected to be returned along with
-	// a non-nil error.
+	// change to be applied. When called with a ContentUpdate or
+	// ContentWrite operation, returning ChangePreserveBefore indicates that
+	// the 'before' content shall be preserved. ChangeAbort is expected to
+	// be returned along with a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
 		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
