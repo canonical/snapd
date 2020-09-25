@@ -33,12 +33,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -672,28 +672,22 @@ func findBrandAndModel() (string, string, error) {
 	return findBrandAndModel16()
 }
 
-// XXX: be more precise about brand/model(?)
-var modeenvBrandModelRE = regexp.MustCompile(`^model=(.*)/(.*)$`)
-
-func findBrandAndModel20() (string, string, error) {
-	// implement own modeenv scanner to ensure are insulated from
-	// failures in the snapd codebase
-	//
-	// XXX: can we trust modeenv enough on unencrypted devices?
-	f, err := os.Open(dirs.SnapModeenvFile)
+func findBrandAndModel20() (brand string, model string, err error) {
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
+		return "", "", err
+	}
+	brandAndModel, err := cfg.Get("", "model")
 	if err != nil {
 		return "", "", err
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		match := modeenvBrandModelRE.FindStringSubmatch(scanner.Text())
-		if len(match) > 0 {
-			return match[1], match[2], nil
-		}
+	l := strings.SplitN(brandAndModel, "/", 2)
+	if len(l) != 2 {
+		return "", "", fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
 	}
-	return "", "", fmt.Errorf("cannot find model definition in modeenv")
+
+	return l[0], l[1], nil
 }
 
 func findBrandAndModel16() (string, string, error) {

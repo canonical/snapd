@@ -1842,17 +1842,35 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 	c.Assert(err, IsNil)
 }
 
-func (s *runner20Suite) TestLoadStateInitDeviceInfoFail(c *C) {
+func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 	runner := repair.NewRunner()
 
-	// incorrect modeenv file
-	err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(`invalid`), 0644)
-	c.Assert(err, IsNil)
-	err = runner.LoadState()
-	c.Check(err, ErrorMatches, "cannot set device information: cannot find model definition in modeenv")
+	for _, tc := range []struct {
+		modelStr    string
+		expectedErr string
+	}{
+		{
+			`invalid-key-value`,
+			"cannot set device information: No option model in section ",
+		}, {
+			`model=`,
+			`cannot set device information: cannot find brand/model in modeenv model string ""`,
+		}, {
+			`model=brand-but-no-model`,
+			`cannot set device information: cannot find brand/model in modeenv model string "brand-but-no-model"`,
+		},
+	} {
+		err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
+		c.Assert(err, IsNil)
+		err = runner.LoadState()
+		c.Check(err, ErrorMatches, tc.expectedErr)
+	}
+}
 
-	// unreadable modeenv file
-	err = os.Chmod(dirs.SnapModeenvFile, 0300)
+func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c *C) {
+	runner := repair.NewRunner()
+
+	err := os.Chmod(dirs.SnapModeenvFile, 0300)
 	c.Assert(err, IsNil)
 	s.AddCleanup(func() {
 		err := os.Chmod(dirs.SnapModeenvFile, 0644)
