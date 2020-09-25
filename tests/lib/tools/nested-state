@@ -3,7 +3,13 @@
 show_help() {
     echo "usage: prepare-env"
     echo "       cleanup-env"
-    echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo "       create-core-vm"
+    echo "       start-core-vm"
+    echo "       create-classic-vm"
+    echo "       start-classic-vm"
+    echo "       force-start-vm"
+    echo "       force-stop-vm"
+    echo "       destroy-vm"
     echo ""
     echo "Available options:"
     echo "  --devmode --jailmode --classic"
@@ -27,6 +33,24 @@ create_core_vm() {
 }
 
 start_core_vm() {
+    local START_ENV=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --param-cd)
+                export NESTED_PARAM_CD="$2"
+                shift 2
+                ;;
+            --param-mem)
+                export NESTED_PARAM_MEM="$2"
+                shift 2
+                ;;
+            *)
+                echo "nested-state: unsupported parameter $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+
     nested_start_core_vm
 }
 
@@ -36,6 +60,14 @@ create_classic_vm() {
 
 start_classic_vm() {
     nested_start_classic_vm
+}
+
+force_start_vm() {
+    nested_force_start_vm
+}
+
+force_stop_vm() {
+    nested_force_stop_vm
 }
 
 destroy_vm() {
