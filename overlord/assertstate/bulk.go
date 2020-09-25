@@ -21,7 +21,6 @@ package assertstate
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -35,16 +34,28 @@ import (
 
 const storeGroup = "store assertion"
 
-func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext) error {
-	if len(snapStates) > 512 {
-		return &bulkAssertionFallbackError{errors.New("internal error: more than supported number of snaps")}
-		// TODO: make that work, it's a matter of using many or reusing pools, but keeping only one trail of what is resolved for efficiency
-	}
+var maxGroups = 256
 
+func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext) error {
 	db := cachedDB(s)
 
-	pool := asserts.NewPool(db, 512)
+	pool := asserts.NewPool(db, maxGroups)
 
+	var mergedRPErr *resolvePoolError
+	tryResolvePool := func() error {
+		err := resolvePool(s, pool, userID, deviceCtx)
+		if rpe, ok := err.(*resolvePoolError); ok {
+			if mergedRPErr == nil {
+				mergedRPErr = rpe
+			} else {
+				mergedRPErr.merge(rpe)
+			}
+			return nil
+		}
+		return err
+	}
+
+	c := 0
 	for instanceName, snapst := range snapStates {
 		sideInfo := snapst.CurrentSideInfo()
 		if sideInfo.SnapID == "" {
@@ -59,6 +70,21 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 		// they were originally added at install time
 		if err := pool.AddToUpdate(declRef, instanceName); err != nil {
 			return fmt.Errorf("cannot prepare snap-declaration refresh for snap %q: %v", instanceName, err)
+		}
+
+		c++
+		if c%maxGroups == 0 {
+			// we have exhausted max groups, resolve
+			// what we setup so far and then clear groups
+			// to reuse the pool
+			if err := tryResolvePool(); err != nil {
+				return err
+			}
+			if err := pool.ClearGroups(); err != nil {
+				// this shouldn't happen but if it
+				// does fallback
+				return &bulkAssertionFallbackError{err}
+			}
 		}
 	}
 
@@ -87,20 +113,23 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 		}
 	}
 
-	err := resolvePool(s, pool, userID, deviceCtx)
-	if err != nil {
-		if rpe, ok := err.(*resolvePoolError); ok {
-			if e := rpe.errors[storeGroup]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
-				// ignore
-				delete(rpe.errors, storeGroup)
-			}
-			if len(rpe.errors) == 0 {
-				return nil
-			}
-			rpe.message = "cannot refresh snap-declarations for snaps"
-		}
+	if err := tryResolvePool(); err != nil {
+		return err
 	}
-	return err
+
+	if mergedRPErr != nil {
+		if e := mergedRPErr.errors[storeGroup]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
+			// ignore
+			delete(mergedRPErr.errors, storeGroup)
+		}
+		if len(mergedRPErr.errors) == 0 {
+			return nil
+		}
+		mergedRPErr.message = "cannot refresh snap-declarations for snaps"
+		return mergedRPErr
+	}
+
+	return nil
 }
 
 // marker error to request falling back to the old implemention for assertion
@@ -117,6 +146,14 @@ type resolvePoolError struct {
 	message string
 	// errors maps groups to errors
 	errors map[string]error
+}
+
+func (rpe *resolvePoolError) merge(rpe1 *resolvePoolError) {
+	// we expect usually rpe and rpe1 errors to be disjunct, but is also
+	// ok for rpe1 errors to win
+	for k, e := range rpe1.errors {
+		rpe.errors[k] = e
+	}
 }
 
 func (rpe *resolvePoolError) Error() string {
