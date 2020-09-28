@@ -135,14 +135,18 @@ func (s *SnapSuite) TestHelpCategories(c *check.C) {
 		categorised[cmd] = true
 	}
 	seen := make(map[string]string, len(all))
-	for _, categ := range snap.HelpCategories {
-		for _, cmd := range categ.Commands {
+	seenCmds := func(cmds []string, label string) {
+		for _, cmd := range cmds {
 			categorised[cmd] = true
 			if seen[cmd] != "" {
-				c.Errorf("duplicated: %q in %q and %q", cmd, seen[cmd], categ.Label)
+				c.Errorf("duplicated: %q in %q and %q", cmd, seen[cmd], label)
 			}
-			seen[cmd] = categ.Label
+			seen[cmd] = label
 		}
+	}
+	for _, categ := range snap.HelpCategories {
+		seenCmds(categ.Commands, categ.Label)
+		seenCmds(categ.AllOnlyCommands, categ.Label)
 	}
 	for cmd := range all {
 		if !categorised[cmd] {
@@ -150,7 +154,7 @@ func (s *SnapSuite) TestHelpCategories(c *check.C) {
 		}
 	}
 	for cmd := range categorised {
-		if !all[cmd] {
+		if !all[cmd] && cmd != "debug" {
 			c.Errorf("unknown (hidden?): %q", cmd)
 		}
 	}
