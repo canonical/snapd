@@ -180,51 +180,51 @@ var helpCategories = []helpCategory{
 	{
 		Label:       i18n.G("Basics"),
 		Description: i18n.G("basic snap management"),
-		Commands:    []string{"find", "info", "install", "list", "refresh", "remove"},
+		Commands:    []string{"find", "info", "install", "remove", "list"},
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"create-cohort", "disable", "enable", "revert", "switch"},
+		Commands:    []string{"refresh", "revert", "switch","disable", "enable"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
-		Commands:    []string{"abort", "changes", "tasks", "watch"},
+		Commands:    []string{"changes", "tasks", "abort", "watch"},
 	}, {
 		Label:       i18n.G("Daemons"),
 		Description: i18n.G("manage services"),
-		Commands:    []string{"logs", "restart", "services", "start", "stop"},
+		Commands:    []string{"services", "start", "stop", "restart", "logs"},
 	}, {
-		Label:       i18n.G("Paths"),
-		Description: i18n.G("manage aliases"),
-		Commands:    []string{"alias", "aliases", "prefer", "unalias"},
+		Label:       i18n.G("Permissions"),
+		Description: i18n.G("manage permissions"),
+		Commands:    []string{"connections", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
 		Commands:    []string{"get", "set", "unset", "wait"},
 	}, {
+		Label:       i18n.G("App Aliases"),
+		Description: i18n.G("manage aliases"),
+		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
+	}, {
 		Label:       i18n.G("Account"),
 		Description: i18n.G("authentication to snapd and the snap store"),
 		Commands:    []string{"login", "logout", "whoami"},
 	}, {
-		Label:       i18n.G("Permissions"),
-		Description: i18n.G("manage permissions"),
-		Commands:    []string{"connect", "connections", "disconnect", "interface"},
-	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
-		Commands:    []string{"check-snapshot", "forget", "restore", "save", "saved"},
-	}, {
-		Label:       i18n.G("Status"),
-		Description: i18n.G("information output and support"),
-		Commands:    []string{"known", "okay", "version", "warnings"},
+		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
 	}, {
 		Label:       i18n.G("Devices"),
 		Description: i18n.G("system management"),
 		Commands:    []string{"model", "prepare-image", "reboot", "recovery"},
 	}, {
+		Label:       i18n.G("Other"),
+		Description: i18n.G("miscellanea"),
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "create-cohort"},
+	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"ack", "download", "pack", "run", "try"},
+		Commands:    []string{"download", "pack", "run", "try"},
 	},
 }
 
