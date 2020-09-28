@@ -707,7 +707,7 @@ func findBrandAndModel20() (brand string, model string, err error) {
 	return l[0], l[1], nil
 }
 
-func findBrandAndModel16() (string, string, error) {
+func findBrandAndModel16() (brand, model string, err error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
