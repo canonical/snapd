@@ -689,7 +689,7 @@ func findBrandAndModel() (string, string, error) {
 	return findBrandAndModel16()
 }
 
-func findBrandAndModel20() (brand string, model string, err error) {
+func findBrandAndModel20() (brand, model string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
@@ -714,7 +714,7 @@ func findBrandAndModel16() (brand, model string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	var model *asserts.Model
+	var modelAs *asserts.Model
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		f, err := os.Open(fn)
@@ -731,23 +731,23 @@ func findBrandAndModel16() (brand, model string, err error) {
 			}
 			switch a.Type() {
 			case asserts.ModelType:
-				if model != nil {
+				if modelAs != nil {
 					return "", "", fmt.Errorf("multiple models in seed assertions")
 				}
-				model = a.(*asserts.Model)
+				modelAs = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
 				workBS.Put(a.Type(), a)
 			}
 		}
 	}
-	if model == nil {
+	if modelAs == nil {
 		return "", "", fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
-	if err := verifySignatures(model, workBS, trustedBS); err != nil {
+	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
 		return "", "", err
 	}
-	acctPK := []string{model.BrandID()}
+	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
 	acct, err := trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 	if err != nil {
@@ -760,7 +760,7 @@ func findBrandAndModel16() (brand, model string, err error) {
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
 		return "", "", err
 	}
-	return model.BrandID(), model.Model(), nil
+	return modelAs.BrandID(), modelAs.Model(), nil
 }
 
 func (run *Runner) initDeviceInfo() error {
