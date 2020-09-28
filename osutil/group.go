@@ -29,15 +29,11 @@ import (
 
 // FindUid returns the identifier of the given UNIX user name. It will
 // automatically fallback to use "getent" if needed.
-var FindUid = func(username string) (uint64, error) {
-	return findUid(username)
-}
+var FindUid = findUid
 
 // FindGid returns the identifier of the given UNIX group name. It will
 // automatically fallback to use "getent" if needed.
-var FindGid = func(groupname string) (uint64, error) {
-	return findGid(groupname)
-}
+var FindGid = findGid
 
 // getent returns the identifier of the given UNIX user or group name as
 // determined by the specified database
