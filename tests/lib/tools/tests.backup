@@ -1,0 +1,59 @@
+#!/bin/sh -e
+
+show_help() {
+    echo "usage: tests.backup prepare"
+    echo "       tests.backup restore"
+}
+
+cmd_prepare() {
+    tar cf "${PWD}.tar" "$PWD"
+}
+
+cmd_restore() {
+    if [ -z "$PWD" ] || [ "$PWD" != "$(pwd)" ]; then
+        echo "tests.backup: cannot restore, wrong PWD varible: $PWD" >&2
+        exit 1
+    fi
+    if [ -f "${PWD}.tar" ]; then
+        # it is already checked that $PWD is not empty 
+        # shellcheck disable=SC2115
+        rm -rf "${PWD}"/*
+        tar -C/ -xf "${PWD}.tar"
+        rm "${PWD}.tar"
+    else
+        echo "tests.backup: cannot restore, backup file does not exist" >&2
+        exit 1
+    fi
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        prepare)
+            shift
+            cmd_prepare
+            exit
+            ;;
+        restore)
+            shift
+            cmd_restore
+            exit
+            ;;
+        -*)
+            echo "tests.backup: unknown option $1" >&2
+            exit 1
+            ;;
+        *)
+            echo "tests.backup: unknown command $1" >&2
+            exit 1
+            ;;
+    esac
+done

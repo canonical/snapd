@@ -1,0 +1,52 @@
+summary: tests for the tests.backup tool
+
+prepare: |
+    mv "${PWD}.tar" "${PWD}.tar.back"
+
+restore: |
+    mv "${PWD}.tar.back" "${PWD}.tar"
+
+execute: |
+    # Without any arguments a help message is printed.
+    tests.backup | MATCH "usage: tests.backup prepare"
+    tests.backup | MATCH "       tests.backup restore"
+
+    # Both -h and --help are also recognized.
+    tests.backup --help | MATCH "usage: tests.backup"
+    tests.backup -h | MATCH "usage: tests.backup"
+
+    # Unknown commands and options are reported
+    tests.backup --foo 2>&1 | MATCH "tests.backup: unknown option --foo"
+    tests.backup foo 2>&1 | MATCH "tests.backup: unknown command foo"
+
+    # Create a file and a directory inside the current path
+    touch "${PWD}/testfile-old"
+    mkdir "${PWD}/testdir-old"
+
+    # Check prepare creates a backup for the current directory
+    [ ! -f "${PWD}.tar" ]
+    tests.backup prepare
+    [ -f "${PWD}.tar" ]
+
+    # Delete old data and create new data
+    rm "${PWD}/testfile-old"
+    rm -r "${PWD}/testdir-old"
+    touch "${PWD}/testfile-new"
+    mkdir "${PWD}/testdir-new"
+
+    # Restore the backup
+    tests.backup restore
+
+    # Check old files and directories are restored after restore
+    [ -e "${PWD}/testfile-old" ]
+    [ -e "${PWD}/testdir-old" ]
+
+    # Check new files and directories are gone after restore
+    [ ! -e "${PWD}/testfile-new" ]
+    [ ! -e "${PWD}/testdir-new" ]
+
+    # Check the backup file is gone
+    [ ! -e "${PWD}.tar" ]
+
+    # Validate restore cannot be called if backup file does not exist
+    tests.backup restore 2>&1 | MATCH 'tests.backup: cannot restore, backup file does not exist'

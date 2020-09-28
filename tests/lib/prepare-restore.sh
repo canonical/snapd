@@ -583,8 +583,7 @@ install_snap_profiler(){
 prepare_suite_each() {
     local variant="$1"
 
-    # back test directory to be restored during the restore
-    tar cf "${PWD}.tar" "$PWD"
+    tests.backup prepare
 
     # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
     if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
@@ -637,12 +636,7 @@ restore_suite_each() {
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
-    # restore test directory saved during prepare
-    if [ -f "${PWD}.tar" ]; then
-        rm -rf "$PWD"
-        tar -C/ -xf "${PWD}.tar"
-        rm -rf "${PWD}.tar"
-    fi
+    tests.backup restore
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
         echo "Save snaps profiler log"
