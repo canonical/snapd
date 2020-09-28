@@ -874,7 +874,7 @@ suites:
         prepare-each: |
             "$TESTSTOOLS"/nested-state prepare
         restore-each: |
-            "$TESTSTOOLS"/nested-state destroy-vm
+            "$TESTSTOOLS"/nested-state delete-existing-vm
             "$TESTSTOOLS"/nested-state restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -927,7 +927,7 @@ suites:
         prepare-each: |
             "$TESTSTOOLS"/nested-state start-new-classic-vm
         restore-each: |
-            "$TESTSTOOLS"/nested-state destroy-vm
+            "$TESTSTOOLS"/nested-state delete-existing-vm
         restore: |
             "$TESTSTOOLS"/nested-state restore
 
@@ -984,7 +984,7 @@ suites:
             "$TESTSTOOLS"/nested-state start-new-core-vm
             nested_wait_for_snap_command
         restore-each: |
-            "$TESTSTOOLS"/nested-state destroy-vm
+            "$TESTSTOOLS"/nested-state delete-existing-vm
         restore: |
             "$TESTSTOOLS"/nested-state restore
 
@@ -1043,7 +1043,7 @@ suites:
             "$TESTSTOOLS"/nested-state start-new-core-vm
             nested_wait_for_snap_command
         restore-each: |
-            "$TESTSTOOLS"/nested-state destroy-vm
+            "$TESTSTOOLS"/nested-state delete-existing-vm
         restore: |
             "$TESTSTOOLS"/nested-state restore
 

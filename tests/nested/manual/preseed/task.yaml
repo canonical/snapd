@@ -46,7 +46,7 @@ prepare: |
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
-  "$TESTSTOOLS"/nested-state destroy-vm
+  "$TESTSTOOLS"/nested-state delete-existing-vm
 
   # any of the restore commands can fail depending on where execute part stopped,
   # account for that with ||true.
