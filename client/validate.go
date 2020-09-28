@@ -61,7 +61,7 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 		return err
 	}
 	if _, err := client.doSync("POST", "/v2/validation-sets", q, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot apply validation set: %w", err)
+		return xerrors.Errorf("cannot apply validation set: %v", err)
 	}
 	return nil
 }
@@ -81,7 +81,7 @@ func (client *Client) QueryValidationSet(account, name string, pinnedAt int) ([]
 	var res []*ValidationSetResult
 	_, err := client.doSync("GET", "/v2/validation-sets", q, nil, nil, &res)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot get validation sets: %w", err)
+		return nil, xerrors.Errorf("cannot get validation sets: %v", err)
 	}
 	return res, nil
 }

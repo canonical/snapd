@@ -44,7 +44,7 @@ type cmdValidate struct {
 
 var shortValidateHelp = i18n.G("List or set snap validations")
 var longValidateHelp = i18n.G(`
-The validate command lists validation sets or sets validations")
+The validate command lists validation sets or sets validations
 `)
 
 func init() {
@@ -64,7 +64,7 @@ func init() {
 }
 
 // this is reused for both account and set name of "account/name" argument
-var validName = regexp.MustCompile("^[0-9a-z]+$")
+var validName = regexp.MustCompile("^[a-z][0-9a-z]+$")
 
 func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
 	parts := strings.Split(arg, "=")
@@ -85,15 +85,8 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 	account = parts[0]
 	name = parts[1]
-	if account == "" {
-		return "", "", 0, fmt.Errorf("invalid empty account name")
-	}
 	if !validName.MatchString(account) {
 		return "", "", 0, fmt.Errorf("invalid account name %q", account)
-	}
-
-	if name == "" {
-		return "", "", 0, fmt.Errorf("invalid empty name")
 	}
 	if !validName.MatchString(name) {
 		return "", "", 0, fmt.Errorf("invalid name %q", name)
