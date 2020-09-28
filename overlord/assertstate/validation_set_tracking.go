@@ -37,7 +37,7 @@ const (
 
 // ValidationSetTracking holds tracking parameters for associated validation set.
 type ValidationSetTracking struct {
-	AccountID string            `json:"account"`
+	AccountID string            `json:"account-id"`
 	Name      string            `json:"name"`
 	Mode      ValidationSetMode `json:"mode"`
 
@@ -45,7 +45,7 @@ type ValidationSetTracking struct {
 	PinnedAt int `json:"pinned-at,omitempty"`
 
 	// Current is the current sequence point.
-	Current int `json:"cuurent,omitempty"`
+	Current int `json:"curent,omitempty"`
 }
 
 // ValidationSetKey formats the given account id and name into a validation set key.
@@ -76,18 +76,18 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 
 // DeleteValidationSet deletes a validation set for the given accoundID and name.
 // It is not an error to delete a non-existing one.
-func DeleteValidationSet(st *state.State, accountID, name string) error {
+func DeleteValidationSet(st *state.State, accountID, name string) {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-set-tracking", &vsmap)
 	if err != nil && err != state.ErrNoState {
 		panic("internal error: cannot unmarshal validation-set-tracking state: " + err.Error())
 	}
 	if len(vsmap) == 0 {
-		return nil
+		return
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-set-tracking", vsmap)
-	return nil
+	return
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.
@@ -121,10 +121,5 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 	if err := st.Get("validation-set-tracking", &vsmap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-
-	validationSetMap := make(map[string]*ValidationSetTracking, len(vsmap))
-	for key, trackingInfo := range vsmap {
-		validationSetMap[key] = trackingInfo
-	}
-	return validationSetMap, nil
+	return vsmap, nil
 }
