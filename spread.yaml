@@ -426,6 +426,8 @@ debug-each: |
             systemctl status nested-vm || true
             journalctl --no-pager -u nested-vm || true
             nested_print_serial_log
+                # add another echo in case the serial log is missing a newline
+                echo
 
             nested_exec sudo journalctl --no-pager -u snapd || true
         fi
