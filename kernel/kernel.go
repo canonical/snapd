@@ -27,13 +27,15 @@ import (
 	"regexp"
 
 	"gopkg.in/yaml.v2"
-
-	"github.com/snapcore/snapd/gadget/edition"
 )
 
 type Asset struct {
-	Edition edition.Number `yaml:"edition,omitempty"`
-	Content []string       `yaml:"content,omitempty"`
+	// TODO: we may make this an (optional) map at some point in
+	//       the future to select what things should be updated.
+	//
+	// Update set to true indicates that assets shall be updated.
+	Update  bool     `yaml:"update,omitempty"`
+	Content []string `yaml:"content,omitempty"`
 }
 
 type Info struct {

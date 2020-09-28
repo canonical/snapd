@@ -905,3 +905,48 @@ func (s *poolSuite) TestAddErrors(c *C) {
 		"for_one":   asserts.ErrUnresolved,
 	})
 }
+
+func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+	assertstest.AddMany(s.db, s.dev1Acct, s.decl1)
+	assertstest.AddMany(s.db, s.dev2Acct, s.decl2)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
+	c.Assert(err, IsNil)
+
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, s.dev1Acct.At(), s.decl1.At()},
+	})
+
+	ok, err := pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	// clear the groups as we would do for real reuse when we have
+	// exhausted allowed groups
+	err = pool.ClearGroups()
+	c.Assert(err, IsNil)
+
+	err = pool.AddToUpdate(s.decl2.Ref(), "for_two") // group num: 0 again
+	c.Assert(err, IsNil)
+
+	// no reference to store key because it is remebered as unchanged
+	// across the clearing
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.dev2Acct.At(), s.decl2.At()},
+	})
+}
