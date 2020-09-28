@@ -28,7 +28,7 @@ build_core_image() {
     nested_create_core_vm
 }
 
-start-new-core-vm() {
+start_new_core_vm() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cd)
@@ -57,15 +57,15 @@ start_new_classic_vm() {
     nested_start_classic_vm
 }
 
-start-existing-vm() {
+start_existing_vm() {
     nested_start
 }
 
-shutdown-existing-vm() {
+shutdown_existing_vm() {
     nested_shutdown
 }
 
-delete-existing-vm() {
+delete_existing_vm() {
     nested_destroy_vm
 }
 
