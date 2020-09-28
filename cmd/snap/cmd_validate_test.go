@@ -51,7 +51,7 @@ func makeFakeValidateHandler(c *check.C, body string, flag string, pinned int) f
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q,\"pin-at\":\"%d\"}\n", flag, pinned))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q,\"pin-at\":%d}\n", flag, pinned))
 		} else {
 			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q}\n", flag))
 		}

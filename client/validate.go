@@ -49,11 +49,11 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	q.Set("validation-set", fmt.Sprintf("%s/%s", account, name))
 	var postData struct {
 		Flag  string `json:"flag"`
-		PinAt string `json:"pin-at,omitempty"`
+		PinAt int `json:"pin-at,omitempty"`
 	}
 	postData.Flag = opts.Flag
 	if opts.PinAt != 0 {
-		postData.PinAt = fmt.Sprintf("%d", opts.PinAt)
+		postData.PinAt = opts.PinAt
 	}
 
 	var body bytes.Buffer
