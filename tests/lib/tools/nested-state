@@ -29,7 +29,6 @@ build_core_image() {
 }
 
 start-new-core-vm() {
-    local START_ENV=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cd)
