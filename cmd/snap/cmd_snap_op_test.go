@@ -1642,6 +1642,69 @@ func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRemoveInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo", "bar"],
+					"change-kind": "remove"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
+	c.Check(err, check.ErrorMatches, `(?sm)cannot remove "foo", "bar" due to low disk space for automatic snapshot,.*use --purge to avoid creating a snapshot`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo"],
+					"change-kind": "install"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
+	c.Check(err, check.ErrorMatches, `cannot install "foo" due to low disk space`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestRefreshInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo"],
+					"change-kind": "refresh"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
+	c.Check(err, check.ErrorMatches, `cannot refresh "foo" due to low disk space`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
@@ -1662,10 +1725,12 @@ func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
+func (s *SnapOpSuite) TestRemoveManyOptions(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
 }
 
 func (s *SnapOpSuite) TestRemoveMany(c *check.C) {

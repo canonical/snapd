@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -80,7 +81,11 @@ func run(parser *flags.Parser, args []string) error {
 		return fmt.Errorf("need chroot path as argument")
 	}
 
-	chrootDir := rest[0]
+	chrootDir, err := filepath.Abs(rest[0])
+	if err != nil {
+		return err
+	}
+
 	// safety check
 	if chrootDir == "/" {
 		return fmt.Errorf("cannot run snap-preseed against /")
@@ -94,13 +99,13 @@ func run(parser *flags.Parser, args []string) error {
 		return err
 	}
 
-	cleanup, err := prepareChroot(chrootDir)
+	targetSnapd, cleanup, err := prepareChroot(chrootDir)
 	if err != nil {
 		return err
 	}
 
 	// executing inside the chroot
-	err = runPreseedMode(chrootDir)
+	err = runPreseedMode(chrootDir, targetSnapd)
 	cleanup()
 	return err
 }

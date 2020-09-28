@@ -1,0 +1,93 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: pack-local <snap-name>"
+    echo "       install-local <snap-name> [OPTIONS]"
+    echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo ""
+    echo "Available options:"
+    echo "  --devmode --jailmode --classic"
+    echo ""
+    echo "Pack and install commands save the packed snap for future uses,"
+    echo "which is reused on the following calls."
+    echo "The paths for locating the sources of the snaps to either pack or"
+    echo "install are the local path and then 'tests/lib/snaps/'"
+}
+
+pack_local() {
+    local SNAP_NAME="$1"
+    local SNAP_DIR="${2:-$TESTSLIB/snaps/${SNAP_NAME}}"
+    local SNAP_VERSION="${3:-1.0}"
+
+    local META_FILE META_NAME SNAP_FILE
+    META_FILE="$SNAP_DIR/meta/snap.yaml"
+    if [ ! -f "$META_FILE" ]; then
+        echo "snap.yaml file not found for $SNAP_NAME snap"
+        return 1
+    fi
+    META_NAME="$(grep '^name:' "$META_FILE" | awk '{ print $2 }' | tr -d ' ')"
+    SNAP_FILE="${SNAP_DIR}/${META_NAME}_${SNAP_VERSION}_all.snap"
+    # assigned in a separate step to avoid hiding a failure
+    if [ ! -f "$SNAP_FILE" ]; then
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
+    fi
+    # echo the snap name
+    if [ -f "$SNAP_FILE" ]; then
+        echo "$SNAP_FILE"
+    else
+        find "$SNAP_DIR" -name "${META_NAME}_*.snap"| head -n1
+    fi
+}
+
+install_local() {
+    local SNAP_NAME="$1"
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    shift
+
+    if [ -d "$SNAP_NAME" ]; then
+        SNAP_DIR="$PWD/$SNAP_NAME"
+    fi
+    SNAP_FILE=$(pack_local "$SNAP_NAME" "$SNAP_DIR")
+
+    snap install --dangerous "$@" "$SNAP_FILE"
+}
+
+install_local_as() {
+    local snap="$1"
+    local name="$2"
+    shift 2
+    install_local "$snap" --name "$name" "$@"
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "snaps-state: no such command: $subcommand"
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

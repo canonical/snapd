@@ -353,11 +353,16 @@ libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
 fs_getattr_tmpfs(snappy_t)
+fs_list_tmpfs(snappy_t)
 fs_getattr_cgroup(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
 # fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
 getattr_files_pattern(snappy_t, nsfs_t, nsfs_t)
+
+# lxd snap has nsfs under common directory, this works around denials triggered
+# by snapshot size estimation.
+allow snappy_t unconfined_service_t:file getattr;
 
 # snapd attempts to read /run/cloud-init/instance-data.json
 sysnet_read_config(snappy_t)
@@ -810,3 +815,14 @@ gen_require(`
 ')
 # mandb cache update scans whe whole directory tree looking for 'man'
 allow mandb_t snappy_var_lib_t:dir search_dir_perms;
+
+########################################
+#
+# extra policy for system dbus
+#
+gen_require(`
+	type system_dbusd_t;
+  ')
+# system dbus may look info /var/lib/snapd/dbus-1
+snappy_search_lib(system_dbusd_t)
+snappy_read_lib(system_dbusd_t)

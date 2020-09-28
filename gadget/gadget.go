@@ -28,12 +28,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -206,8 +206,8 @@ func (vc VolumeContent) String() string {
 }
 
 type VolumeUpdate struct {
-	Edition  editionNumber `yaml:"edition"`
-	Preserve []string      `yaml:"preserve"`
+	Edition  edition.Number `yaml:"edition"`
+	Preserve []string       `yaml:"preserve"`
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -381,18 +381,14 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 }
 
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
-// root directory. If constraints is nil, ReadInfo will just check for
-// self-consistency, otherwise rules for the classic or system seed cases are
-// enforced.
+// root directory.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	return readInfo(ioutil.ReadFile, gadgetYamlFn, model)
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
-// meta/gadget.yaml in the given snap container. If constraints is
-// nil, ReadInfo will just check for self-consistency, otherwise rules
-// for the classic or system seed cases are enforced.
+// meta/gadget.yaml in the given snap container.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
 	gadgetYamlFn := "meta/gadget.yaml"
 	return readInfo(snapf.ReadFile, gadgetYamlFn, model)
@@ -784,22 +780,6 @@ func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
 		}
 		names[n] = true
 	}
-	return nil
-}
-
-type editionNumber uint32
-
-func (e *editionNumber) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var es string
-	if err := unmarshal(&es); err != nil {
-		return errors.New(`cannot unmarshal "edition"`)
-	}
-
-	u, err := strconv.ParseUint(es, 10, 32)
-	if err != nil {
-		return fmt.Errorf(`"edition" must be a positive number, not %q`, es)
-	}
-	*e = editionNumber(u)
 	return nil
 }
 

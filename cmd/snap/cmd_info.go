@@ -35,7 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -122,7 +122,7 @@ func clientSnapFromPath(path string) (*client.Snap, error) {
 		return nil, err
 	}
 
-	direct, err := cmd.ClientSnapFromSnapInfo(info)
+	direct, err := clientutil.ClientSnapFromSnapInfo(info, nil)
 	if err != nil {
 		return nil, err
 	}

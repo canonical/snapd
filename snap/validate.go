@@ -48,6 +48,25 @@ func ValidateName(name string) error {
 	return naming.ValidateSnap(name)
 }
 
+// ValidateDesktopPrefix checks if a string can be used as a desktop file
+// prefix. A desktop prefix should be of the form 'snapname' or
+// 'snapname+instance'.
+func ValidateDesktopPrefix(prefix string) bool {
+	tokens := strings.Split(prefix, "+")
+	if len(tokens) == 0 || len(tokens) > 2 {
+		return false
+	}
+	if err := ValidateName(tokens[0]); err != nil {
+		return false
+	}
+	if len(tokens) == 2 {
+		if err := ValidateInstanceName(tokens[1]); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidatePlugName checks if a string can be used as a slot name.
 //
 // Slot names and plug names within one snap must have unique names.

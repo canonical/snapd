@@ -45,10 +45,33 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 type assertionSvcError struct {
+	// v1 error fields
+	// XXX: remove once switched to v2 API request.
 	Status int    `json:"status"`
 	Type   string `json:"type"`
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
+
+	// v2 error list - the only field included in v2 error response.
+	// XXX: there is an overlap with searchV2Results (and partially with
+	// errorListEntry), we could share the definition.
+	ErrorList []struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error-list"`
+}
+
+func (e *assertionSvcError) isNotFound() bool {
+	return (len(e.ErrorList) > 0 && e.ErrorList[0].Code == "not-found" /* v2 error */) || e.Status == 404
+}
+
+func (e *assertionSvcError) toError() error {
+	// is it v2 error?
+	if len(e.ErrorList) > 0 {
+		return fmt.Errorf("assertion service error: %q", e.ErrorList[0].Message)
+	}
+	// v1 error
+	return fmt.Errorf("assertion service error: [%s] %q", e.Title, e.Detail)
 }
 
 // Assertion retrieves the assertion for the given type and primary key.
@@ -66,7 +89,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		asrt, e = dec.Decode()
 		return e
 	}, func(svcErr *assertionSvcError) error {
-		if svcErr.Status == 404 {
+		// error-list indicates v2 error response.
+		if svcErr.isNotFound() {
 			// best-effort
 			headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
 			return &asserts.NotFoundError{
@@ -109,7 +133,8 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 						return e
 					}
 				}
-				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
+				// default error handling
+				return svcErr.toError()
 			}
 		}
 		return e
