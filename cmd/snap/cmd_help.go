@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -214,8 +214,8 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("archives of snap data"),
 		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget"},
 	}, {
-		Label:       i18n.G("Devices"),
-		Description: i18n.G("system management"),
+		Label:       i18n.G("Device"),
+		Description: i18n.G("manage device"),
 		Commands:    []string{"model", "reboot", "recovery"},
 	}, {
 		Label:       i18n.G("Other"),
@@ -224,7 +224,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"download", "pack", "run", "try"},
+		Commands:    []string{"download", "pack", "run", "try", "prepare-image"},
 	},
 }
 
