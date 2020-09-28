@@ -216,7 +216,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Devices"),
 		Description: i18n.G("system management"),
-		Commands:    []string{"model", "prepare-image", "reboot", "recovery"},
+		Commands:    []string{"model", "reboot", "recovery"},
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
