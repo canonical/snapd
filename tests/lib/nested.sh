@@ -904,7 +904,6 @@ nested_start_core_vm() {
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
     fi
-    nested_wait_for_snap_command
 }
 
 nested_shutdown() {

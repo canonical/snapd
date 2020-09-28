@@ -1,38 +1,34 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: prepare-env"
-    echo "       cleanup-env"
-    echo "       create-core-vm"
-    echo "       start-core-vm"
-    echo "       create-classic-vm"
-    echo "       start-classic-vm"
-    echo "       force-start-vm"
-    echo "       force-stop-vm"
-    echo "       destroy-vm"
+    echo "usage: prepare"
+    echo "       restore"
+    echo "       build-core-image"
+    echo "       start-new-core-vm [--param-cd PARAM] [--param-mem PARAM]"
+    echo "       build-classic-image"
+    echo "       start-new-classic-vm"
+    echo "       start-existing-vm"
+    echo "       shutdown-existing-vm"
+    echo "       delete-existing-vm"
     echo ""
     echo "Available options:"
-    echo "  --devmode --jailmode --classic"
+    echo "  -h --help   show this help message."
     echo ""
-    echo "Pack and install commands save the packed snap for future uses,"
-    echo "which is reused on the following calls."
-    echo "The paths for locating the sources of the snaps to either pack or"
-    echo "install are the local path and then 'tests/lib/snaps/'"
 }
 
-prepare_env() {
+prepare() {
     nested_prepare_env
 }
 
-cleanup_env() {
+restore() {
     nested_cleanup_env
 }
 
-create_core_vm() {
+build_core_image() {
     nested_create_core_vm
 }
 
-start_core_vm() {
+start-new-core-vm() {
     local START_ENV=""
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -54,23 +50,23 @@ start_core_vm() {
     nested_start_core_vm
 }
 
-create_classic_vm() {
+build_classic_image() {
     nested_create_classic_vm
 }
 
-start_classic_vm() {
+start_new_classic_vm() {
     nested_start_classic_vm
 }
 
-force_start_vm() {
-    nested_force_start_vm
+start-existing-vm() {
+    nested_start
 }
 
-force_stop_vm() {
-    nested_force_stop_vm
+shutdown-existing-vm() {
+    nested_shutdown
 }
 
-destroy_vm() {
+delete-existing-vm() {
     nested_destroy_vm
 }
 
