@@ -476,10 +476,16 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
+	ignoreStamp := backupPath + ".ignore"
 
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(srcPath) {
 		return fmt.Errorf("cannot update file %s: symbolic links are not supported", source)
+	}
+
+	if osutil.FileExists(ignoreStamp) {
+		// explicitly ignored by request of the observer
+		return ErrNoUpdate
 	}
 
 	if osutil.FileExists(dstPath) {
@@ -495,14 +501,6 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 			// not preserved & different than the update, error out
 			// as there is no backup
 			return fmt.Errorf("missing backup file %q for %v", backupName, target)
-		}
-	} else {
-		// file does not exist
-		if osutil.FileExists(preserveStamp) && !strutil.SortedListContains(preserveInDst, dstPath) {
-			// we have a preserve stamp, but the file is not listed
-			// explicitly in preserve list, meaning observer
-			// requested for it to be held back
-			return ErrNoUpdate
 		}
 	}
 
@@ -539,7 +537,8 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // │   ├── baz
 // │   │   └── d
 // │   └── z
-// └── c
+// ├── c
+// └── d
 //
 // The structure of backup looks like this:
 //
@@ -551,7 +550,8 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // │   └── baz.backup     <-- stamp indicating ./bar/baz existed before the update
 // ├── bar.backup         <-- stamp indicating ./bar existed before the update
 // ├── b.same             <-- stamp indicating ./b is identical to the update data
-// └── c.preserve         <-- stamp indicating ./c is to be preserved
+// ├── c.ignore           <-- stamp indicating change to ./c was requested to be ignored
+// └── d.preserve         <-- stamp indicating ./d is to be preserved
 //
 func (f *mountedFilesystemUpdater) Backup() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
@@ -639,10 +639,11 @@ func (f *mountedFilesystemUpdater) ignoreChange(change *ContentChange, backupPat
 	preserveStamp := backupPath + ".preserve"
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
-	if err := makeStamp(preserveStamp); err != nil {
+	ignoreStamp := backupPath + ".ignore"
+	if err := makeStamp(ignoreStamp); err != nil {
 		return fmt.Errorf("cannot create a checkpoint file: %v", err)
 	}
-	for _, name := range []string{backupName, sameStamp} {
+	for _, name := range []string{backupName, sameStamp, preserveStamp} {
 		if err := os.Remove(name); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot remove existing stamp file: %v", err)
 		}
@@ -684,6 +685,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
+	ignoreStamp := backupPath + ".ignore"
 
 	changeWithBackup := &ContentChange{
 		// content of the new data
@@ -695,6 +697,12 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	changeNewFile := &ContentChange{
 		// content of the new data
 		After: srcPath,
+	}
+
+	if osutil.FileExists(ignoreStamp) {
+		// observer already requested the change to the target location
+		// to be ignored
+		return nil, nil
 	}
 
 	// TODO: enable support for symlinks when needed
@@ -875,6 +883,7 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
+	ignoreStamp := backupPath + ".ignore"
 
 	if strutil.SortedListContains(preserveInDst, dstPath) && osutil.FileExists(preserveStamp) {
 		// file was preserved at original location by being
@@ -883,6 +892,11 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	}
 	if osutil.FileExists(sameStamp) {
 		// contents are the same as original, do nothing
+		return nil
+	}
+	if osutil.FileExists(ignoreStamp) {
+		// observer requested the changes to the target to be ignored
+		// previously
 		return nil
 	}
 
@@ -898,19 +912,11 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 			return err
 		}
 	} else {
-		// no backup marker, could be a new file or one that got
-		// preserved by request of the observer, in which case there
-		// will be a stamp
-		if !osutil.FileExists(preserveStamp) {
-			if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("cannot remove written update: %v", err)
-			}
-			// since it's a new file, there was no original content
-			data.Before = ""
-		} else {
-			// no stamp, this was not requested by the observer
-			return nil
+		if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot remove written update: %v", err)
 		}
+		// since it's a new file, there was no original content
+		data.Before = ""
 	}
 	// avoid passing source path during rollback, the file has been restored
 	// to the disk already
