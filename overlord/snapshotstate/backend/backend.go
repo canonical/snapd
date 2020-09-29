@@ -171,8 +171,11 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
-func isSnapshotFilename(fname string) (ok bool, setID uint64) {
-	fname = filepath.Base(fname)
+// isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
+// if it starts with a numeric set id and ends with .zip extension;
+// filePath can be just a file name, or a full path.
+func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
+	fname := filepath.Base(filePath)
 	// XXX: we could use a regexp here to match very precisely all the elements
 	// of the filename following Filename() above, but perhaps it's better no to
 	// go overboard with it in case the format evolves in the future. Only check
