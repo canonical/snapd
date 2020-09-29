@@ -56,7 +56,7 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// CreateTransientScopeForTracking is not a no-op when refresh app awareness is off
+// CreateTransientScopeForTracking always attempts to track, even when refresh app awareness flag is off.
 func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("dbus not available")
