@@ -369,7 +369,8 @@ version: 5.0
 	}
 
 	// set up observer state
-	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
 	runBootStruct := &gadget.LaidOutStructure{
@@ -685,7 +686,8 @@ version: 5.0
 	}
 
 	// set up observer state
-	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir, useEncryption)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
 	runBootStruct := &gadget.LaidOutStructure{

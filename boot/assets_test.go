@@ -65,11 +65,15 @@ func checkContentGlob(c *C, glob string, expected []string) {
 	c.Check(l, DeepEquals, expected)
 }
 
-func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
-	uc20Model := boottest.MakeMockUC20Model()
+func (s *assetsSuite) uc20UpdateObserverEncryptedSystem(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
 	// checked by TrustedAssetsUpdateObserverForModel and
 	// resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
+	return s.uc20UpdateObserver(c)
+}
+
+func (s *assetsSuite) uc20UpdateObserver(c *C) (*boot.TrustedAssetsUpdateObserver, *asserts.Model) {
+	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
@@ -221,16 +225,22 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 }
 
 func (s *assetsSuite) TestInstallObserverNew(c *C) {
+	useEncryption := true
 	d := c.MkDir()
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
+	// we also get one when there's no encryption of the data partitions
+	useEncryption = false
+	obs, err = boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
 	// but nil for non UC20
 	nonUC20Model := boottest.MakeMockModel()
-	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d)
+	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d, false)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
 }
@@ -257,7 +267,8 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -340,7 +351,8 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -390,6 +402,39 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	})
 }
 
+func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNoEncryption(c *C) {
+	d := c.MkDir()
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{
+		"asset",
+	})
+
+	// we get an observer for UC20
+	uc20Model := boottest.MakeMockUC20Model()
+	useEncryption := false
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("data"), 0644)
+	c.Assert(err, IsNil)
+	writeChange := &gadget.ContentChange{
+		// file that contains the data of the installed file
+		After: filepath.Join(d, "foobar"),
+		// there is no original file in place
+		Before: "",
+	}
+	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		"asset", writeChange)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 0)
+	// let's see what the observer has tracked
+	tracked := obs.CurrentTrustedBootAssetsMap()
+	c.Check(tracked, HasLen, 0)
+}
+
 func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	d := c.MkDir()
 
@@ -399,7 +444,8 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -424,7 +470,8 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -454,7 +501,8 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -483,9 +531,13 @@ func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 
 	bootloader.ForceError(fmt.Errorf("mocked bootloader error"))
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	uc20Model := boottest.MakeMockUC20Model()
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
 
-	err := ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("data"), 0644)
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
 
 	// there is no known bootloader in gadget
@@ -516,7 +568,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -561,7 +614,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryNoAssets(c *C) {
 	defer bootloader.Force(nil)
 
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -591,7 +645,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	})
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -613,7 +668,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 	d := c.MkDir()
 
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	useEncryption := true
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -641,8 +697,8 @@ func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	// we get an observer for UC20, but only if we sealed keys
 	uc20Model := boottest.MakeMockUC20Model()
 	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
-	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
-	c.Check(obs, IsNil)
+	c.Assert(err, IsNil)
+	c.Check(obs, NotNil)
 	// sealed keys stamp
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 	obs, err = boot.TrustedAssetsUpdateObserverForModel(uc20Model)
@@ -703,7 +759,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	}
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
 		&gadget.ContentChange{
@@ -825,7 +881,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	c.Assert(err, IsNil)
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// observe the updates
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
@@ -905,7 +961,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	c.Assert(err, IsNil)
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// observe the updates
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
@@ -950,7 +1006,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
 	// modeenv is not set up, but the observer should not care
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// non system-boot or system-seed structure gets ignored
 	mockVolumeStruct := &gadget.LaidOutStructure{
@@ -983,7 +1039,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateNotTrustedMocked(c *C) {
 	// no need to mock modeenv, the bootloader has no trusted assets
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// observe the updates
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
@@ -1006,7 +1062,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// first no bootloader
 	bootloader.ForceError(fmt.Errorf("bootloader fail"))
@@ -1080,7 +1136,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	defer bootloader.Force(nil)
 	bl.TrustedAssetsList = []string{"asset"}
 
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// we are already tracking 2 assets, this is an unexpected state for observing content updates
 	m := boot.Modeenv{
@@ -1157,7 +1213,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	})
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
 		&gadget.ContentChange{
@@ -1240,7 +1296,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	}
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	m := boot.Modeenv{
 		Mode: "run",
@@ -1322,7 +1378,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileSanity(c *C) {
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// sane state of modeenv before rollback
 	m := boot.Modeenv{
@@ -1359,7 +1415,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileSanity(c *C) {
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 
 	// new observer
-	obs, _ = s.uc20UpdateObserver(c)
+	obs, _ = s.uc20UpdateObserverEncryptedSystem(c)
 	m = boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1405,7 +1461,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	seedDir := c.MkDir()
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	cache := boot.NewTrustedAssetsCache(dirs.SnapBootAssetsDir)
 
@@ -1610,7 +1666,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1713,7 +1769,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	}
 
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	m := boot.Modeenv{
 		Mode: "run",
@@ -1810,7 +1866,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	resealCalls := 0
 	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
@@ -1869,7 +1925,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// trigger loading modeenv and bootloader information
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
@@ -1889,7 +1945,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	c.Check(afterCancelM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 
 	// get a new observer, and observe an update for run bootloader asset only
-	obs, _ = s.uc20UpdateObserver(c)
+	obs, _ = s.uc20UpdateObserverEncryptedSystem(c)
 	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
 	c.Assert(err, IsNil)
@@ -1923,7 +1979,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	// trigger loading modeenv and bootloader information
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
@@ -1989,7 +2045,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 
 	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 	// we get an observer for UC20
-	obs, _ := s.uc20UpdateObserver(c)
+	obs, _ := s.uc20UpdateObserverEncryptedSystem(c)
 
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
@@ -2442,7 +2498,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	})
 
 	// we get an observer for UC20
-	obs, uc20model := s.uc20UpdateObserver(c)
+	obs, uc20model := s.uc20UpdateObserverEncryptedSystem(c)
 
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
 		&gadget.ContentChange{
@@ -2573,7 +2629,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
 
 	// we get an observer for UC20
-	obs, uc20model := s.uc20UpdateObserver(c)
+	obs, uc20model := s.uc20UpdateObserverEncryptedSystem(c)
 
 	data := []byte("foobar")
 	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
@@ -2665,4 +2721,81 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	})
 
 	c.Check(resealCalls, Equals, 1)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
+	// observe an update on a system where encryption is not used
+
+	d := c.MkDir()
+	backups := c.MkDir()
+	root := c.MkDir()
+
+	// try to arrange the backups like the updater would do it
+	data := []byte("foobar")
+	err := ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{
+		"asset",
+	})
+	tab.ManagedAssetsList = []string{
+		"managed-asset",
+	}
+
+	// we get an observer for UC20
+	obs, _ := s.uc20UpdateObserver(c)
+
+	// asset is ignored, and the change is applied
+	change := &gadget.ContentChange{
+		After: filepath.Join(d, "foobar"),
+		// original content would get backed up by the updater
+		Before: filepath.Join(backups, "asset.backup"),
+	}
+	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset", change)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "asset", change)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+	// trusted assets were asked for when setting up bootloader context
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	// but nothing is really tracked
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), nil)
+	// check modeenv
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, HasLen, 0)
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+
+	// verify that managed assets are to be preserved
+	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
+		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangePreserveBefore)
+
+	// make sure that no reseal is triggered
+	resealCalls := 0
+	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	err = obs.BeforeWrite()
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 0)
+
+	err = obs.Canceled()
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 0)
 }
