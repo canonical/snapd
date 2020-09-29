@@ -15,10 +15,13 @@ cmd_restore() {
         exit 1
     fi
     if [ -f "${PWD}.tar" ]; then
-        rm -rf "${PWD}"
+        # it is already checked that $PWD is not empty
+        # shellcheck disable=SC2115
+        rm -rf "${PWD}"/*
         tar -C/ -xf "${PWD}.tar"
         rm "${PWD}.tar"
-        # $PWD was removed and recreated, enter the new directory
+
+        # $PWD was cleaned and recreated, enter the directory again
         cd "$PWD"
     else
         echo "tests.backup: cannot restore, backup file does not exist" >&2
