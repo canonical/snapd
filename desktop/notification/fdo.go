@@ -22,6 +22,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/godbus/dbus"
 )
@@ -130,7 +131,13 @@ func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) 
 		return err
 	}
 	defer func() {
-		err = srv.conn.RemoveMatchSignal(matchRules...)
+		if err := srv.conn.RemoveMatchSignal(matchRules...); err != nil {
+			// XXX: this should not fail for us in practice but we don't want
+			// to clobber the actual error being returned from the function in
+			// general, so ignore RemoveMatchSignal errors and just log them
+			// instead.
+			log.Print("Cannot remove D-Bus signal matcher:", err)
+		}
 	}()
 
 	for {
