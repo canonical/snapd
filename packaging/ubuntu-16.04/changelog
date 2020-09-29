@@ -1,4 +1,4 @@
-snapd (2.47~pre1) xenial; urgency=medium
+snapd (2.47) xenial; urgency=medium
 
   * New upstream release, LP: #1895929
     - secboot: add boot manager profile to pcr protection profile
@@ -166,7 +166,7 @@ snapd (2.47~pre1) xenial; urgency=medium
     - boot/initramfs_test.go: reset boot vars on the bootloader for each
       iteration
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 17 Sep 2020 08:45:54 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Sep 2020 08:31:33 +0200
 
 snapd (2.46.1) xenial; urgency=medium
 
