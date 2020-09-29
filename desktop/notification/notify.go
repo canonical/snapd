@@ -88,6 +88,8 @@ type Action struct {
 // Hint describes supplementeary information that may be used by the server.
 //
 // Various helpers create hint objects of specifc purpose.
+//
+// Specification: https://developer.gnome.org/notification-spec/#hints
 type Hint struct {
 	Name  string
 	Value interface{}

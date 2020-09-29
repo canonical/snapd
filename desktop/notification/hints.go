@@ -35,6 +35,8 @@ func WithActionIcons() Hint {
 }
 
 // Urgency describes the importance of a notification message.
+//
+// Specification: https://developer.gnome.org/notification-spec/#urgency-levels
 type Urgency byte
 
 const (
@@ -70,6 +72,8 @@ func WithUrgency(u Urgency) Hint {
 }
 
 // Category is a string indicating the category of a notification message.
+//
+// Specification: https://developer.gnome.org/notification-spec/#categories
 type Category string
 
 const (
