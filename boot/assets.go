@@ -259,7 +259,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	}
 	if len(o.managedAssets) != 0 && strutil.ListContains(o.managedAssets, relativeTarget) {
 		// this asset is managed by bootloader installation
-		return gadget.ChangePreserveBefore, nil
+		return gadget.ChangeIgnore, nil
 	}
 	if !o.trackTrustedAssets || len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
@@ -448,7 +448,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 		if op != gadget.ContentUpdate {
 			return gadget.ChangeAbort, fmt.Errorf("internal error: managed bootloader asset change for non update operation %v", op)
 		}
-		return gadget.ChangePreserveBefore, nil
+		return gadget.ChangeIgnore, nil
 	}
 
 	if !o.trackTrustedAssets {

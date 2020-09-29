@@ -309,7 +309,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
 		"EFI/ubuntu/grub.cfg", writeChange)
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// a single file in cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), []string{
@@ -818,7 +818,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// everything is set up, trigger a reseal
 	resealCalls := 0
@@ -919,11 +919,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "nested/managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// everything is set up, trigger reseal
 	resealCalls := 0
@@ -1564,11 +1564,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, seedDir, "EFI/ubuntu/grub.cfg",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, seedDir, "EFI/ubuntu/grub.cfg",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// verify cache contents
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), []string{
@@ -2777,11 +2777,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 	res, err = obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 	res, err = obs.Observe(gadget.ContentUpdate, mockSeedStruct, root, "managed-asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, gadget.ChangePreserveBefore)
+	c.Check(res, Equals, gadget.ChangeIgnore)
 
 	// make sure that no reseal is triggered
 	resealCalls := 0

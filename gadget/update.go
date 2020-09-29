@@ -70,7 +70,7 @@ const (
 
 	ChangeAbort ContentChangeAction = iota
 	ChangeApply
-	ChangePreserveBefore
+	ChangeIgnore
 )
 
 // ContentObserver allows for observing operations on the content of the gadget
@@ -87,9 +87,9 @@ type ContentObserver interface {
 	//
 	// Returning ChangeApply indicates that the observer agrees for a given
 	// change to be applied. When called with a ContentUpdate or
-	// ContentWrite operation, returning ChangePreserveBefore indicates that
-	// the 'before' content shall be preserved. ChangeAbort is expected to
-	// be returned along with a non-nil error.
+	// ContentWrite operation, returning ChangeIgnore indicates that the
+	// change shall be ignored. ChangeAbort is expected to be returned along
+	// with a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
 		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
