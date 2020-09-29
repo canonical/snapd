@@ -73,6 +73,36 @@ type Flags struct {
 	Auto bool
 }
 
+// LastSnapshotSetID returns the highest set id number for the snapshots stored
+// in snapshots directory; set ids are inferred from the filenames.
+func LastSnapshotSetID() (uint64, error) {
+	dir, err := osOpen(dirs.SnapshotsDir)
+	if err != nil {
+		if osutil.IsDirNotExist(err) {
+			// no snapshots
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot open snapshots directory: %v", err)
+	}
+	defer dir.Close()
+
+	var maxSetID uint64
+
+	var readErr error
+	for readErr == nil {
+		var names []string
+		names, readErr = dirNames(dir, 100)
+		for _, name := range names {
+			if ok, setID := isSnapshotFilename(name); ok {
+				if setID > maxSetID {
+					maxSetID = setID
+				}
+			}
+		}
+	}
+	return maxSetID, nil
+}
+
 // Iter loops over all snapshots in the snapshots directory, applying the given
 // function to each. The snapshot will be closed after the function returns. If
 // the function returns an error, iteration is stopped (and if the error isn't

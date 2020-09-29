@@ -138,6 +138,24 @@ func hashkeys(snapshot *client.Snapshot) (keys []string) {
 	return keys
 }
 
+func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
+	// LastSnapshotSetID is happy without any snapshots
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(0))
+
+	// create snapshots dir and dummy snapshots
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
+	for _, name := range []string{
+		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
+	} {
+		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0644), check.IsNil)
+	}
+	setID, err = backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(12))
+}
+
 func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	tests := []struct {
 		name  string

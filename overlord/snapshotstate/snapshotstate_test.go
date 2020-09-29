@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -60,6 +61,7 @@ func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 }
 
 func (snapshotSuite) TearDownTest(c *check.C) {
@@ -74,9 +76,34 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 
+	var stateSetID uint64
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(1))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
 	sid, err = snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
-	c.Check(sid, check.Equals, uint64(2))
+	c.Check(sid, check.Equals, uint64(10))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(10))
+
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(11))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(11))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(89))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(89))
 }
 
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
@@ -414,17 +441,6 @@ func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
 	defer st.Unlock()
 	_, _, _, err := snapshotstate.Save(st, nil, nil)
 	c.Check(err, check.ErrorMatches, "bzzt")
-}
-
-func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	st.Set("last-snapshot-set-id", "3/4")
-
-	_, _, _, err := snapshotstate.Save(st, nil, nil)
-	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
 }
 
 func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
