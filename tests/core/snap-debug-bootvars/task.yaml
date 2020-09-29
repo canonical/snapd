@@ -36,4 +36,6 @@ execute: |
     else
         MATCH 'snap_core=core.*\.snap' < default.out
         MATCH 'snap_kernel=pc-kernel.*\.snap' < default.out
+        # relevant snaps are not being updated, so snap_mode is unset
+        MATCH 'snap_mode=$' < default.out
     fi

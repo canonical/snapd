@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -80,6 +81,8 @@ type fakeStore struct {
 	db                     asserts.RODatabase
 	maxDeclSupportedFormat int
 
+	requestedTypes [][]string
+
 	snapActionErr         error
 	downloadAssertionsErr error
 }
@@ -120,10 +123,12 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
 	defer restore()
 
+	reqTypes := make(map[string]bool)
 	ares := make([]store.AssertionResult, 0, len(toResolve))
 	for g, ats := range toResolve {
 		urls := make([]string, 0, len(ats))
 		for _, at := range ats {
+			reqTypes[at.Ref.Type.Name] = true
 			a, err := at.Ref.Resolve(sto.db.Find)
 			if err != nil {
 				assertQuery.AddError(err, &at.Ref)
@@ -138,13 +143,19 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 			StreamURLs: urls,
 		})
 	}
-
 	// behave like the actual SnapAction if there are no results
 	if len(ares) == 0 {
 		return nil, ares, &store.SnapActionError{
 			NoResults: true,
 		}
 	}
+
+	typeNames := make([]string, 0, len(reqTypes))
+	for k := range reqTypes {
+		typeNames = append(typeNames, k)
+	}
+	sort.Strings(typeNames)
+	sto.requestedTypes = append(sto.requestedTypes, typeNames)
 
 	return nil, ares, nil
 }
@@ -1276,6 +1287,205 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStoreFallback(c *C) {
 	s.TestRefreshSnapDeclarationsWithStore(c)
 
 	c.Check(logbuf.String(), Matches, "(?m).*bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
+}
+
+// the following tests cover what happens when refreshing snap-declarations
+// need to support overflowing the chosen asserts.Pool maximum groups
+
+func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
+	// reduce maxGroups to test and stress the logic that deals
+	// with overflowing it
+	s.AddCleanup(assertstate.MockMaxGroups(16))
+
+	// previous state
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	for i := 1; i <= n; i++ {
+		name := fmt.Sprintf("foo%d", i)
+		snapDeclFooX := s.snapDecl(c, name, nil)
+
+		s.stateFromDecl(c, snapDeclFooX, "", snap.R(7+i))
+
+		// previous state
+		err = assertstate.Add(s.state, snapDeclFooX)
+		c.Assert(err, IsNil)
+
+		// make an update on top
+		headers := map[string]interface{}{
+			"series":       "16",
+			"snap-id":      name + "-id",
+			"snap-name":    fmt.Sprintf("fo-o-%d", i),
+			"publisher-id": s.dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+			"revision":     "1",
+		}
+		snapDeclFooX1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+		c.Assert(err, IsNil)
+		err = s.storeSigning.Add(snapDeclFooX1)
+		c.Assert(err, IsNil)
+	}
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	if err != nil {
+		// fot the caller to check
+		return err
+	}
+
+	// check we got the updates
+	for i := 1; i <= n; i++ {
+		name := fmt.Sprintf("foo%d", i)
+		a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+			"series":  "16",
+			"snap-id": name + "-id",
+		})
+		c.Assert(err, IsNil)
+		c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, fmt.Sprintf("fo-o-%d", i))
+	}
+
+	return nil
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany14NoStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setModel(sysdb.GenericClassicModel())
+
+	err := s.testRefreshSnapDeclarationsMany(c, 14)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"account", "account-key", "snap-declaration"},
+	})
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16NoStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setModel(sysdb.GenericClassicModel())
+
+	err := s.testRefreshSnapDeclarationsMany(c, 16)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"account", "account-key", "snap-declaration"},
+	})
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16WithStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	err = s.testRefreshSnapDeclarationsMany(c, 16)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		// first 16 groups request
+		{"account", "account-key", "snap-declaration"},
+		// final separate request covering store only
+		{"store"},
+	})
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setModel(sysdb.GenericClassicModel())
+
+	err := s.testRefreshSnapDeclarationsMany(c, 17)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		// first 16 groups request
+		{"account", "account-key", "snap-declaration"},
+		// final separate request for the rest
+		{"snap-declaration"},
+	})
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStoreMergeErrors(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setModel(sysdb.GenericClassicModel())
+
+	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
+
+	err := s.testRefreshSnapDeclarationsMany(c, 17)
+	c.Check(err, ErrorMatches, `(?s)cannot refresh snap-declarations for snaps:
+ - foo1: download error.* - foo9: download error`)
+	// all foo* snaps accounted for
+	c.Check(strings.Count(err.Error(), "foo"), Equals, 17)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		// first 16 groups request
+		{"account", "account-key", "snap-declaration"},
+		// final separate request for the rest
+		{"snap-declaration"},
+	})
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany31WithStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	err = s.testRefreshSnapDeclarationsMany(c, 31)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		// first 16 groups request
+		{"account", "account-key", "snap-declaration"},
+		// final separate request for the rest and store
+		{"snap-declaration", "store"},
+	})
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany32WithStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	err = s.testRefreshSnapDeclarationsMany(c, 32)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		// first 16 groups request
+		{"account", "account-key", "snap-declaration"},
+		// 2nd round request
+		{"snap-declaration"},
+		// final separate request covering store
+		{"store"},
+	})
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {

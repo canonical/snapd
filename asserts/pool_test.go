@@ -409,6 +409,73 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
+func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	atOne := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err := pool.AddUnresolved(atOne, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {atOne},
+	})
+
+	b := asserts.NewBatch(nil)
+	err = b.Add(s.decl1)
+	c.Assert(err, IsNil)
+
+	// new push suggestions
+	err = b.Add(s.rev1_1111)
+	c.Assert(err, IsNil)
+	err = b.Add(s.rev1_3333)
+	c.Assert(err, IsNil)
+
+	ok, err := pool.AddBatch(b, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	dev1AcctAt := s.dev1Acct.At()
+	dev1AcctAt.Revision = asserts.RevisionNotKnown
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt},
+	})
+
+	c.Check(pool.Err("for_one"), IsNil)
+
+	ok, err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("for_one"), IsNil)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
+
+	a, err := s.rev1_1111.Ref().Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
+
+	a, err = s.rev1_3333.Ref().Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "3333")
+}
+
 func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
@@ -903,5 +970,50 @@ func (s *poolSuite) TestAddErrors(c *C) {
 	c.Check(pool.Errors(), DeepEquals, map[string]error{
 		"store_key": errBoom,
 		"for_one":   asserts.ErrUnresolved,
+	})
+}
+
+func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+	assertstest.AddMany(s.db, s.dev1Acct, s.decl1)
+	assertstest.AddMany(s.db, s.dev2Acct, s.decl2)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
+	c.Assert(err, IsNil)
+
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, s.dev1Acct.At(), s.decl1.At()},
+	})
+
+	ok, err := pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	// clear the groups as we would do for real reuse when we have
+	// exhausted allowed groups
+	err = pool.ClearGroups()
+	c.Assert(err, IsNil)
+
+	err = pool.AddToUpdate(s.decl2.Ref(), "for_two") // group num: 0 again
+	c.Assert(err, IsNil)
+
+	// no reference to store key because it is remebered as unchanged
+	// across the clearing
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.dev2Acct.At(), s.decl2.At()},
 	})
 }
