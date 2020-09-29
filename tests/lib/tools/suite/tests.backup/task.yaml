@@ -20,33 +20,39 @@ execute: |
     tests.backup foo 2>&1 | MATCH "tests.backup: unknown command foo"
 
     # Create a file and a directory inside the current path
-    touch "${PWD}/testfile-old"
-    mkdir "${PWD}/testdir-old"
+    touch testfile-old
+    mkdir testdir-old
 
     # Check prepare creates a backup for the current directory
-    [ ! -f "${PWD}.tar" ]
+    test ! -f "${PWD}.tar"
     tests.backup prepare
-    [ -f "${PWD}.tar" ]
+    test -f "${PWD}.tar"
 
     # Delete old data and create new data
     rm "${PWD}/testfile-old"
-    rm -r "${PWD}/testdir-old"
-    touch "${PWD}/testfile-new"
-    mkdir "${PWD}/testdir-new"
+    rm -r testdir-old
+    touch testfile-new
+    mkdir testdir-new
 
     # Restore the backup
     tests.backup restore
 
     # Check old files and directories are restored after restore
-    [ -e "${PWD}/testfile-old" ]
-    [ -e "${PWD}/testdir-old" ]
+    test -e testfile-old
+    test -e testdir-old
 
     # Check new files and directories are gone after restore
-    [ ! -e "${PWD}/testfile-new" ]
-    [ ! -e "${PWD}/testdir-new" ]
+    test ! -e testfile-new
+    test ! -e testdir-new
 
     # Check the backup file is gone
-    [ ! -e "${PWD}.tar" ]
+    test ! -e "${PWD}.tar"
 
     # Validate restore cannot be called if backup file does not exist
     tests.backup restore 2>&1 | MATCH 'tests.backup: cannot restore, backup file does not exist'
+
+    # Check the tool support a path to prepare and restore
+    tests.backup prepare testdir-old
+    test -e "testdir-old.tar"
+    tests.backup restore testdir-old
+    test ! -e "testdir-old.tar"

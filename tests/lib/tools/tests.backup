@@ -6,23 +6,21 @@ show_help() {
 }
 
 cmd_prepare() {
-    tar cf "${PWD}.tar" "$PWD"
+    local BACKUP_PATH=${1:-$(pwd)}
+    tar cf "${BACKUP_PATH}.tar" "$BACKUP_PATH"
 }
 
 cmd_restore() {
-    if [ -z "$PWD" ] || [ "$PWD" != "$(pwd)" ]; then
-        echo "tests.backup: cannot restore, wrong PWD varible: $PWD" >&2
-        exit 1
-    fi
-    if [ -f "${PWD}.tar" ]; then
-        # it is already checked that $PWD is not empty
+    local BACKUP_PATH=${1:-$(pwd)}
+    if [ -f "${BACKUP_PATH}.tar" ]; then
+        # it is already checked that $BACKUP_PATH is not empty
         # shellcheck disable=SC2115
-        rm -rf "${PWD}"/*
-        tar -C/ -xf "${PWD}.tar"
-        rm "${PWD}.tar"
+        rm -rf "${BACKUP_PATH}"/*
+        tar -C/ -xf "${BACKUP_PATH}.tar"
+        rm "${BACKUP_PATH}.tar"
 
-        # $PWD was cleaned and recreated, enter the directory again
-        cd "$PWD"
+        # $BACKUP_PATH was cleaned and recreated, enter the directory again
+        cd "$BACKUP_PATH"
     else
         echo "tests.backup: cannot restore, backup file does not exist" >&2
         exit 1
@@ -42,12 +40,12 @@ while [ $# -gt 0 ]; do
             ;;
         prepare)
             shift
-            cmd_prepare
+            cmd_prepare "$@"
             exit
             ;;
         restore)
             shift
-            cmd_restore
+            cmd_restore "$@"
             exit
             ;;
         -*)
