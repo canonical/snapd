@@ -34,6 +34,22 @@ func MockMountInfo(content string) (restore func()) {
 	}
 }
 
+func MockFindUid(f func(string) (uint64, error)) (restore func()) {
+	old := FindUid
+	FindUid = f
+	return func() {
+		FindUid = old
+	}
+}
+
+func MockFindGid(f func(string) (uint64, error)) (restore func()) {
+	old := FindGid
+	FindGid = f
+	return func() {
+		FindGid = old
+	}
+}
+
 var (
 	mockedMountInfo *string
 

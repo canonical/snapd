@@ -38,7 +38,6 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
-	_ ManagedAssetsBootloader           = (*grub)(nil)
 	_ TrustedAssetsBootloader           = (*grub)(nil)
 )
 

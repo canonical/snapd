@@ -2600,10 +2600,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 			secboot.NewLoadChain(shimBf,
 				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
+					secboot.NewLoadChain(recoveryKernelBf))),
 			secboot.NewLoadChain(shimBf,
 				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
+					secboot.NewLoadChain(runKernelBf))),
 		})
 		return nil
 	})

@@ -34,6 +34,13 @@ import (
 
 const storeGroup = "store assertion"
 
+// maxGroups is the maximum number of assertion groups we set with the
+// asserts.Pool used to refresh snap assertions, it corresponds
+// roughly to for how many snaps we will request assertions in
+// in one /v2/snaps/refresh request.
+// Given that requesting assertions for ~500 snaps together with no
+// updates can take around 900ms-1s, conservatively set it to half of
+// that. Most systems should be done in one request anyway.
 var maxGroups = 256
 
 func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext) error {
