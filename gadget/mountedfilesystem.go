@@ -199,7 +199,7 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 	if err != nil {
 		return fmt.Errorf("cannot observe file write: %v", err)
 	}
-	if act == ChangePreserveBefore && osutil.FileExists(dst) {
+	if act == ChangePreserveBefore {
 		return nil
 	}
 	return writeFileOrSymlink(src, dst, preserveInDst)
@@ -473,6 +473,9 @@ func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target string, preserveInDst []string, backupDir string) error {
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
+	backupName := backupPath + ".backup"
+	sameStamp := backupPath + ".same"
+	preserveStamp := backupPath + ".preserve"
 
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(srcPath) {
@@ -480,10 +483,6 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	}
 
 	if osutil.FileExists(dstPath) {
-		backupName := backupPath + ".backup"
-		sameStamp := backupPath + ".same"
-		preserveStamp := backupPath + ".preserve"
-
 		if strutil.SortedListContains(preserveInDst, dstPath) || osutil.FileExists(preserveStamp) {
 			// file is to be preserved
 			return ErrNoUpdate
@@ -496,6 +495,14 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 			// not preserved & different than the update, error out
 			// as there is no backup
 			return fmt.Errorf("missing backup file %q for %v", backupName, target)
+		}
+	} else {
+		// file does not exist
+		if osutil.FileExists(preserveStamp) && !strutil.SortedListContains(preserveInDst, dstPath) {
+			// we have a preserve stamp, but the file is not listed
+			// explicitly in preserve list, meaning observer
+			// requested for it to be held back
+			return ErrNoUpdate
 		}
 	}
 
@@ -629,11 +636,6 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 }
 
 func (f *mountedFilesystemUpdater) preserveChangeContent(change *ContentChange, backupPath string) error {
-	if change.Before == "" {
-		// a new file, nothing to preserve
-		return nil
-	}
-
 	preserveStamp := backupPath + ".preserve"
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
@@ -906,8 +908,8 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 			// since it's a new file, there was no original content
 			data.Before = ""
 		} else {
-			// content was preserved at original location
-			data.Before = dstPath
+			// no stamp, this was not requested by the observer
+			return nil
 		}
 	}
 	// avoid passing source path during rollback, the file has been restored
