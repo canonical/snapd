@@ -35,8 +35,12 @@ func (s *SnapSuite) TestRecoveryHelp(c *C) {
 The recovery command lists the available recovery systems.
 
 [recovery command options]
-      --color=[auto|never|always]
-      --unicode=[auto|never|always]
+      --color=[auto|never|always]     Use a little bit of color to highlight
+                                      some things. (default: auto)
+      --unicode=[auto|never|always]   Use a little bit of Unicode to improve
+                                      legibility. (default: auto)
+      --show-recovery-key             Show recovery key (if available) to
+                                      unlock an encrypted partition
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
@@ -145,3 +149,6 @@ func (s *SnapSuite) TestNoRecoverySystemsError(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
 	c.Check(err, ErrorMatches, `cannot list recovery systems: permission denied`)
 }
+
+// NOTE: tests for "snap recovery --show-recovery-key" are in the
+// extra file test_recovery_with_secboot_test.go

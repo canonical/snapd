@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -34,4 +35,8 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 
 func ResealKey(params *ResealKeyParams) error {
 	return fmt.Errorf("build without secboot support")
+}
+
+func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
+	return nil, errors.New("build without secboot support")
 }

@@ -20,18 +20,25 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type cmdRecovery struct {
 	clientMixin
 	colorMixin
+
+	ShowRecoveryKey bool `long:"show-recovery-key"`
 }
 
 var shortRecoveryHelp = i18n.G("List available recovery systems")
@@ -43,7 +50,11 @@ func init() {
 	addCommand("recovery", shortRecoveryHelp, longRecoveryHelp, func() flags.Commander {
 		// XXX: if we want more/nicer details we can add `snap recovery <system>` later
 		return &cmdRecovery{}
-	}, nil, nil)
+	}, colorDescs.also(
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"show-recovery-key": i18n.G("Show recovery key (if available) to unlock an encrypted partition"),
+		}), nil)
 }
 
 func notesForSystem(sys *client.System) string {
@@ -53,9 +64,25 @@ func notesForSystem(sys *client.System) string {
 	return "-"
 }
 
+func showRecoveryKey() error {
+	if release.OnClassic {
+		return errors.New(`command "show-recovery-key" is not available on classic systems`)
+	}
+	rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%s\n", rkey)
+	return nil
+}
+
 func (x *cmdRecovery) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.ShowRecoveryKey {
+		return showRecoveryKey()
 	}
 
 	systems, err := x.client.ListSystems()

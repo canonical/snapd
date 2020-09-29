@@ -33,11 +33,11 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-func (s *SnapSuite) TestDebugRecoveryKeyOnClassicErrors(c *C) {
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyOnClassicErrors(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "show-recovery-key"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-key"})
 	c.Assert(err, ErrorMatches, `command "show-recovery-key" is not available on classic systems`)
 }
 
@@ -54,7 +54,7 @@ func makeMockRecoveryKeyFile(c *C, rkeybuf []byte) {
 	}
 }
 
-func (s *SnapSuite) TestDebugRecoveryKeyHappy(c *C) {
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -63,14 +63,14 @@ func (s *SnapSuite) TestDebugRecoveryKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 	makeMockRecoveryKeyFile(c, rkeystr)
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "show-recovery-key"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-key"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "61665-00531-54469-09783-47273-19035-40077-28287\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestDebugRecoveryKeyUnhappy(c *C) {
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyUnhappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -84,7 +84,7 @@ func (s *SnapSuite) TestDebugRecoveryKeyUnhappy(c *C) {
 		{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}, `cannot read recovery key: unexpected size 17 for the recovery key file`},
 	} {
 		makeMockRecoveryKeyFile(c, tc.rkey)
-		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "show-recovery-key"})
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-key"})
 		c.Assert(err, ErrorMatches, tc.expectedErr)
 	}
 }
