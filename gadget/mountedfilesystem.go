@@ -376,13 +376,13 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 		return nil, err
 	}
 
-	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// bootloader implementation does not support managing its
 		// assets
 		return nil, nil
 	}
-	managed, err := mbl.IsCurrentlyManaged()
+	managed, err := tbl.IsCurrentlyManaged()
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 		// assets are not managed
 		return nil, nil
 	}
-	return mbl.ManagedAssets(), nil
+	return tbl.ManagedAssets(), nil
 }
 
 // entryDestPaths resolves destination and backup paths for given
