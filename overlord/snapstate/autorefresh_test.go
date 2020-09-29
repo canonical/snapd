@@ -342,7 +342,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 	s.state.Set("last-refresh", initialLastRefresh)
 	s.state.Unlock()
 
-	s.store.err = &httputil.PerstistentNetworkError{Err: fmt.Errorf("error")}
+	s.store.err = &httputil.PersistentNetworkError{Err: fmt.Errorf("error")}
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "persistent network error: error")

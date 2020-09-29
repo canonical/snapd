@@ -642,6 +642,8 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+        # $PWD was removed and recreated, enter the new directory
+        cd "$PWD"
     fi
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then

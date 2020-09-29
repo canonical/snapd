@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"os/user"
 
 	. "gopkg.in/check.v1"
 
@@ -1132,13 +1133,23 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	}
 }
 
-func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
-	// FIXME: this test fails on machines where the user was already
-	// created by the system snapd
-	_, err := osutil.FindUid("snapd-range-524288-root")
-	if err == nil {
-		c.Skip("FIXME")
-	}
+func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapDaemon(c *C) {
+	r := osutil.MockFindGid(func(groupname string) (uint64, error) {
+		if groupname == "snap_daemon" || groupname == "snapd-range-524288-root" {
+			return 0, user.UnknownGroupError(groupname)
+		}
+		return 0, fmt.Errorf("unexpected call to FindGid for %s", groupname)
+	})
+	defer r()
+
+	r = osutil.MockFindUid(func(username string) (uint64, error) {
+		if username == "snap_daemon" || username == "snapd-range-524288-root" {
+			return 0, user.UnknownUserError(username)
+		}
+		return 0, fmt.Errorf("unexpected call to FindUid for %s", username)
+	})
+	defer r()
+
 	falsePath := osutil.LookPathDefault("false", "/bin/false")
 	for _, classic := range []bool{false, true} {
 		restore := release.MockOnClassic(classic)

@@ -276,13 +276,11 @@ func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 	err = env.SetBootPartition("boot_a", "kernel-3")
 	c.Assert(err, IsNil)
 	// remove kernel
-	used, err := env.FreeBootPartition("kernel-3")
+	err = env.RemoveKernelRevisionFromBootPartition("kernel-3")
 	c.Assert(err, IsNil)
-	c.Check(used, Equals, true)
 	// repeated use should return false and error
-	used, err = env.FreeBootPartition("kernel-3")
+	err = env.RemoveKernelRevisionFromBootPartition("kernel-3")
 	c.Assert(err, NotNil)
-	c.Check(used, Equals, false)
 }
 
 func (l *lkenvTestSuite) TestZippedDataSample(c *C) {

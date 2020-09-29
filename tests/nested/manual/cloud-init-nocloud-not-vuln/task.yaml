@@ -20,22 +20,15 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # build the cloud-init NoCloud cdrom drives
-    (
-        # for first-boot
-        cd seed1
-        genisoimage -output ../seed1.iso -volid cidata -joliet -rock user-data meta-data
-    )
+    # first boot - legit NoCloud usage
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
 
-    (
-        # for second boot
-        cd seed2
-        genisoimage -output ../seed2.iso -volid cidata -joliet -rock user-data meta-data
-    )
+    # second boot - attacker drive
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
-    # first boot will use seed1 to create the normal-user in addition to the 
+    # first boot uses seed1 to create the normal-user in addition to the 
     # system-user assertion
-    NESTED_PARAM_CD="-cdrom $(pwd)/seed1.iso"
+    NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
 
     nested_create_core_vm
     nested_start_core_vm
@@ -127,24 +120,15 @@ execute: |
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    nested_exec "sudo shutdown -h now" || true
-    nested_wait_for_no_ssh
+    boot_id="$(nested_get_boot_id)"
+    nested_shutdown
 
-    # now if we reboot and add a cloud-init drive, it will not be imported onto
-    # the system
-    nested_force_stop_vm
+    # replace the seed.iso with the new attacker iso
+    mv seed2.iso seed.iso
 
-    # add the second, attacker cloud-init drive as a CD-ROM drive
-    NESTED_PARAM_CD="-cdrom $(pwd)/seed2.iso"
-
-    # start the unit so that it re-uses the existing drive and doesn't re-setup
-    # ssh
-    # TODO: this interaction is a bit awkward because we want to change the 
-    # args to qemu, but those are put into a systemd unit file in /run, which
-    # is awkward to modify programmatically, so instead this will just re-create
-    # the same systemd unit with different args
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    nested_start_core_vm_unit "$NESTED_IMAGES_DIR/$(nested_get_current_image_name)"
+    nested_force_start_vm
+    nested_wait_for_reboot "${boot_id}"
 
     # cloud-init will actually still run because it was not disabled and we
     # provided a cloud-init drive but importantly, it will not import the drive,

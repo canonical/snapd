@@ -284,9 +284,6 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
-              export NESTED_ENABLE_KVM=false
-          fi
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |

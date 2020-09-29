@@ -35,8 +35,8 @@ execute: |
     mv modified_gadget.yaml pc-gadget/meta/gadget.yaml
 
     # resign both assets
-    nested_secboot_sign_file pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" "shim.efi.signed"
-    nested_secboot_sign_file pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" "grubx64.efi"
+    nested_secboot_sign_file pc-gadget/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     snap pack pc-gadget/
 

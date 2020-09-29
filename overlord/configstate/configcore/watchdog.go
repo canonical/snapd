@@ -45,7 +45,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	if opts != nil {
 		dir = dirs.SnapSystemdConfDirUnder(opts.RootDir)
 	} else {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	}
 
 	name := "10-snapd-watchdog.conf"
