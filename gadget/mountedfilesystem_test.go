@@ -289,7 +289,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
 
 	if strutil.ListContains(m.preserveTargets, relativeTargetPath) {
-		return gadget.ChangePreserveBefore, nil
+		return gadget.ChangeIgnore, nil
 	}
 	return gadget.ChangeApply, m.observeErr
 }
@@ -946,7 +946,7 @@ func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceSt
 		return gadget.ChangeAbort, m.observeErr
 	}
 	if strutil.ListContains(m.preserveTargets, relativeTargetPath) {
-		return gadget.ChangePreserveBefore, nil
+		return gadget.ChangeIgnore, nil
 	}
 	return gadget.ChangeApply, nil
 }

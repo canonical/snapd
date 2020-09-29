@@ -199,7 +199,7 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 	if err != nil {
 		return fmt.Errorf("cannot observe file write: %v", err)
 	}
-	if act == ChangePreserveBefore {
+	if act == ChangeIgnore {
 		return nil
 	}
 	return writeFileOrSymlink(src, dst, preserveInDst)
@@ -635,7 +635,7 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) preserveChangeContent(change *ContentChange, backupPath string) error {
+func (f *mountedFilesystemUpdater) ignoreChange(change *ContentChange, backupPath string) error {
 	preserveStamp := backupPath + ".preserve"
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
@@ -661,10 +661,10 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 		if err != nil {
 			return fmt.Errorf("cannot observe pending file write %v\n", err)
 		}
-		if act == ChangePreserveBefore {
-			// observer asked for the change to be preserved
-			if err := f.preserveChangeContent(change, backupPath); err != nil {
-				return fmt.Errorf("cannot preserve change content: %v", err)
+		if act == ChangeIgnore {
+			// observer asked for the change to be ignored
+			if err := f.ignoreChange(change, backupPath); err != nil {
+				return fmt.Errorf("cannot ignore content change: %v", err)
 			}
 		}
 	}
