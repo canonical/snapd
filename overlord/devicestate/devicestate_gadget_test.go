@@ -171,7 +171,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *
 	return chg, tsk
 }
 
-func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) {
+func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool) {
 	var updateCalled bool
 	var passedRollbackDir string
 	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
@@ -208,11 +208,13 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 		err := modeenv.WriteTo("")
 		c.Assert(err, IsNil)
 
-		// sealed keys stamp
-		stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
-		c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-		err = ioutil.WriteFile(stamp, nil, 0644)
-		c.Assert(err, IsNil)
+		if encryption {
+			// sealed keys stamp
+			stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
+			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
+			err = ioutil.WriteFile(stamp, nil, 0644)
+			c.Assert(err, IsNil)
+		}
 	}
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -238,11 +240,18 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	// unset grade
-	s.testUpdateGadgetOnCoreSimple(c, "")
+	encryption := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption)
 }
 
-func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimple(c *C) {
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous")
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleWithEncryption(c *C) {
+	encryption := true
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleNoEncryption(c *C) {
+	encryption := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
