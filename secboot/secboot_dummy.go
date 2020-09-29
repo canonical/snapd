@@ -37,6 +37,9 @@ func ResealKey(params *ResealKeyParams) error {
 	return fmt.Errorf("build without secboot support")
 }
 
+// dummy struct
+type RecoveryKey struct{}
+
 func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
 	return nil, errors.New("build without secboot support")
 }
