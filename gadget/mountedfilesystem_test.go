@@ -117,7 +117,10 @@ func verifyDirContents(c *C, where string, expected map[string]contentType) {
 	cleanWhere := filepath.Clean(where)
 
 	got := make(map[string]contentType)
-	filepath.Walk(where, func(name string, fi os.FileInfo, err error) error {
+	err := filepath.Walk(where, func(name string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if name == where {
 			return nil
 		}
@@ -134,10 +137,11 @@ func verifyDirContents(c *C, where string, expected map[string]contentType) {
 
 		return nil
 	})
+	c.Assert(err, IsNil)
 	if len(expected) > 0 {
 		c.Assert(got, DeepEquals, expected)
 	} else {
-		c.Check(got, HasLen, 0)
+		c.Assert(got, HasLen, 0)
 	}
 }
 
@@ -262,6 +266,9 @@ type mockWriteObserver struct {
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if m.c == nil {
+		panic("c is unset")
+	}
 	m.c.Assert(data, NotNil)
 	m.c.Assert(op, Equals, gadget.ContentWrite, Commentf("unexpected operation %v", op))
 	if m.content == nil {
@@ -713,7 +720,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C)
 	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-	c.Check(filepath.Join(outDir, "foo-new"), testutil.FileEquals, "foo from gadget")
+	c.Check(filepath.Join(outDir, "foo-new"), testutil.FileAbsent)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C) {
@@ -900,12 +907,16 @@ func (m *mockContentUpdateObserver) reset() {
 
 func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
 	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if m.c == nil {
+		panic("c is unset")
+	}
 	if m.contentUpdate == nil {
 		m.contentUpdate = make(map[string][]*mockContentChange)
 	}
 	if m.contentRollback == nil {
 		m.contentRollback = make(map[string][]*mockContentChange)
 	}
+	m.c.Assert(data, NotNil)
 
 	// the after content must always be set
 	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
@@ -3041,6 +3052,7 @@ managed grub.cfg from disk`
 		},
 	}
 	obs := &mockContentUpdateObserver{
+		c:               c,
 		expectedStruct:  ps,
 		preserveTargets: []string{"EFI/ubuntu/grub.cfg"},
 	}
@@ -3117,6 +3129,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	obs := &mockContentUpdateObserver{
+		c:               c,
 		expectedStruct:  psForObserver,
 		preserveTargets: []string{"foo"},
 	}
@@ -3134,11 +3147,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 			{"foo", &gadget.ContentChange{After: filepath.Join(s.dir, "foo")}},
 		},
 	}
+	expectedStamps := map[string]contentType{
+		"foo.preserve": typeFile,
+	}
 	// file does not exist
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 	// no stamps
-	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), nil)
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedStamps)
 	// observer got notified about change
 	c.Assert(obs.contentUpdate, DeepEquals, expectedNewFileChanges)
 
@@ -3147,22 +3163,19 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 	// try the same pass again
 	err = rw.Backup()
 	c.Assert(err, IsNil)
-	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), nil)
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedStamps)
 	// observer got notified about change
 	c.Assert(obs.contentUpdate, DeepEquals, expectedNewFileChanges)
 
-	obs.reset()
-	c.Assert(os.RemoveAll(filepath.Join(s.backup, "struct-0")), IsNil)
-
-	// file does not exist, so it gets written
+	// file does not exist and is not written
 	err = rw.Update()
-	c.Assert(err, IsNil)
-	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from gadget")
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
+	c.Assert(filepath.Join(outDir, "foo"), testutil.FileAbsent)
 
-	// since it's a new file, it gets removed on rollback
+	// nothing happens on rollback
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(outDir, "foo"), testutil.FileAbsent)
+	c.Assert(filepath.Join(outDir, "foo"), testutil.FileAbsent)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingFile(c *C) {
@@ -3174,6 +3187,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingF
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	obs := &mockContentUpdateObserver{
+		c:               c,
 		expectedStruct:  psForObserver,
 		preserveTargets: []string{"foo"},
 	}
