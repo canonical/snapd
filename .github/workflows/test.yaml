@@ -127,7 +127,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt-get remove --purge shellcheck
-          sudo snap install shellcheck
+          sudo snap install --beta --devmode shellcheck
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
