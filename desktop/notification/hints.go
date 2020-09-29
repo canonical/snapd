@@ -145,7 +145,7 @@ func WithTransient() Hint {
 	return Hint{Name: "transient", Value: &t}
 }
 
-// WithResident returns a hint asking the server to keep the message after an action is invked.
+// WithResident returns a hint asking the server to keep the message after an action is invoked.
 //
 // When set the server will not automatically remove the notification when an
 // action has been invoked. The notification will remain resident in the server
