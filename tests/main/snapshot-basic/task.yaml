@@ -134,5 +134,7 @@ execute: |
     # rename the snapshot file to force a new set id.
     mv "$SNAPSHOT_FILE" "$NEWSNAPSHOT_FILE"
     snap saved | MATCH "123 +test-snapd-sh"
-    snap saved --id=123 | grep test-snapd-sh
+    # make sure there is just one such snapshot
+    [[ $(snap saved | grep test-snapd-sh | wc -l) == "1" ]]
+    snap saved --id=123 | MATCH "123 .+test-snapd-sh"
     snap restore 123 test-snapd-sh
