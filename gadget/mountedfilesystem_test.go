@@ -3065,7 +3065,17 @@ managed grub.cfg from disk`
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	preserveStamp := filepath.Join(s.backup, "struct-0/EFI/ubuntu/grub.cfg.preserve")
+	expectedFileStamps := map[string]contentType{
+		"EFI.backup":                  typeFile,
+		"EFI/boot/grubx64.efi.backup": typeFile,
+		"EFI/boot.backup":             typeFile,
+		"EFI/ubuntu.backup":           typeFile,
+
+		// listed explicitly in the structure
+		"foo.preserve": typeFile,
+		// requested by observer
+		"EFI/ubuntu/grub.cfg.ignore": typeFile,
+	}
 
 	for _, step := range []struct {
 		name string
@@ -3084,22 +3094,20 @@ managed grub.cfg from disk`
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
 			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-			c.Check(preserveStamp, testutil.FilePresent)
 		case "update":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
 			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
 				`# Snapd-Boot-Config-Edition: 1
 managed grub.cfg from disk`)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-			c.Check(preserveStamp, testutil.FilePresent)
 		case "rollback":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
 			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-			c.Check(preserveStamp, testutil.FilePresent)
 		default:
 			c.Fatalf("unexpected step: %q", step.name)
 		}
+		verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedFileStamps)
 	}
 }
 
@@ -3148,7 +3156,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 		},
 	}
 	expectedStamps := map[string]contentType{
-		"foo.preserve": typeFile,
+		"foo.ignore": typeFile,
 	}
 	// file does not exist
 	err = rw.Backup()
@@ -3164,8 +3172,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedStamps)
-	// observer got notified about change
-	c.Assert(obs.contentUpdate, DeepEquals, expectedNewFileChanges)
+	// observer already requested the change to be ignored once
+	c.Assert(obs.contentUpdate, HasLen, 0)
 
 	// file does not exist and is not written
 	err = rw.Update()
@@ -3213,7 +3221,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingF
 		},
 	}
 	expectedExistingFileStamps := map[string]contentType{
-		"foo.preserve": typeFile,
+		"foo.ignore": typeFile,
 	}
 	err = rw.Backup()
 	c.Assert(err, IsNil)
@@ -3226,8 +3234,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingF
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedExistingFileStamps)
-	// get notified about change
-	c.Assert(obs.contentUpdate, DeepEquals, expectedExistingFileChanges)
+	// observer already requested the change to be ignored once
+	c.Assert(obs.contentUpdate, HasLen, 0)
 
 	// and nothing gets updated
 	err = rw.Update()
