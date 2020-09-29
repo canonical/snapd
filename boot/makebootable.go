@@ -346,7 +346,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
-	_, ok = bl.(bootloader.ManagedAssetsBootloader)
+	_, ok = bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
 
