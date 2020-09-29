@@ -200,5 +200,3 @@ func WithSuppressSound() Hint {
 	t := true
 	return Hint{Name: "suppress-sound", Value: &t}
 }
-
-// TODO: add remaining documented hints
