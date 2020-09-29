@@ -23,6 +23,7 @@ package secboot
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -63,12 +64,8 @@ func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
 	}
 
 	var rkey RecoveryKey
-	n, err := f.Read(rkey[:])
-	if err != nil {
+	if _, err := io.ReadFull(f, rkey[:]); err != nil {
 		return nil, fmt.Errorf("cannot read recovery key: %v", err)
-	}
-	if n != len(RecoveryKey{}) {
-		return nil, fmt.Errorf("cannot use recovery key: unexpected size %v", n)
 	}
 	return &rkey, nil
 }
