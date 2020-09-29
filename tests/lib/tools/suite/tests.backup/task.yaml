@@ -11,7 +11,7 @@ execute: |
     tests.backup | MATCH "usage: tests.backup prepare"
     tests.backup | MATCH "       tests.backup restore"
 
-    # Both -h and --help are also recognized.
+    # Both -h and --help are recognized.
     tests.backup --help | MATCH "usage: tests.backup"
     tests.backup -h | MATCH "usage: tests.backup"
 
