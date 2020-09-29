@@ -45,7 +45,7 @@ type ValidationSetTracking struct {
 	PinnedAt int `json:"pinned-at,omitempty"`
 
 	// Current is the current sequence point.
-	Current int `json:"curent,omitempty"`
+	Current int `json:"current,omitempty"`
 }
 
 // ValidationSetKey formats the given account id and name into a validation set key.
@@ -108,6 +108,8 @@ func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSet
 	if !ok {
 		return state.ErrNoState
 	}
+	// XXX: &tr pointer isn't needed here but it is likely historical (a bug in
+	// old JSON marshaling probably) and carried over from snapstate.Get.
 	err = json.Unmarshal([]byte(*raw), &tr)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal validation set tracking: %v", err)
