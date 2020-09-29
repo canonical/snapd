@@ -7,6 +7,11 @@ show_help() {
 
 cmd_prepare() {
     local BACKUP_PATH=${1:-$(pwd)}
+
+    if [ ! -d "$BACKUP_PATH" ]; then
+        echo "tests.backup: cannot prepare, backup dir does not exist" >&2
+        exit 1
+    fi
     tar cf "${BACKUP_PATH}.tar" "$BACKUP_PATH"
 }
 

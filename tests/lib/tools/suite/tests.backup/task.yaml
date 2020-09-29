@@ -56,3 +56,6 @@ execute: |
     test -e "testdir-old.tar"
     tests.backup restore testdir-old
     test ! -e "testdir-old.tar"
+
+    # Validate prepare cannot be called if backup dir does not exist
+    tests.backup prepare testdir-new 2>&1 | MATCH 'tests.backup: cannot prepare, backup dir does not exist'
