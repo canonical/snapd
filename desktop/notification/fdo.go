@@ -32,21 +32,27 @@ const (
 	dBusInterfaceName = "org.freedesktop.Notifications"
 )
 
-type fdoServer struct {
+// Server holds a connection to a notification server interactions.
+type Server struct {
 	conn *dbus.Conn
 	obj  dbus.BusObject
 }
 
-// NewFreeDesktopServer returns an interface to a freedesktop.org message notification server.
-func NewFreeDesktopServer(conn *dbus.Conn) Server {
-	return &fdoServer{
+// New returns new connection to a freedesktop.org message notification server.
+//
+// Each server offers specific capabilities. It is advised to provide graceful
+// degradation of functionality, depending on the supported capabilities, so
+// that the notification messages are useful on a wide range of desktop
+// environments.
+func New(conn *dbus.Conn) *Server {
+	return &Server{
 		conn: conn,
 		obj:  conn.Object(dBusName, dBusObjectPath),
 	}
 }
 
 // ServerInformation returns the information about the notification server.
-func (srv *fdoServer) ServerInformation() (name, vendor, version, specVersion string, err error) {
+func (srv *Server) ServerInformation() (name, vendor, version, specVersion string, err error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetServerInformation", 0)
 	if err := call.Store(&name, &vendor, &version, &specVersion); err != nil {
 		return "", "", "", "", err
@@ -55,7 +61,7 @@ func (srv *fdoServer) ServerInformation() (name, vendor, version, specVersion st
 }
 
 // ServerCapabilities returns the list of notification capabilities provided by the session.
-func (srv *fdoServer) ServerCapabilities() ([]ServerCapability, error) {
+func (srv *Server) ServerCapabilities() ([]ServerCapability, error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetCapabilities", 0)
 	var caps []ServerCapability
 	if err := call.Store(&caps); err != nil {
@@ -64,8 +70,11 @@ func (srv *fdoServer) ServerCapabilities() ([]ServerCapability, error) {
 	return caps, nil
 }
 
-// SendNotification sends a single notification message.
-func (srv *fdoServer) SendNotification(msg *Message) (ID, error) {
+// SendNotification sends a new notification or updates an existing
+// notification. In both cases the ID of the notification, as assigned by the
+// server, is returned. The ID can be used to cancel a notification, update it
+// or react to invoked user actions.
+func (srv *Server) SendNotification(msg *Message) (ID, error) {
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, msg.ReplacesID, msg.Icon, msg.Summary, msg.Body,
 		flattenActions(msg.Actions), mapHints(msg.Hints), msg.ExpireTimeout)
@@ -93,8 +102,8 @@ func mapHints(hints []Hint) map[string]dbus.Variant {
 	return result
 }
 
-// CloseNotification closes a specific notification.
-func (srv *fdoServer) CloseNotification(id ID) error {
+// CloseNotification closes a notification message with the given ID.
+func (srv *Server) CloseNotification(id ID) error {
 	call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, id)
 	return call.Store()
 }
@@ -104,7 +113,7 @@ func (srv *fdoServer) CloseNotification(id ID) error {
 // The bus connection is configured to deliver signals from the notification
 // server. All received signals are dispatched to the provided observer. This
 // process continues until stopped by the context, or if an error occurs.
-func (srv *fdoServer) ObserveNotifications(ctx context.Context, observer Observer) (err error) {
+func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) (err error) {
 	// TODO: upgrade godbus and use un-buffered channel.
 	ch := make(chan *dbus.Signal, 10)
 	defer close(ch)

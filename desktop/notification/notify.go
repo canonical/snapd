@@ -22,7 +22,6 @@
 package notification
 
 import (
-	"context"
 	"fmt"
 )
 
@@ -95,30 +94,7 @@ type Hint struct {
 }
 
 // ServerCapability describes a single capability of the notification server.
-//
-// Each server offers specific capabilities. It is advised to provide graceful
-// degradation of functionality, depending on the supported capabilities, so
-// that the notification messages are useful on a wide range of desktop
-// environments.
 type ServerCapability string
-
-// Server is an interface to a notification server interactions.
-type Server interface {
-	// ServerInformation returns the basic information about the notification server.
-	ServerInformation() (name, vendor, version, specVersion string, err error)
-	// ServerCapabilities returns the list of notification capabilities implemented by the server.
-	ServerCapabilities() ([]ServerCapability, error)
-	// SendNotification sends a new notification or updates an existing
-	// notification. In both cases the ID of the notification, as assigned by
-	// the server, is returned. The ID can be used to cancel a notification,
-	// update it or react to invoked user actions.
-	SendNotification(msg *Message) (ID, error)
-	// CloseNotification closes a notification message with the given ID.
-	CloseNotification(ID) error
-	// ObserveNotifications blocks waiting for notification message events to arrive.
-	// Cancel the context to stop the montoring process and return.
-	ObserveNotifications(ctx context.Context, observer Observer) error
-}
 
 // CloseReason indicates why a notification message was closed.
 type CloseReason uint32
