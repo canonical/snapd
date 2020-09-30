@@ -246,11 +246,7 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 		}
 	}
 
-	ok, setID := backend.IsSnapshotFilename(snapshot.Filename)
-	if !ok {
-		return nil, nil, nil, fmt.Errorf("not a snapshot filename: %s", snapshot.Filename)
-	}
-	reader, err = backendOpen(snapshot.Filename, setID)
+	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
@@ -365,11 +361,7 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	ok, setID := backend.IsSnapshotFilename(snapshot.Filename)
-	if !ok {
-		return fmt.Errorf("not a snapshot filename: %s", snapshot.Filename)
-	}
-	reader, err := backendOpen(snapshot.Filename, setID)
+	reader, err := backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return fmt.Errorf("cannot open snapshot: %v", err)
 	}

@@ -103,7 +103,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			}
 
 			// filter out non-snapshot directory entries
-			ok, setID := IsSnapshotFilename(name)
+			ok, setID := isSnapshotFilename(name)
 			if !ok {
 				continue
 			}
@@ -171,10 +171,10 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
-// IsSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
+// isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
 // if it starts with a numeric set id and ends with .zip extension;
 // filePath can be just a file name, or a full path.
-func IsSnapshotFilename(filePath string) (ok bool, setID uint64) {
+func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 	fname := filepath.Base(filePath)
 	// XXX: we could use a regexp here to match very precisely all the elements
 	// of the filename following Filename() above, but perhaps it's better no to

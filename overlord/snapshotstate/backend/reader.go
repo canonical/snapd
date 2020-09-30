@@ -90,7 +90,7 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 		// set id from the filename has the authority and overrides the one from
 		// meta file.
 		var ok bool
-		ok, setID = IsSnapshotFilename(fn)
+		ok, setID = isSnapshotFilename(fn)
 		if !ok {
 			return nil, fmt.Errorf("not a snapshot filename: %q", fn)
 		}
