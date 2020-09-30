@@ -21,12 +21,18 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"mime"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
+
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/desktop/notification"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -35,6 +41,7 @@ var restApi = []*Command{
 	rootCmd,
 	sessionInfoCmd,
 	serviceControlCmd,
+	pendingRefreshNotificationCmd,
 }
 
 var (
@@ -51,6 +58,11 @@ var (
 	serviceControlCmd = &Command{
 		Path: "/v1/service-control",
 		POST: postServiceControl,
+	}
+
+	pendingRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/pending-refresh",
+		POST: postPendingRefreshNotification,
 	}
 )
 
@@ -196,4 +208,113 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	defer systemdLock.Unlock()
 	sysd := systemd.New(systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
+}
+
+func postPendingRefreshNotification(c *Command, r *http.Request) Response {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType != "application/json" {
+		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	charset := strings.ToUpper(params["charset"])
+	if charset != "" && charset != "UTF-8" {
+		return BadRequest("unknown charset in content type: %s", contentType)
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
+	type pendingSnapRefreshInfo struct {
+		InstanceName        string        `json:"instance-name"`
+		TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
+		BusyAppName         string        `json:"busy-app-name,omitempty"`
+		BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
+	}
+	var refreshInfo pendingSnapRefreshInfo
+	if err := decoder.Decode(&refreshInfo); err != nil {
+		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
+	}
+
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot connect to the session bus: %v", err),
+			},
+		})
+	}
+	defer conn.Close()
+
+	// TODO: support desktop-specific notification APIs if they provide a better
+	// experience. For example, the GNOME notification API.
+	notifySrv := notification.New(conn)
+
+	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
+	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	var urgencyLevel notification.Urgency
+	var body string
+	var icon string
+	var hints []notification.Hint
+	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
+		urgencyLevel = notification.LowUrgency
+		body = fmt.Sprintf(i18n.NG(
+			"Close the app to avoid disruptions (%d day left)",
+			"Close the app to avoid disruptions (%d days left)", daysLeft), daysLeft)
+	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
+		urgencyLevel = notification.NormalUrgency
+		body = fmt.Sprintf(i18n.NG(
+			"Close the app to avoid disruptions (%d hour left)",
+			"Close the app to avoid disruptions (%d hours left)", hoursLeft), hoursLeft)
+	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
+		urgencyLevel = notification.CriticalUrgency
+		body = fmt.Sprintf(i18n.NG(
+			"Close the app to avoid disruptions (%d minute left)",
+			"Close the app to avoid disruptions (%d minutes left)", minutesLeft), minutesLeft)
+	} else {
+		summary = fmt.Sprintf("Snap %q is refreshing now!", refreshInfo.InstanceName)
+		urgencyLevel = notification.CriticalUrgency
+	}
+	hints = append(hints, notification.WithUrgency(urgencyLevel))
+	if refreshInfo.BusyAppDesktopEntry != "" {
+		hints = append(hints, notification.WithDesktopEntry(refreshInfo.BusyAppDesktopEntry))
+		// Extract the icon manually
+		parser := goconfigparser.New()
+		if err := parser.ReadFile(fmt.Sprintf("/var/lib/snapd/desktop/applications/%s.desktop", refreshInfo.BusyAppDesktopEntry)); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+			fmt.Printf("found desktop file icon %q\n", icon)
+		}
+	}
+	msg := &notification.Message{
+		AppName:       refreshInfo.BusyAppName,
+		Summary:       summary,
+		Icon:          icon,
+		Body:          body,
+		ExpireTimeout: time.Second * 10,
+		Hints:         hints,
+	}
+
+	// TODO: if snap store is installed and actions are supported, add an action
+	// to open the snap store page for the given snap.
+	//
+	// XXX: how are instances supported in the snap store, are they?
+
+	// TODO: silently ignore error returned when the notification server does not exist.
+	// TODO: track returned notification ID and respond to actions, if supported.
+	if _, err := notifySrv.SendNotification(msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
 }
