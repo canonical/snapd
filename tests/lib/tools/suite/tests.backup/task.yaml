@@ -52,10 +52,12 @@ execute: |
     tests.backup restore 2>&1 | MATCH 'tests.backup: cannot restore, backup file does not exist'
 
     # Check the tool support a path to prepare and restore
-    tests.backup prepare testdir-old
-    test -e "testdir-old.tar"
-    tests.backup restore testdir-old
-    test ! -e "testdir-old.tar"
+    TMP_DIR=$(mktemp -d)
+    tests.backup prepare "$TMP_DIR"
+    test -e "${TMP_DIR}.tar"
+    tests.backup restore "$TMP_DIR"
+    test ! -e "${TMP_DIR}.tar"
 
     # Validate prepare cannot be called if backup dir does not exist
-    tests.backup prepare testdir-new 2>&1 | MATCH 'tests.backup: cannot prepare, backup dir does not exist'
+    tests.backup prepare "$TMP_DIR" 2>&1 | MATCH 'tests.backup: cannot prepare, backup dir does not exist'
+    rm -rf "$TMP_DIR"
