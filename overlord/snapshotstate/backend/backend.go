@@ -100,6 +100,9 @@ func LastSnapshotSetID() (uint64, error) {
 			}
 		}
 	}
+	if readErr != nil && readErr != io.EOF {
+		return 0, readErr
+	}
 	return maxSetID, nil
 }
 

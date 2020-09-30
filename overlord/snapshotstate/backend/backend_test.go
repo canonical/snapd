@@ -156,6 +156,18 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	c.Check(setID, check.Equals, uint64(12))
 }
 
+func (s *snapshotSuite) TestLastSnapshotIDErrorOnDirNames(c *check.C) {
+	// we need snapshots dir, otherwise LastSnapshotSetID exits early.
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, os.ModePerm), check.IsNil)
+
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		return nil, fmt.Errorf("fail")
+	})()
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.ErrorMatches, "fail")
+	c.Check(setID, check.Equals, uint64(0))
+}
+
 func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	tests := []struct {
 		name  string
