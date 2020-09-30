@@ -56,7 +56,7 @@ type Reader struct {
 // If the returned error is non-nil, the returned Reader will be nil,
 // *or* have a non-empty Broken; in the latter case its file will be
 // closed.
-func Open(fn string) (reader *Reader, e error) {
+func Open(fn string, setID uint64) (reader *Reader, e error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -84,14 +84,11 @@ func Open(fn string) (reader *Reader, e error) {
 		return nil, err
 	}
 
-	// XXX: this mirrors the check from Iter()
-	ok, setID := isSnapshotFilename(fn)
-	if !ok {
-		return nil, fmt.Errorf("not a snapshot filename: %q", fn)
+	if setID > 0 {
+		// set id passed to Open (e.g. coming from the filename) has the
+		// authority and overrides the one from meta file.
+		reader.SetID = setID
 	}
-	// set id from the filename has the authority and overrides the one from
-	// meta file.
-	reader.SetID = setID
 
 	// OK, from here on we have a Snapshot
 

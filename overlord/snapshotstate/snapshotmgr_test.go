@@ -478,7 +478,7 @@ func (rs *readerSuite) SetUpTest(c *check.C) {
 	rs.task.Set("snapshot-setup", map[string]interface{}{
 		// interestingly restore doesn't use the set-id
 		"snap":     "a-snap",
-		"filename": "/some/file.zip",
+		"filename": "/some/1_file.zip",
 		"users":    []string{"a-user", "b-user"},
 	})
 	st.Unlock()
@@ -497,7 +497,7 @@ func (rs *readerSuite) SetUpTest(c *check.C) {
 			rs.calls = append(rs.calls, "set config")
 			return nil
 		}),
-		snapshotstate.MockBackendOpen(func(string) (*backend.Reader, error) {
+		snapshotstate.MockBackendOpen(func(string, uint64) (*backend.Reader, error) {
 			rs.calls = append(rs.calls, "open")
 			return &backend.Reader{}, nil
 		}),
@@ -531,9 +531,9 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 		buf := json.RawMessage(`{"old": "conf"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendOpen(func(filename string) (*backend.Reader, error) {
+	defer snapshotstate.MockBackendOpen(func(filename string, setID uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
-		c.Check(filename, check.Equals, "/some/file.zip")
+		c.Check(filename, check.Equals, "/some/1_file.zip")
 		return &backend.Reader{
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": "there"}},
 		}, nil
@@ -597,7 +597,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnBadConfig(c *check.C) {
 }
 
 func (rs *readerSuite) TestDoRestoreFailsOpenError(c *check.C) {
-	defer snapshotstate.MockBackendOpen(func(string) (*backend.Reader, error) {
+	defer snapshotstate.MockBackendOpen(func(string, uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
 		return nil, errors.New("bzzt")
 	})()
@@ -608,7 +608,7 @@ func (rs *readerSuite) TestDoRestoreFailsOpenError(c *check.C) {
 }
 
 func (rs *readerSuite) TestDoRestoreFailsUnserialisableSnapshotConfigError(c *check.C) {
-	defer snapshotstate.MockBackendOpen(func(string) (*backend.Reader, error) {
+	defer snapshotstate.MockBackendOpen(func(string, uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
 		return &backend.Reader{
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": func() {}}},
@@ -675,9 +675,9 @@ func (rs *readerSuite) TestCleanupRestore(c *check.C) {
 }
 
 func (rs *readerSuite) TestDoCheck(c *check.C) {
-	defer snapshotstate.MockBackendOpen(func(filename string) (*backend.Reader, error) {
+	defer snapshotstate.MockBackendOpen(func(filename string, setID uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
-		c.Check(filename, check.Equals, "/some/file.zip")
+		c.Check(filename, check.Equals, "/some/1_file.zip")
 		return &backend.Reader{
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": "there"}},
 		}, nil
@@ -696,7 +696,7 @@ func (rs *readerSuite) TestDoCheck(c *check.C) {
 
 func (rs *readerSuite) TestDoRemove(c *check.C) {
 	defer snapshotstate.MockOsRemove(func(filename string) error {
-		c.Check(filename, check.Equals, "/some/file.zip")
+		c.Check(filename, check.Equals, "/some/1_file.zip")
 		rs.calls = append(rs.calls, "remove")
 		return nil
 	})()

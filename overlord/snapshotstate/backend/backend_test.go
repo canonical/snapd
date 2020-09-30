@@ -189,7 +189,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 		return []string{"hello"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		return nil, nil
 	})()
@@ -243,7 +243,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		return nil, os.ErrInvalid
 	})()
@@ -281,7 +281,7 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		// NOTE non-nil reader, and error, returned
 		r := backend.Reader{}
@@ -324,7 +324,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 		return []string{"42_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		r := backend.Reader{}
 		r.SetID = 42
@@ -385,7 +385,7 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 			"bar.",
 		}, nil
 	})()
-	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(fname string, setID uint64) (*backend.Reader, error) {
 		return readerForFilename(fname, c), nil
 	})()
 
@@ -419,7 +419,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 			fmt.Sprintf("%d_baz.zip", readNames),
 		}, nil
 	})()
-	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
 		var id uint64
 		var snapname string
 		c.Assert(strings.HasSuffix(fn, ".zip"), check.Equals, true)
@@ -589,7 +589,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	c.Assert(shs, check.HasLen, 1)
 	c.Assert(shs[0].Snapshots, check.HasLen, 1)
 
-	shr, err := backend.Open(backend.Filename(shw))
+	shr, err := backend.Open(backend.Filename(shw), 0)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -649,7 +649,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
-	shr, err := backend.Open(backend.Filename(shw))
+	shr, err := backend.Open(backend.Filename(shw), 12)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
