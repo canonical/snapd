@@ -42,6 +42,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+const ExtractFnameSetID = 0
+
 // A Reader is a snapshot that's been opened for reading.
 type Reader struct {
 	*os.File
@@ -84,11 +86,17 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 		return nil, err
 	}
 
-	if setID > 0 {
-		// set id passed to Open (e.g. coming from the filename) has the
-		// authority and overrides the one from meta file.
-		reader.SetID = setID
+	if setID == ExtractFnameSetID {
+		// set id from the filename has the authority and overrides the one from
+		// meta file.
+		var ok bool
+		ok, setID = IsSnapshotFilename(fn)
+		if !ok {
+			return nil, fmt.Errorf("not a snapshot filename: %q", fn)
+		}
 	}
+
+	reader.SetID = setID
 
 	// OK, from here on we have a Snapshot
 
