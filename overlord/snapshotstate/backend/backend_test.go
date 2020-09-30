@@ -635,6 +635,30 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	}
 }
 
+func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, uint64(12))
+
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
+	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+
+	shr, err := backend.Open(backend.Filename(shw), 99)
+	c.Assert(err, check.IsNil)
+	defer shr.Close()
+
+	c.Check(shr.SetID, check.Equals, uint64(99))
+}
+
 func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")

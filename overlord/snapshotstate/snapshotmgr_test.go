@@ -533,6 +533,7 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 	})()
 	defer snapshotstate.MockBackendOpen(func(filename string, setID uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
+		c.Check(setID, check.Equals, uint64(1))
 		c.Check(filename, check.Equals, "/some/1_file.zip")
 		return &backend.Reader{
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": "there"}},
@@ -678,6 +679,7 @@ func (rs *readerSuite) TestDoCheck(c *check.C) {
 	defer snapshotstate.MockBackendOpen(func(filename string, setID uint64) (*backend.Reader, error) {
 		rs.calls = append(rs.calls, "open")
 		c.Check(filename, check.Equals, "/some/1_file.zip")
+		c.Check(setID, check.Equals, uint64(1))
 		return &backend.Reader{
 			Snapshot: client.Snapshot{Conf: map[string]interface{}{"hello": "there"}},
 		}, nil
