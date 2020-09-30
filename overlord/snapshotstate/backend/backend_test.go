@@ -395,40 +395,6 @@ func readerForFilename(fname string, c *check.C) *backend.Reader {
 	}
 }
 
-func (s *snapshotSuite) TestIterIgnoresSnapshotsWithSetIdMismatches(c *check.C) {
-	defer backend.MockOsOpen(func(string) (*os.File, error) {
-		return new(os.File), nil
-	})()
-	readNames := 0
-	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
-		readNames++
-		if readNames > 1 {
-			return nil, io.EOF
-		}
-		return []string{
-			"1_foo.zip",
-			"2_bar.zip"}, nil
-	})()
-	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
-		r := readerForFilename(fname, c)
-		if r.SetID == 1 {
-			r.SetID = 99
-		}
-		return r, nil
-	})()
-
-	var calledF int
-	f := func(snapshot *backend.Reader) error {
-		calledF++
-		c.Check(snapshot.SetID, check.Equals, uint64(2))
-		return nil
-	}
-
-	err := backend.Iter(context.Background(), f)
-	c.Check(err, check.IsNil)
-	c.Check(calledF, check.Equals, 1)
-}
-
 func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
