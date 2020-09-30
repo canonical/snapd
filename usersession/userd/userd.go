@@ -41,6 +41,14 @@ type Userd struct {
 	dbusIfaces []dbusInterface
 }
 
+// userdBusNames contains the list of bus names userd will acquire on
+// the session bus.  It is unnecessary (and undesirable) to add more
+// names here when adding new interfaces to the daemon.
+var userdBusNames = []string{
+	"io.snapcraft.Launcher",
+	"io.snapcraft.Settings",
+}
+
 func dbusSessionBus() (*dbus.Conn, error) {
 	// use a private connection to the session bus, this way we can manage
 	// its lifetime without worrying of breaking other code
@@ -82,10 +90,7 @@ func (ud *Userd) Init() error {
 
 	}
 
-	for _, name := range []string{
-		"io.snapcraft.Launcher",
-		"io.snapcraft.Settings",
-	} {
+	for _, name := range userdBusNames {
 		// beyond this point the name is available and all handlers must
 		// have been set up
 		reply, err := ud.conn.RequestName(name, dbus.NameFlagDoNotQueue)
