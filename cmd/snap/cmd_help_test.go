@@ -54,7 +54,9 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 			snap.LongSnapDescription,
 			"",
 			regexp.QuoteMeta(snap.SnapUsage),
-			"", ".*", "",
+			"",
+			snap.SnapHelpCategoriesIntro,
+			".*", "",
 			snap.SnapHelpAllFooter,
 			snap.SnapHelpFooter,
 		}, "\n")+`\s*`, comment)
@@ -75,7 +77,7 @@ func (s *SnapSuite) TestHelpAllPrintsLongHelp(c *check.C) {
 		"",
 		regexp.QuoteMeta(snap.SnapUsage),
 		"",
-		snap.SnapHelpCategoriesIntro,
+		snap.SnapHelpAllIntro,
 		"", ".*", "",
 		snap.SnapHelpAllFooter,
 	}, "\n")+`\s*`)
@@ -154,7 +156,7 @@ func (s *SnapSuite) TestHelpCategories(c *check.C) {
 		}
 	}
 	for cmd := range categorised {
-		if !all[cmd] && cmd != "debug" {
+		if !all[cmd] {
 			c.Errorf("unknown (hidden?): %q", cmd)
 		}
 	}

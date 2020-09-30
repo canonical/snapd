@@ -172,7 +172,7 @@ func (cmd cmdHelp) Execute(args []string) error {
 type helpCategory struct {
 	Label string
 	// Other is set if the category Commands should be listed
-	// together under "...Other" in the `snap help` list.
+	// together under "... Other" in the `snap help` list.
 	Other       bool
 	Description string
 	// Commands list commands belonging to the category that should
@@ -192,7 +192,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"refresh", "revert", "switch", "disable", "enable"},
+		Commands:    []string{"refresh", "revert", "switch", "disable", "enable", "create-cohort"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
@@ -226,11 +226,6 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("manage device"),
 		Commands:    []string{"model", "reboot", "recovery"},
 	}, {
-		Label:           i18n.G("Special Purpose"),
-		Description:     i18n.G("special activities"),
-		AllOnlyCommands: []string{"create-cohort", "prepare-image"},
-	},
-	{
 		Label:       i18n.G("Warnings"),
 		Other:       true,
 		Description: i18n.G("manage warnings"),
@@ -242,15 +237,16 @@ var helpCategories = []helpCategory{
 		Commands:    []string{"known", "ack"},
 	}, {
 		Label:           i18n.G("Introspection"),
-		Other: true,
-		Description:     i18n.G("introspection and debugging"),
+		Other:           true,
+		Description:     i18n.G("introspection and debugging of snapd"),
 		Commands:        []string{"version"},
 		AllOnlyCommands: []string{"debug"},
 	},
 	{
-		Label:       i18n.G("Development"),
-		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"download", "pack", "run", "try"},
+		Label:           i18n.G("Development"),
+		Description:     i18n.G("developer-oriented features"),
+		Commands:        []string{"download", "pack", "run", "try"},
+		AllOnlyCommands: []string{"prepare-image"},
 	},
 }
 
@@ -261,17 +257,18 @@ Snaps are packages that work across many different Linux distributions,
 enabling secure delivery and operation of the latest apps and utilities.
 `))
 	snapUsage               = i18n.G("Usage: snap <command> [<options>...]")
-	snapHelpCategoriesIntro = i18n.G("Commands can be classified as follows:")
+	snapHelpCategoriesIntro = i18n.G("Commonly used commands can be classified as follows:")
+	snapHelpAllIntro        = i18n.G("Commands can be classified as follows:")
 	snapHelpAllFooter       = i18n.G("For more information about a command, run 'snap help <command>'.")
 	snapHelpFooter          = i18n.G("For a short summary of all commands, run 'snap help --all'.")
 )
 
-func printHelpHeader() {
+func printHelpHeader(cmdsIntro string) {
 	fmt.Fprintln(Stdout, longSnapDescription)
 	fmt.Fprintln(Stdout)
 	fmt.Fprintln(Stdout, snapUsage)
 	fmt.Fprintln(Stdout)
-	fmt.Fprintln(Stdout, snapHelpCategoriesIntro)
+	fmt.Fprintln(Stdout, cmdsIntro)
 	fmt.Fprintln(Stdout)
 }
 
@@ -287,8 +284,8 @@ func printHelpFooter() {
 
 // this is called when the Execute returns a flags.Error with ErrCommandRequired
 func printShortHelp() {
-	printHelpHeader()
-	maxLen := utf8.RuneCountInString("...Other")
+	printHelpHeader(snapHelpCategoriesIntro)
+	maxLen := utf8.RuneCountInString("... Other")
 	var otherCommands []string
 	var develCateg *helpCategory
 	for _, categ := range helpCategories {
@@ -311,9 +308,9 @@ func printShortHelp() {
 		}
 		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, categ.Label, strings.Join(categ.Commands, ", "))
 	}
-	// ...Other
+	// ... Other
 	if len(otherCommands) > 0 {
-		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, "...Other", strings.Join(otherCommands, ", "))
+		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, "... Other", strings.Join(otherCommands, ", "))
 	}
 	// Development last
 	if develCateg != nil && len(develCateg.Commands) > 0 {
@@ -324,7 +321,7 @@ func printShortHelp() {
 
 // this is "snap help --all"
 func printLongHelp(parser *flags.Parser) {
-	printHelpHeader()
+	printHelpHeader(snapHelpAllIntro)
 	maxLen := 0
 	for _, categ := range helpCategories {
 		for _, command := range categ.Commands {
