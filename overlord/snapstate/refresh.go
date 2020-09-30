@@ -156,6 +156,14 @@ type BusySnapError struct {
 	busyHookNames []string
 }
 
+// AppNames returns the name of applications that were busy.
+//
+// The list may be empty, for example, because a hook is executing, or because
+// tracking malfunctioned.
+func (err *BusySnapError) AppNames() []string {
+	return err.busyAppNames
+}
+
 // Error formats an error string describing what is running.
 func (err *BusySnapError) Error() string {
 	switch {

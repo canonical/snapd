@@ -20,8 +20,11 @@
 package snapstate
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/httputil"
@@ -35,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 // the default refresh pattern
@@ -489,6 +493,18 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 	return t1, nil
 }
 
+func populateRefreshHints(refreshInfo *userclient.PendingSnapRefreshInfo, snapInfo *snap.Info, err *BusySnapError) {
+	for _, appName := range err.AppNames() {
+		if app, ok := snapInfo.Apps[appName]; ok {
+			path := app.DesktopFile()
+			if _, err := os.Stat(path); err == nil {
+				refreshInfo.BusyAppName = appName
+				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
+			}
+		}
+	}
+}
+
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -496,14 +512,27 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
 	if err := checker(info); err != nil {
+		refreshInfo := &userclient.PendingSnapRefreshInfo{
+			InstanceName: info.InstanceName(),
+		}
+		if err, ok := err.(*BusySnapError); ok {
+			populateRefreshHints(refreshInfo, info, err)
+		}
+
 		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
+		client := userclient.New()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
 			// This is reset to nil on successful refresh.
 			snapst.RefreshInhibitedTime = &now
 			Set(st, info.InstanceName(), snapst)
 			if _, ok := err.(*BusySnapError); ok {
+				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+				if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
+					logger.Noticef("Cannot send notification about pending refresh: %v", err)
+				}
+				// XXX: remove the warning or send it only if no notification was delivered?
 				st.Warnf(i18n.NG(
 					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
 					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
@@ -515,9 +544,20 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
+			refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+			if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
+				logger.Noticef("Cannot send notification about pending refresh: %v", err)
+			}
+			// TODO: as time left shrinks, send additional notifications with
+			// increasing frequency, allowing the user to understand the
+			// urgency.
 			return err
 		}
 		if _, ok := err.(*BusySnapError); ok {
+			if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
+				logger.Noticef("Cannot send notification about forced refresh: %v", err)
+			}
+			// XXX: remove the warning or send it only if no notification was delivered?
 			st.Warnf(i18n.NG(
 				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
 				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
