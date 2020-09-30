@@ -18,9 +18,7 @@ cmd_prepare() {
 cmd_restore() {
     local BACKUP_PATH=${1:-$(pwd)}
     if [ -f "${BACKUP_PATH}.tar" ]; then
-        # it is already checked that $BACKUP_PATH is not empty
-        # shellcheck disable=SC2115
-        rm -rf "${BACKUP_PATH}"/*
+        find "${BACKUP_PATH}" -maxdepth 1 -mindepth 1 -exec rm -rf {} \;
         tar -C/ -xf "${BACKUP_PATH}.tar"
         rm "${BACKUP_PATH}.tar"
 
