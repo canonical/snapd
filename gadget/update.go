@@ -50,12 +50,27 @@ type GadgetData struct {
 // and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
+// ContentChange carries paths to files containing the content data being
+// modified by the operation.
+type ContentChange struct {
+	// Before is a path to a file containing the original data before the
+	// operation takes place (or took place in case of ContentRollback).
+	Before string
+	// After is a path to a file location of the data applied by the operation.
+	After string
+}
+
 type ContentOperation int
+type ContentChangeAction int
 
 const (
 	ContentWrite ContentOperation = iota
 	ContentUpdate
 	ContentRollback
+
+	ChangeAbort ContentChangeAction = iota
+	ChangeApply
+	ChangePreserveBefore
 )
 
 // ContentObserver allows for observing operations on the content of the gadget
@@ -72,8 +87,14 @@ type ContentObserver interface {
 	// that will be written. When called during rollback, observe call
 	// happens after the original file has been restored (or removed if the
 	// file was added during the update), the source path is empty.
+	//
+	// Returning ChangeApply indicates that the observer agrees for a given
+	// change to be applied. When called with a ContentUpdate operation,
+	// returning ChangePreserveBefore indicates that the 'before' content
+	// shall be preserved. ChangeAbort is expected to be returned along with
+	// a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, sourcePath, relativeTargetPath string) (bool, error)
+		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a

@@ -39,6 +39,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -720,7 +721,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	conn, err := dbus.SessionBus()
+	conn, err := dbusutil.SessionBus()
 	if err != nil {
 		return err
 	}
@@ -1122,10 +1123,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
 	}
+	// Allow using the session bus for all apps but not for hooks.
+	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
 	var trackingErr error
 	if needsTracking {
-		trackingErr = cgroupCreateTransientScopeForTracking(securityTag)
+		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
+		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
 	} else {
 		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
 	}

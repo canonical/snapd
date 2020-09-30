@@ -51,7 +51,7 @@ func handleBacklightServiceConfiguration(tr config.ConfGetter, opts *fsOnlyConte
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
+		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
 	}
 	output, err := coreCfg(tr, "system.disable-backlight-service")
 	if err != nil {

@@ -43,15 +43,16 @@ func (u *uboot) setDefaults() {
 func (u *uboot) processBlOpts(blOpts *Options) {
 	if blOpts != nil {
 		switch {
-		case blOpts.NoSlashBoot, blOpts.Recovery:
-			// Recovery or NoSlashBoot imply we use the "boot.sel" simple text
-			// format file in /uboot/ubuntu as it exists on the partition
+		case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
+			// RoleRecovery or NoSlashBoot imply we use
+			// the "boot.sel" simple text format file in
+			// /uboot/ubuntu as it exists on the partition
 			// directly
 			u.basedir = "/uboot/ubuntu/"
 			fallthrough
-		case blOpts.ExtractedRunKernelImage:
-			// if just ExtractedRunKernelImage is defined, we expect to find
-			// /boot/uboot/boot.sel
+		case blOpts.Role == RoleRunMode:
+			// if RoleRunMode (and no NoSlashBoot), we
+			// expect to find /boot/uboot/boot.sel
 			u.ubootEnvFileName = "boot.sel"
 		}
 	}
@@ -124,7 +125,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 	// so we need to apply the defaults here
 	u.setDefaults()
 
-	if blOpts != nil && blOpts.Recovery {
+	if blOpts != nil && blOpts.Role == RoleRecovery {
 		// not supported yet, this is traditional uboot.env from gadget
 		// TODO:UC20: support this use-case
 		return false, fmt.Errorf("non-empty uboot.env not supported on UC20 yet")

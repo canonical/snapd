@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -323,11 +323,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 	if err != nil {
 		return nil, err
 	}
-
-	modelAssertion, err := deviceSeed.Model()
-	if err != nil {
-		return nil, err
-	}
+	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
 	if release.OnClassic != classicModel {

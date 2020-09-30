@@ -26,9 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/testutil"
@@ -109,7 +108,7 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
@@ -123,9 +122,9 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	mbl := bl.WithManagedAssets()
-	bootloader.Force(mbl)
-	mbl.IsManaged = false
+	tbl := bl.WithTrustedAssets()
+	bootloader.Force(tbl)
+	tbl.IsManaged = false
 
 	// TODO:UC20: remove is managed checks
 
@@ -140,20 +139,7 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"display-name": "My Model",
-		"architecture": "amd64",
-		"base":         "core18",
-		"gadget":       "pc=18",
-		"kernel":       "pc-kernel=18",
-		"timestamp":    "2018-01-01T08:00:00+00:00",
-	}
-	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+	model := boottest.MakeMockModel()
 
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
@@ -168,14 +154,14 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	mbl.IsManaged = true
-	mbl.StaticCommandLine = "panic=-1"
+	tbl.IsManaged = true
+	tbl.StaticCommandLine = "panic=-1"
 
 	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
@@ -185,7 +171,7 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 
 	// managed status is effectively ignored
-	mbl.IsManaged = false
+	tbl.IsManaged = false
 
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
@@ -196,22 +182,22 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 }
 
 func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *C) {
-	model := makeMockUC20Model()
+	model := boottest.MakeMockUC20Model()
 
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	mbl.IsManaged = true
-	mbl.StaticCommandLine = "panic=-1"
-	mbl.CandidateStaticCommandLine = "candidate panic=-1"
+	tbl.IsManaged = true
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=-1"
 
 	cmdline, err := boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
 
 	// managed status is effectively ignored
-	mbl.IsManaged = false
+	tbl.IsManaged = false
 	cmdline, err = boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")

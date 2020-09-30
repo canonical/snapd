@@ -67,6 +67,10 @@ create_test_user(){
     fi
     unset owner
 
+    # Add a new line first to prevent an error which happens when
+    # the file has not new line, and we see this:
+    # syntax error, unexpected WORD, expecting END or ':' or '\n'
+    echo >> /etc/sudoers
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
     chown test.test -R "$SPREAD_PATH"
@@ -397,11 +401,26 @@ prepare_project() {
     esac
 
     restart_logind=
+    restart_networkd=
     if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
         restart_logind=maybe
+        restart_networkd=maybe
     fi
 
-    install_pkg_dependencies
+
+    # Try installing package dependencies. Because we pull in some systemd
+    # development packages we can easily pull in a whole systemd upgrade. Most
+    # of the time that's okay but, well, not always.
+    if ! install_pkg_dependencies; then
+        # If this failed, maybe systemd-networkd got busted during the 245-246
+        # upgrade? If so we can just restart it and try again.
+        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
+        if [ "$restart_networkd" = maybe ]; then
+            systemctl reset-failed systemd-networkd.service
+            systemctl try-restart systemd-networkd.service
+            install_pkg_dependencies
+        fi
+    fi
 
     if [ "$restart_logind" = maybe ]; then
         if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
@@ -627,6 +646,8 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+        # $PWD was removed and recreated, enter the new directory
+        cd "$PWD"
     fi
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
