@@ -3,6 +3,8 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"os"
 	"syscall"
 	"unsafe"
 
@@ -29,15 +31,22 @@ func (hb hexBuf) String() string {
 	return buf.String()
 }
 
-// NotifyIoctl performs a inoctl(2) on the apparmor .notify file.
+// TODO: move this to conditionally built file.
+var dumpIoctl bool = os.Getenv("CERBERUS_DUMP_IOCTL") == "yes"
+
+// NotifyIoctl performs a ioctl(2) on the apparmor .notify file.
 func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
-	// log.Printf(">>> ioctl %#x (%d bytes) ...\n", req, len(msg))
-	// log.Printf("%v\n", hexBuf(msg))
+	if dumpIoctl {
+		log.Printf(">>> ioctl %v (%d bytes) ...\n", req, len(msg))
+		log.Printf("%v\n", hexBuf(msg))
+	}
 	ret, _, errno := doSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(&msg[0])))
-	// log.Printf("<<< ioctl %#x returns %d, errno: %v\n", req, int(ret), errno)
-	// if int(ret) != -1 && int(ret) < len(msg) {
-	//	log.Printf("%v\n", hexBuf(msg[:int(ret)]))
-	//}
+	if dumpIoctl {
+		log.Printf("<<< ioctl %v returns %d, errno: %v\n", req, int(ret), errno)
+		if int(ret) != -1 && int(ret) < len(msg) {
+			log.Printf("%v\n", hexBuf(msg[:int(ret)]))
+		}
+	}
 	if errno != 0 {
 		return 0, xerrors.Errorf("cannot perform IOCTL request %v: %v", req, syscall.Errno(errno))
 	}
