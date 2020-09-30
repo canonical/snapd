@@ -35,7 +35,7 @@ func (*modeSetSuite) TestModeSetIsValid(c *C) {
 
 func (*modeSetSuite) TestModeSetString(c *C) {
 	var m apparmor.ModeSet
-	c.Check(m.String(), Equals, "")
+	c.Check(m.String(), Equals, "none")
 	m |= apparmor.ModeSetAudit
 	c.Check(m.String(), Equals, "audit")
 	m |= apparmor.ModeSetAllowed
