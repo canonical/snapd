@@ -59,10 +59,13 @@ func (m ModeSet) String() string {
 	if residue := m &^ modeSetMask; residue != 0 {
 		frags = append(frags, fmt.Sprintf("%#x", uint(residue)))
 	}
+	if len(frags) == 0 {
+		return "none"
+	}
 	return strings.Join(frags, "|")
 }
 
-// IsValid returns true if the given mode set contains only valid bits set.
+// IsValid returns true if the given mode set contains only known bits set.
 func (m ModeSet) IsValid() bool {
 	return m & ^modeSetMask == 0
 }
