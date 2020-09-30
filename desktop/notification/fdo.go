@@ -22,9 +22,10 @@ package notification
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -78,7 +79,8 @@ func (srv *Server) ServerCapabilities() ([]ServerCapability, error) {
 func (srv *Server) SendNotification(msg *Message) (ID, error) {
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, msg.ReplacesID, msg.Icon, msg.Summary, msg.Body,
-		flattenActions(msg.Actions), mapHints(msg.Hints), msg.ExpireTimeout)
+		flattenActions(msg.Actions), mapHints(msg.Hints),
+		int32(msg.ExpireTimeout.Nanoseconds()/1e6))
 	var id ID
 	if err := call.Store(&id); err != nil {
 		return 0, err
@@ -136,7 +138,7 @@ func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) 
 			// to clobber the actual error being returned from the function in
 			// general, so ignore RemoveMatchSignal errors and just log them
 			// instead.
-			log.Print("Cannot remove D-Bus signal matcher:", err)
+			logger.Noticef("Cannot remove D-Bus signal matcher: %v", err)
 		}
 	}()
 
