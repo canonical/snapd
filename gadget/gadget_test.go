@@ -894,6 +894,10 @@ role: system-boot
 	validSystemSeed := uuidType + `
 role: system-seed
 `
+	validSystemSave := uuidType + `
+role: system-save
+size: 123M
+`
 	emptyRole := uuidType + `
 role: system-boot
 size: 123M
@@ -930,8 +934,8 @@ size: 447`
 		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// the system-seed role
 		{mustParseStructure(c, validSystemSeed), vol, ""},
-		{mustParseStructure(c, validSystemSeed), vol, ""},
-		{mustParseStructure(c, validSystemSeed), vol, ""},
+		// system-save role
+		{mustParseStructure(c, validSystemSave), vol, ""},
 		// mbr
 		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
 		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},

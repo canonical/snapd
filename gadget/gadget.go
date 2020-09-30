@@ -50,6 +50,7 @@ const (
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
 	SystemSeed = "system-seed"
+	SystemSave = "system-save"
 
 	bootImage  = "system-boot-image"
 	bootSelect = "system-boot-select"
@@ -720,7 +721,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case SystemData, SystemSeed:
+	case SystemData, SystemSeed, SystemSave:
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
 	case schemaMBR:
