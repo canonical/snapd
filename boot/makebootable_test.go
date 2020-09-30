@@ -583,9 +583,9 @@ version: 5.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	// no grub cfg in gadget directory raises an error
+	// no grub marker in gadget directory raises an error
 	err = boot.MakeBootable(model, s.rootdir, bootWith, nil)
-	c.Assert(err, ErrorMatches, "cannot install boot config with a mismatched gadget")
+	c.Assert(err, ErrorMatches, "internal error: cannot identify run system bootloader: cannot determine bootloader")
 
 	// set up grub.cfg in gadget
 	grubCfg := []byte("#grub cfg")
@@ -884,7 +884,7 @@ version: 5.0
 	)
 }
 
-func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootScr(c *C) {
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootSel(c *C) {
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
@@ -900,13 +900,16 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootScr(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
-	// uboot on ubuntu-boot
+	// uboot on ubuntu-boot (as if it was installed when creating the partition)
 	mockBootUbootBootSel := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
 	err = os.MkdirAll(filepath.Dir(mockBootUbootBootSel), 0755)
 	c.Assert(err, IsNil)
 	env, err = ubootenv.Create(mockBootUbootBootSel, 4096)
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
+
+	unpackedGadgetDir := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644), IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
@@ -936,8 +939,8 @@ version: 5.0
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
+		UnpackedGadgetDir: unpackedGadgetDir,
 	}
-
 	err = boot.MakeBootable(model, s.rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
