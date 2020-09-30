@@ -22,9 +22,10 @@ package notification
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -136,7 +137,7 @@ func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) 
 			// to clobber the actual error being returned from the function in
 			// general, so ignore RemoveMatchSignal errors and just log them
 			// instead.
-			log.Print("Cannot remove D-Bus signal matcher:", err)
+			logger.Noticef("Cannot remove D-Bus signal matcher: %v", err)
 		}
 	}()
 
