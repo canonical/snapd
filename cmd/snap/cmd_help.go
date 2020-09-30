@@ -269,7 +269,6 @@ func printHelpHeader(cmdsIntro string) {
 	fmt.Fprintln(Stdout, snapUsage)
 	fmt.Fprintln(Stdout)
 	fmt.Fprintln(Stdout, cmdsIntro)
-	fmt.Fprintln(Stdout)
 }
 
 func printHelpAllFooter() {
@@ -301,6 +300,7 @@ func printShortHelp() {
 		}
 	}
 
+	fmt.Fprintln(Stdout)
 	for _, categ := range helpCategories {
 		// Other and Development will come last
 		if categ.Other || categ.Label == "Development" || len(categ.Commands) == 0 {
