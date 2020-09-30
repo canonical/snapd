@@ -84,6 +84,15 @@ func Open(fn string) (reader *Reader, e error) {
 		return nil, err
 	}
 
+	// XXX: this mirrors the check from Iter()
+	ok, setID := isSnapshotFilename(fn)
+	if !ok {
+		return nil, fmt.Errorf("not a snapshot filename: %q", fn)
+	}
+	// set id from the filename has the authority and overrides the one from
+	// meta file.
+	reader.SetID = setID
+
 	// OK, from here on we have a Snapshot
 
 	if !reader.IsValid() {
