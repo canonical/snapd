@@ -681,11 +681,44 @@ nested_configure_cloud_init_on_core20_vm() {
     kpartx -d "$IMAGE"
 }
 
+nested_save_serial_log() {
+    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        for i in $(seq 1 9); do
+            if [ ! -f "${NESTED_LOGS_DIR}/serial.log.${i}" ]; then
+                cp "${NESTED_LOGS_DIR}/serial.log" "${NESTED_LOGS_DIR}/serial.log.${i}"
+                break
+            fi
+        done
+        # make sure we start with clean log file
+        echo > "${NESTED_LOGS_DIR}/serial.log"
+    fi
+}
+
+nested_print_serial_log() {
+    if [ -f "${NESTED_LOGS_DIR}/serial.log.1" ]; then
+        # here we disable SC2045 because previously it is checked there is at least
+        # 1 file which matches. In this case ls command is needed because it is important
+        # to get the list in reverse order.
+        # shellcheck disable=SC2045
+        for logfile in $(ls "${NESTED_LOGS_DIR}"/serial.log.*); do
+            cat "$logfile"
+        done
+    fi
+    if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
+        cat "${NESTED_LOGS_DIR}/serial.log"
+    fi
+}
+
 nested_force_stop_vm() {
     systemctl stop nested-vm
 }
 
 nested_force_start_vm() {
+    # if the nested-vm is using a swtpm, we need to wait until the file exists
+    # because the file disappears temporarily after qemu exits
+    if systemctl show nested-vm -p ExecStart | grep -q swtpm-mvo; then
+        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    fi
     systemctl start nested-vm
 }
 
@@ -732,6 +765,9 @@ nested_start_core_vm_unit() {
     else
         PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
+
+    # save logs from previous runs
+    nested_save_serial_log
 
     # Set kvm attribute
     local ATTR_KVM
@@ -920,6 +956,7 @@ nested_shutdown() {
 }
 
 nested_start() {
+    nested_save_serial_log
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
@@ -1026,8 +1063,9 @@ nested_start_classic_vm() {
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
-    # make sure we start with clean log file
-    echo > "${NESTED_LOGS_DIR}/serial.log"
+    # save logs from previous runs
+    nested_save_serial_log
+
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \

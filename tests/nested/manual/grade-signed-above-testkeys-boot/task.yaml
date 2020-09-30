@@ -8,9 +8,6 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
-  # kvm doesn't work with tpm + secure boot on gce unfortunately
-  NESTED_ENABLE_KVM: false
-
   # use snapd from the spread run so that we have testkeys trusted in the snapd
   # run
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

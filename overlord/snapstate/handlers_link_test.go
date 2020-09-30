@@ -1297,7 +1297,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(t.Log()[1], Matches, `.*INFO unlink`)
 }
 
-func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1313,6 +1313,10 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", false)
+	tr.Commit()
 
 	chg := s.testDoUnlinkSnapRefreshAwareness(c)
 

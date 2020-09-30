@@ -39,6 +39,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -120,28 +121,14 @@ func (m *mockedWrappedError) Unwrap() error { return m.err }
 
 func (m *mockedWrappedError) Error() string { return fmt.Sprintf(m.fmt, m.err) }
 
-func (s *initramfsMountsSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	s.Stdout = bytes.NewBuffer(nil)
-
-	_, restore := logger.MockLogger()
-	s.AddCleanup(restore)
-
-	s.tmpDir = c.MkDir()
-
-	// mock /run/mnt
-	dirs.SetRootDir(s.tmpDir)
-	restore = func() { dirs.SetRootDir("") }
-	s.AddCleanup(restore)
-
+func (s *initramfsMountsSuite) setupSeed(c *C, gadgetSnapFiles [][]string) {
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
 
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{SeedDir: s.seedDir}
 	seed20.SetupAssertSigning("canonical")
-	restore = seed.MockTrusted(seed20.StoreSigning.Trusted)
+	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
 	s.AddCleanup(restore)
 
 	// XXX: we don't really use this but seedtest always expects my-brand
@@ -151,7 +138,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	// add a bunch of snaps
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
@@ -174,6 +161,26 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 				"default-channel": "20",
 			}},
 	}, nil)
+
+}
+
+func (s *initramfsMountsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.Stdout = bytes.NewBuffer(nil)
+
+	_, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+
+	s.tmpDir = c.MkDir()
+
+	// mock /run/mnt
+	dirs.SetRootDir(s.tmpDir)
+	restore = func() { dirs.SetRootDir("") }
+	s.AddCleanup(restore)
+
+	// setup the seed
+	s.setupSeed(c, nil)
 
 	// make test snap PlaceInfo's for various boot functionality
 	var err error
@@ -348,8 +355,6 @@ func (s *initramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []systemdMo
 	})
 }
 
-// TODO:UC20: write version that actually calls a mocked systemd-mount and
-//            ensures the right symlinks are there, etc.
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
@@ -375,6 +380,68 @@ recovery_system=20191118
 `)
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeGadgetDefaultsHappy(c *C) {
+	// setup a seed with default gadget yaml
+	const gadgetYamlDefaults = `
+defaults:
+  system:
+    service:
+      rsyslog.disable: true
+      ssh.disable: true
+      console-conf.disable: true
+    journal.persistent: true
+`
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeed(c, [][]string{
+		{"meta/gadget.yaml", gadgetYamlDefaults},
+	})
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	// we will call out to systemctl in the initramfs, but only using --root
+	// which doesn't talk to systemd, just manipulates files around
+	var sysctlArgs [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlRestorer()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+`)
+
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	// check that everything from the gadget defaults was setup
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	exists, _, _ := osutil.DirExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal"))
+	c.Assert(exists, Equals, true)
+
+	// systemctl was called the way we expect
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
@@ -1665,6 +1732,83 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	defer restore()
 
 	s.testRecoverModeHappy(c)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeGadgetDefaultsHappy(c *C) {
+	// setup a seed with default gadget yaml
+	const gadgetYamlDefaults = `
+defaults:
+  system:
+    service:
+      rsyslog.disable: true
+      ssh.disable: true
+      console-conf.disable: true
+    journal.persistent: true
+`
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeed(c, [][]string{
+		{"meta/gadget.yaml", gadgetYamlDefaults},
+	})
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsHostUbuntuDataDir,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// we will call out to systemctl in the initramfs, but only using --root
+	// which doesn't talk to systemd, just manipulates files around
+	var sysctlArgs [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlRestorer()
+
+	s.testRecoverModeHappy(c)
+
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")), Equals, true)
+
+	// check that everything from the gadget defaults was setup
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	exists, _, _ := osutil.DirExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal"))
+	c.Assert(exists, Equals, true)
+
+	// systemctl was called the way we expect
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {

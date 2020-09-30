@@ -53,8 +53,8 @@ type simpleObserver struct {
 	encryptionKey secboot.EncryptionKey
 }
 
-func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (bool, error) {
-	return true, nil
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	return gadget.ChangeApply, nil
 }
 
 func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
