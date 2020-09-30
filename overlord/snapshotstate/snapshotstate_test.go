@@ -448,6 +448,17 @@ func (snapshotSuite) TestSaveChecksSnapstateConflictError(c *check.C) {
 	c.Check(err, check.ErrorMatches, "bzzt")
 }
 
+func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("last-snapshot-set-id", "3/4")
+
+	_, _, _, err := snapshotstate.Save(st, nil, nil)
+	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
+}
+
 func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
