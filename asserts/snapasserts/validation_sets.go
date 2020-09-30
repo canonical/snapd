@@ -62,7 +62,7 @@ type snapContraints struct {
 	name     string
 	presence asserts.Presence
 	// revisions maps revisions to pairing of ValidationSetSnap
-	// and the origination validation-set key
+	// and the originating validation-set key
 	// * unspecifiedRevision is used for constraints without a
 	//   revision
 	// * invalidPresRevision is used for constraints that mark
@@ -75,54 +75,91 @@ type revConstraint struct {
 	asserts.ValidationSetSnap
 }
 
-func (c *snapContraints) conflict() (conflicting []string, err error) {
+func (c *snapContraints) conflict() *snapConflictsError {
 	if c.presence != presConflict {
-		return nil, nil
+		return nil
 	}
 
 	const dontCare asserts.Presence = ""
-	whichSets := func(rcs []*revConstraint, presence asserts.Presence) string {
+	whichSets := func(rcs []*revConstraint, presence asserts.Presence) []string {
 		which := make([]string, 0, len(rcs))
 		for _, rc := range rcs {
 			if presence != dontCare && rc.Presence != presence {
 				continue
 			}
-			conflicting = append(conflicting, rc.validationSetKey)
 			which = append(which, rc.validationSetKey)
 		}
 		if len(which) == 0 {
-			return ""
+			return nil
 		}
 		sort.Strings(which)
+		return which
+	}
+
+	byRev := make(map[snap.Revision][]string, len(c.revisions))
+	for r := range c.revisions {
+		pres := dontCare
+		switch r {
+		case invalidPresRevision:
+			pres = asserts.PresenceInvalid
+		case unspecifiedRevision:
+			pres = asserts.PresenceRequired
+		}
+		which := whichSets(c.revisions[r], pres)
+		if len(which) != 0 {
+			byRev[r] = which
+		}
+	}
+
+	return &snapConflictsError{
+		name:      c.name,
+		revisions: byRev,
+	}
+}
+
+type snapConflictsError struct {
+	name string
+	// revisions maps revisions to validation-set keys of the sets
+	// that are in conflict over the revision.
+	// * unspecifiedRevision is used for validation-sets conflicting
+	//   on the snap by requiring it but without a revision
+	// * invalidPresRevision is used for validation-sets that mark
+	//   presence as invalid
+	// see snapContraints.revisions as well
+	revisions map[snap.Revision][]string
+}
+
+func (e *snapConflictsError) Error() string {
+	whichSets := func(which []string) string {
 		return fmt.Sprintf("(%s)", strings.Join(which, ","))
 	}
 
-	msg := fmt.Sprintf("cannot constraint snap %q", c.name)
+	msg := fmt.Sprintf("cannot constraint snap %q", e.name)
 	invalid := false
-	if invalidOnes, ok := c.revisions[invalidPresRevision]; ok {
-		msg += fmt.Sprintf(" as both invalid %s and required", whichSets(invalidOnes, asserts.PresenceInvalid))
+	if invalidOnes, ok := e.revisions[invalidPresRevision]; ok {
+		msg += fmt.Sprintf(" as both invalid %s and required", whichSets(invalidOnes))
 		invalid = true
 	}
 
 	var revnos []int
-	for r := range c.revisions {
+	for r := range e.revisions {
 		if r.N >= 1 {
 			revnos = append(revnos, r.N)
 		}
 	}
 	if len(revnos) == 1 {
-		msg += fmt.Sprintf(" at revision %d %s", revnos[0], whichSets(c.revisions[snap.R(revnos[0])], dontCare))
+		msg += fmt.Sprintf(" at revision %d %s", revnos[0], whichSets(e.revisions[snap.R(revnos[0])]))
 	} else if len(revnos) > 1 {
 		sort.Ints(revnos)
 		l := make([]string, 0, len(revnos))
 		for _, rev := range revnos {
-			l = append(l, fmt.Sprintf("%d %s", rev, whichSets(c.revisions[snap.R(rev)], dontCare)))
+			l = append(l, fmt.Sprintf("%d %s", rev, whichSets(e.revisions[snap.R(rev)])))
 		}
 		msg += fmt.Sprintf(" at different revisions %s", strings.Join(l, ", "))
 	}
 
-	if unspecifiedOnes, ok := c.revisions[unspecifiedRevision]; ok {
-		which := whichSets(unspecifiedOnes, asserts.PresenceRequired)
+	if unspecifiedOnes, ok := e.revisions[unspecifiedRevision]; ok {
+		which := whichSets(unspecifiedOnes)
 		if which != "" {
 			if len(revnos) != 0 {
 				msg += " or"
@@ -134,7 +171,7 @@ func (c *snapContraints) conflict() (conflicting []string, err error) {
 			}
 		}
 	}
-	return conflicting, fmt.Errorf(msg)
+	return msg
 }
 
 // NewValidationSets returns a new ValidationSets.
@@ -225,11 +262,13 @@ func (v *ValidationSets) Conflict() error {
 	snaps := make(map[string]error)
 
 	for snapID, snConstrs := range v.snaps {
-		conflicting, err := snConstrs.conflict()
-		if err != nil {
-			snaps[snapID] = err
-			for _, valsetKey := range conflicting {
-				sets[valsetKey] = v.sets[valsetKey]
+		snConflictsErr := snConstrs.conflict()
+		if snConflictsErr != nil {
+			snaps[snapID] = snConflictsErr
+			for _, valsetKeys := range snConflictsErr.revisions {
+				for _, valsetKey := range valsetKeys {
+					sets[valsetKey] = v.sets[valsetKey]
+				}
 			}
 		}
 	}
