@@ -329,9 +329,14 @@ type msgNotificationOp struct {
 // and decode.
 type MsgNotificationOp struct {
 	MsgNotification
-	// XXX: Those are used but the meaning is unknown.
+	// Allow describes the permissions the process, attempting to perform some
+	// an operation, already possessed. Use DecodeFilePermissions to decode it,
+	// if the mediation class is MediationClassFile.
 	Allow uint32
-	Deny  uint32
+	// Deny describes the permissions the process, attempting to perform some
+	// operation, currently lacks. Use DecodeFilePermissions to decode it, if
+	// the mediation class is MediationClassFile.
+	Deny uint32
 	// Pid of the process triggering the notification.
 	Pid uint32
 	// Label is the apparmor label of the process triggering the notification.
@@ -341,6 +346,15 @@ type MsgNotificationOp struct {
 	Class MediationClass
 	// XXX: This is unused.
 	Op uint16
+}
+
+// DecodeFilePermissions returns a pair of permissions describing the state of a
+// process attempting to perform an operation.
+func (msg *MsgNotificationOp) DecodeFilePermissions() (allow, deny FilePermission, err error) {
+	if msg.Class != MediationClassFile {
+		return 0, 0, fmt.Errorf("mediation class %s does not describe file permissions", msg.Class)
+	}
+	return FilePermission(msg.Allow), FilePermission(msg.Deny), nil
 }
 
 // UnmarshalBinary unmarshals the message from binary form.

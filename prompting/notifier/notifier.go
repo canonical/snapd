@@ -46,6 +46,10 @@ type Request struct {
 
 func newRequest(n *Notifier, msg *apparmor.MsgNotificationFile) *Request {
 	var perm interface{}
+	if msg.Class == apparmor.MediationClassFile {
+		_, deny, _ := msg.DecodeFilePermissions()
+		perm = deny
+	}
 	return &Request{
 		n: n,
 
