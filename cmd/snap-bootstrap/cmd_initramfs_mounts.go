@@ -37,7 +37,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -137,12 +141,6 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
-	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
@@ -310,12 +308,6 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
-		return err
-	}
 
 	// finally we need to modify the bootenv to mark the system as successful,
 	// this ensures that when you reboot from recover mode without doing
@@ -362,7 +354,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	}
 
 	// load model and verified essential snaps metadata
-	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd}
+	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
 	model, essSnaps, err := mst.ReadEssential("", typs)
 	if err != nil {
 		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
@@ -381,6 +373,11 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
 	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			// don't need to mount the gadget anywhere, but we use the snap
+			// later hence it is loaded
+			continue
+		}
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
@@ -402,10 +399,38 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	//            writing it in Go instead of shellscript is desirable
 
 	// 2.3. mount "ubuntu-data" on a tmpfs
-	opts := &systemdMountOptions{
+	mntOpts := &systemdMountOptions{
 		Tmpfs: true,
 	}
-	return doSystemdMount("tmpfs", boot.InitramfsDataDir, opts)
+	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
+	if err != nil {
+		return err
+	}
+
+	// finally get the gadget snap from the essential snaps and use it to
+	// configure the ephemeral system
+	// should only be one seed snap
+	gadgetPath := ""
+	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			gadgetPath = essentialSnap.Path
+		}
+	}
+	gadgetSnap := squashfs.New(gadgetPath)
+
+	// we need to configure the ephemeral system with defaults and such using
+	// from the seed gadget
+	configOpts := &sysconfig.Options{
+		// never allow cloud-init to run inside the ephemeral system, in the
+		// install case we don't want it to ever run, and in the recover case
+		// cloud-init will already have run in run mode, so things like network
+		// config and users should already be setup and we will copy those
+		// further down in the setup for recover mode
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InitramfsWritableDir,
+		GadgetSnap:     gadgetSnap,
+	}
+	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {

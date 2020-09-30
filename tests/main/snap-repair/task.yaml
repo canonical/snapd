@@ -1,8 +1,7 @@
 summary: Ensure that snap-repair is available
 
-# TODO:UC20: snap-repair fishes in /var/lib/snapd/seed/assertions for the model
-#            assertion - this no longer works on UC20
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*, -ubuntu-core-20-*]
+# snap-repair is not shipped on non-ubuntu
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
 
 execute: |
     if ! grep -q "ID=ubuntu-core" /etc/os-release; then

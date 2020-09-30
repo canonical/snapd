@@ -84,6 +84,15 @@ func Open(fn string) (reader *Reader, e error) {
 		return nil, err
 	}
 
+	// XXX: this mirrors the check from Iter()
+	ok, setID := isSnapshotFilename(fn)
+	if !ok {
+		return nil, fmt.Errorf("not a snapshot filename: %q", fn)
+	}
+	// set id from the filename has the authority and overrides the one from
+	// meta file.
+	reader.SetID = setID
+
 	// OK, from here on we have a Snapshot
 
 	if !reader.IsValid() {
@@ -117,14 +126,6 @@ func Open(fn string) (reader *Reader, e error) {
 	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
 		reader.Broken = fmt.Sprintf("declared hash (%.7s…) does not match actual (%.7s…)", expectedMetaHash, actualMetaHash)
 		return reader, errors.New(reader.Broken)
-	}
-
-	// we may have an imported snapshot where the meta.json may be from another system
-	if setID, err := setIDFromFilename(fn); err == nil {
-		if reader.SetID != setID {
-			// imported snapshots have a different set ID than in meta.json, so use the one from the filename
-			reader.SetID = setID
-		}
 	}
 
 	return reader, nil

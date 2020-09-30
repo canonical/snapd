@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -180,11 +180,11 @@ var helpCategories = []helpCategory{
 	{
 		Label:       i18n.G("Basics"),
 		Description: i18n.G("basic snap management"),
-		Commands:    []string{"find", "info", "install", "list", "remove"},
+		Commands:    []string{"find", "info", "install", "remove", "list"},
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"refresh", "revert", "switch", "disable", "enable"},
+		Commands:    []string{"refresh", "revert", "switch","disable", "enable"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
@@ -194,33 +194,37 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("manage services"),
 		Commands:    []string{"services", "start", "stop", "restart", "logs"},
 	}, {
-		Label:       i18n.G("Commands"),
-		Description: i18n.G("manage aliases"),
-		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
+		Label:       i18n.G("Permissions"),
+		Description: i18n.G("manage permissions"),
+		Commands:    []string{"connections", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
 		Commands:    []string{"get", "set", "unset", "wait"},
 	}, {
+		Label:       i18n.G("App Aliases"),
+		Description: i18n.G("manage aliases"),
+		Commands:    []string{"alias", "aliases", "unalias", "prefer"},
+	}, {
 		Label:       i18n.G("Account"),
 		Description: i18n.G("authentication to snapd and the snap store"),
 		Commands:    []string{"login", "logout", "whoami"},
-	}, {
-		Label:       i18n.G("Permissions"),
-		Description: i18n.G("manage permissions"),
-		Commands:    []string{"connections", "interface", "connect", "disconnect"},
 	}, {
 		Label:       i18n.G("Snapshots"),
 		Description: i18n.G("archives of snap data"),
 		Commands:    []string{"saved", "save", "check-snapshot", "restore", "forget", "export-snapshot", "import-snapshot"},
 	}, {
+		Label:       i18n.G("Device"),
+		Description: i18n.G("manage device"),
+		Commands:    []string{"model", "reboot", "recovery"},
+	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "create-cohort", "recovery", "reboot"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "create-cohort"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"run", "pack", "try", "download", "prepare-image"},
+		Commands:    []string{"download", "pack", "run", "try", "prepare-image"},
 	},
 }
 

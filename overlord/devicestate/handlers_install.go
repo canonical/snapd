@@ -39,9 +39,10 @@ import (
 )
 
 var (
-	bootMakeBootable            = boot.MakeBootable
-	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
-	installRun                  = install.Run
+	bootMakeBootable = boot.MakeBootable
+	installRun       = install.Run
+
+	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
@@ -50,7 +51,7 @@ func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureRunSystem when it configures
+		// this is implicitly handled by ConfigureTargetSystem when it configures
 		// cloud-init if none of the other options are set, so just break here
 		opts.AllowCloudInit = true
 
@@ -170,7 +171,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
-	if err := sysconfigConfigureRunSystem(opts); err != nil {
+	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}
 

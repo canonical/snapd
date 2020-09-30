@@ -103,7 +103,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			}
 
 			// filter out non-snapshot directory entries
-			ok, setID := isSnapshotFilename(name)
+			ok, _ := isSnapshotFilename(name)
 			if !ok {
 				continue
 			}
@@ -114,13 +114,6 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			// check and either ignore or return an error when
 			// finding a broken snapshot.
 			if reader != nil {
-				if reader.SetID != setID && openError == nil {
-					// ignore snapshots where set id of the filename disagree
-					// with internal set id. This may be the case in the future
-					// with new enhanced snapshot format.
-					logger.Noticef("Snapshot %q ignored, internal set-id %d disagrees with filename", name, reader.SetID)
-					continue
-				}
 				err = f(reader)
 			} else {
 				// TODO: use warnings instead
@@ -178,15 +171,6 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
-func setIDFromFilename(f string) (uint64, error) {
-	filename := path.Base(f)
-	parts := strings.Split(filename, "_")
-	if len(parts) != 4 {
-		return 0, fmt.Errorf("filename is in an unexpected format")
-	}
-	return strconv.ParseUint(parts[0], 10, 64)
-}
-
 // snapshotFromFilename is a var to easier mocking
 var snapshotFromFilename = snapshotFromFilenameImpl
 
@@ -199,7 +183,11 @@ func snapshotFromFilenameImpl(f string) (*client.Snapshot, error) {
 	return &r.Snapshot, nil
 }
 
-func isSnapshotFilename(fname string) (ok bool, setID uint64) {
+// isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
+// if it starts with a numeric set id and ends with .zip extension;
+// filePath can be just a file name, or a full path.
+func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
+	fname := filepath.Base(filePath)
 	// XXX: we could use a regexp here to match very precisely all the elements
 	// of the filename following Filename() above, but perhaps it's better no to
 	// go overboard with it in case the format evolves in the future. Only check
