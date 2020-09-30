@@ -32,6 +32,7 @@ import (
 
 const (
 	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
 )
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -104,34 +105,48 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 
 	// We're currently generating a single encryption key, this may change later
 	// if we create multiple encrypted partitions.
-	var key secboot.EncryptionKey
-	var rkey secboot.RecoveryKey
-
-	if options.Encrypt {
-		key, err = secboot.NewEncryptionKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
-		rkey, err = secboot.NewRecoveryKey()
-		if err != nil {
-			return fmt.Errorf("cannot create recovery key: %v", err)
-		}
+	type keySet struct {
+		key  secboot.EncryptionKey
+		rkey secboot.RecoveryKey
 	}
+	makeKeySet := func() (*keySet, error) {
+		key, err := secboot.NewEncryptionKey()
+		if err != nil {
+			return nil, fmt.Errorf("cannot create encryption key: %v", err)
+		}
+
+		rkey, err := secboot.NewRecoveryKey()
+		if err != nil {
+			return nil, fmt.Errorf("cannot create recovery key: %v", err)
+		}
+		return &keySet{
+			key:  key,
+			rkey: rkey,
+		}, nil
+	}
+	roleNeedsEncryption := func(role string) bool {
+		return role == gadget.SystemData || role == gadget.SystemSave
+	}
+	keysForRoles := map[string]*keySet{}
 
 	for _, part := range created {
-		if options.Encrypt && part.Role == gadget.SystemData {
-			dataPart, err := newEncryptedDevice(&part, key, ubuntuDataLabel)
+		if options.Encrypt && roleNeedsEncryption(part.Role) {
+			keys, err := makeKeySet()
+			if err != nil {
+				return err
+			}
+			dataPart, err := newEncryptedDevice(&part, keys.key, part.Label)
 			if err != nil {
 				return err
 			}
 
-			if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
+			if err := dataPart.AddRecoveryKey(keys.key, keys.rkey); err != nil {
 				return err
 			}
 
 			// update the encrypted device node
 			part.Node = dataPart.Node
+			keysForRoles[part.Role] = keys
 		}
 
 		if err := makeFilesystem(&part); err != nil {
@@ -160,14 +175,32 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		}
 	}
 
+	dataKeySet := keysForRoles[gadget.SystemData]
+	if dataKeySet == nil {
+		return fmt.Errorf("internal error: system data encryption key set is unset")
+	}
+
 	// Write the recovery key
 	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
-	if err := rkey.Save(recoveryKeyFile); err != nil {
+	if err := dataKeySet.rkey.Save(recoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
 	if observer != nil {
-		observer.ChosenEncryptionKey(key)
+		observer.ChosenEncryptionKey(dataKeySet.key)
+	}
+
+	saveKeySet := keysForRoles[gadget.SystemSave]
+	if saveKeySet != nil {
+		saveKey := filepath.Join(boot.InstallHostFDEDataDir, "save.key")
+		reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall-save.key")
+
+		if err := saveKeySet.key.Save(saveKey); err != nil {
+			return fmt.Errorf("cannot store save key: %v", err)
+		}
+		if err := saveKeySet.rkey.Save(reinstallSaveKey); err != nil {
+			return fmt.Errorf("cannot store save reinstall key: %v", err)
+		}
 	}
 
 	return nil
