@@ -42,6 +42,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ExtractFnameSetID can be passed to Open() to have set ID inferred from
+// snapshot filename.
 const ExtractFnameSetID = 0
 
 // A Reader is a snapshot that's been opened for reading.
@@ -51,6 +53,10 @@ type Reader struct {
 }
 
 // Open a Snapshot given its full filename.
+//
+// The returned reader will have its setID set to the value of the argument,
+// or inferred from the snapshot filename if ExtractFnameSetID constant is
+// passed.
 //
 // If the returned error is nil, the caller must close the reader (or
 // its file) when done with it.

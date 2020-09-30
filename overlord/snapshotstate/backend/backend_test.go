@@ -589,7 +589,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	c.Assert(shs, check.HasLen, 1)
 	c.Assert(shs[0].Snapshots, check.HasLen, 1)
 
-	shr, err := backend.Open(backend.Filename(shw), 0)
+	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -673,7 +673,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
-	shr, err := backend.Open(backend.Filename(shw), 12)
+	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
