@@ -261,3 +261,29 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 		0x88, 0x0, 0x0, 0x0, // Deny
 	})
 }
+
+func (*messageSuite) TestDecodeFilePermissions(c *C) {
+	msg := apparmor.MsgNotificationFile{
+		MsgNotificationOp: apparmor.MsgNotificationOp{
+			Allow: 5,
+			Deny:  3,
+			Class: apparmor.MediationClassFile,
+		},
+	}
+	allow, deny, err := msg.DecodeFilePermissions()
+	c.Assert(err, IsNil)
+	c.Check(allow, Equals, apparmor.MayExecutePermission|apparmor.MayReadPermission)
+	c.Check(deny, Equals, apparmor.MayExecutePermission|apparmor.MayWritePermission)
+}
+
+func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
+	msg := apparmor.MsgNotificationFile{
+		MsgNotificationOp: apparmor.MsgNotificationOp{
+			Allow: 5,
+			Deny:  3,
+			Class: apparmor.MediationClassDBus,
+		},
+	}
+	_, _, err := msg.DecodeFilePermissions()
+	c.Assert(err, ErrorMatches, "mediation class D-Bus does not describe file permissions")
+}
