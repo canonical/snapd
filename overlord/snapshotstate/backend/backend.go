@@ -136,12 +136,12 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			}
 
 			// filter out non-snapshot directory entries
-			ok, _ := isSnapshotFilename(name)
+			ok, setID := isSnapshotFilename(name)
 			if !ok {
 				continue
 			}
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			reader, openError := backendOpen(filename)
+			reader, openError := backendOpen(filename, setID)
 			// reader can be non-nil even when openError is not nil (in
 			// which case reader.Broken will have a reason). f can
 			// check and either ignore or return an error when
