@@ -198,7 +198,7 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
 	contentType := rsp.Header.Get("Content-Type")
-	if contentType != "application/x.snapd.snapshot-v1" {
+	if contentType != "application/x.snapd.snapshot" {
 		return nil, 0, fmt.Errorf("cannot import snapshot of content type %q", contentType)
 	}
 
@@ -214,7 +214,7 @@ type SnapshotImportSet struct {
 // SnapshotImport imports an exported snapshot set.
 func (client *Client) SnapshotImport(exportStream io.Reader) (SnapshotImportSet, error) {
 	headers := map[string]string{
-		"Content-Type": "application/x.snapd.snapshot-v1",
+		"Content-Type": "application/x.snapd.snapshot",
 	}
 
 	var importSet SnapshotImportSet

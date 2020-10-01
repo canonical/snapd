@@ -89,7 +89,7 @@ func (action snapshotAction) String() string {
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	if contentType == "application/x.snapd.snapshot-v1" {
+	if contentType == "application/x.snapd.snapshot" {
 		return doSnapshotImport(c, r, user)
 	}
 
