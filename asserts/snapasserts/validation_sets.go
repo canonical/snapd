@@ -134,7 +134,7 @@ func (e *snapConflictsError) Error() string {
 		return fmt.Sprintf("(%s)", strings.Join(which, ","))
 	}
 
-	msg := fmt.Sprintf("cannot constraint snap %q", e.name)
+	msg := fmt.Sprintf("cannot constrain snap %q", e.name)
 	invalid := false
 	if invalidOnes, ok := e.revisions[invalidPresRevision]; ok {
 		msg += fmt.Sprintf(" as both invalid %s and required", whichSets(invalidOnes))
