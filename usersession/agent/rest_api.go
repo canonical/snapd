@@ -288,7 +288,6 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		parser := goconfigparser.New()
 		if err := parser.ReadFile(fmt.Sprintf("/var/lib/snapd/desktop/applications/%s.desktop", refreshInfo.BusyAppDesktopEntry)); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
-			fmt.Printf("found desktop file icon %q\n", icon)
 		}
 	}
 	msg := &notification.Message{
