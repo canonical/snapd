@@ -147,7 +147,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	}
 
 	table := []tableT{
-		{"Hello World!", 200},
+		{"dummy-export", 200},
 		{"", 400},
 	}
 
