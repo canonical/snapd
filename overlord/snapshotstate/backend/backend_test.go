@@ -1000,6 +1000,53 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		f.Close()
 	}
 }
+
+func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
+	tempdir := c.MkDir()
+
+	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
+		var sid uint64
+		var revision int
+		var snapName, version string
+		filename := path.Base(fn)
+		parseF := strings.Replace(filename, "_", " ", 3)
+		parseF = strings.Replace(parseF, ".zip", "", 1)
+		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
+			return nil, fmt.Errorf("unexpected filename format: %v", err)
+		}
+
+		f, err := os.Open(os.DevNull)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		return &backend.Reader{
+			File: f,
+			Snapshot: client.Snapshot{
+				// real backend.Open() uses setID override if passed, this is tested
+				// in Open() tests.
+				SetID:    setID,
+				Time:     time.Time{},
+				Snap:     snapName,
+				Revision: snap.Revision{N: revision},
+				Version:  version,
+				// set dummy sha for Check() to be attempted.
+				SHA3_384: map[string]string{"foo": "bar"},
+			},
+		}, nil
+	})()
+
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	// create snapshot export file
+	tarFile1 := path.Join(tempdir, "exported1.snapshot")
+	err = backend.MockCreateExportFile(tarFile1, true, false)
+	c.Assert(err, check.IsNil)
+
+	f, err := os.Open(tarFile1)
+	c.Assert(err, check.IsNil)
+	_, _, err = backend.Import(context.Background(), 14, f)
+	c.Assert(err, check.ErrorMatches, `validation failed for "5_foo_1.0_199.zip": zip: not a valid zip file`)
+}
+
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
