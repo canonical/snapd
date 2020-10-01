@@ -124,9 +124,7 @@ execute: |
     echo "classic snaps "
 
     echo "When multiple snaps have no update we have a good message"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local basic
+    "$TESTSTOOLS"/snaps-state install-local basic
     snap refresh "$SNAP_NAME" basic 2>&1 | MATCH "All snaps up to date."
 
     echo "When moving to stable"
