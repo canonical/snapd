@@ -173,3 +173,24 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 
 	return &snapshotExportResponse{SnapshotExport: export}
 }
+
+var snapshotImportCmd = &Command{
+	Path: "/v2/snapshot/import",
+	POST: postSnapshotImport,
+}
+
+func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+	// XXX: check that we have enough space to import the compressed snapshots
+
+	// XXX: is this the right layer?
+	defer r.Body.Close()
+
+	st := c.d.overlord.State()
+	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	return SyncResponse(result, nil)
+}

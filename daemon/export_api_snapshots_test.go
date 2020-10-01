@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -80,6 +81,14 @@ func MockSnapshotForget(newForget func(*state.State, uint64, []string) ([]string
 	}
 }
 
+func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error)) (restore func()) {
+	oldImport := snapshotImport
+	snapshotImport = newImport
+	return func() {
+		snapshotImport = oldImport
+	}
+}
+
 func MustUnmarshalSnapInstruction(c *check.C, jinst string) *snapInstruction {
 	var inst snapInstruction
 	if err := json.Unmarshal([]byte(jinst), &inst); err != nil {
@@ -112,10 +121,15 @@ func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface
 	return getSnapshotExport(c, r, user)
 }
 
+func ImportSnapshot(c *Command, r *http.Request, user *auth.UserState) *resp {
+	return postSnapshotImport(c, r, user).(*resp)
+}
+
 var (
 	SnapshotMany      = snapshotMany
 	SnapshotCmd       = snapshotCmd
 	SnapshotExportCmd = snapshotExportCmd
+	SnapshotImportCmd = snapshotImportCmd
 )
 
 type SnapshotExportResponse = snapshotExportResponse

@@ -20,9 +20,11 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -379,4 +381,41 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `cannot export 1: boom`})
 	c.Check(snapshotExportCalled, check.Equals, 1)
+}
+
+func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
+	// mock snapshot export file
+	data := []byte("mocked snapshot import data file!")
+
+	setID := uint64(3)
+	size := int64(len(data))
+	snapNames := []string{"baz", "bar", "foo"}
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+		return setID, snapNames, size, nil
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ImportSnapshot(daemon.SnapshotImportCmd, req, nil)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{"set-id": setID, "snaps": snapNames})
+}
+
+func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+		return uint64(0), nil, 0, errors.New("no")
+	})()
+
+	// mock snapshot export file
+	data := []byte("mocked snapshot import data file")
+
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ImportSnapshot(daemon.SnapshotImportCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
 }
