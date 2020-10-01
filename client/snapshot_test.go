@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -142,19 +143,22 @@ func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 
 func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	type tableT struct {
-		content string
-		status  int
+		content     string
+		contentType string
+		status      int
 	}
 
 	table := []tableT{
-		{"dummy-export", 200},
-		{"", 400},
+		{"dummy-export", "application/x.snapd.snapshot-v1", 200},
+		{"dummy-export", "application/x-tar", 400},
+		{"", "", 400},
 	}
 
 	for i, t := range table {
 		comm := check.Commentf("%d: %q", i, t.content)
 
 		cs.contentLength = int64(len(t.content))
+		cs.header = http.Header{"Content-Type": []string{t.contentType}}
 		cs.rsp = t.content
 		cs.status = t.status
 
@@ -162,11 +166,11 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		if t.status == 200 {
 			c.Assert(err, check.IsNil, comm)
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 0)
+			c.Assert(size, check.Equals, int64(len(t.content)), comm)
 		} else {
 			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 1)
 		}
-		c.Assert(size, check.Equals, int64(len(t.content)), comm)
 
 		if t.status == 200 {
 			buf, err := ioutil.ReadAll(r)
