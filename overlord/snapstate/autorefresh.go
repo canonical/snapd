@@ -519,6 +519,15 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			populateRefreshHints(refreshInfo, info, err)
 		}
 
+		asyncPendingRefreshNotification := func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+			// Send the notification asynchronously to avoid holding the state lock.
+			go func() {
+				if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
+					logger.Noticef("Cannot send notification about pending refresh: %v", err)
+				}
+			}()
+		}
+
 		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
 		client := userclient.New()
@@ -529,9 +538,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			Set(st, info.InstanceName(), snapst)
 			if _, ok := err.(*BusySnapError); ok {
 				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
-				if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
-					logger.Noticef("Cannot send notification about pending refresh: %v", err)
-				}
+				asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 				// XXX: remove the warning or send it only if no notification was delivered?
 				st.Warnf(i18n.NG(
 					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
@@ -545,18 +552,14 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
 			refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
-			if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
-				logger.Noticef("Cannot send notification about pending refresh: %v", err)
-			}
+			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 			// TODO: as time left shrinks, send additional notifications with
 			// increasing frequency, allowing the user to understand the
 			// urgency.
 			return err
 		}
 		if _, ok := err.(*BusySnapError); ok {
-			if err := client.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
-				logger.Noticef("Cannot send notification about forced refresh: %v", err)
-			}
+			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 			// XXX: remove the warning or send it only if no notification was delivered?
 			st.Warnf(i18n.NG(
 				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
