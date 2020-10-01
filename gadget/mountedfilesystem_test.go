@@ -3067,6 +3067,20 @@ managed grub.cfg from disk`
 		nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
+	expectedFileStamps := map[string]contentType{
+		"EFI.backup":                  typeFile,
+		"EFI/boot/grubx64.efi.backup": typeFile,
+		"EFI/boot.backup":             typeFile,
+		"EFI/ubuntu.backup":           typeFile,
+
+		// listed explicitly in the structure
+		"foo.preserve": typeFile,
+	}
+	if preserved {
+		expectedFileStamps["EFI/ubuntu/grub.cfg.preserve"] = typeFile
+	} else {
+		expectedFileStamps["EFI/ubuntu/grub.cfg.backup"] = typeFile
+	}
 
 	for _, step := range []struct {
 		name string
@@ -3103,6 +3117,7 @@ managed grub.cfg from disk`)
 		default:
 			c.Fatalf("unexpected step: %q", step.name)
 		}
+		verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedFileStamps)
 	}
 }
 

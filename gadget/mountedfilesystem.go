@@ -615,7 +615,8 @@ func (f *mountedFilesystemUpdater) Backup() error {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
