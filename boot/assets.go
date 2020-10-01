@@ -337,8 +337,9 @@ func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.Encryptio
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
-// tracking changes to the measured boot assets and preserving  provided the device model supports secure boot. Otherwise, nil
-// and ErrObserverNotApplicable is returned.
+// tracking changes to the measured boot assets and preserving provided the
+// device model supports secure boot. Otherwise, nil and
+// ErrObserverNotApplicable is returned.
 func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUpdateObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
