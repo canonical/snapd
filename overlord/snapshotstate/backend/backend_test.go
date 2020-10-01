@@ -890,24 +890,38 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
-	defer backend.MockSnapshotFromFilename(func(f string) (*client.Snapshot, error) {
+	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
 		var sid uint64
 		var revision int
 		var snapName, version string
-		filename := path.Base(f)
+		filename := path.Base(fn)
 		parseF := strings.Replace(filename, "_", " ", 3)
 		parseF = strings.Replace(parseF, ".zip", "", 1)
 		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
 			return nil, fmt.Errorf("unexpected filename format: %v", err)
 		}
-		snapshot := &client.Snapshot{
-			SetID:    sid,
-			Time:     time.Time{},
-			Snap:     snapName,
-			Revision: snap.Revision{N: revision},
-			Version:  version,
-		}
-		return snapshot, nil
+
+		// set id from the filename - see MockCreateExportFile.
+		c.Assert(sid, check.Equals, uint64(5))
+
+		// set id of the imported snapshot. This verifies that moveCachedSnapshots
+		// uses correct set id with backend.Open()
+		c.Assert(setID, check.Equals, uint64(14))
+
+		f, err := os.Open(os.DevNull)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		return &backend.Reader{
+			File: f,
+			Snapshot: client.Snapshot{
+				// real backend.Open() uses setID override if passed, this is tested
+				// in Open() tests.
+				SetID:    setID,
+				Time:     time.Time{},
+				Snap:     snapName,
+				Revision: snap.Revision{N: revision},
+				Version:  version,
+			},
+		}, nil
 	})()
 
 	// create snapshot export file

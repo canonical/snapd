@@ -204,18 +204,6 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
-// snapshotFromFilename is a var to easier mocking
-var snapshotFromFilename = snapshotFromFilenameImpl
-
-func snapshotFromFilenameImpl(f string) (*client.Snapshot, error) {
-	r, err := Open(f, ExtractFnameSetID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open snapshot: %v", err)
-	}
-	defer r.Close()
-	return &r.Snapshot, nil
-}
-
 // isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
 // if it starts with a numeric set id and ends with .zip extension;
 // filePath can be just a file name, or a full path.
@@ -551,16 +539,18 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 			continue
 		}
 		old := path.Join(p, name)
-		snapshot, err := snapshotFromFilename(old)
+
+		// read old snapshot, override its set id internally
+		r, err := backendOpen(old, id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot open snapshot: %v", err)
 		}
+		r.Close()
+		snapshot := &r.Snapshot
+
 		snaps = append(snaps, snapshot.Snap)
 
-		// set the new setID and get the new filename
-		snapshot.SetID = id
 		new := Filename(snapshot)
-
 		if err := os.Rename(old, new); err != nil {
 			return nil, err
 		}
