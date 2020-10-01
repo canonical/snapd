@@ -471,8 +471,6 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 		return 0, nil, fmt.Errorf("snapshot import file incomplete: no export.json file")
 	}
 
-	// XXX: check the snapshot hashes (these are not in export.json at present)
-
 	// walk the cache directory to store the files
 	dir, err := osOpen(p)
 	if err != nil {
@@ -556,7 +554,11 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 		if err != nil {
 			return nil, fmt.Errorf("cannot open snapshot: %v", err)
 		}
+		err = r.Check(context.TODO(), nil)
 		r.Close()
+		if err != nil {
+			return nil, fmt.Errorf("validation failed for %q: %v", name, err)
+		}
 		snapshot := &r.Snapshot
 
 		snaps = append(snaps, snapshot.Snap)
