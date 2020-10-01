@@ -175,11 +175,16 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 var snapshotImportCmd = &Command{
-	Path: "/v2/snapshot/import",
-	POST: postSnapshotImport,
+	Path: "/v2/snapshot",
+	POST: postSnapshots,
 }
 
-func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+func postSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/snapd-snapshot-v1" {
+		return BadRequest("cannot use content type %v", contentType)
+	}
+
 	// XXX: check that we have enough space to import the compressed snapshots
 
 	// XXX: is this the right layer?

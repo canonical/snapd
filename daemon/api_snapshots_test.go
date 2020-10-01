@@ -396,8 +396,9 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/snapd-snapshot-v1")
 
-	rsp := daemon.ImportSnapshot(daemon.SnapshotImportCmd, req, nil)
+	rsp := daemon.PostSnapshots(daemon.SnapshotImportCmd, req, nil)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{"set-id": setID, "snaps": snapNames})
@@ -413,8 +414,9 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/snapd-snapshot-v1")
 
-	rsp := daemon.ImportSnapshot(daemon.SnapshotImportCmd, req, nil)
+	rsp := daemon.PostSnapshots(daemon.SnapshotImportCmd, req, nil)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, "no")

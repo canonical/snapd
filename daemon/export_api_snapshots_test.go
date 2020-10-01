@@ -121,8 +121,8 @@ func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface
 	return getSnapshotExport(c, r, user)
 }
 
-func ImportSnapshot(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return postSnapshotImport(c, r, user).(*resp)
+func PostSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
+	return postSnapshots(c, r, user).(*resp)
 }
 
 var (

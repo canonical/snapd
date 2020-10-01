@@ -209,8 +209,12 @@ type SnapshotImportSet struct {
 
 // SnapshotImport imports an exported snapshot set.
 func (client *Client) SnapshotImport(exportStream io.Reader) (SnapshotImportSet, error) {
+	headers := map[string]string{
+		"Content-Type": "application/snapd-snapshot-v1",
+	}
+
 	var importSet SnapshotImportSet
-	if _, err := client.doSync("POST", "/v2/snapshot/import", nil, nil, exportStream, &importSet); err != nil {
+	if _, err := client.doSync("POST", "/v2/snapshots", nil, headers, exportStream, &importSet); err != nil {
 		return importSet, err
 	}
 
