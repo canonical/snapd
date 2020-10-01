@@ -964,21 +964,21 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 		// reset
 		err = os.RemoveAll(dirs.SnapshotsDir)
-		c.Check(err, check.IsNil, comm)
+		c.Assert(err, check.IsNil, comm)
 		err := os.MkdirAll(dirs.SnapshotsDir, 0755)
-		c.Check(err, check.IsNil, comm)
+		c.Assert(err, check.IsNil, comm)
 		cache := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", t.setID))
 		if t.inProgress {
 			// create the cache directory the set ID
 			err = os.MkdirAll(cache, 0755)
-			c.Check(err, check.IsNil, comm)
+			c.Assert(err, check.IsNil, comm)
 		} else {
 			err = os.RemoveAll(cache)
-			c.Check(err, check.IsNil, comm)
+			c.Assert(err, check.IsNil, comm)
 		}
 
 		f, err := os.Open(t.filename)
-		c.Check(err, check.IsNil, comm)
+		c.Assert(err, check.IsNil, comm)
 
 		size, snapNames, err := backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
@@ -992,9 +992,9 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		c.Check(snapNames, check.DeepEquals, []string{"bar", "baz", "foo"})
 
 		dir, err := os.Open(dirs.SnapshotsDir)
-		c.Check(err, check.IsNil, comm)
+		c.Assert(err, check.IsNil, comm)
 		names, err := dir.Readdirnames(100)
-		c.Check(err, check.IsNil, comm)
+		c.Assert(err, check.IsNil, comm)
 		c.Check(len(names), check.Equals, 3, comm)
 
 		f.Close()
