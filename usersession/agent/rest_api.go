@@ -291,12 +291,11 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		}
 	}
 	msg := &notification.Message{
-		AppName:       refreshInfo.BusyAppName,
-		Summary:       summary,
-		Icon:          icon,
-		Body:          body,
-		ExpireTimeout: time.Second * 10,
-		Hints:         hints,
+		AppName: refreshInfo.BusyAppName,
+		Summary: summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
 	}
 
 	// TODO: if snap store is installed and actions are supported, add an action
