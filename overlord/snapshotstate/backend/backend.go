@@ -498,7 +498,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 		snapNames = append(snapNames, names...)
 	}
 	if readErr != nil && readErr != io.EOF {
-			return 0, nil, readErr
+		return 0, nil, readErr
 	}
 	return size, snapNames, err
 }
