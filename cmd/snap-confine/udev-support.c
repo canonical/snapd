@@ -370,6 +370,7 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	fds.devices_allow_fd = devices_allow_fd;
 	fds.devices_deny_fd = devices_deny_fd;
 	fds.cgroup_procs_fd = cgroup_procs_fd;
+	/* Reset the locals so that they are not closed by the cleanup handlers. */
 	devices_allow_fd = -1;
 	devices_deny_fd = -1;
 	cgroup_procs_fd = -1;
