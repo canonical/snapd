@@ -476,16 +476,30 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	// walk the cache directory to store the files
 	dir, err := osOpen(p)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed opening import cache: %v", comment)
+		return 0, nil, fmt.Errorf("failed opening import cache for %s: %v", comment, err)
 	}
 	defer dir.Close()
-	names, err := dirNames(dir, 100)
-	if err != nil {
-		return 0, nil, fmt.Errorf("failed read from import cache: %v", comment)
-	}
 
-	// move the files into place with the new local set ID
-	snapNames, err := moveCachedSnapshots(names, id, p)
+	var snapNames []string
+	var readErr error
+	for readErr == nil {
+		var names []string
+		names, readErr = dirNames(dir, 100)
+		if err != nil {
+			return 0, nil, fmt.Errorf("failed read from import cache for %s: %v", comment, err)
+		}
+
+		// move the files into place with the new local set ID
+		names, err := moveCachedSnapshots(names, id, p)
+		if err != nil {
+			return 0, nil, err
+		}
+		// should we simply read all dir names at once above?
+		snapNames = append(snapNames, names...)
+	}
+	if readErr != nil && readErr != io.EOF {
+			return 0, nil, readErr
+	}
 	return size, snapNames, err
 }
 
@@ -493,23 +507,20 @@ func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, 
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
+
 	for tarErr == nil {
-		var skip bool
 		header, tarErr = tr.Next()
+		if tarErr == io.EOF {
+			break
+		}
 		switch {
-		case tarErr == io.EOF:
-			skip = true
 		case tarErr != nil:
 			return false, 0, fmt.Errorf("failed reading snapshot import: %v", tarErr)
 		case header == nil:
 			// should not happen
-			skip = true
+			return false, 0, fmt.Errorf("tar header not found")
 		case header.Typeflag == tar.TypeDir:
 			return false, 0, errors.New("unexpected directory in import file")
-		}
-
-		if skip {
-			continue
 		}
 
 		if header.Name == "export.json" {
