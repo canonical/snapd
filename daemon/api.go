@@ -107,7 +107,6 @@ var api = []*Command{
 	debugCmd,
 	snapshotCmd,
 	snapshotExportCmd,
-	snapshotImportCmd,
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,

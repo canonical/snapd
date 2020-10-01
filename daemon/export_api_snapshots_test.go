@@ -121,15 +121,10 @@ func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface
 	return getSnapshotExport(c, r, user)
 }
 
-func PostSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return postSnapshots(c, r, user).(*resp)
-}
-
 var (
 	SnapshotMany      = snapshotMany
 	SnapshotCmd       = snapshotCmd
 	SnapshotExportCmd = snapshotExportCmd
-	SnapshotImportCmd = snapshotImportCmd
 )
 
 type SnapshotExportResponse = snapshotExportResponse

@@ -88,6 +88,11 @@ func (action snapshotAction) String() string {
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/x.snapd.snapshot-v1" {
+		return doSnapshotImport(c, r, user)
+	}
+
 	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&action); err != nil {
@@ -174,16 +179,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	return &snapshotExportResponse{SnapshotExport: export}
 }
 
-var snapshotImportCmd = &Command{
-	Path: "/v2/snapshot",
-	POST: postSnapshots,
-}
-
-func postSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/x.snapd.snapshot-v1" {
-		return BadRequest("cannot use content type %v", contentType)
-	}
+func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// XXX: check that we have enough space to import the compressed snapshots
 
