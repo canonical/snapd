@@ -82,9 +82,9 @@
     capability setgid,
 
     # changing profile
-    @{PROC}/[0-9]*/attr/exec w,
+    @{PROC}/[0-9]*/attr/{,apparmor/}exec w,
     # Reading current profile
-    @{PROC}/[0-9]*/attr/current r,
+    @{PROC}/[0-9]*/attr/{,apparmor/}current r,
     # Reading available filesystems
     @{PROC}/filesystems r,
 
@@ -424,7 +424,7 @@
     /var/lib/snapd/cookie/snap.* r,
 
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
-    @{PROC}/[0-9]*/attr/current w,
+    @{PROC}/[0-9]*/attr/{,apparmor/}current w,
 
     # As a special exception allow snap-confine to write to anything in /var/lib.
     # This code should be changed to allow delegation so that snap-confine can

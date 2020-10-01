@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package seed
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -78,19 +79,19 @@ type Seed interface {
 	// only on classic.
 	LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error
 
-	// Model returns the seed provided model assertion. It is an
-	// error to call Model before LoadAssertions.
-	Model() (*asserts.Model, error)
+	// Model returns the seed provided model assertion.
+	// It will panic if called before LoadAssertions.
+	Model() *asserts.Model
 
-	// Brand returns the brand information of the seed. It is an
-	// error to call Brand before LoadAssertions.
+	// Brand returns the brand information of the seed.
+	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
-	// seed, this is legitimate only on classic. It is an error to
-	// call LoadMeta before LoadAssertions.
+	// seed, this is legitimate only on classic.
+	// It will panic if called before LoadAssertions.
 	LoadMeta(tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
@@ -115,8 +116,9 @@ type EssentialMetaLoaderSeed interface {
 	// essential snaps with types in the essentialTypes set while
 	// verifying them against assertions. It can return ErrNoMeta
 	// if there is no metadata nor snaps in the seed, this is
-	// legitimate only on classic. It is an error to call LoadMeta
-	// before LoadAssertions or to mix it with LoadMeta.
+	// legitimate only on classic. It is an error to mix it with
+	// LoadMeta.
+	// It will panic if called before LoadAssertions.
 	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 }
 
@@ -133,4 +135,34 @@ func Open(seedDir, label string) (Seed, error) {
 	// system if there is only one, or the lexicographically
 	// highest label one?
 	return &seed16{seedDir: seedDir}, nil
+}
+
+// ReadSystemEssential retrieves in one go information about the model
+// and essential snaps of the given types for the Core 20 recovery
+// system seed specified by seedDir and label (which cannot be empty).
+func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*Snap, error) {
+	if label == "" {
+		return nil, nil, fmt.Errorf("system label cannot be empty")
+	}
+	seed, err := Open(seedDir, label)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	seed20, ok := seed.(EssentialMetaLoaderSeed)
+	if !ok {
+		return nil, nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
+	}
+
+	// load assertions into a temporary database
+	if err := seed20.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, err
+	}
+
+	// load and verify info about essential snaps
+	if err := seed20.LoadEssentialMeta(essentialTypes, tm); err != nil {
+		return nil, nil, err
+	}
+
+	return seed20.Model(), seed20.EssentialSnaps(), nil
 }

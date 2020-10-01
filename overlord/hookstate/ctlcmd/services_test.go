@@ -61,6 +61,9 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 			}
 
 			installs = append(installs, store.SnapActionResult{Info: &snap.Info{
+				DownloadInfo: snap.DownloadInfo{
+					Size: 1,
+				},
 				SideInfo: snap.SideInfo{
 					RealName: snapName,
 					Revision: snap.R(2),

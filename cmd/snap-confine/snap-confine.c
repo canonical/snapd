@@ -124,7 +124,7 @@ typedef struct sc_preserved_process_state {
 /**
  * sc_preserve_and_sanitize_process_state sanitizes process state.
  *
- * The following process state is sanitised:
+ * The following process state is sanitized:
  *  - the umask is set to 0
  *  - the current working directory is set to /
  *
