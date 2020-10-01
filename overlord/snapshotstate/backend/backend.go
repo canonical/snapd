@@ -533,13 +533,12 @@ func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, 
 		if err != nil {
 			return false, 0, fmt.Errorf("failed creating file `%s`: %v", target, err)
 		}
+		defer t.Close()
 		writtenSize, err := io.Copy(t, tr)
 		if err != nil {
 			return false, 0, fmt.Errorf("failed copying file `%s`: %v", target, err)
 		}
 		size += writtenSize
-
-		t.Close()
 	}
 	return exportFound, size, nil
 }
