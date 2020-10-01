@@ -278,7 +278,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			"Close the app to avoid disruptions (%d minute left)",
 			"Close the app to avoid disruptions (%d minutes left)", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf("Snap %q is refreshing now!", refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
