@@ -202,7 +202,7 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 			continue
 		}
 		c.Assert(err, check.IsNil, comm)
-		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/snapd-snapshot-v1")
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/x.snapd.snapshot-v1")
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
 	}

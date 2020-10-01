@@ -181,7 +181,7 @@ var snapshotImportCmd = &Command{
 
 func postSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/snapd-snapshot-v1" {
+	if contentType != "application/x.snapd.snapshot-v1" {
 		return BadRequest("cannot use content type %v", contentType)
 	}
 

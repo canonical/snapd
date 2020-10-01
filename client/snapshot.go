@@ -210,7 +210,7 @@ type SnapshotImportSet struct {
 // SnapshotImport imports an exported snapshot set.
 func (client *Client) SnapshotImport(exportStream io.Reader) (SnapshotImportSet, error) {
 	headers := map[string]string{
-		"Content-Type": "application/snapd-snapshot-v1",
+		"Content-Type": "application/x.snapd.snapshot-v1",
 	}
 
 	var importSet SnapshotImportSet
