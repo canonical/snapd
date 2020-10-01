@@ -30,6 +30,8 @@ prepare: |
     touch squashfs-root/customized
     sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
 
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     mksnap_fast squashfs-root core-customized.snap
 
 restore: |
