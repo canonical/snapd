@@ -402,6 +402,39 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	c.Check(calledF, check.Equals, 1)
 }
 
+func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, uint64(12))
+
+	snapshotPath := filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")
+	c.Check(backend.Filename(shw), check.Equals, snapshotPath)
+	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+
+	// rename the snapshot, verify that set id from the filename is used by the reader.
+	c.Assert(os.Rename(snapshotPath, filepath.Join(dirs.SnapshotsDir, "33_hello.zip")), check.IsNil)
+
+	var calledF int
+	f := func(snapshot *backend.Reader) error {
+		calledF++
+		c.Check(snapshot.SetID, check.Equals, uint64(uint(33)))
+		c.Check(snapshot.Snap, check.Equals, "hello-snap")
+		return nil
+	}
+
+	c.Assert(backend.Iter(context.Background(), f), check.IsNil)
+	c.Check(calledF, check.Equals, 1)
+}
+
 func (s *snapshotSuite) TestList(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
