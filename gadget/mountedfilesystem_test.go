@@ -3186,7 +3186,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreservesBootAsse
 managed grub.cfg from disk`
 	makeExistingData(c, outDir, []gadgetData{
 		{target: "EFI/boot/grubx64.efi", content: "grubx64.efi from disk"},
-		{target: "EFI/ubuntu/grub.cfg", content: existingGrubCfg},
+		// TODO:UC20: rename to grub.cfg once updater no longer looks for the bootloader
+		{target: "EFI/ubuntu/grub.cfg-observer", content: existingGrubCfg},
 		{target: "foo", content: "foo from disk"},
 	})
 	// based on pc gadget
@@ -3197,7 +3198,7 @@ managed grub.cfg from disk`
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
-				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
+				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg-observer"},
 				{Source: "foo", Target: "foo"},
 			},
 			Update: gadget.VolumeUpdate{
@@ -3209,7 +3210,7 @@ managed grub.cfg from disk`
 	obs := &mockContentUpdateObserver{
 		c:               c,
 		expectedStruct:  ps,
-		preserveTargets: []string{"EFI/ubuntu/grub.cfg"},
+		preserveTargets: []string{"EFI/ubuntu/grub.cfg-observer"},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
@@ -3229,7 +3230,7 @@ managed grub.cfg from disk`
 		// listed explicitly in the structure
 		"foo.preserve": typeFile,
 		// requested by observer
-		"EFI/ubuntu/grub.cfg.ignore": typeFile,
+		"EFI/ubuntu/grub.cfg-observer.ignore": typeFile,
 	}
 
 	for _, step := range []struct {
@@ -3247,17 +3248,17 @@ managed grub.cfg from disk`
 		switch step.name {
 		case "backup":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "update":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals,
 				`# Snapd-Boot-Config-Edition: 1
 managed grub.cfg from disk`)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "rollback":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		default:
 			c.Fatalf("unexpected step: %q", step.name)
