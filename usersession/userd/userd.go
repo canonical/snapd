@@ -30,8 +30,8 @@ import (
 )
 
 type dbusInterface interface {
-	Name() string
-	BasePath() dbus.ObjectPath
+	Interface() string
+	ObjectPath() dbus.ObjectPath
 	IntrospectionData() string
 }
 
@@ -39,6 +39,14 @@ type Userd struct {
 	tomb       tomb.Tomb
 	conn       *dbus.Conn
 	dbusIfaces []dbusInterface
+}
+
+// userdBusNames contains the list of bus names userd will acquire on
+// the session bus.  It is unnecessary (and undesirable) to add more
+// names here when adding new interfaces to the daemon.
+var userdBusNames = []string{
+	"io.snapcraft.Launcher",
+	"io.snapcraft.Settings",
 }
 
 func dbusSessionBus() (*dbus.Conn, error) {
@@ -77,18 +85,21 @@ func (ud *Userd) Init() error {
 		// at the object level and the actual well-known object name
 		// becoming available on the bus
 		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
-		ud.conn.Export(iface, iface.BasePath(), iface.Name())
-		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
+		ud.conn.Export(iface, iface.ObjectPath(), iface.Interface())
+		ud.conn.Export(introspect.Introspectable(xml), iface.ObjectPath(), "org.freedesktop.DBus.Introspectable")
 
+	}
+
+	for _, name := range userdBusNames {
 		// beyond this point the name is available and all handlers must
 		// have been set up
-		reply, err := ud.conn.RequestName(iface.Name(), dbus.NameFlagDoNotQueue)
+		reply, err := ud.conn.RequestName(name, dbus.NameFlagDoNotQueue)
 		if err != nil {
 			return err
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
-			return fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
+			return fmt.Errorf("cannot obtain bus name '%s'", name)
 		}
 	}
 	return nil

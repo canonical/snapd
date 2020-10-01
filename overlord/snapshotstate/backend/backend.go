@@ -73,6 +73,39 @@ type Flags struct {
 	Auto bool
 }
 
+// LastSnapshotSetID returns the highest set id number for the snapshots stored
+// in snapshots directory; set ids are inferred from the filenames.
+func LastSnapshotSetID() (uint64, error) {
+	dir, err := osOpen(dirs.SnapshotsDir)
+	if err != nil {
+		if osutil.IsDirNotExist(err) {
+			// no snapshots
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot open snapshots directory: %v", err)
+	}
+	defer dir.Close()
+
+	var maxSetID uint64
+
+	var readErr error
+	for readErr == nil {
+		var names []string
+		names, readErr = dirNames(dir, 100)
+		for _, name := range names {
+			if ok, setID := isSnapshotFilename(name); ok {
+				if setID > maxSetID {
+					maxSetID = setID
+				}
+			}
+		}
+	}
+	if readErr != nil && readErr != io.EOF {
+		return 0, readErr
+	}
+	return maxSetID, nil
+}
+
 // Iter loops over all snapshots in the snapshots directory, applying the given
 // function to each. The snapshot will be closed after the function returns. If
 // the function returns an error, iteration is stopped (and if the error isn't
@@ -103,12 +136,12 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			}
 
 			// filter out non-snapshot directory entries
-			ok, _ := isSnapshotFilename(name)
+			ok, setID := isSnapshotFilename(name)
 			if !ok {
 				continue
 			}
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			reader, openError := backendOpen(filename)
+			reader, openError := backendOpen(filename, setID)
 			// reader can be non-nil even when openError is not nil (in
 			// which case reader.Broken will have a reason). f can
 			// check and either ignore or return an error when
@@ -175,7 +208,7 @@ func Filename(snapshot *client.Snapshot) string {
 var snapshotFromFilename = snapshotFromFilenameImpl
 
 func snapshotFromFilenameImpl(f string) (*client.Snapshot, error) {
-	r, err := Open(f)
+	r, err := Open(f, ExtractFnameSetID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}

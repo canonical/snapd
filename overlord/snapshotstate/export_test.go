@@ -106,7 +106,7 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	}
 }
 
-func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
+func MockBackendOpen(f func(string, uint64) (*backend.Reader, error)) (restore func()) {
 	old := backendOpen
 	backendOpen = f
 	return func() {

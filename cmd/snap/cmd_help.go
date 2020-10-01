@@ -170,9 +170,17 @@ func (cmd cmdHelp) Execute(args []string) error {
 }
 
 type helpCategory struct {
-	Label       string
+	Label string
+	// Other is set if the category Commands should be listed
+	// together under "... Other" in the `snap help` list.
+	Other       bool
 	Description string
-	Commands    []string
+	// Commands list commands belonging to the category that should
+	// be listed under both `snap help` and "snap help --all`.
+	Commands []string
+	// AllOnlyCommands list commands belonging to the category that should
+	// be listed only under "snap help --all`.
+	AllOnlyCommands []string
 }
 
 // helpCategories helps us by grouping commands
@@ -184,7 +192,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"refresh", "revert", "switch","disable", "enable"},
+		Commands:    []string{"refresh", "revert", "switch", "disable", "enable", "create-cohort"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),
@@ -218,13 +226,27 @@ var helpCategories = []helpCategory{
 		Description: i18n.G("manage device"),
 		Commands:    []string{"model", "reboot", "recovery"},
 	}, {
-		Label:       i18n.G("Other"),
-		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "create-cohort"},
+		Label:       i18n.G("Warnings"),
+		Other:       true,
+		Description: i18n.G("manage warnings"),
+		Commands:    []string{"warnings", "okay"},
 	}, {
-		Label:       i18n.G("Development"),
-		Description: i18n.G("developer-oriented features"),
-		Commands:    []string{"download", "pack", "run", "try", "prepare-image"},
+		Label:       i18n.G("Assertions"),
+		Other:       true,
+		Description: i18n.G("manage assertions"),
+		Commands:    []string{"known", "ack"},
+	}, {
+		Label:           i18n.G("Introspection"),
+		Other:           true,
+		Description:     i18n.G("introspection and debugging of snapd"),
+		Commands:        []string{"version"},
+		AllOnlyCommands: []string{"debug"},
+	},
+	{
+		Label:           i18n.G("Development"),
+		Description:     i18n.G("developer-oriented features"),
+		Commands:        []string{"download", "pack", "run", "try"},
+		AllOnlyCommands: []string{"prepare-image"},
 	},
 }
 
@@ -235,18 +257,18 @@ Snaps are packages that work across many different Linux distributions,
 enabling secure delivery and operation of the latest apps and utilities.
 `))
 	snapUsage               = i18n.G("Usage: snap <command> [<options>...]")
-	snapHelpCategoriesIntro = i18n.G("Commands can be classified as follows:")
+	snapHelpCategoriesIntro = i18n.G("Commonly used commands can be classified as follows:")
+	snapHelpAllIntro        = i18n.G("Commands can be classified as follows:")
 	snapHelpAllFooter       = i18n.G("For more information about a command, run 'snap help <command>'.")
 	snapHelpFooter          = i18n.G("For a short summary of all commands, run 'snap help --all'.")
 )
 
-func printHelpHeader() {
+func printHelpHeader(cmdsIntro string) {
 	fmt.Fprintln(Stdout, longSnapDescription)
 	fmt.Fprintln(Stdout)
 	fmt.Fprintln(Stdout, snapUsage)
 	fmt.Fprintln(Stdout)
-	fmt.Fprintln(Stdout, snapHelpCategoriesIntro)
-	fmt.Fprintln(Stdout)
+	fmt.Fprintln(Stdout, cmdsIntro)
 }
 
 func printHelpAllFooter() {
@@ -261,25 +283,53 @@ func printHelpFooter() {
 
 // this is called when the Execute returns a flags.Error with ErrCommandRequired
 func printShortHelp() {
-	printHelpHeader()
-	maxLen := 0
+	printHelpHeader(snapHelpCategoriesIntro)
+	maxLen := utf8.RuneCountInString("... Other")
+	var otherCommands []string
+	var develCateg *helpCategory
 	for _, categ := range helpCategories {
+		if categ.Other {
+			otherCommands = append(otherCommands, categ.Commands...)
+			continue
+		}
+		if categ.Label == "Development" {
+			develCateg = &categ
+		}
 		if l := utf8.RuneCountInString(categ.Label); l > maxLen {
 			maxLen = l
 		}
 	}
+
+	fmt.Fprintln(Stdout)
 	for _, categ := range helpCategories {
+		// Other and Development will come last
+		if categ.Other || categ.Label == "Development" || len(categ.Commands) == 0 {
+			continue
+		}
 		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, categ.Label, strings.Join(categ.Commands, ", "))
+	}
+	// ... Other
+	if len(otherCommands) > 0 {
+		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, "... Other", strings.Join(otherCommands, ", "))
+	}
+	// Development last
+	if develCateg != nil && len(develCateg.Commands) > 0 {
+		fmt.Fprintf(Stdout, "%*s: %s\n", maxLen+2, "Development", strings.Join(develCateg.Commands, ", "))
 	}
 	printHelpFooter()
 }
 
 // this is "snap help --all"
 func printLongHelp(parser *flags.Parser) {
-	printHelpHeader()
+	printHelpHeader(snapHelpAllIntro)
 	maxLen := 0
 	for _, categ := range helpCategories {
 		for _, command := range categ.Commands {
+			if l := len(command); l > maxLen {
+				maxLen = l
+			}
+		}
+		for _, command := range categ.AllOnlyCommands {
 			if l := len(command); l > maxLen {
 				maxLen = l
 			}
@@ -293,10 +343,8 @@ func printLongHelp(parser *flags.Parser) {
 		cmdLookup[cmd.Name] = cmd
 	}
 
-	for _, categ := range helpCategories {
-		fmt.Fprintln(Stdout)
-		fmt.Fprintf(Stdout, "  %s (%s):\n", categ.Label, categ.Description)
-		for _, name := range categ.Commands {
+	listCmds := func(cmds []string) {
+		for _, name := range cmds {
 			cmd := cmdLookup[name]
 			if cmd == nil {
 				fmt.Fprintf(Stderr, "??? Cannot find command %q mentioned in help categories, please report!\n", name)
@@ -304,6 +352,13 @@ func printLongHelp(parser *flags.Parser) {
 				fmt.Fprintf(Stdout, "    %*s  %s\n", -maxLen, name, cmd.ShortDescription)
 			}
 		}
+	}
+
+	for _, categ := range helpCategories {
+		fmt.Fprintln(Stdout)
+		fmt.Fprintf(Stdout, "  %s (%s):\n", categ.Label, categ.Description)
+		listCmds(categ.Commands)
+		listCmds(categ.AllOnlyCommands)
 	}
 	printHelpAllFooter()
 }

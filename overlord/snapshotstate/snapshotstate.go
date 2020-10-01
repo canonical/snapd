@@ -53,13 +53,28 @@ type snapshotState struct {
 }
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
-	var lastSetID uint64
+	var lastDiskSetID, lastStateSetID uint64
 
-	err := st.Get("last-snapshot-set-id", &lastSetID)
+	// get last set id from state
+	err := st.Get("last-snapshot-set-id", &lastStateSetID)
 	if err != nil && err != state.ErrNoState {
 		return 0, err
 	}
 
+	// get highest set id from the snapshots/ directory
+	lastDiskSetID, err = backend.LastSnapshotSetID()
+	if err != nil {
+		return 0, fmt.Errorf("cannot determine last snapshot set id: %v", err)
+	}
+
+	// take the larger of the two numbers and store it back in the state.
+	// the value in state acts as an allocation of IDs for scheduled snapshots,
+	// they allocate set id early before any file gets created, so we cannot
+	// rely on disk only.
+	lastSetID := lastDiskSetID
+	if lastStateSetID > lastSetID {
+		lastSetID = lastStateSetID
+	}
 	lastSetID++
 	st.Set("last-snapshot-set-id", lastSetID)
 
