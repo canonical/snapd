@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/godbus/dbus"
 
@@ -21,6 +20,13 @@ var cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
 
 var ErrCannotTrackProcess = errors.New("cannot track application process")
 
+// TrackingOptions control how tracking, based on systemd transient scope, operates.
+type TrackingOptions struct {
+	// AllowSessionBus controls if CreateTransientScopeForTracking will
+	// consider using the session bus for making the request.
+	AllowSessionBus bool
+}
+
 // CreateTransientScopeForTracking puts the current process in a transient scope.
 //
 // To quote systemd documentation about scope units:
@@ -31,9 +37,13 @@ var ErrCannotTrackProcess = errors.New("cannot track application process")
 //
 // Scope names must be unique, a randomly generated UUID is appended to the
 // security tag, further suffixed with the string ".scope".
-func CreateTransientScopeForTracking(securityTag string) error {
+func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) error {
 	if !features.RefreshAppAwareness.IsEnabled() {
 		return nil
+	}
+	if opts == nil {
+		// Retain original semantics when not explicitly configured otherwise.
+		opts = &TrackingOptions{AllowSessionBus: true}
 	}
 	logger.Debugf("creating transient scope %s", securityTag)
 
@@ -45,11 +55,23 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
 	uid := osGetuid()
-	// TODO: change this logic so that CreateTransientScope for hooks is always
-	// using system bus and doesn't even attempt to use the session bus.
-	isSessionBus, conn, err := sessionOrMaybeSystemBus(uid)
-	if err != nil {
-		return ErrCannotTrackProcess
+	// Depending on options, we may use the session bus instead of the system
+	// bus. In addition, when uid == 0 we may fall back from using the session
+	// bus to the system bus.
+	var isSessionBus bool
+	var conn *dbus.Conn
+	var err error
+	if opts.AllowSessionBus {
+		isSessionBus, conn, err = sessionOrMaybeSystemBus(uid)
+		if err != nil {
+			return ErrCannotTrackProcess
+		}
+	} else {
+		isSessionBus = false
+		conn, err = dbusutil.SystemBus()
+		if err != nil {
+			return ErrCannotTrackProcess
+		}
 	}
 
 	// We ask the kernel for a random UUID. We need one because each transient
@@ -69,11 +91,6 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
-	// XXX: see the other XXX below.
-	pathBefore, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
-	}
 tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
@@ -114,34 +131,16 @@ tryAgain:
 	//
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
-	var pathAfter string
-	// XXX: It seems that systemd is racy and can not actually complete the
-	// request after returning from StartTransientUnit. Iterate for up to 500ms
-	// to see systemd perform the move. This is inherently racy.
-	// TODO: After pid-based tracking is removed, remove this spin logic as
-	// synchronicity is no longer relevant. It is only relevant during the
-	// transition period while both snap run and snap-confine manipulate
-	// cgroups.
-	for i := 0; i < 50; i++ {
-		pathAfter, err = cgroupProcessPathInTrackingCgroup(pid)
-		if err != nil {
-			return err
-		}
-		if pathBefore != pathAfter {
-			// Stop waiting as soon as the location in the cgroup hierarchy has changed.
-			break
-		}
-		timeSleep(10 * time.Millisecond)
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
 	}
-	if !strings.HasSuffix(pathAfter, unitName) {
+	if !strings.HasSuffix(path, unitName) {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}
 	return nil
 }
-
-// timeSleep is time.Sleep which can be mocked for testing.
-var timeSleep = time.Sleep
 
 // ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.
 //

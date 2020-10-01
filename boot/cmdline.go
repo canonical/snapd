@@ -114,12 +114,12 @@ func MockProcCmdline(newPath string) (restore func()) {
 
 var errBootConfigNotManaged = errors.New("boot config is not managed")
 
-func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.ManagedAssetsBootloader, error) {
+func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.TrustedAssetsBootloader, error) {
 	bl, err := bootloader.Find(where, opts)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find managed assets bootloader under %q: %v", where, err)
+		return nil, fmt.Errorf("internal error: cannot find trusted assets bootloader under %q: %v", where, err)
 	}
-	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	mbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// the bootloader cannot manage its scripts
 		return nil, errBootConfigNotManaged
@@ -139,8 +139,9 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 	if mode != ModeRun && mode != ModeRecover {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
-	// get a bootloader under a native root directory
+	// get the run mode bootloader under the native run partition layout
 	opts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
 		NoSlashBoot: true,
 	}
 	bootloaderRootDir := InitramfsUbuntuBootDir
@@ -148,7 +149,7 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 	systemArg := ""
 	if mode == ModeRecover {
 		// dealing with recovery system bootloader
-		opts.Recovery = true
+		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
 		// recovery mode & system command line arguments
 		modeArg = "snapd_recovery_mode=recover"

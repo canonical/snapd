@@ -34,6 +34,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -137,6 +138,59 @@ func hashkeys(snapshot *client.Snapshot) (keys []string) {
 	return keys
 }
 
+func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
+	// LastSnapshotSetID is happy without any snapshots
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(0))
+
+	// create snapshots dir and dummy snapshots
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
+	for _, name := range []string{
+		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
+	} {
+		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0644), check.IsNil)
+	}
+	setID, err = backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(12))
+}
+
+func (s *snapshotSuite) TestLastSnapshotIDErrorOnDirNames(c *check.C) {
+	// we need snapshots dir, otherwise LastSnapshotSetID exits early.
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, os.ModePerm), check.IsNil)
+
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		return nil, fmt.Errorf("fail")
+	})()
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.ErrorMatches, "fail")
+	c.Check(setID, check.Equals, uint64(0))
+}
+
+func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
+	tests := []struct {
+		name  string
+		valid bool
+		setID uint64
+	}{
+		{"1_foo.zip", true, 1},
+		{"14_hello-world_6.4_29.zip", true, 14},
+		{"1_.zip", false, 0},
+		{"1_foo.zip.bak", false, 0},
+		{"foo_1_foo.zip", false, 0},
+		{"foo_bar_baz.zip", false, 0},
+		{"", false, 0},
+		{"1_", false, 0},
+	}
+
+	for _, t := range tests {
+		ok, setID := backend.IsSnapshotFilename(t.name)
+		c.Check(ok, check.Equals, t.valid, check.Commentf("fail: %s", t.name))
+		c.Check(setID, check.Equals, t.setID, check.Commentf("fail: %s", t.name))
+	}
+}
+
 func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -216,7 +270,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
@@ -236,7 +290,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	c.Check(triedToOpenDir, check.Equals, true)
 	c.Check(readNames, check.Equals, 2)
 	c.Check(triedToOpenSnapshot, check.Equals, true)
-	c.Check(logbuf.String(), check.Matches, `(?m).* Cannot open snapshot "hello": invalid argument.`)
+	c.Check(logbuf.String(), check.Matches, `(?m).* Cannot open snapshot "1_hello.zip": invalid argument.`)
 	c.Check(calledF, check.Equals, false)
 }
 
@@ -254,13 +308,14 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		// NOTE non-nil reader, and error, returned
 		r := backend.Reader{}
+		r.SetID = 1
 		r.Broken = "xyzzy"
 		return &r, os.ErrInvalid
 	})()
@@ -296,7 +351,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 		if readNames > 1 {
 			return nil, io.EOF
 		}
-		return []string{"hello"}, nil
+		return []string{"42_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
 	defer backend.MockOpen(func(string) (*backend.Reader, error) {
@@ -323,10 +378,65 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 	c.Check(calledF, check.Equals, true)
 }
 
+func readerForFilename(fname string, c *check.C) *backend.Reader {
+	var snapname string
+	var id uint64
+	fn := strings.TrimSuffix(filepath.Base(fname), ".zip")
+	_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+	c.Assert(err, check.IsNil, check.Commentf(fn))
+	f, err := os.Open(os.DevNull)
+	c.Assert(err, check.IsNil, check.Commentf(fn))
+	return &backend.Reader{
+		File: f,
+		Snapshot: client.Snapshot{
+			SetID: id,
+			Snap:  snapname,
+		},
+	}
+}
+
+func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
+		return new(os.File), nil
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 1 {
+			return nil, io.EOF
+		}
+		return []string{
+			"_foo.zip",
+			"43_bar.zip",
+			"foo_bar.zip",
+			"bar.",
+		}, nil
+	})()
+	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
+		return readerForFilename(fname, c), nil
+	})()
+
+	var calledF int
+	f := func(snapshot *backend.Reader) error {
+		calledF++
+		c.Check(snapshot.SetID, check.Equals, uint64(43))
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(logbuf.String(), check.Equals, "")
+	c.Check(calledF, check.Equals, 1)
+}
+
 func (s *snapshotSuite) TestList(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		readNames++
@@ -334,15 +444,16 @@ func (s *snapshotSuite) TestList(c *check.C) {
 			return nil, io.EOF
 		}
 		return []string{
-			fmt.Sprintf("%d_foo", readNames),
-			fmt.Sprintf("%d_bar", readNames),
-			fmt.Sprintf("%d_baz", readNames),
+			fmt.Sprintf("%d_foo.zip", readNames),
+			fmt.Sprintf("%d_bar.zip", readNames),
+			fmt.Sprintf("%d_baz.zip", readNames),
 		}, nil
 	})()
 	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
 		var id uint64
 		var snapname string
-		fn = filepath.Base(fn)
+		c.Assert(strings.HasSuffix(fn, ".zip"), check.Equals, true)
+		fn = strings.TrimSuffix(filepath.Base(fn), ".zip")
 		_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
 		c.Assert(err, check.IsNil, check.Commentf(fn))
 		f, err := os.Open(os.DevNull)
@@ -717,4 +828,161 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	snapData := []string{
+		"/var/snap/foo/7/somedatadir",
+		"/var/snap/foo/7/otherdata",
+		"/var/snap/foo/7",
+		"/var/snap/foo/common",
+		"/var/snap/foo/common/a",
+		"/home/user1/snap/foo/7/somedata",
+		"/home/user1/snap/foo/common",
+	}
+	var data []byte
+	var expected int
+	for _, d := range snapData {
+		data = append(data, 0)
+		expected += len(data)
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(s.root, d, "somfile"), data, 0644), check.IsNil)
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(expected))
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	snapData := []string{
+		"/var/snap/foo/common",
+		"/var/snap/foo/7",
+		"/home/user1/snap/foo/7",
+		"/home/user1/snap/foo/common",
+	}
+	for _, d := range snapData {
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(0))
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
+	var gotUsernames []string
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		gotUsernames = usernames
+		return nil, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	_, err := backend.EstimateSnapshotSize(info, []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsernames, check.DeepEquals, []string{"user1", "user2"})
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo:      snap.SideInfo{Revision: snap.R(7)},
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(0))
+}
+func (s *snapshotSuite) TestExportTwice(c *check.C) {
+	// use mocking done in snapshotSuite.SetUpTest
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(42),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	// create a snapshot
+	shID := uint64(12)
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
+
+	// num_files + export.json + footer
+	expectedSize := int64(4*512 + 1024 + 2*512)
+	// do on export at the start of the epoch
+	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
+	defer restore()
+	// export once
+	buf := bytes.NewBuffer(nil)
+	ctx := context.Background()
+	se, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	err = se.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+
+	// and again to ensure size does not change when exported again
+	//
+	// Note that moving beyond year 2242 will change the tar format
+	// used by the go internal tar and that will make the size actually
+	// change.
+	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
+	defer restore()
+	se2, err := backend.NewSnapshotExport(ctx, shID)
+	c.Check(err, check.IsNil)
+	err = se2.Init()
+	c.Assert(err, check.IsNil)
+	c.Check(se2.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	buf.Reset()
+	err = se2.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
+}
+
+func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
+	se, err := backend.NewSnapshotExport(context.Background(), 5)
+	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
+	c.Assert(se, check.IsNil)
 }

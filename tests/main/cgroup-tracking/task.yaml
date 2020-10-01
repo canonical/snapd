@@ -11,25 +11,70 @@ environment:
     USER/root: root
     USER/test: test
 prepare: |
+    tests.cleanup prepare
+
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
+    tests.cleanup defer snap unset core experimental.refresh-app-awareness
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    snap pack test-snapd-tracking
+    tests.cleanup defer rm -f test-snapd-tracking_1_all.snap
+
+    snap install --dangerous ./test-snapd-tracking_1_all.snap
+    tests.cleanup defer snap remove test-snapd-tracking
 
     tests.session -u "$USER" prepare
+    tests.cleanup defer tests.session -u "$USER" restore
 
 restore: |
-    snap unset core experimental.refresh-app-awareness
-    tests.session -u "$USER" restore
+    tests.cleanup restore
+
     rm -f /tmp/*.pid /tmp/*.stamp
+
     if [ "$USER" = root ]; then
         systemctl --user stop dbus.service || true
     fi
 
+debug: |
+    cat /proc/self/cgroup
+    systemctl --version || true
+    cat /proc/cmdline
+
 execute: |
-    # TODO: add a variant that uses a service
+    # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
+    # This combination exercises each of the three cases below, namely:
+    # - pure cgroup v2 system, like Fedora 31
+    # - hybrid cgroup system, like Ubuntu 18.04
+    # - pure cgroup v1 system, like Ubuntu 16.04
+    echo "Find the path and id of the cgroup snapd uses for tracking."
+    if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
+        base_cg_path=/sys/fs/cgroup
+        base_cg_id=0
+    elif [ "$(stat -f --print=%T /sys/fs/cgroup/unified)" = "cgroup2fs" ]; then
+        base_cg_path=/sys/fs/cgroup/unified
+        base_cg_id=0
+    elif [ "$(stat -f --print=%T /sys/fs/cgroup/systemd)" = "cgroupfs" ]; then
+        base_cg_path=/sys/fs/cgroup/systemd
+        base_cg_id="$(grep -F 'name=systemd' < /proc/self/cgroup | cut -d : -f 1)"
+    else
+        echo "cannot find any tracking cgroup"
+        exit 1
+    fi
+    echo "Sanity check, base directory of selected cgroup exists."
+    test -d "$base_cg_path"
+
+    # The configure hook was executed and used a scope for tracking. The scope
+    # was attached to the system slice, as it is not associated with any user.
+    test -f /var/snap/test-snapd-tracking/common/configure.cgroup
+    hook_tracking_cg_path="$(grep -E "^$base_cg_id:" < /var/snap/test-snapd-tracking/common/configure.cgroup | cut -d : -f 3)"
+    echo "$hook_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.hook\.configure\.[0-9a-f-]+\.scope'
+
+    # The nap service was executed and was tracked as a systemd service.
+    test -f /var/snap/test-snapd-tracking/common/nap.cgroup
+    service_tracking_cg_path="$(grep -E "^$base_cg_id:" < /var/snap/test-snapd-tracking/common/nap.cgroup | cut -d : -f 3)"
+    echo "$service_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.nap\.service'
+
+    # The application tracking is tested below.
     if [ "$USER" = test ] && "$TESTSTOOLS"/version-compare --strict "$(systemctl --version | head -n 1 | cut -d ' ' -f 2)" -lt 238; then
         echo "Systemd running as user session manager cannot start transient units"
         echo "that cross ownership boundary. This test effectively runs through root"
@@ -48,8 +93,10 @@ execute: |
 
         exit 0
     fi
+
     if [ "$USER" = test ]; then
         case "$SPREAD_SYSTEM" in
+            # XXX: this may now pass on core18+, verify that.
             ubuntu-core-*)
                 echo "On core systems there is no session bus so the test variant does not make much sense"
                 echo "Please see the cgroup-tracking-failure test for more extensive analysis"
@@ -59,47 +106,24 @@ execute: |
         esac
     fi
 
-    # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
-    # This combination exercises each of the three cases below, namely:
-    # - pure cgroup v2 system, like Fedora 31
-    # - hybrid cgroup system, like Ubuntu 18.04
-    # - pure cgroup v1 system, like Ubuntu 16.04
-    echo "Find the path and id of the cgroup snapd uses for tracking."
-    if grep -q -F "0::" < /proc/self/cgroup; then
-        # Hybrid or pure v2 mode available.
-        if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
-            base_cg_path=/sys/fs/cgroup
-        else
-            base_cg_path=/sys/fs/cgroup/unified
-        fi
-        base_cg_id=0
-    else
-        # Only name=systemd available
-        base_cg_path=/sys/fs/cgroup/systemd
-        base_cg_id="$(grep -F 'name=systemd' < /proc/self/cgroup | cut -d : -f 1)"
-    fi
-
-    echo "Sanity check, base directory of selected cgroup exists."
-    test -d "$base_cg_path"
-
     echo "Start a \"sleep\" process in the background, in a new session"
     # NOTE: tests.session handles PAM and that necessitates a management process
     # that eventually performs PAM termination activities. The PID returned from
     # invoking tests.session in the background will not be that of the invoked program
     # but rather of the monitoring helper process.
-    tests.session -p /tmp/1.pid -u "$USER" exec snap run test-snapd-sh.sh -c 'touch /tmp/1.stamp && exec sleep 3m' &
+    tests.session -p /tmp/1.pid -u "$USER" exec snap run test-snapd-tracking.sh -c 'touch /tmp/1.stamp && exec sleep 3m' &
     session1_pid=$!
     trap "pkill sleep || true" EXIT
     echo "Ensure that snap-confine has finished its task and that the snap process"
     echo "is active. Note that we don't want to wait forever either."
-    retry -n 30 test -e /tmp/snap.test-snapd-sh/tmp/1.stamp
+    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/1.stamp
     pid1_sleep=$(cat /tmp/1.pid)
 
     echo "During startup snap-run has asked systemd to move the process to a"
-    echo "new transient scope. The scope name is \"snap.\$random.test-snapd-sh.sh\"."
+    echo "new transient scope. The scope name is \"snap.\$random.test-snapd-tracking.sh\"."
     echo "Let's verify that."
     pid1_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid1_sleep/cgroup" | cut -d : -f 3)"
-    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.test-snapd-sh\.sh\.[0-9a-f-]+\.scope'
+    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh\.[0-9a-f-]+\.scope'
 
     echo "Sanity check, cgroup associated with the scope exists."
     test -d "${base_cg_path}${pid1_tracking_cg_path}"
@@ -109,12 +133,12 @@ execute: |
 
     echo "Start a second process so that we can check each scope is independent."
     #shellcheck disable=SC2016
-    tests.session -p /tmp/2.pid -u "$USER" exec snap run test-snapd-sh.sh -c 'touch /tmp/2.stamp && exec sleep 2m' &
+    tests.session -p /tmp/2.pid -u "$USER" exec snap run test-snapd-tracking.sh -c 'touch /tmp/2.stamp && exec sleep 2m' &
     session2_pid=$!
-    retry -n 30 test -e /tmp/snap.test-snapd-sh/tmp/2.stamp
+    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/2.stamp
     pid2_sleep=$(cat /tmp/2.pid)
     pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2_sleep/cgroup" | cut -d : -f 3)"
-    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.test-snapd-sh\.sh\.[0-9a-f-]+\.scope'
+    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh\.[0-9a-f-]+\.scope'
     MATCH "$pid2_sleep" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
 
     echo "Each invocation uses a new transient scope and thus a new cgroup path."
@@ -132,9 +156,9 @@ execute: |
 
     echo "If a snap command forks a child process it is also tracked."
     #shellcheck disable=SC2016
-    tests.session -p /tmp/3.pid -u "$USER" exec snap run test-snapd-sh.sh -c 'touch /tmp/3.stamp && sleep 1m' &
+    tests.session -p /tmp/3.pid -u "$USER" exec snap run test-snapd-tracking.sh -c 'touch /tmp/3.stamp && sleep 1m' &
     session3_pid=$!
-    retry -n 30 test -e /tmp/snap.test-snapd-sh/tmp/3.stamp
+    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/3.stamp
     pid3_sh=$(cat /tmp/3.pid)
     pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3_sh/cgroup" | cut -d : -f 3)"
     MATCH "$pid3_sh" < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"

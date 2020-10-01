@@ -200,7 +200,7 @@ var (
 	CriticalTaskEdges = criticalTaskEdges
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -240,15 +240,15 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureRunSystem
-	sysconfigConfigureRunSystem = f
+func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
 	return func() {
-		sysconfigConfigureRunSystem = old
+		sysconfigConfigureTargetSystem = old
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer install.SystemInstallObserver) error) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

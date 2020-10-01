@@ -41,11 +41,6 @@ type ubootTestSuite struct {
 
 var _ = Suite(&ubootTestSuite{})
 
-func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := bootloader.NewUboot(s.rootdir, nil)
-	c.Assert(u, IsNil)
-}
-
 func (s *ubootTestSuite) TestNewUboot(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
@@ -234,17 +229,17 @@ func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 			"traditional uboot.env",
 		},
 		{
-			&bootloader.Options{NoSlashBoot: true},
+			&bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			"/uboot/ubuntu/boot.sel",
 			"uc20 install mode boot.sel",
 		},
 		{
-			&bootloader.Options{ExtractedRunKernelImage: true},
+			&bootloader.Options{Role: bootloader.RoleRunMode},
 			"/boot/uboot/boot.sel",
 			"uc20 run mode boot.sel",
 		},
 		{
-			&bootloader.Options{Recovery: true},
+			&bootloader.Options{Role: bootloader.RoleRecovery},
 			"/uboot/ubuntu/boot.sel",
 			"uc20 recovery boot.sel",
 		},

@@ -26,6 +26,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
@@ -34,19 +36,32 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type bootAssetsMap map[string][]string
+
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string
-	RecoverySystem         string
-	CurrentRecoverySystems []string
-	Base                   string
-	TryBase                string
-	BaseStatus             string
-	CurrentKernels         []string
-	Model                  string
-	BrandID                string
-	Grade                  string
+	Mode                   string   `key:"mode"`
+	RecoverySystem         string   `key:"recovery_system"`
+	CurrentRecoverySystems []string `key:"current_recovery_systems"`
+	Base                   string   `key:"base"`
+	TryBase                string   `key:"try_base"`
+	BaseStatus             string   `key:"base_status"`
+	CurrentKernels         []string `key:"current_kernels"`
+	Model                  string   `key:"model"`
+	BrandID                string   `key:"model,secondary"`
+	Grade                  string   `key:"grade"`
+	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
+	// a list of hashes of the asset contents. Typically the first entry in
+	// the list is a hash of an asset the system currently boots with (or is
+	// expected to have booted with). The second entry, if present, is the
+	// hash of an entry added when an update of the asset was being applied
+	// and will become the sole entry after a successful boot.
+	CurrentTrustedBootAssets bootAssetsMap `key:"current_trusted_boot_assets"`
+	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
+	// asset names to a list of hashes of the asset contents. Used similarly
+	// to CurrentTrustedBootAssets.
+	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -54,6 +69,43 @@ type Modeenv struct {
 	// originRootdir is set to the root whence the modeenv was
 	// read from, and where it will be written back to
 	originRootdir string
+
+	// extrakeys is all the keys in the modeenv we read from the file but don't
+	// understand, we keep track of this so that if we read a new modeenv with
+	// extra keys and need to rewrite it, we will write those new keys as well
+	extrakeys map[string]string
+}
+
+var modeenvKnownKeys = make(map[string]bool)
+
+func init() {
+	st := reflect.TypeOf(Modeenv{})
+	num := st.NumField()
+	for i := 0; i < num; i++ {
+		f := st.Field(i)
+		if f.PkgPath != "" {
+			// unexported
+			continue
+		}
+		key := f.Tag.Get("key")
+		if key == "" {
+			panic(fmt.Sprintf("modeenv %s field has no key tag", f.Name))
+		}
+		const secondaryModifier = ",secondary"
+		if strings.HasSuffix(key, secondaryModifier) {
+			// secondary field in a group fields
+			// corresponding to one file key
+			key := key[:len(key)-len(secondaryModifier)]
+			if !modeenvKnownKeys[key] {
+				panic(fmt.Sprintf("modeenv %s field marked as secondary for not yet defined key %q", f.Name, key))
+			}
+			continue
+		}
+		if modeenvKnownKeys[key] {
+			panic(fmt.Sprintf("modeenv key %q repeated on %s", key, f.Name))
+		}
+		modeenvKnownKeys[key] = true
+	}
 }
 
 func modeenvFile(rootdir string) string {
@@ -72,10 +124,12 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+
 	// TODO:UC20: should we check these errors and try to do something?
 	m := Modeenv{
 		read:          true,
 		originRootdir: rootdir,
+		extrakeys:     make(map[string]string),
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
@@ -95,6 +149,23 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	m.Model = bm.model
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
+
+	// save all the rest of the keys we don't understand
+	keys, err := cfg.Options("")
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range keys {
+		if !modeenvKnownKeys[k] {
+			val, err := cfg.Get("", k)
+			if err != nil {
+				return nil, err
+			}
+			m.extrakeys[k] = val
+		}
+	}
 
 	return &m, nil
 }
@@ -173,6 +244,19 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
+	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
+	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
+
+	// write all the extra keys at the end
+	// sort them for test convenience
+	extraKeys := make([]string, 0, len(m.extrakeys))
+	for k := range m.extrakeys {
+		extraKeys = append(extraKeys, k)
+	}
+	sort.Strings(extraKeys)
+	for _, k := range extraKeys {
+		marshalModeenvEntryTo(buf, k, m.extrakeys[k])
+	}
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
@@ -216,6 +300,10 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 				return fmt.Errorf("cannot marshal value for key %q as JSON: %v", key, err)
 			}
 			asString = string(marshalled)
+			if asString == "null" {
+				//  no need to keep nulls in the modeenv
+				return nil
+			}
 		} else {
 			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %v for key %q", what, what, key)
 		}
@@ -296,5 +384,19 @@ func (m *modeenvModel) UnmarshalModeenvValue(brandSlashModel string) error {
 			m.model = bsmSplit[1]
 		}
 	}
+	return nil
+}
+
+func (b bootAssetsMap) MarshalJSON() ([]byte, error) {
+	asMap := map[string][]string(b)
+	return json.Marshal(asMap)
+}
+
+func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
+	var asMap map[string][]string
+	if err := json.Unmarshal(data, &asMap); err != nil {
+		return err
+	}
+	*b = bootAssetsMap(asMap)
 	return nil
 }

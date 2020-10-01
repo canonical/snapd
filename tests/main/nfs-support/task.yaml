@@ -183,11 +183,11 @@ execute: |
     # Ensure that this removed the extra permissions.
     ensure_normal_perms
 
-    # Skip udp protocol on arch-linux and debian-sid because it is not supported
-    # Error displayed:
+    # Skip udp protocol on arch-linux, debian-sid and ubuntu-20.10 because it is
+    # not supported. Error displayed:
     # - arch: mount.nfs: requested NFS version or transport protocol is not supported
-    # - debian-sid: mount.nfs: an incorrect mount option was specified
-    if [[ "$SPREAD_SYSTEM" != arch-* && "$SPREAD_SYSTEM" != debian-sid-* ]]; then
+    # - debian-sid, ubuntu-20.10: mount.nfs: an incorrect mount option was specified
+    if [[ "$SPREAD_SYSTEM" != arch-* && "$SPREAD_SYSTEM" != debian-sid-* && "$SPREAD_SYSTEM" != ubuntu-20.10-* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 

@@ -98,6 +98,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// the case where we are supposed to wait (which is the default for this
 		// function)
 		args = append(args, "--fsck=yes")
+	} else {
+		// the default is to use fsck=yes, so if it doesn't need fsck we need to
+		// explicitly turn it off
+		args = append(args, "--fsck=no")
 	}
 
 	// Under all circumstances that we use systemd-mount here from
@@ -138,6 +142,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// layout, but that means that changes to snap-bootstrap would block on
 		// waiting for those files to be added before things works here, this is
 		// a more flexible strategy that puts snap-bootstrap in control
+		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
 		for _, initrdUnit := range []string{
 			"initrd.target",
 			"initrd-fs.target",
@@ -154,8 +159,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			content := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-			err = ioutil.WriteFile(filepath.Join(targetDir, fname), content, 0644)
+			err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
 			if err != nil {
 				return err
 			}

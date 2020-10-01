@@ -50,7 +50,7 @@ var (
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
-// MockMountPointDisksToPartionMapping, but we can't just assign
+// MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
 // the former returns a *disk, the latter returns a Disk, and as such they can't
 // be assigned to each other
@@ -67,6 +67,9 @@ type Options struct {
 }
 
 // Disk is a single physical disk device that contains partitions.
+// TODO:UC20: add function to get some properties like an associated /dev node
+//            for a disk for better user error reporting, i.e. /dev/vda3 is much
+//            more helpful than 252:3
 type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition
 	// matching the specified filesystem label on the disk. Note that for
@@ -80,6 +83,9 @@ type Disk interface {
 	// to a partition on the disk. Note that this only considers partitions
 	// and mountpoints found when the disk was identified with
 	// DiskFromMountPoint.
+	// TODO:UC20: make this function return what a Disk of where the mount point
+	//            is actually from if it is not from the same disk for better
+	//            error reporting
 	MountPointIsFromDisk(string, *Options) (bool, error)
 
 	// Dev returns the string "major:minor" number for the disk device.

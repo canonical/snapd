@@ -41,6 +41,7 @@ var (
 	snapstateAll                     = snapstate.All
 	snapstateCheckChangeConflictMany = snapstate.CheckChangeConflictMany
 	backendIter                      = backend.Iter
+	backendEstimateSnapshotSize      = backend.EstimateSnapshotSize
 
 	// Default expiration time for automatic snapshots, if not set by the user
 	defaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
@@ -51,13 +52,28 @@ type snapshotState struct {
 }
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
-	var lastSetID uint64
+	var lastDiskSetID, lastStateSetID uint64
 
-	err := st.Get("last-snapshot-set-id", &lastSetID)
+	// get last set id from state
+	err := st.Get("last-snapshot-set-id", &lastStateSetID)
 	if err != nil && err != state.ErrNoState {
 		return 0, err
 	}
 
+	// get highest set id from the snapshots/ directory
+	lastDiskSetID, err = backend.LastSnapshotSetID()
+	if err != nil {
+		return 0, fmt.Errorf("cannot determine last snapshot set id: %v", err)
+	}
+
+	// take the larger of the two numbers and store it back in the state.
+	// the value in state acts as an allocation of IDs for scheduled snapshots,
+	// they allocate set id early before any file gets created, so we cannot
+	// rely on disk only.
+	lastSetID := lastDiskSetID
+	if lastStateSetID > lastSetID {
+		lastSetID = lastStateSetID
+	}
 	lastSetID++
 	st.Set("last-snapshot-set-id", lastSetID)
 
@@ -79,6 +95,25 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	sort.Strings(names)
 
 	return names, nil
+}
+
+func EstimateSnapshotSize(st *state.State, instanceName string, users []string) (uint64, error) {
+	cur, err := snapstateCurrentInfo(st, instanceName)
+	if err != nil {
+		return 0, err
+	}
+	rawCfg, err := configGetSnapConfig(st, instanceName)
+	if err != nil {
+		return 0, err
+	}
+	sz, err := backendEstimateSnapshotSize(cur, users)
+	if err != nil {
+		return 0, err
+	}
+	if rawCfg != nil {
+		sz += uint64(len([]byte(*rawCfg)))
+	}
+	return sz, nil
 }
 
 func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
@@ -451,3 +486,10 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 
 	return summaries.snapNames(), ts, nil
 }
+
+// Export exports a given snapshot ID
+// Note that the state much be locked by the caller.
+var Export = backend.NewSnapshotExport
+
+// SnapshotExport provides a snapshot export that can be streamed out
+type SnapshotExport = backend.SnapshotExport
