@@ -200,3 +200,19 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 
 	return rsp.Body, rsp.ContentLength, nil
 }
+
+// SnapshotImportSet is a snapshot import created by a "snap import-snapshot".
+type SnapshotImportSet struct {
+	ID    uint64   `json:"set-id"`
+	Snaps []string `json:"snaps"`
+}
+
+// SnapshotImport imports an exported snapshot set.
+func (client *Client) SnapshotImport(body io.Reader) (SnapshotImportSet, error) {
+	var importSet SnapshotImportSet
+	if _, err := client.doSync("POST", "/v2/snapshot/import", nil, nil, body, &importSet); err != nil {
+		return importSet, err
+	}
+
+	return importSet, nil
+}
