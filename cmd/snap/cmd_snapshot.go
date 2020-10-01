@@ -107,7 +107,7 @@ Export a snapshot to the given filename.
 `)
 
 var longImportSnapshotHelp = i18n.G(`
-Import an exported snapshot file to the system. The snapshot is imported
+Import an exported snapshot set to the system. The snapshot is imported
 with a new snapshot ID and can be restored using the restore command.
 `)
 
@@ -428,7 +428,7 @@ func init() {
 			{
 				name: "<filename>",
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The filename of the snapshot set to import"),
+				desc: i18n.G("The filename of the snapshot set export to import"),
 			},
 		})
 	// XXX: this command is hidden because import/export is not complete
