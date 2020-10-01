@@ -510,6 +510,9 @@ func (x *importSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "Imported snapshot with %d snaps as snapshot ID %d\n", len(importSet.Snaps), importSet.ID)
+	fmt.Fprintf(Stdout, "Imported snapshot ID %d with data for snaps:\n", importSet.ID)
+	for _, snap := range importSet.Snaps {
+		fmt.Fprintf(Stdout, "- %s\n", snap)
+	}
 	return nil
 }

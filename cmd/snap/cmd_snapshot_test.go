@@ -150,5 +150,9 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
-	c.Check(s.Stdout(), testutil.MatchesWrapped, "Imported snapshot with 3 snaps as snapshot ID 42")
+	c.Check(s.Stdout(), testutil.MatchesWrapped, `Imported snapshot ID 42 with data for snaps:
+- baz
+- bar
+- foo
+`)
 }
