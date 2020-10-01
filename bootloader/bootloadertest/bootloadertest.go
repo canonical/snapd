@@ -58,7 +58,6 @@ var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.TrustedAssetsBootloader = (*MockTrustedAssetsBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
-var _ bootloader.ManagedAssetsBootloader = (*MockManagedAssetsBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -374,65 +373,6 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
 }
 
-// MockManagedAssetsBootloader mocks a bootloader implementing the
-// bootloader.ManagedAssetsBootloader interface.
-type MockManagedAssetsBootloader struct {
-	*MockBootloader
-
-	IsManaged                  bool
-	IsManagedErr               error
-	UpdateErr                  error
-	UpdateCalls                int
-	Assets                     []string
-	StaticCommandLine          string
-	CandidateStaticCommandLine string
-	CommandLineErr             error
-}
-
-func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
-	return &MockManagedAssetsBootloader{
-		MockBootloader: b,
-	}
-}
-
-func (b *MockManagedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
-	return b.IsManaged, b.IsManagedErr
-}
-
-func (b *MockManagedAssetsBootloader) ManagedAssets() []string {
-	return b.Assets
-}
-
-func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
-	b.UpdateCalls++
-	return b.UpdateErr
-}
-
-func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
-	args := []string(nil)
-	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
-		if argSet != "" {
-			args = append(args, argSet)
-		}
-	}
-	line := strings.Join(args, " ")
-	return strings.TrimSpace(line)
-}
-
-func (b *MockManagedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
-	if b.CommandLineErr != nil {
-		return "", b.CommandLineErr
-	}
-	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
-}
-
-func (b *MockManagedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
-	if b.CommandLineErr != nil {
-		return "", b.CommandLineErr
-	}
-	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
-}
-
 // MockTrustedAssetsBootloader mocks a bootloader implementing the
 // bootloader.TrustedAssetsBootloader interface.
 type MockTrustedAssetsBootloader struct {
@@ -450,12 +390,59 @@ type MockTrustedAssetsBootloader struct {
 	RecoveryBootChainCalls []string
 	BootChainRunBl         []bootloader.Bootloader
 	BootChainKernelPath    []string
+
+	IsManaged                  bool
+	IsManagedErr               error
+	UpdateErr                  error
+	UpdateCalls                int
+	ManagedAssetsList          []string
+	StaticCommandLine          string
+	CandidateStaticCommandLine string
+	CommandLineErr             error
 }
 
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	return &MockTrustedAssetsBootloader{
 		MockBootloader: b,
 	}
+}
+
+func (b *MockTrustedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
+	return b.IsManaged, b.IsManagedErr
+}
+
+func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
+	return b.ManagedAssetsList
+}
+
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
+	b.UpdateCalls++
+	return b.UpdateErr
+}
+
+func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
+	args := []string(nil)
+	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
+		if argSet != "" {
+			args = append(args, argSet)
+		}
+	}
+	line := strings.Join(args, " ")
+	return strings.TrimSpace(line)
+}
+
+func (b *MockTrustedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+}
+
+func (b *MockTrustedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
 }
 
 func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
@@ -472,31 +459,4 @@ func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, ker
 	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
 	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
 	return b.BootChainList, b.BootChainErr
-}
-
-// MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
-// bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
-// interfaces.
-type MockManagedAssetsRecoveryAwareBootloader struct {
-	*MockManagedAssetsBootloader
-
-	EnvVars map[string]string
-}
-
-func (b *MockBootloader) WithManagedAssetsRecoveryAware() *MockManagedAssetsRecoveryAwareBootloader {
-	return &MockManagedAssetsRecoveryAwareBootloader{
-		MockManagedAssetsBootloader: &MockManagedAssetsBootloader{
-			MockBootloader: b,
-		},
-		EnvVars: make(map[string]string),
-	}
-}
-
-func (b *MockManagedAssetsRecoveryAwareBootloader) SetRecoverySystemEnv(systemDir string, env map[string]string) error {
-	b.EnvVars = env
-	return nil
-}
-
-func (b *MockManagedAssetsRecoveryAwareBootloader) GetRecoverySystemEnv(systemDir, key string) (string, error) {
-	return b.EnvVars[key], nil
 }

@@ -6,9 +6,7 @@ details: |
     to the view inside the mount namespace. If the directory does not exist the
     special fallback /var/lib/snapd/void is used.
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 restore: |
     snap remove --purge test-snapd-sh
     rmdir /tmp/test || true

@@ -41,6 +41,13 @@ prepare: |
   mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
+  # inject a snap that uses system-usernames into the seed to confirm that works
+  # as expected
+  # TODO: replace this snap with a simpler one instead that is smaller, this one
+  # is 37M, but test-snapd-daemon-user does not have a daemon yet
+  snap download --edge --basename=test-postgres-system-usernames test-postgres-system-usernames
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" test-postgres-system-usernames
+
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
@@ -118,3 +125,9 @@ execute: |
   nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
   nested_exec "sudo lxd init --auto"
   nested_exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+
+  echo "Checking that the test-postgres-system-usernames snap is operational"
+  nested_exec "sudo snap start --enable test-postgres-system-usernames.postgres"
+  # wait for postgres to come online
+  sleep 10
+  nested_exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"

@@ -40,7 +40,7 @@ func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	gid, err := FindGidOwning(name)
 	c.Check(err, IsNil)
 
-	self, err := RealUser()
+	self, err := UserMaybeSudoUser()
 	c.Assert(err, IsNil)
 	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
 }

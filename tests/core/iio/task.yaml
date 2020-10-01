@@ -22,9 +22,7 @@ prepare: |
     echo "iio-0" > /dev/iio:device0
 
     echo "Given a snap declaring a plug on iio is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local iio-consumer
+    "$TESTSTOOLS"/snaps-state install-local iio-consumer
 
     echo "And the iio plug is connected"
     snap connect iio-consumer:iio core:iio0
