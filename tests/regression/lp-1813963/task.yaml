@@ -8,7 +8,7 @@ prepare: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     # Install the versatile test snap.
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # Discard the mount namespace in case the snap has any hooks. We rely on
     # the mount namespace to be absent and about to be constructed in the test
     # below.
