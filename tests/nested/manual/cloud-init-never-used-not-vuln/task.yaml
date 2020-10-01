@@ -26,6 +26,7 @@ prepare: |
     # first boot will use seed1 which is empty, but the same file name will be 
     # replace while the VM is shutdown to use the second attacker iso
     NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
+
     nested_create_core_vm
     nested_start_core_vm
 

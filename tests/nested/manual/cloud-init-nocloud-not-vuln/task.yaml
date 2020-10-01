@@ -29,6 +29,7 @@ prepare: |
     # first boot uses seed1 to create the normal-user in addition to the 
     # system-user assertion
     NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
+
     nested_create_core_vm
     nested_start_core_vm
 
