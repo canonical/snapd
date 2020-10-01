@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortCreateCohortHelp = i18n.G("Create cohort keys for a series of snaps")
+var shortCreateCohortHelp = i18n.G("Create cohort keys for a set of snaps")
 var longCreateCohortHelp = i18n.G(`
 The create-cohort command creates a set of cohort keys for a given set of snaps.
 
