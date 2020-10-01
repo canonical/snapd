@@ -123,16 +123,21 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 					return
 				}
 				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
-			} else {
-				w.WriteHeader(202)
-				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+			}
+			if r.Method == "POST" {
+				if r.Header.Get("Content-Type") == "application/x.snapd.snapshot-v1" {
+					fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["htop"]}}`)
+				} else {
+
+					w.WriteHeader(202)
+					fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+				}
 			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
 		case "/v2/snapshots/1/export":
+			w.Header().Set("Content-Type", "application/x.snapd.snapshot-v1")
 			fmt.Fprint(w, "Hello World!")
-		case "/v2/snapshot/import":
-			fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["baz", "bar", "foo"]}}`)
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)
 		}
@@ -150,9 +155,8 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
-	c.Check(s.Stdout(), testutil.MatchesWrapped, `Imported snapshot ID 42 with data for snaps:
-- baz
-- bar
-- foo
+	c.Check(s.Stdout(), testutil.MatchesWrapped, `Imported snapshot #42
+Set  Snap  Age    Version  Rev   Size    Notes
+1    htop  30d0h  2        1168      1B  -
 `)
 }

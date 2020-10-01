@@ -138,6 +138,7 @@ func (x *savedCmd) Execute([]string) error {
 		fmt.Fprintln(Stdout, i18n.G("No snapshots found."))
 		return nil
 	}
+
 	w := tabWriter()
 	defer w.Flush()
 
@@ -510,9 +511,11 @@ func (x *importSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "Imported snapshot ID %d with data for snaps:\n", importSet.ID)
-	for _, snap := range importSet.Snaps {
-		fmt.Fprintf(Stdout, "- %s\n", snap)
+	fmt.Fprintf(Stdout, "Imported snapshot #%d\n", importSet.ID)
+	y := &savedCmd{
+		clientMixin:   x.clientMixin,
+		durationMixin: x.durationMixin,
+		ID:            snapshotID(strconv.FormatUint(importSet.ID, 10)),
 	}
-	return nil
+	return y.Execute(nil)
 }
