@@ -429,7 +429,7 @@ func init() {
 			{
 				name: "<filename>",
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("Name of the snapshot set file to import"),
+				desc: i18n.G("Name of the snapshot export file to use"),
 			},
 		})
 	// XXX: this command is hidden because import/export is not complete
