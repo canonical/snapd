@@ -180,12 +180,9 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
-
-	// XXX: check that we have enough space to import the compressed snapshots
-
-	// XXX: is this the right layer?
 	defer r.Body.Close()
 
+	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
 	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
 	if err != nil {

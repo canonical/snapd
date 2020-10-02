@@ -384,8 +384,7 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
-	// mock snapshot export file
-	data := []byte("mocked snapshot import data file!")
+	data := []byte("mocked snapshot export data file")
 
 	setID := uint64(3)
 	size := int64(len(data))
@@ -409,9 +408,7 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 		return uint64(0), nil, 0, errors.New("no")
 	})()
 
-	// mock snapshot export file
-	data := []byte("mocked snapshot import data file")
-
+	data := []byte("mocked snapshot export data file")
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/x.snapd.snapshot")
