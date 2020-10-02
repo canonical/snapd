@@ -34,6 +34,10 @@ jobs:
                   echo "::set-output name=already-ran::true"
               fi
           fi
+    - name: Set CI snapcraft build options
+      run: |
+        mkdir -p developer-snapd-snap-options
+        touch ./developer-snapd-snap-options/both-testkeys
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
