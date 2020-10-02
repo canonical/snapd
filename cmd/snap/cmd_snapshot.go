@@ -429,7 +429,7 @@ func init() {
 			{
 				name: "<filename>",
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The filename of the snapshot set export to import"),
+				desc: i18n.G("Name of the snapshot set file to import"),
 			},
 		})
 	// XXX: this command is hidden because import/export is not complete
@@ -511,7 +511,7 @@ func (x *importSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "Imported snapshot #%d\n", importSet.ID)
+	fmt.Fprintf(Stdout, i18n.G("Imported snapshot as #%d\n"), importSet.ID)
 	y := &savedCmd{
 		clientMixin:   x.clientMixin,
 		durationMixin: x.durationMixin,
