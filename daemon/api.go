@@ -106,7 +106,6 @@ var api = []*Command{
 	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
-	snapshotImportCmd,
 	snapshotExportCmd,
 	connectionsCmd,
 	modelCmd,

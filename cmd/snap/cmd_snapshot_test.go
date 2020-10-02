@@ -135,8 +135,6 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
-		case "/v2/snapshot/import":
-			fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["baz", "bar", "foo"]}}`)
 		case "/v2/snapshots/1/export":
 			w.Header().Set("Content-Type", "application/x.snapd.snapshot")
 			fmt.Fprint(w, "Hello World!")

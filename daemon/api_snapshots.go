@@ -148,27 +148,6 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-var snapshotImportCmd = &Command{
-	Path: "/v2/snapshot/import",
-	POST: postSnapshotImport,
-}
-
-func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
-	// XXX: check that we have enough space to import the compressed snapshots
-
-	// XXX: is this the right layer?
-	defer r.Body.Close()
-
-	st := c.d.overlord.State()
-	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
-	if err != nil {
-		return BadRequest(err.Error())
-	}
-
-	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
-	return SyncResponse(result, nil)
-}
-
 // getSnapshotExport streams an archive containing an export of existing snapshots.
 //
 // The snapshots are re-packaged into a single uncompressed tar archive and

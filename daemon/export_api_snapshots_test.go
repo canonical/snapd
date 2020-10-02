@@ -117,9 +117,6 @@ func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
 	return changeSnapshots(c, r, user).(*resp)
 }
 
-func ImportSnapshot(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return postSnapshotImport(c, r, user).(*resp)
-}
 func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface{} {
 	return getSnapshotExport(c, r, user)
 }
@@ -127,7 +124,6 @@ func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface
 var (
 	SnapshotMany      = snapshotMany
 	SnapshotCmd       = snapshotCmd
-	SnapshotImportCmd = snapshotImportCmd
 	SnapshotExportCmd = snapshotExportCmd
 )
 
