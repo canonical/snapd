@@ -1047,6 +1047,52 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `validation failed for "5_foo_1.0_199.zip": zip: not a valid zip file`)
 }
 
+func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	ctx := context.TODO()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+	shID := uint64(12)
+
+	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, shID)
+	
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
+	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	c.Assert(export.Init(), check.IsNil)
+
+	buf := bytes.NewBuffer(nil)
+	c.Assert(export.StreamTo(buf), check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(export.Size()))
+
+	// now import it
+	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")), check.IsNil)
+
+	_, names, err := backend.Import(ctx, 123, buf)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"hello-snap"})
+
+	sets, err := backend.List(ctx, 0, nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(sets, check.HasLen, 1)
+	c.Check(sets[0].ID, check.Equals, uint64(123))
+
+	rdr, err := backend.Open(filepath.Join(dirs.SnapshotsDir, "123_hello-snap_v1.33_42.zip"), backend.ExtractFnameSetID)
+	defer rdr.Close()
+	c.Check(err, check.IsNil)
+	c.Check(rdr.SetID, check.Equals, uint64(123))
+	c.Check(rdr.Snap, check.Equals, "hello-snap")
+	c.Check(rdr.IsValid(), check.Equals, true)
+}
+
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
