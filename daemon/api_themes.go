@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -120,8 +121,8 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
-func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]bool) (map[string]themeStatus, error) {
-	status := make(map[string]themeStatus, len(themes))
+func getThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]bool) (status map[string]themeStatus, err error) {
+	status = make(map[string]themeStatus, len(themes))
 
 	for _, theme := range themes {
 		// Skip duplicates
@@ -134,18 +135,19 @@ func getThemeStatusForType(ctx context.Context, theStore snapstate.StoreService,
 		}
 		status[theme] = themeUnavailable
 		for _, name := range themePackageCandidates(prefix, theme) {
-			if info, err := theStore.SnapInfo(ctx, store.SnapSpec{Name: name}, user); err == nil {
-				// Only mark the theme as available if
-				// it has been published to the stable
-				// channel.
-				if info.Channel == "stable" {
-					status[theme] = themeAvailable
-					toInstall[name] = true
-				}
-				break
-			} else if err != store.ErrSnapNotFound {
+			var info *snap.Info
+			if info, err = theStore.SnapInfo(ctx, store.SnapSpec{Name: name}, user); err == store.ErrSnapNotFound {
+				continue
+			} else if err != nil {
 				return nil, err
 			}
+			// Only mark the theme as available if it has
+			// been published to the stable channel.
+			if info.Channel == "stable" {
+				status[theme] = themeAvailable
+				toInstall[name] = true
+			}
+			break
 		}
 	}
 	return status, nil
@@ -159,13 +161,13 @@ func getThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkTh
 
 	theStore := getStore(c)
 	candidates := make(map[string]bool)
-	if status.GtkThemes, err = getThemeStatusForType(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, candidates); err != nil {
+	if status.GtkThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.IconThemes, err = getThemeStatusForType(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, candidates); err != nil {
+	if status.IconThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.SoundThemes, err = getThemeStatusForType(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, candidates); err != nil {
+	if status.SoundThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
 	toInstall = make([]string, 0, len(candidates))

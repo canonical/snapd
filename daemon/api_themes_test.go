@@ -155,7 +155,7 @@ func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	c.Check(themePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []string{"gtk-theme-foo-bar", "gtk-theme-foo"})
 }
 
-func (s *themesSuite) TestGetThemeStatusForType(c *C) {
+func (s *themesSuite) TestGetThemeStatusForPrefix(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -176,7 +176,7 @@ func (s *themesSuite) TestGetThemeStatusForType(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
+	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Installed":   themeInstalled,
@@ -187,7 +187,7 @@ func (s *themesSuite) TestGetThemeStatusForType(c *C) {
 	c.Check(toInstall["gtk-theme-available"], NotNil)
 }
 
-func (s *themesSuite) TestGetThemeStatusForTypeStripsSuffixes(c *C) {
+func (s *themesSuite) TestGetThemeStatusForPrefixStripsSuffixes(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -202,7 +202,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeStripsSuffixes(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
+	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Yaru-dark": themeAvailable,
@@ -211,7 +211,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeStripsSuffixes(c *C) {
 	c.Check(toInstall["gtk-theme-yaru"], NotNil)
 }
 
-func (s *themesSuite) TestGetThemeStatusForTypeIgnoresUnstable(c *C) {
+func (s *themesSuite) TestGetThemeStatusForPrefixIgnoresUnstable(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -226,7 +226,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeIgnoresUnstable(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
+	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Yaru": themeUnavailable,
@@ -234,7 +234,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeIgnoresUnstable(c *C) {
 	c.Check(toInstall, HasLen, 0)
 }
 
-func (s *themesSuite) TestGetThemeStatusForTypeReturnsErrors(c *C) {
+func (s *themesSuite) TestGetThemeStatusForPrefixReturnsErrors(c *C) {
 	s.daemon(c)
 
 	s.err = errors.New("store error")
@@ -242,7 +242,7 @@ func (s *themesSuite) TestGetThemeStatusForTypeReturnsErrors(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForType(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
+	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
 	c.Check(err, Equals, s.err)
 	c.Check(status, IsNil)
 	c.Check(toInstall, HasLen, 0)
