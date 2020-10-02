@@ -448,34 +448,36 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 // Import a snapshot from the export file format
 func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames []string, err error) {
-	comment := fmt.Sprintf("snapshot %d", id)
+	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
 	// prepare cache location to unpack the import file
-	p := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", id))
-	if err := os.MkdirAll(path.Join(dirs.SnapCacheDir, "snapshots"), 0755); err != nil {
-		return 0, nil, fmt.Errorf("cannot create snapshots directory")
+	tempImportDir := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", id))
+	if err := os.MkdirAll(path.Dir(tempImportDir), 0755); err != nil {
+		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	if err := os.Mkdir(p, 0755); err != nil {
+	if err := os.Mkdir(tempImportDir, 0755); err != nil {
 		if os.IsExist(err) {
-			return 0, nil, fmt.Errorf("snapshot import already in progress for ID `%d`", id)
+			return 0, nil, fmt.Errorf("%s: already in progress for this id", errPrefix)
 		}
-		return 0, nil, fmt.Errorf("failed creating import cache: %v", err)
+		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	defer os.RemoveAll(p)
+	defer os.RemoveAll(tempImportDir)
 
-	// unpack the tar file to a temporary location (so the contents can be validated)
-	exportFound, size, err := unpackSnapshotImport(r, p)
+	// unpack the tar file to a temporary location (so the
+	// contents can be validated)
+	exportFound, size, err := unpackSnapshotImport(r, tempImportDir)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if !exportFound {
-		return 0, nil, fmt.Errorf("snapshot import file incomplete: no export.json file")
+		return 0, nil, fmt.Errorf("%s: no export.json file in uploaded data", errPrefix)
 	}
 
-	// walk the cache directory to store the files
-	dir, err := osOpen(p)
+	// walk the cache directory to store the snapshot files from the
+	// temp import location to the real location
+	dir, err := osOpen(tempImportDir)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed opening import cache for %s: %v", comment, err)
+		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	defer dir.Close()
 
@@ -485,16 +487,17 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 		names, readErr = dirNames(dir, 100)
 		if len(names) > 0 {
 			// move the files into place with the new local set ID
-			names, err := moveCachedSnapshots(names, id, p)
+			newSnapNames, err := moveCachedSnapshots(names, id, tempImportDir)
+			// XXX: if we fail here we need to undo the snapshot
+			//      import
 			if err != nil {
 				return 0, nil, err
 			}
-			// should we simply read all dir names at once above?
-			snapNames = append(snapNames, names...)
+			snapNames = append(snapNames, newSnapNames...)
 		}
 	}
 	if readErr != nil && readErr != io.EOF {
-		return 0, nil, fmt.Errorf("failed read from import cache for %s: %v", comment, readErr)
+		return 0, nil, fmt.Errorf("%s: failed read from import cache: %v", errPrefix, readErr)
 	}
 	return size, snapNames, err
 }
@@ -545,6 +548,9 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 			// ignore metadata file
 			continue
 		}
+		// XXX: do all the checking/renaming in
+		// unpackSnapshotImport and maybe rename to
+		// "unpackVerifySnapshotImport"
 		old := path.Join(p, name)
 
 		// read old snapshot, override its set id internally
