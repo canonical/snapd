@@ -21,6 +21,8 @@ package backend
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"github.com/snapcore/snapd/dirs"
 	"os"
@@ -109,22 +111,37 @@ func MockCreateExportFile(filename string, exportJSON bool, withDir bool) error 
 	}
 	defer tf.Close()
 	tw := tar.NewWriter(tf)
+	defer tw.Close()
 
 	for _, s := range []string{"foo", "bar", "baz"} {
-		f := fmt.Sprintf("5_%s_1.0_199.zip", s)
+		fname := fmt.Sprintf("5_%s_1.0_199.zip", s)
+
+		buf := bytes.NewBuffer(nil)
+		zipW := zip.NewWriter(buf)
+		f, err := zipW.Create(s)
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write([]byte(s)); err != nil {
+			return err
+		}
+		if err := zipW.Close(); err != nil {
+			return err
+		}
 
 		hdr := &tar.Header{
-			Name: f,
+			Name: fname,
 			Mode: 0644,
-			Size: int64(len(s)),
+			Size: int64(buf.Len()),
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
 		}
-		if _, err := tw.Write([]byte(s)); err != nil {
+		if _, err := tw.Write(buf.Bytes()); err != nil {
 			return err
 		}
 	}
+	// XXX: create meta.json with valid/invalid content for tests
 
 	if withDir {
 		hdr := &tar.Header{
