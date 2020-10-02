@@ -512,6 +512,9 @@ func (x *importSnapshotCmd) Execute([]string) error {
 	}
 
 	fmt.Fprintf(Stdout, i18n.G("Imported snapshot as #%d\n"), importSet.ID)
+	// Now display the details about this snapshot, re-use the
+	// "snap saved" command for this which displays details about
+	// the snapshot.
 	y := &savedCmd{
 		clientMixin:   x.clientMixin,
 		durationMixin: x.durationMixin,
