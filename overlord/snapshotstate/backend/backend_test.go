@@ -1061,7 +1061,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
-	
+
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
