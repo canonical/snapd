@@ -49,7 +49,7 @@ execute: |
     test "$f1" = "$f2"
 
     # and is importable
-    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | cut -dD -f2 | cut -b 2- )
+    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
     # and is valid
     snap check-snapshot "$RESTORE_ID"
 
