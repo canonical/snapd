@@ -41,12 +41,12 @@ main() {
                 ;;
             prepare)
                 local BACKUP_PATH="${2:-$(pwd)}"
-                prepare "$BACKUP_PATH"
+                cmd_prepare "$BACKUP_PATH"
                 exit
                 ;;
             restore)
                 local BACKUP_PATH="${2:-$(pwd)}"
-                restore "$BACKUP_PATH"
+                cmd_restore "$BACKUP_PATH"
                 exit
                 ;;
             -*)
