@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"context"
@@ -1061,7 +1062,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
-	
+
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
@@ -1091,6 +1092,118 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	c.Check(rdr.SetID, check.Equals, uint64(123))
 	c.Check(rdr.Snap, check.Equals, "hello-snap")
 	c.Check(rdr.IsValid(), check.Equals, true)
+}
+
+// corruptSnapshot repacks snapshtotZipFile in-place and corrupts
+// its archive.tgz.
+func corruptSnapshot(c *check.C, snapshtotZipFile string) {
+	r, err := zip.OpenReader(snapshtotZipFile)
+	c.Assert(err, check.IsNil)
+	defer r.Close()
+
+	tmpFile := snapshtotZipFile + ".corrupted"
+	out, err := os.Create(tmpFile)
+	c.Assert(err, check.IsNil)
+	w := zip.NewWriter(out)
+	defer w.Close()
+
+	for _, f := range r.File {
+		archiveReader, err := f.Open()
+		c.Assert(err, check.IsNil)
+
+		archiveWriter, err := w.CreateHeader(&zip.FileHeader{Name: f.Name})
+		c.Assert(err, check.IsNil)
+		if f.Name == "archive.tgz" {
+			_, err = archiveWriter.Write([]byte{1, 2, 3})
+			c.Assert(err, check.IsNil)
+		} else {
+			_, err = io.Copy(archiveWriter, archiveReader)
+		}
+		archiveReader.Close()
+	}
+
+	c.Assert(os.Remove(snapshtotZipFile), check.IsNil)
+	c.Assert(os.Rename(tmpFile, snapshtotZipFile), check.IsNil)
+}
+
+// corruptSnapshotExport corrupts snapshotZipToCurrupt zip file inside the
+// exported tar stream and resturns the resulting corrupted snapshot export.
+func corruptSnapshotExport(c *check.C, exported io.Reader, snapshotZipToCurrupt string) io.Reader {
+	tempdir := c.MkDir()
+
+	tr := tar.NewReader(exported)
+	corrupted := bytes.NewBuffer(nil)
+	out := tar.NewWriter(corrupted)
+	defer out.Close()
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, check.IsNil)
+
+		if hdr.Name == snapshotZipToCurrupt {
+			// write zip file to a temporary directory and corrupt it in-place
+			tmpSnapshot := filepath.Join(tempdir, hdr.Name)
+			tmpZip, err := os.OpenFile(tmpSnapshot, os.O_CREATE|os.O_RDWR, os.FileMode(hdr.Mode))
+			c.Assert(err, check.IsNil)
+			_, err = io.Copy(tmpZip, tr)
+			c.Assert(err, check.IsNil)
+			c.Assert(tmpZip.Close(), check.IsNil)
+			corruptSnapshot(c, tmpSnapshot)
+			f, err := os.Open(tmpSnapshot)
+			c.Assert(err, check.IsNil)
+
+			stat, err := f.Stat()
+			hdr, err = tar.FileInfoHeader(stat, "")
+			c.Assert(err, check.IsNil)
+			c.Assert(out.WriteHeader(hdr), check.IsNil)
+
+			_, err = io.Copy(out, f)
+			c.Assert(err, check.IsNil)
+			c.Assert(f.Close(), check.IsNil)
+		} else {
+			c.Assert(out.WriteHeader(hdr), check.IsNil)
+			_, err = io.CopyN(out, tr, hdr.Size)
+			c.Assert(err, check.IsNil)
+		}
+	}
+	return corrupted
+}
+
+func (s *snapshotSuite) TestImportExportRoundtripCorrupted(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	ctx := context.TODO()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+	shID := uint64(12)
+
+	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, shID)
+
+	zipFileName := "12_hello-snap_v1.33_42.zip"
+
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, zipFileName))
+
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	c.Assert(export.Init(), check.IsNil)
+
+	buf := bytes.NewBuffer(nil)
+	c.Assert(export.StreamTo(buf), check.IsNil)
+
+	corrupted := corruptSnapshotExport(c, buf, zipFileName)
+
+	// now try to import it
+	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, zipFileName)), check.IsNil)
+
+	_, _, err = backend.Import(ctx, 123, corrupted)
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`validation failed for "%s": snapshot entry "archive.tgz" expected hash.*`, zipFileName))
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
