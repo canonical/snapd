@@ -86,3 +86,6 @@ cmd/test-driver
 
 # Image files
 *.img
+
+# Developer options for the snapd snap build
+developer-snapd-snap-options/
