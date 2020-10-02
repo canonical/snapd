@@ -386,14 +386,16 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	defer s.st.Unlock()
 
 	expectedTaskKinds := append(installTaskKinds, "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control")
-	for i := 1; i <= 2; i++ {
-		laneTasks := chg.LaneTasks(i)
+	checkLaneTasks := func(lane int) {
+		laneTasks := chg.LaneTasks(lane)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
 		c.Check(laneTasks[12].Summary(), Matches, `Run configure hook of .* snap if present`)
 		c.Check(laneTasks[14].Summary(), Equals, "stop of [test-snap.test-service]")
 		c.Check(laneTasks[16].Summary(), Equals, "start of [test-snap.test-service]")
 		c.Check(laneTasks[18].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
+	checkLaneTasks(1)
+	checkLaneTasks(2)
 }
 
 func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) {
@@ -425,16 +427,16 @@ func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) 
 		finalWaitTasks = append(finalWaitTasks, taskInfo)
 
 		var wait []string
-		hasRunHook := 0
+		var hasRunHook bool
 		for _, wt := range t.WaitTasks() {
 			if wt.Kind() != "run-hook" {
 				taskInfo = fmt.Sprintf("%s:%s", wt.Kind(), wt.Summary())
 				wait = append(wait, taskInfo)
 			} else {
-				hasRunHook++
+				hasRunHook = true
 			}
 		}
-		c.Assert(hasRunHook, Equals, 1)
+		c.Assert(hasRunHook, Equals, true)
 
 		switch t.Kind() {
 		case "exec-command":
