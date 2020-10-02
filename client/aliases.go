@@ -53,7 +53,7 @@ func (client *Client) Alias(snapName, app, alias string) (changeID string, err e
 	})
 }
 
-// // DisableAllAliases disables all aliases of a snap, removing all manual ones.
+// DisableAllAliases disables all aliases of a snap, removing all manual ones.
 func (client *Client) DisableAllAliases(snapName string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "unalias",
