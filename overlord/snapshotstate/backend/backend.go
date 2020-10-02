@@ -91,6 +91,7 @@ func LastSnapshotSetID() (uint64, error) {
 	var readErr error
 	for readErr == nil {
 		var names []string
+		// note os.Readdirnames can return a non-empty names and a non-nil err
 		names, readErr = dirNames(dir, 100)
 		for _, name := range names {
 			if ok, setID := isSnapshotFilename(name); ok {
@@ -483,20 +484,18 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	for readErr == nil {
 		var names []string
 		names, readErr = dirNames(dir, 100)
-		if err != nil {
-			return 0, nil, fmt.Errorf("failed read from import cache for %s: %v", comment, err)
+		if len(names) > 0 {
+			// move the files into place with the new local set ID
+			names, err := moveCachedSnapshots(names, id, p)
+			if err != nil {
+				return 0, nil, err
+			}
+			// should we simply read all dir names at once above?
+			snapNames = append(snapNames, names...)
 		}
-
-		// move the files into place with the new local set ID
-		names, err := moveCachedSnapshots(names, id, p)
-		if err != nil {
-			return 0, nil, err
-		}
-		// should we simply read all dir names at once above?
-		snapNames = append(snapNames, names...)
 	}
 	if readErr != nil && readErr != io.EOF {
-		return 0, nil, readErr
+		return 0, nil, fmt.Errorf("failed read from import cache for %s: %v", comment, readErr)
 	}
 	return size, snapNames, err
 }
