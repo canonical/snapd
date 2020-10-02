@@ -50,28 +50,38 @@ type autoRefreshStore struct {
 	ops []string
 
 	err error
+
+	snapActionOpsFunc func()
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
-	if assertQuery != nil {
-		panic("no assertion query support")
-	}
-	if !opts.IsAutoRefresh {
-		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
-	}
-
-	if ctx == nil || !auth.IsEnsureContext(ctx) {
-		panic("Ensure marked context required")
-	}
-	if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
-		panic("expected in test one action for each current snaps, and at least one snap")
-	}
-	for _, a := range actions {
-		if a.Action != "refresh" {
-			panic("expected refresh actions")
+	// this is a bit of a hack to simulate race conditions where while the store
+	// has unlocked the global state lock something else could come in and
+	// change the auto-refresh hold
+	if r.snapActionOpsFunc != nil {
+		r.snapActionOpsFunc()
+	} else {
+		if assertQuery != nil {
+			panic("no assertion query support")
 		}
+		if !opts.IsAutoRefresh {
+			panic("AutoRefresh snap action did not set IsAutoRefresh flag")
+		}
+
+		if ctx == nil || !auth.IsEnsureContext(ctx) {
+			panic("Ensure marked context required")
+		}
+		if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
+			panic("expected in test one action for each current snaps, and at least one snap")
+		}
+		for _, a := range actions {
+			if a.Action != "refresh" {
+				panic("expected refresh actions")
+			}
+		}
+
+		r.ops = append(r.ops, "list-refresh")
 	}
-	r.ops = append(r.ops, "list-refresh")
 	return nil, nil, r.err
 }
 
@@ -437,6 +447,86 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
 	c.Assert(config.IsNoOption(err), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLockUnlocked(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t0 := time.Now()
+	twelveHoursAgo := t0.Add(-12 * time.Hour)
+	fiveMinutesAgo := t0.Add(-5 * time.Minute)
+	oneHourInFuture := t0.Add(time.Hour)
+	s.state.Set("last-refresh", twelveHoursAgo)
+
+	holdTime := fiveMinutesAgo
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	sent := false
+	ch := make(chan struct{})
+	// make the store snap action function trigger a background go routine to
+	// change the held-time underneath the auto-refresh
+	go func() {
+		// wait to be triggered by the snap action ops func
+		<-ch
+		s.state.Lock()
+		defer s.state.Unlock()
+
+		// now change the refresh.hold time to be an hour in the future
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.hold", oneHourInFuture)
+		tr.Commit()
+
+		// trigger the snap action ops func to proceed
+		ch <- struct{}{}
+	}()
+
+	s.store.snapActionOpsFunc = func() {
+		// only need to send once, this will be invoked multiple times for
+		// multiple snaps
+		if !sent {
+			ch <- struct{}{}
+			sent = true
+			// wait for a response to ensure that we block waiting for the new
+			// refresh time to be committed in time for us to read it after
+			// returning in this go routine
+			<-ch
+		}
+	}
+	defer func() {
+		s.store.snapActionOpsFunc = nil
+	}()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	var lastRefresh time.Time
+	s.state.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, time.Now().Year())
+
+	// hold was reset mid-way to a new value one hour into the future
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+
+	// when traversing json through the core config transaction, there will be
+	// different wall/monotonic clock times, we remove this ambiguity by
+	// formatting as rfc3339 which will strip this negligible difference in time
+	c.Assert(t1.Format(time.RFC3339), Equals, oneHourInFuture.Format(time.RFC3339))
+
+	// we shouldn't have had a message about "all snaps are up to date", we
+	// should have a message about being aborted mid way
+	c.Assert(strings.Contains(logbuf.String(), "Auto-refresh was delayed mid-way through launching, aborting to try again later"), Equals, true)
+	c.Assert(strings.Contains(logbuf.String(), "auto-refresh: all snaps are up-to-date"), Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
