@@ -447,7 +447,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 }
 
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error) {
+func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames []string, err error) {
 	comment := fmt.Sprintf("snapshot %d", id)
 
 	// prepare cache location to unpack the import file
@@ -479,7 +479,6 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	}
 	defer dir.Close()
 
-	var snapNames []string
 	var readErr error
 	for readErr == nil {
 		var names []string
