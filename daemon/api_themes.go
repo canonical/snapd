@@ -101,7 +101,7 @@ func getInstalledThemes(d *Daemon) (gtkThemes, iconThemes, soundThemes []string,
 	return gtkThemes, iconThemes, soundThemes, nil
 }
 
-var badPkgCharRegexp = regexp.MustCompile(`[^a-z]+`)
+var badPkgCharRegexp = regexp.MustCompile(`[^a-z0-9]+`)
 
 func themePackageCandidates(prefix, themeName string) []string {
 	themeName = strings.ToLower(themeName)

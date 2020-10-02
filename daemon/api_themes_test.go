@@ -143,6 +143,9 @@ func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	c.Check(themePackageCandidates("gtk-theme-", "Yaru-dark"), DeepEquals, []string{"gtk-theme-yaru-dark", "gtk-theme-yaru"})
 	c.Check(themePackageCandidates("gtk-theme-", "Matcha-dark-azul"), DeepEquals, []string{"gtk-theme-matcha-dark-azul", "gtk-theme-matcha-dark", "gtk-theme-matcha"})
 
+	// Digits are accepted in package names
+	c.Check(themePackageCandidates("gtk-theme-", "abc123xyz"), DeepEquals, []string{"gtk-theme-abc123xyz"})
+
 	// In addition to case folding, bad characters are converted to dashes
 	c.Check(themePackageCandidates("icon-theme-", "Breeze_Snow"), DeepEquals, []string{"icon-theme-breeze-snow", "icon-theme-breeze"})
 
