@@ -179,22 +179,6 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
 }
 
-// SnapshotImportSet is a snapshot import created by a "snap import-snapshot".
-type SnapshotImportSet struct {
-	ID    uint64   `json:"set-id"`
-	Snaps []string `json:"snaps"`
-}
-
-// SnapshotImport imports an exported snapshot set.
-func (client *Client) SnapshotImport(body io.Reader) (SnapshotImportSet, error) {
-	var importSet SnapshotImportSet
-	if _, err := client.doSync("POST", "/v2/snapshot/import", nil, nil, body, &importSet); err != nil {
-		return importSet, err
-	}
-
-	return importSet, nil
-}
-
 // SnapshotExport streams the requested snapshot set.
 //
 // The return value includes the length of the returned stream.
@@ -213,6 +197,30 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		}
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
+	contentType := rsp.Header.Get("Content-Type")
+	if contentType != "application/x.snapd.snapshot" {
+		return nil, 0, fmt.Errorf("unexpected snapshot export content type %q", contentType)
+	}
 
 	return rsp.Body, rsp.ContentLength, nil
+}
+
+// SnapshotImportSet is a snapshot import created by a "snap import-snapshot".
+type SnapshotImportSet struct {
+	ID    uint64   `json:"set-id"`
+	Snaps []string `json:"snaps"`
+}
+
+// SnapshotImport imports an exported snapshot set.
+func (client *Client) SnapshotImport(exportStream io.Reader) (SnapshotImportSet, error) {
+	headers := map[string]string{
+		"Content-Type": "application/x.snapd.snapshot",
+	}
+
+	var importSet SnapshotImportSet
+	if _, err := client.doSync("POST", "/v2/snapshots", nil, headers, exportStream, &importSet); err != nil {
+		return importSet, err
+	}
+
+	return importSet, nil
 }

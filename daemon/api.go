@@ -884,8 +884,8 @@ var (
 	snapshotForget  = snapshotstate.Forget
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
-	snapshotImport  = snapshotstate.Import
 	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )

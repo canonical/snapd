@@ -225,6 +225,8 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+        # also run spread-shellcheck
+        ./spread-shellcheck spread.yaml tests
     fi
 
     echo "Checking spelling errors"

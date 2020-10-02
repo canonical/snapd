@@ -88,6 +88,11 @@ func (action snapshotAction) String() string {
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/x.snapd.snapshot" {
+		return doSnapshotImport(c, r, user)
+	}
+
 	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&action); err != nil {
@@ -193,4 +198,18 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return &snapshotExportResponse{SnapshotExport: export}
+}
+
+func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+	defer r.Body.Close()
+
+	// XXX: check that we have enough space to import the compressed snapshots
+	st := c.d.overlord.State()
+	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	return SyncResponse(result, nil)
 }
