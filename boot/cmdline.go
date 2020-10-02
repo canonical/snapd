@@ -114,12 +114,12 @@ func MockProcCmdline(newPath string) (restore func()) {
 
 var errBootConfigNotManaged = errors.New("boot config is not managed")
 
-func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.ManagedAssetsBootloader, error) {
+func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.TrustedAssetsBootloader, error) {
 	bl, err := bootloader.Find(where, opts)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find managed assets bootloader under %q: %v", where, err)
+		return nil, fmt.Errorf("internal error: cannot find trusted assets bootloader under %q: %v", where, err)
 	}
-	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	mbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// the bootloader cannot manage its scripts
 		return nil, errBootConfigNotManaged

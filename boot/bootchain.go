@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -35,12 +36,12 @@ import (
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootChain struct {
-	BrandID        string      `json:"brand-id"`
-	Model          string      `json:"model"`
-	Grade          string      `json:"grade"`
-	ModelSignKeyID string      `json:"model-sign-key-id"`
-	AssetChain     []bootAsset `json:"asset-chain"`
-	Kernel         string      `json:"kernel"`
+	BrandID        string             `json:"brand-id"`
+	Model          string             `json:"model"`
+	Grade          asserts.ModelGrade `json:"grade"`
+	ModelSignKeyID string             `json:"model-sign-key-id"`
+	AssetChain     []bootAsset        `json:"asset-chain"`
+	Kernel         string             `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
 	KernelRevision string   `json:"kernel-revision"`
@@ -107,14 +108,6 @@ func toPredictableBootAsset(b *bootAsset) *bootAsset {
 	return &newB
 }
 
-type byBootAssetOrder []bootAsset
-
-func (b byBootAssetOrder) Len() int      { return len(b) }
-func (b byBootAssetOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b byBootAssetOrder) Less(i, j int) bool {
-	return bootAssetLess(&b[i], &b[j])
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
@@ -125,7 +118,6 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 		for i := range b.AssetChain {
 			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
 		}
-		sort.Sort(byBootAssetOrder(newB.AssetChain))
 	}
 	if b.KernelCmdlines != nil {
 		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
@@ -188,7 +180,7 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].KernelRevision != b[j].KernelRevision {
 		return b[i].KernelRevision < b[j].KernelRevision
 	}
-	// and last kernel command line
+	// and last kernel command lines
 	if !stringListsEqual(b[i].KernelCmdlines, b[j].KernelCmdlines) {
 		return stringListsLess(b[i].KernelCmdlines, b[j].KernelCmdlines)
 	}
@@ -196,6 +188,18 @@ func (b byBootChainOrder) Less(i, j int) bool {
 }
 
 type predictableBootChains []bootChain
+
+// hasUnrevisionedKernels returns true if any of the chains have an
+// unrevisioned kernel. Revisions will not be set for unasserted
+// kernels.
+func (pbc predictableBootChains) hasUnrevisionedKernels() bool {
+	for i := range pbc {
+		if pbc[i].KernelRevision == "" {
+			return true
+		}
+	}
+	return false
+}
 
 func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	if chains == nil {
@@ -209,19 +213,35 @@ func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	return predictableChains
 }
 
-// predictableBootChainsEqualForReseal returns true when boot chains are
-// equivalent for reseal.
-func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
+type bootChainEquivalence int
+
+const (
+	bootChainEquivalent   bootChainEquivalence = 0
+	bootChainDifferent    bootChainEquivalence = 1
+	bootChainUnrevisioned bootChainEquivalence = -1
+)
+
+// predictableBootChainsEqualForReseal returns bootChainEquivalent
+// when boot chains are equivalent for reseal. If the boot chains
+// are clearly different it returns bootChainDifferent.
+// If it would return bootChainEquivalent but the chains contain
+// unrevisioned kernels it will return bootChainUnrevisioned.
+func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootChainEquivalence {
 	pb1JSON, err := json.Marshal(pb1)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
 	pb2JSON, err := json.Marshal(pb2)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
-	// TODO:UC20: return false if either chains have unasserted kernels
-	return bytes.Equal(pb1JSON, pb2JSON)
+	if bytes.Equal(pb1JSON, pb2JSON) {
+		if pb1.hasUnrevisionedKernels() {
+			return bootChainUnrevisioned
+		}
+		return bootChainEquivalent
+	}
+	return bootChainDifferent
 }
 
 // bootAssetsToLoadChains generates a list of load chains covering given boot
@@ -263,4 +283,49 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 		chains = append(chains, secboot.NewLoadChain(bf, next...))
 	}
 	return chains, nil
+}
+
+// predictableBootChainsWrapperForStorage wraps the boot chains so
+// that we do not store the arrays directly as JSON and we can add
+// other information
+type predictableBootChainsWrapperForStorage struct {
+	ResealCount int                   `json:"reseal-count"`
+	BootChains  predictableBootChains `json:"boot-chains"`
+}
+
+func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
+	inf, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("cannot open existing boot chains data file: %v", err)
+	}
+	defer inf.Close()
+	var wrapped predictableBootChainsWrapperForStorage
+	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
+		return nil, 0, fmt.Errorf("cannot read boot chains data: %v", err)
+	}
+	return wrapped.BootChains, wrapped.ResealCount, nil
+}
+
+func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create a temporary boot chains file: %v", err)
+	}
+	// becomes noop when the file is committed
+	defer outf.Cancel()
+
+	wrapped := predictableBootChainsWrapperForStorage{
+		ResealCount: resealCount,
+		BootChains:  pbc,
+	}
+	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
+		return fmt.Errorf("cannot write boot chains data: %v", err)
+	}
+	return outf.Commit()
 }

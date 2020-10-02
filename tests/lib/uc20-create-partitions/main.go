@@ -21,14 +21,12 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
@@ -55,8 +53,8 @@ type simpleObserver struct {
 	encryptionKey secboot.EncryptionKey
 }
 
-func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (bool, error) {
-	return true, nil
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	return gadget.ChangeApply, nil
 }
 
 func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
@@ -99,31 +97,7 @@ func main() {
 	}
 
 	if args.Encrypt {
-		// TODO:UC20: how realistic should we be here?
-		// the path to the run mode grub EFI binary
-		runbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode)
-		loadChain := secboot.NewLoadChain(runbf)
-		// the path to the recovery grub EFI binary
-		recbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery)
-		loadChain = secboot.NewLoadChain(recbf, loadChain)
-		// the path to the shim EFI binary
-		shimbf := bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery)
-		loadChain = secboot.NewLoadChain(shimbf, loadChain)
-
-		sealKeyParams := secboot.SealKeyParams{
-			ModelParams: []*secboot.SealKeyModelParams{
-				{
-					KernelCmdlines: []string{"cmdline"},
-					EFILoadChains:  []*secboot.LoadChain{loadChain},
-				},
-			},
-
-			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
-			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
-		}
-
-		if err := secboot.SealKey(obs.encryptionKey, &sealKeyParams); err != nil {
+		if err := ioutil.WriteFile("unsealed-key", obs.encryptionKey[:], 0644); err != nil {
 			panic(err)
 		}
 	}

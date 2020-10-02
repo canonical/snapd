@@ -99,7 +99,7 @@ func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  false,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -133,7 +133,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit: true,
 		TargetRootDir:  boot.InstallHostWritableDir,
 	})
@@ -150,7 +150,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
@@ -165,7 +165,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
 	gadgetDir := s.makeGadgetCloudConfFile(c)
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit: true,
 		GadgetDir:      gadgetDir,
 		TargetRootDir:  boot.InstallHostWritableDir,
@@ -181,7 +181,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -343,6 +343,18 @@ var multipassNoCloudCloudInitStatusJSON = `{
  }
 }`
 
+var localNoneCloudInitStatusJSON = `{
+ "v1": {
+  "datasource": "DataSourceNone",
+  "init": {
+   "errors": [],
+   "finished": 1591788514.4656117,
+   "start": 1591788514.2607572
+  },
+  "stage": null
+ }
+}`
+
 var lxdNoCloudCloudInitStatusJSON = `{
  "v1": {
   "datasource": "DataSourceNoCloud [seed=/var/lib/cloud/seed/nocloud-net][dsmode=net]",
@@ -443,12 +455,24 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			state:               sysconfig.CloudInitDone,
 			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
 			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
-				DisableNoCloud: true,
+				DisableAfterLocalDatasourcesRun: true,
 			},
 			expDatasource:  "NoCloud",
 			expAction:      "disable",
 			expDisableFile: true,
 		},
+		{
+			comment:             "none uc20 done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: localNoneCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableAfterLocalDatasourcesRun: true,
+			},
+			expDatasource:  "None",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+
 		// the two cases for lxd and multipass are effectively the same, but as
 		// the largest known users of cloud-init w/ UC, we leave them as
 		// separate test cases for their different cloud-init status.json
@@ -474,7 +498,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			state:               sysconfig.CloudInitDone,
 			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
 			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
-				DisableNoCloud: true,
+				DisableAfterLocalDatasourcesRun: true,
 			},
 			expDatasource:  "NoCloud",
 			expAction:      "disable",
@@ -485,7 +509,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			state:               sysconfig.CloudInitDone,
 			cloudInitStatusJSON: lxdNoCloudCloudInitStatusJSON,
 			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
-				DisableNoCloud: true,
+				DisableAfterLocalDatasourcesRun: true,
 			},
 			expDatasource:  "NoCloud",
 			expAction:      "disable",

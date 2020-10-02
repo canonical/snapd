@@ -240,11 +240,11 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureRunSystem
-	sysconfigConfigureRunSystem = f
+func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
 	return func() {
-		sysconfigConfigureRunSystem = old
+		sysconfigConfigureTargetSystem = old
 	}
 }
 

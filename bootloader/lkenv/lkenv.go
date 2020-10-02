@@ -51,7 +51,7 @@ const (
 /**
  * Following structure has to be kept in sync with c structure defined by
  * include/lk/snappy-boot_v1.h
- * c headerfile is used by bootloader, this ensures sync of  the environment
+ * c headerfile is used by bootloader, this ensures sync of the environment
  * between snapd and bootloader
 
  * when this structure needs to be updated,
@@ -170,7 +170,7 @@ type SnapBootSelect_v1 struct {
 	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Kye_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
@@ -337,20 +337,20 @@ func (l *Env) Save() error {
 	w.Truncate(ss - 4)
 	binary.Write(w, binary.LittleEndian, &l.env.Crc32)
 
-	err := l.SaveEnv(l.path, w)
+	err := l.saveEnv(l.path, w)
 	if err != nil {
 		logger.Debugf("Save: failed to save main environment")
 	}
 	// if there is backup environment file save to it as well
 	if osutil.FileExists(l.pathbak) {
-		if err := l.SaveEnv(l.pathbak, w); err != nil {
+		if err := l.saveEnv(l.pathbak, w); err != nil {
 			logger.Debugf("Save: failed to save backup environment %v", err)
 		}
 	}
 	return err
 }
 
-func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
+func (l *Env) saveEnv(path string, buf *bytes.Buffer) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
 	if err != nil {
 		return fmt.Errorf("cannot open LK env file for env storing: %v", err)
@@ -384,7 +384,9 @@ func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find free partition for boot image")
 }
 
-// SetBootPartition set kernel revision name to passed boot partition
+// SetBootPartition sets the kernel revision reference in the provided boot
+// partition reference to the provided kernel revision. It returns a non-nil err
+// if the provided boot partition reference was not found.
 func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	for x := range l.env.Bootimg_matrix {
 		if bootpart == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
@@ -395,6 +397,9 @@ func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	return fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
 }
 
+// GetBootPartition returns the first found boot partition that contains a
+// reference to the given kernel revision. If the revision was not found, a
+// non-nil error is returned.
 func (l *Env) GetBootPartition(kernel string) (string, error) {
 	for x := range l.env.Bootimg_matrix {
 		if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
@@ -404,18 +409,21 @@ func (l *Env) GetBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
 }
 
-// FreeBootPartition free passed kernel revision from any boot partition
-// ignore if there is no boot partition with given kernel revision
-func (l *Env) FreeBootPartition(kernel string) (bool, error) {
+// RemoveKernelRevisionFromBootPartition removes from the boot image matrix the
+// first found boot partition that contains a reference to the given kernel
+// revision. If the referenced kernel revision was not found, a non-nil err is
+// returned, otherwise the reference is removed and nil is returned.
+// Note that to persist this change the env must be saved afterwards with Save.
+func (l *Env) RemoveKernelRevisionFromBootPartition(kernel string) error {
 	for x := range l.env.Bootimg_matrix {
 		if "" != cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
 			if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
 				l.env.Bootimg_matrix[x][1][MATRIX_ROW_PARTITION] = 0
-				return true, nil
+				return nil
 			}
 		}
 	}
-	return false, fmt.Errorf("cannot find defined [%s] boot image partition", kernel)
+	return fmt.Errorf("cannot find defined [%s] boot image partition", kernel)
 }
 
 // GetBootImageName return expected boot image file name in kernel snap
