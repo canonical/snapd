@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const SnapshotExportContentType = "application/x.snapd.snapshot"
+
 var (
 	ErrSnapshotSetNotFound   = errors.New("no snapshot set with the given ID")
 	ErrSnapshotSnapsNotFound = errors.New("no snapshot for the requested snaps found in the set with the given ID")
@@ -198,7 +200,7 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
 	contentType := rsp.Header.Get("Content-Type")
-	if contentType != "application/x.snapd.snapshot" {
+	if contentType != SnapshotExportContentType {
 		return nil, 0, fmt.Errorf("unexpected snapshot export content type %q", contentType)
 	}
 
@@ -214,7 +216,7 @@ type SnapshotImportSet struct {
 // SnapshotImport imports an exported snapshot set.
 func (client *Client) SnapshotImport(exportStream io.Reader) (SnapshotImportSet, error) {
 	headers := map[string]string{
-		"Content-Type": "application/x.snapd.snapshot",
+		"Content-Type": SnapshotExportContentType,
 	}
 
 	var importSet SnapshotImportSet

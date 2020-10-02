@@ -395,7 +395,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/x.snapd.snapshot")
+	req.Header.Set("Content-Type", client.SnapshotExportContentType)
 
 	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -411,7 +411,7 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	data := []byte("mocked snapshot export data file")
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/x.snapd.snapshot")
+	req.Header.Set("Content-Type", client.SnapshotExportContentType)
 
 	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
