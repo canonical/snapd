@@ -199,7 +199,7 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 	}
 	contentType := rsp.Header.Get("Content-Type")
 	if contentType != "application/x.snapd.snapshot" {
-		return nil, 0, fmt.Errorf("cannot import snapshot of content type %q", contentType)
+		return nil, 0, fmt.Errorf("unexpected snapshot export content type %q", contentType)
 	}
 
 	return rsp.Body, rsp.ContentLength, nil
