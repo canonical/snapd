@@ -23,6 +23,7 @@ package notification
 
 import (
 	"fmt"
+	"time"
 )
 
 // Message describes a single notification message.
@@ -38,7 +39,10 @@ import (
 // A notification can automatically expire after the given number of
 // milliseconds. This is separate from the notification being visible or
 // invisible on-screen. Expired notifications are removed from persistent
-// message roster, if one is supported.
+// message roster, if one is supported. Two special values are recognized. When
+// the expiration timeout is zero a message never expires. When the expiration
+// timeout is -1 a message expires after a server-defined duration which may
+// vary for the type of the notification message sent.
 //
 // A notification may replace an existing notification by setting the ReplacesID
 // to a non-zero value. This only works if the notification server was not
@@ -63,11 +67,15 @@ type Message struct {
 	Icon          string
 	Summary       string
 	Body          string
-	ExpireTimeout int32 // XXX: consider using time.Duration instead?
+	ExpireTimeout time.Duration // Effective resolution in milliseconds with 31-bit range.
 	ReplacesID    ID
 	Actions       []Action
 	Hints         []Hint
 }
+
+// ServerSelectedExpireTimeout requests the server to pick an expiration timeout
+// appropriate for the message type.
+const ServerSelectedExpireTimeout = time.Millisecond * -1
 
 // ID is the opaque identifier of a notification assigned by the server.
 //

@@ -79,7 +79,8 @@ func (srv *Server) ServerCapabilities() ([]ServerCapability, error) {
 func (srv *Server) SendNotification(msg *Message) (ID, error) {
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, msg.ReplacesID, msg.Icon, msg.Summary, msg.Body,
-		flattenActions(msg.Actions), mapHints(msg.Hints), msg.ExpireTimeout)
+		flattenActions(msg.Actions), mapHints(msg.Hints),
+		int32(msg.ExpireTimeout.Nanoseconds()/1e6))
 	var id ID
 	if err := call.Store(&id); err != nil {
 		return 0, err
