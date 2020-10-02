@@ -1002,8 +1002,6 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
-	tempdir := c.MkDir()
-
 	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
 		var sid uint64
 		var revision int
@@ -1028,7 +1026,7 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 				Revision: snap.Revision{N: revision},
 				Version:  version,
 				// set dummy sha for Check() to be attempted.
-				SHA3_384: map[string]string{"foo": "bar"},
+				SHA3_384: map[string]string{"foo": "invalid-hash"},
 			},
 		}, nil
 	})()
@@ -1037,14 +1035,18 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create snapshot export file
-	tarFile1 := path.Join(tempdir, "exported1.snapshot")
+	tarFile1 := path.Join(c.MkDir(), "exported1.snapshot")
 	err = backend.MockCreateExportFile(tarFile1, true, false)
 	c.Assert(err, check.IsNil)
 
 	f, err := os.Open(tarFile1)
 	c.Assert(err, check.IsNil)
 	_, _, err = backend.Import(context.Background(), 14, f)
-	c.Assert(err, check.ErrorMatches, `validation failed for "5_foo_1.0_199.zip": zip: not a valid zip file`)
+	// XXX: this test is very indirect and should really be replaced
+	//      by something that is less indirect, e.g. by *not* mocking
+	//      Open() and teach "MockCreateExportFile" to create invalid
+	//      hashes
+	c.Assert(err, check.ErrorMatches, `validation failed for "5_.*_1.0_199.zip": zip: not a valid zip file`)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
