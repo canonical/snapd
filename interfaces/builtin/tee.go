@@ -29,6 +29,12 @@ const teeBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const teeBaseDeclarationPlugs = `
+  tee:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const teeConnectedPlugAppArmor = `
 # Description: for those who need to talk to the TEE subsystem over
 # /dev/tee[0-9]* and/or /dev/teepriv[0-0]*
@@ -49,6 +55,7 @@ func init() {
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  teeBaseDeclarationSlots,
+		baseDeclarationPlugs:  teeBaseDeclarationPlugs,
 		connectedPlugAppArmor: teeConnectedPlugAppArmor,
 		connectedPlugUDev:     teeConnectedPlugUDev,
 	})
