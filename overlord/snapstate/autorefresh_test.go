@@ -61,28 +61,30 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	// change the auto-refresh hold
 	if r.snapActionOpsFunc != nil {
 		r.snapActionOpsFunc()
-	} else {
-		if assertQuery != nil {
-			panic("no assertion query support")
-		}
-		if !opts.IsAutoRefresh {
-			panic("AutoRefresh snap action did not set IsAutoRefresh flag")
-		}
-
-		if ctx == nil || !auth.IsEnsureContext(ctx) {
-			panic("Ensure marked context required")
-		}
-		if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
-			panic("expected in test one action for each current snaps, and at least one snap")
-		}
-		for _, a := range actions {
-			if a.Action != "refresh" {
-				panic("expected refresh actions")
-			}
-		}
-
-		r.ops = append(r.ops, "list-refresh")
+		return nil, nil, r.err
 	}
+
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
+	if !opts.IsAutoRefresh {
+		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
+	}
+
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
+	if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
+		panic("expected in test one action for each current snaps, and at least one snap")
+	}
+	for _, a := range actions {
+		if a.Action != "refresh" {
+			panic("expected refresh actions")
+		}
+	}
+
+	r.ops = append(r.ops, "list-refresh")
+
 	return nil, nil, r.err
 }
 
