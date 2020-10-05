@@ -105,6 +105,8 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 
 	s.store = &autoRefreshStore{}
 
+	s.AddCleanup(func() { s.store.snapActionOpsFunc = nil })
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
@@ -496,9 +498,6 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLoc
 			<-ch
 		}
 	}
-	defer func() {
-		s.store.snapActionOpsFunc = nil
-	}()
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
