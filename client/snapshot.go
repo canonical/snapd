@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// SnapshotExportMediaType is a media type used to identify snapshot exports in the API.
+// SnapshotExportMediaType is the media type used to identify snapshot exports in the API.
 const SnapshotExportMediaType = "application/x.snapd.snapshot"
 
 var (
