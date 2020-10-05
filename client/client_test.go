@@ -174,9 +174,6 @@ func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
 }
 
 func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
-	// TODO: this test might be racy or have wrong results on really slow test
-	//       systems since we are essentially counting how fast we can make
-	//       fake requests before the Timeout runs out
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
 	cs.err = fmt.Errorf("borken")
 	doOpts := &client.DoOptions{
@@ -185,7 +182,10 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 	}
 	_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
-	c.Assert(cs.doCalls, Equals, 1001)
+	// best effort checking given that execution could be slow
+	// on some machines
+	c.Assert(cs.doCalls > 500, Equals, true)
+	c.Assert(cs.doCalls < 1100, Equals, true)
 }
 
 func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
