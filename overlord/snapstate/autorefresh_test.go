@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -86,6 +87,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 }
 
 type autoRefreshTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
 	store *autoRefreshStore
@@ -97,6 +99,7 @@ var _ = Suite(&autoRefreshTestSuite{})
 
 func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.state = state.New(nil)
 
@@ -117,22 +120,17 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	s.AddCleanup(func() { snapstate.CanAutoRefresh = nil })
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
 	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *autoRefreshTestSuite) TearDownTest(c *C) {
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
-	s.restore()
-	dirs.SetRootDir("")
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
