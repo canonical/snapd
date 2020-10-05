@@ -171,9 +171,9 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 var ErrObserverNotApplicable = errors.New("observer not applicable")
 
 // TrustedAssetsInstallObserverForModel returns a new trusted assets observer
-// for use during installation of the run mode system, provided the device model
-// supports secure boot. Otherwise, nil and ErrObserverNotApplicable is
-// returned.
+// for use during installation of the run mode system provided the device model
+// indicates support for trusted or managed assets. Otherwise, nil and
+// ErrObserverNotApplicable is returned.
 func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
@@ -210,7 +210,8 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 	return strutil.ListContains(hashes, assetHash)
 }
 
-// TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
+// TrustedAssetsInstallObserver tracks the installation of trusted or managed
+// boot assets.
 type TrustedAssetsInstallObserver struct {
 	model              *asserts.Model
 	gadgetDir          string
@@ -227,8 +228,8 @@ type TrustedAssetsInstallObserver struct {
 
 // Observe observes the operation related to the content of a given gadget
 // structure. In particular, the TrustedAssetsInstallObserver tracks writing of
-// managed boot assets, such as the bootloader binary which is measured as part
-// of the secure boot.
+// trusted or managed boot assets, such as the bootloader binary which is
+// measured as part of the secure boot or the bootloader configuration.
 //
 // Implements gadget.ContentObserver.
 func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
@@ -337,8 +338,8 @@ func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.Encryptio
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
-// tracking changes to the measured boot assets and preserving provided the
-// device model supports secure boot. Otherwise, nil and
+// tracking changes to the trusted boot assets and preserving managed assets,
+// provided such support is indicated by the device model. Otherwise, nil and
 // ErrObserverNotApplicable is returned.
 func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUpdateObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
@@ -356,7 +357,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUp
 }
 
 // TrustedAssetsUpdateObserver tracks the updates of trusted boot assets and
-// attempts to reseal when needed.
+// attempts to reseal when needed or preserves managed boot assets.
 type TrustedAssetsUpdateObserver struct {
 	cache              *trustedAssetsCache
 	model              *asserts.Model
@@ -375,7 +376,7 @@ type TrustedAssetsUpdateObserver struct {
 	modeenv *Modeenv
 }
 
-func findMaybeTrustedBootloaderWithAssets(root string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets, managedAssets []string, err error) {
+func findMaybeTrustedBootloaderAndAssets(root string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets, managedAssets []string, err error) {
 	foundBl, err = bootloader.Find(root, opts)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
@@ -393,8 +394,8 @@ func findMaybeTrustedBootloaderWithAssets(root string, opts *bootloader.Options)
 
 // Observe observes the operation related to the update or rollback of the
 // content of a given gadget structure. In particular, the
-// TrustedAssetsUpdateObserver tracks updates of managed boot assets, such as
-// the bootloader binary which is measured as part of the secure boot.
+// TrustedAssetsUpdateObserver tracks updates of trusted boot assets such as
+// bootloader binaries, or preserves managed assets such as boot configuration.
 //
 // Implements gadget.ContentUpdateObserver.
 func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
@@ -409,7 +410,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	switch affectedStruct.Role {
 	case gadget.SystemBoot:
 		if o.bootBootloader == nil {
-			bl, trusted, managed, err := findMaybeTrustedBootloaderWithAssets(root, &bootloader.Options{
+			bl, trusted, managed, err := findMaybeTrustedBootloaderAndAssets(root, &bootloader.Options{
 				Role:        bootloader.RoleRunMode,
 				NoSlashBoot: true,
 			})
@@ -425,7 +426,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 		whichManagedAssets = o.bootManagedAssets
 	case gadget.SystemSeed:
 		if o.seedBootloader == nil {
-			seedBl, trusted, managed, err := findMaybeTrustedBootloaderWithAssets(root, &bootloader.Options{
+			seedBl, trusted, managed, err := findMaybeTrustedBootloaderAndAssets(root, &bootloader.Options{
 				Role: bootloader.RoleRecovery,
 			})
 			if err != nil {
@@ -715,7 +716,7 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 	}
 
 	// let's find the bootloader first
-	bl, trustedAssets, _, err := findMaybeTrustedBootloaderWithAssets(root, opts)
+	bl, trustedAssets, _, err := findMaybeTrustedBootloaderAndAssets(root, opts)
 	if err != nil {
 		return nil, err
 	}
