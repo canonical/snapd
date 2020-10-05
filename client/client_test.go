@@ -145,6 +145,49 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	c.Check(cs.req.URL.Path, Equals, "/this")
 }
 
+func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
+	var v []int
+	cs.rsp = `[1,2]`
+	cs.err = fmt.Errorf("borken")
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	doOpts := &client.DoOptions{
+		// Timeout is unset, thus 0, and thus we ignore the retry and only run
+		// once even though there is an error
+		Retry: time.Duration(time.Second),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
+	c.Assert(cs.doCalls, Equals, 1)
+}
+
+func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
+	var v []int
+	cs.rsp = `[1,2]`
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	doOpts := &client.DoOptions{
+		Retry:   time.Duration(-1),
+		Timeout: time.Duration(time.Minute),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	c.Check(err, ErrorMatches, "internal error: retry setting.*invalid")
+	c.Assert(cs.req, IsNil)
+}
+
+func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
+	// TODO: this test might be racy or have wrong results on really slow test
+	//       systems since we are essentially counting how fast we can make
+	//       fake requests before the Timeout runs out
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	cs.err = fmt.Errorf("borken")
+	doOpts := &client.DoOptions{
+		Retry:   time.Duration(time.Millisecond),
+		Timeout: time.Duration(time.Second),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
+	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
+	c.Assert(cs.doCalls, Equals, 1001)
+}
+
 func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	var v []int
 	cs.status = 202

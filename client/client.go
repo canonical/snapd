@@ -335,10 +335,13 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
-	if opts.Timeout < 0 {
+	if opts.Timeout <= 0 {
 		// no timeout and retries
 		rsp, err = client.raw(ctx, method, path, query, headers, body)
 	} else {
+		if opts.Retry <= 0 {
+			return 0, fmt.Errorf("internal error: retry setting %s invalid", opts.Retry)
+		}
 		retry := time.NewTicker(opts.Retry)
 		defer retry.Stop()
 		timeout := time.NewTimer(opts.Timeout)
