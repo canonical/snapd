@@ -160,7 +160,7 @@ func (err BusySnapError) Pids() []int {
 
 // doHardRefreshCheck performs the complete hard refresh check interaction.
 //
-// This check embeds HardNothingRunningRefreshCheck along with interaction
+// This check uses HardNothingRunningRefreshCheck along with interaction
 // with two locks - the snap lock, shared by snap-confine and snapd and the
 // snap run inhibition lock, shared by snapd and snap run.
 //
