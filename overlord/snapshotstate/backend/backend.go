@@ -498,9 +498,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 		names, readErr = dirNames(dir, 100)
 		if len(names) > 0 {
 			// move the files into place with the new local set ID
-			var newSnapNames []string
-			var newFiles []string
-			newSnapNames, newFiles, err = moveCachedSnapshots(tempImportDir, names, id)
+			newSnapNames, newFiles, err := moveCachedSnapshots(tempImportDir, names, id)
 			if err != nil {
 				return 0, nil, err
 			}
