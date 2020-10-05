@@ -85,6 +85,7 @@ func CheckKeySealingSupported() error {
 		logger.Noticef("%v", err)
 		return err
 	}
+	defer tpm.Close()
 
 	if !isTPMEnabled(tpm) {
 		logger.Noticef("TPM device detected but not enabled")
@@ -93,7 +94,7 @@ func CheckKeySealingSupported() error {
 
 	logger.Noticef("TPM device detected and enabled")
 
-	return tpm.Close()
+	return nil
 }
 
 func checkSecureBootEnabled() error {
