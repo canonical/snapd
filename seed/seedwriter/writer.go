@@ -514,6 +514,15 @@ func (w *Writer) InfoDerived() error {
 			}
 		}
 
+		// TODO: is this needed at this level? unclear if we can get here on a
+		//       uc20 system, since on non-dangerous models, we should not have
+		//       any options snaps and that is checked earlier afaict
+		if sn.Info.Confinement == snap.DevModeConfinement {
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return err
+			}
+		}
+
 		sn.SnapRef = sn.Info
 
 		// local snap gets local revision
