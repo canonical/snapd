@@ -4490,7 +4490,7 @@ snapd (2.35) xenial; urgency=medium
     - logger: try to not have double dates
     - debian: use deb-systemd-invoke instead of systemctl directly
     - tests: run all main tests on core18
-    - many: finish sharing a single TaskRunner with all the the managers
+    - many: finish sharing a single TaskRunner with all the managers
     - interfaces/repo: added AllHotplugInterfaces helper
     - snapstate: ensure kernel-track is honored on switch/refresh
     - overlord/ifacestate: support implicit slots on snapd
