@@ -43,7 +43,7 @@ type Snap20 struct {
 	Unasserted string `yaml:"unasserted,omitempty"`
 
 	Channel string `yaml:"channel,omitempty"`
-	// TODO: DevMode bool   `yaml:"devmode,omitempty"`
+	DevMode bool   `yaml:"devmode,omitempty"`
 }
 
 // SnapName implements naming.SnapRef.

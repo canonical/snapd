@@ -333,11 +333,17 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			channel = ""
 		}
 
+		var devmode = false
+		if sn.Info.Confinement == snap.DevModeConfinement {
+			devmode = true
+		}
+
 		optionsSnaps = append(optionsSnaps, &internal.Snap20{
 			Name:       sn.SnapName(),
 			SnapID:     sn.Info.ID(),
 			Unasserted: unasserted,
 			Channel:    channel,
+			DevMode:    devmode,
 		})
 	}
 
