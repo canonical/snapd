@@ -299,7 +299,20 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
+	}
 
+	// verify confinement of snap's, devmode snaps are not allowed with
+	// non-dangerous models
+	info, err := readInfo(snapPath, nil)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q: error reading info: %v", snapPath, snapName, err)
+	}
+
+	// unclear how we could get this far, as this codepath only happens when
+	// we are seeding, and we should prevent creating an image that is !dangerous
+	// and yet still has a devmode snap, but be extra paranoid to be sure.
+	if s.model.Grade() != asserts.ModelDangerous && info.Confinement == snap.DevModeConfinement {
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q: devmode snaps only allowed for grade dangerous models", snapPath, snapName)
 	}
 
 	return snapPath, snapRev, snapDecl, nil
@@ -312,15 +325,25 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 
 	var path string
 	var sideInfo *snap.SideInfo
+	var info *snap.Info
+	var err error
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
-		info, err := readInfo(path, nil)
+		info, err = readInfo(path, nil)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
 		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 		// suppress channel
 		channel = ""
+
+		// verify devmode snap
+		if info.Confinement == snap.DevModeConfinement && !optSnap.DevMode {
+			// then the snap was not allowed to be a devmode snap in
+			// options.yaml but now is a devmode snap, so we should disallow
+			// this
+			return nil, fmt.Errorf("snap %q is devmode, but is not allowed to be devmode", info.SnapName())
+		}
 	} else {
 		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
@@ -334,6 +357,7 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 		if err != nil {
 			return nil, err
 		}
+		info, err = readInfo(path, sideInfo)
 	}
 
 	// complement with aux-info.json information
@@ -349,6 +373,9 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 		SideInfo: sideInfo,
 
 		Channel: channel,
+
+		// allow devmode only if the confinement for the info is set to devmode
+		DevMode: (info.Confinement == snap.DevModeConfinement),
 	}
 
 	s.snaps = append(s.snaps, seedSnap)
