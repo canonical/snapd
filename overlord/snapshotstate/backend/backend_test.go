@@ -1312,7 +1312,7 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 	if flags.withDir {
 		hdr := &tar.Header{
 			Name:     dirs.SnapshotsDir,
-			Mode:     0755,
+			Mode:     0700,
 			Size:     int64(0),
 			Typeflag: tar.TypeDir,
 		}

@@ -452,10 +452,10 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 
 	// prepare cache location to unpack the import file
 	tempImportDir := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", id))
-	if err := os.MkdirAll(path.Dir(tempImportDir), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(tempImportDir), 0700); err != nil {
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	if err := os.Mkdir(tempImportDir, 0755); err != nil {
+	if err := os.Mkdir(tempImportDir, 0700); err != nil {
 		if os.IsExist(err) {
 			return 0, nil, fmt.Errorf("%s: already in progress for this id", errPrefix)
 		}
@@ -543,7 +543,7 @@ func unpackVerifySnapshotImport(r io.Reader, targetDir string) (exportFound bool
 			extractedSnapshots = append(extractedSnapshots, targetPath)
 		}
 
-		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
 			return false, 0, fmt.Errorf("cannot create file %q: %v", targetPath, err)
 		}
