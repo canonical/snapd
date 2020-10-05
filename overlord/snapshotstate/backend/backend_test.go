@@ -24,6 +24,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -45,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
@@ -926,12 +929,12 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err := createTestExportFile(tarFile1, true, false)
+	err := createTestExportFile(tarFile1, true, false, false)
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	err = createTestExportFile(tarFile2, false, false)
+	err = createTestExportFile(tarFile2, false, false, false)
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
@@ -941,7 +944,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create an exported snapshot with a directory
 	tarFile4 := path.Join(tempdir, "exported4.snapshot")
-	err = createTestExportFile(tarFile4, true, true)
+	err = createTestExportFile(tarFile4, true, true, false)
 	c.Check(err, check.IsNil)
 
 	type tableT struct {
@@ -1002,42 +1005,18 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
-	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		snapName, version, revision := parseSnapshotFilename(c, fn)
-		f, err := os.Open(os.DevNull)
-		c.Assert(err, check.IsNil, check.Commentf(fn))
-		return &backend.Reader{
-			File: f,
-			Snapshot: client.Snapshot{
-				// real backend.Open() uses setID override if passed, this is tested
-				// in Open() tests.
-				SetID:    setID,
-				Time:     time.Time{},
-				Snap:     snapName,
-				Revision: snap.Revision{N: revision},
-				Version:  version,
-				// set dummy sha for Check() to be attempted.
-				SHA3_384: map[string]string{"foo": "invalid-hash"},
-			},
-		}, nil
-	})()
-
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
 	// create snapshot export file
 	tarFile1 := path.Join(c.MkDir(), "exported1.snapshot")
-	err = createTestExportFile(tarFile1, true, false)
+	err = createTestExportFile(tarFile1, true, false, true)
 	c.Assert(err, check.IsNil)
 
 	f, err := os.Open(tarFile1)
 	c.Assert(err, check.IsNil)
 	_, _, err = backend.Import(context.Background(), 14, f)
-	// XXX: this test is very indirect and should really be replaced
-	//      by something that is less indirect, e.g. by *not* mocking
-	//      Open() and teach "MockCreateExportFile" to create invalid
-	//      hashes
-	c.Assert(err, check.ErrorMatches, `.*validation failed for "5_.*_1.0_199.zip": zip: not a valid zip file`)
+	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/5_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
@@ -1243,7 +1222,7 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 	c.Assert(se, check.IsNil)
 }
 
-func createTestExportFile(filename string, exportJSON bool, withDir bool) error {
+func createTestExportFile(filename string, exportJSON bool, withDir bool, corruptChecksum bool) error {
 	tf, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -1257,16 +1236,47 @@ func createTestExportFile(filename string, exportJSON bool, withDir bool) error 
 
 		buf := bytes.NewBuffer(nil)
 		zipW := zip.NewWriter(buf)
-		f, err := zipW.Create(s)
+		defer zipW.Close()
+
+		sha := map[string]string{}
+
+		// create dummy archive.tgz
+		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 		if err != nil {
 			return err
 		}
-		if _, err := f.Write([]byte(s)); err != nil {
+		var sz osutil.Sizer
+		hasher := crypto.SHA3_384.New()
+		out := io.MultiWriter(archiveWriter, hasher, &sz)
+		if _, err := out.Write([]byte(s)); err != nil {
 			return err
 		}
-		if err := zipW.Close(); err != nil {
+
+		if corruptChecksum {
+			hasher.Write([]byte{0})
+		}
+		sha["archive.tgz"] = fmt.Sprintf("%x", hasher.Sum(nil))
+
+		snapshot := backend.MockSnapshot(5, s, snap.Revision{N:199}, sz.Size(), sha)
+
+		// create meta.json
+		metaWriter, err := zipW.Create("meta.json")
+		if err != nil {
 			return err
 		}
+		hasher = crypto.SHA3_384.New()
+		enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
+		if err := enc.Encode(snapshot); err != nil {
+			return err
+		}
+
+		// write meta.sha3_384
+		metaSha3Writer, err := zipW.Create("meta.sha3_384")
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(metaSha3Writer, "%x\n", hasher.Sum(nil))
+		zipW.Close()
 
 		hdr := &tar.Header{
 			Name: fname,
@@ -1280,7 +1290,6 @@ func createTestExportFile(filename string, exportJSON bool, withDir bool) error 
 			return err
 		}
 	}
-	// XXX: create meta.json with valid/invalid content for tests
 
 	if withDir {
 		hdr := &tar.Header{
