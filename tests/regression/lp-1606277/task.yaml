@@ -9,10 +9,8 @@ details: |
     even if the log-observe interface is being used.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     echo "Having installed a test snap"
-    install_local log-observe-consumer
+    "$TESTSTOOLS"/snaps-state install-local log-observe-consumer
     echo "And having connected the log-observe interface"
     snap connect log-observe-consumer:log-observe :log-observe
 

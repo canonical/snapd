@@ -138,6 +138,36 @@ func hashkeys(snapshot *client.Snapshot) (keys []string) {
 	return keys
 }
 
+func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
+	// LastSnapshotSetID is happy without any snapshots
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(0))
+
+	// create snapshots dir and dummy snapshots
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
+	for _, name := range []string{
+		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
+	} {
+		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0644), check.IsNil)
+	}
+	setID, err = backend.LastSnapshotSetID()
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(12))
+}
+
+func (s *snapshotSuite) TestLastSnapshotIDErrorOnDirNames(c *check.C) {
+	// we need snapshots dir, otherwise LastSnapshotSetID exits early.
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, os.ModePerm), check.IsNil)
+
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		return nil, fmt.Errorf("fail")
+	})()
+	setID, err := backend.LastSnapshotSetID()
+	c.Assert(err, check.ErrorMatches, "fail")
+	c.Check(setID, check.Equals, uint64(0))
+}
+
 func (s *snapshotSuite) TestIsSnapshotFilename(c *check.C) {
 	tests := []struct {
 		name  string
@@ -189,7 +219,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 		return []string{"hello"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		return nil, nil
 	})()
@@ -243,7 +273,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		return nil, os.ErrInvalid
 	})()
@@ -281,7 +311,7 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 		return []string{"1_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		// NOTE non-nil reader, and error, returned
 		r := backend.Reader{}
@@ -324,7 +354,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 		return []string{"42_hello.zip"}, nil
 	})()
 	triedToOpenSnapshot := false
-	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(string, uint64) (*backend.Reader, error) {
 		triedToOpenSnapshot = true
 		r := backend.Reader{}
 		r.SetID = 42
@@ -365,40 +395,6 @@ func readerForFilename(fname string, c *check.C) *backend.Reader {
 	}
 }
 
-func (s *snapshotSuite) TestIterIgnoresSnapshotsWithSetIdMismatches(c *check.C) {
-	defer backend.MockOsOpen(func(string) (*os.File, error) {
-		return new(os.File), nil
-	})()
-	readNames := 0
-	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
-		readNames++
-		if readNames > 1 {
-			return nil, io.EOF
-		}
-		return []string{
-			"1_foo.zip",
-			"2_bar.zip"}, nil
-	})()
-	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
-		r := readerForFilename(fname, c)
-		if r.SetID == 1 {
-			r.SetID = 99
-		}
-		return r, nil
-	})()
-
-	var calledF int
-	f := func(snapshot *backend.Reader) error {
-		calledF++
-		c.Check(snapshot.SetID, check.Equals, uint64(2))
-		return nil
-	}
-
-	err := backend.Iter(context.Background(), f)
-	c.Check(err, check.IsNil)
-	c.Check(calledF, check.Equals, 1)
-}
-
 func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
@@ -419,7 +415,7 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 			"bar.",
 		}, nil
 	})()
-	defer backend.MockOpen(func(fname string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(fname string, setID uint64) (*backend.Reader, error) {
 		return readerForFilename(fname, c), nil
 	})()
 
@@ -433,6 +429,39 @@ func (s *snapshotSuite) TestIterIgnoresSnapshotsWithInvalidNames(c *check.C) {
 	err := backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
 	c.Check(logbuf.String(), check.Equals, "")
+	c.Check(calledF, check.Equals, 1)
+}
+
+func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, uint64(12))
+
+	snapshotPath := filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")
+	c.Check(backend.Filename(shw), check.Equals, snapshotPath)
+	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+
+	// rename the snapshot, verify that set id from the filename is used by the reader.
+	c.Assert(os.Rename(snapshotPath, filepath.Join(dirs.SnapshotsDir, "33_hello.zip")), check.IsNil)
+
+	var calledF int
+	f := func(snapshot *backend.Reader) error {
+		calledF++
+		c.Check(snapshot.SetID, check.Equals, uint64(uint(33)))
+		c.Check(snapshot.Snap, check.Equals, "hello-snap")
+		return nil
+	}
+
+	c.Assert(backend.Iter(context.Background(), f), check.IsNil)
 	c.Check(calledF, check.Equals, 1)
 }
 
@@ -453,7 +482,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 			fmt.Sprintf("%d_baz.zip", readNames),
 		}, nil
 	})()
-	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
+	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
 		var id uint64
 		var snapname string
 		c.Assert(strings.HasSuffix(fn, ".zip"), check.Equals, true)
@@ -623,7 +652,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	c.Assert(shs, check.HasLen, 1)
 	c.Assert(shs[0].Snapshots, check.HasLen, 1)
 
-	shr, err := backend.Open(backend.Filename(shw))
+	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 
@@ -669,6 +698,30 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	}
 }
 
+func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	c.Assert(err, check.IsNil)
+	c.Check(shw.SetID, check.Equals, uint64(12))
+
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
+	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
+
+	shr, err := backend.Open(backend.Filename(shw), 99)
+	c.Assert(err, check.IsNil)
+	defer shr.Close()
+
+	c.Check(shr.SetID, check.Equals, uint64(99))
+}
+
 func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
@@ -683,7 +736,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
-	shr, err := backend.Open(backend.Filename(shw))
+	shr, err := backend.Open(backend.Filename(shw), backend.ExtractFnameSetID)
 	c.Assert(err, check.IsNil)
 	defer shr.Close()
 

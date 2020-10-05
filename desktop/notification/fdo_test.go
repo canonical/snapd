@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -231,7 +232,7 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 		Icon:          "icon",
 		Summary:       "summary",
 		Body:          "body",
-		ExpireTimeout: 1000,
+		ExpireTimeout: time.Second * 1,
 		ReplacesID:    notification.ID(42),
 		Actions: []notification.Action{
 			{ActionKey: "key-1", LocalizedText: "text-1"},
@@ -241,6 +242,34 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 			{Name: "hint-str", Value: "str"},
 			{Name: "hint-bool", Value: true},
 		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, notification.ID(7))
+}
+
+func (s *fdoSuite) TestSendNotificationWithServerDecitedExpireTimeout(c *C) {
+	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		switch n {
+		case 0:
+			s.checkNotifyRequest(c, msg)
+			c.Check(msg.Body[7], Equals, int32(-1))
+			responseSig := dbus.SignatureOf(uint32(0))
+			response := &dbus.Message{
+				Type: dbus.TypeMethodReply,
+				Headers: map[dbus.HeaderField]dbus.Variant{
+					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+					// dbus.FieldDestination is provided automatically by DBus test helper.
+					dbus.FieldSignature: dbus.MakeVariant(responseSig),
+				},
+				Body: []interface{}{uint32(7)},
+			}
+			return []*dbus.Message{response}, nil
+		}
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+	id, err := srv.SendNotification(&notification.Message{
+		ExpireTimeout: notification.ServerSelectedExpireTimeout,
 	})
 	c.Assert(err, IsNil)
 	c.Check(id, Equals, notification.ID(7))
