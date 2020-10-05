@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -389,11 +390,12 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	setID := uint64(3)
 	size := int64(len(data))
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
 		return setID, snapNames, size, nil
 	})()
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	req.Header.Add("Content-Length", strconv.Itoa(len(data)))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
@@ -404,7 +406,24 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
+		return uint64(0), nil, 0, errors.New("no")
+	})()
+
+	data := []byte("mocked snapshot export data file")
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	req.Header.Add("Content-Length", strconv.Itoa(len(data)))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
+
+	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
+}
+
+func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
 		return uint64(0), nil, 0, errors.New("no")
 	})()
 
@@ -416,5 +435,5 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
+	c.Check(rsp.ErrorResult().Message, check.Equals, `cannot parse Content-Length: strconv.ParseInt: parsing "": invalid syntax`)
 }
