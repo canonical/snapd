@@ -139,6 +139,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if err == nil {
 		installObserver = trustedInstallObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedInstallObserver = nil
+		}
 	}
 
 	// run the create partition code
@@ -150,14 +155,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
-	}
-
-	if !useEncryption {
-		// there will be no key sealing, so the observer served its
-		// purpose to protect the boot assets managed by snapd, we no
-		// longer need it
-		trustedInstallObserver = nil
-		installObserver = nil
 	}
 
 	if trustedInstallObserver != nil {
