@@ -275,8 +275,10 @@ func (m *autoRefresh) Ensure() error {
 		}
 
 		// refresh is also "held" if the next time is in the future
-		// note that After() is also true if the two times are equal, while
-		// Before() is not, hence it is simpler to just use !After() here
+		// note that the two times here could be exactly equal, so we use
+		// !After() because that is true in the case that the next refresh is
+		// before now, and the next refresh is equal to now without requiring an
+		// or operation
 		if !m.nextRefresh.After(now) {
 			var can bool
 			can, err = m.canRefreshRespectingMetered(now, lastRefresh)
