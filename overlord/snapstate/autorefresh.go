@@ -304,6 +304,22 @@ func (m *autoRefresh) Ensure() error {
 	return err
 }
 
+// isRefreshHeld returns whether an auto-refresh is currently held back or not,
+// as indicated by m.EffectiveRefreshHold().
+func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+	now := time.Now()
+	// should we hold back refreshes?
+	holdTime, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	if holdTime.After(now) {
+		return true, holdTime, nil
+	}
+
+	return false, holdTime, nil
+}
+
 func (m *autoRefresh) ensureLastRefreshAnchor() {
 	seedTime, _ := getTime(m.state, "seed-time")
 	if !seedTime.IsZero() {
@@ -549,18 +565,4 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		}
 	}
 	return nil
-}
-
-func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
-	now := time.Now()
-	// should we hold back refreshes?
-	holdTime, err := m.EffectiveRefreshHold()
-	if err != nil {
-		return false, time.Time{}, err
-	}
-	if holdTime.After(now) {
-		return true, holdTime, nil
-	}
-
-	return false, holdTime, nil
 }
