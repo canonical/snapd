@@ -591,20 +591,17 @@ func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) 
 		old := path.Join(cachedSnapshotsCDir, name)
 
 		// read old snapshot, override its set id internally
-		var r *Reader
-		r, err = backendOpen(old, id)
+		r, err := backendOpen(old, id)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 		}
 		r.Close()
-		if err != nil {
-			return nil, nil, fmt.Errorf("validation failed for %q: %v", name, err)
-		}
 		snapshot := &r.Snapshot
 		snaps = append(snaps, snapshot.Snap)
 
-		// Filename() returns snapshot filename under dirs.SnapshotsDir, so
-		// snapshots gets moved from cachedSnapshotsCDir.
+		// Filename() returns snapshot filename under
+		// dirs.SnapshotsDir, so snapshots gets moved from
+		// cachedSnapshotsCDir.
 		newSnapshotName := Filename(snapshot)
 		if err = os.Rename(old, newSnapshotName); err != nil {
 			return nil, nil, err
