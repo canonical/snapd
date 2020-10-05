@@ -463,9 +463,8 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	}
 	defer os.RemoveAll(tempImportDir)
 
-	// unpack the tar file to a temporary location (so the
-	// contents can be validated)
-	exportFound, size, err := unpackSnapshotImport(r, tempImportDir)
+	// unpack the tar file to a temporary location and validate.
+	exportFound, size, err := unpackVerifySnapshotImport(r, tempImportDir)
 	if err != nil {
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
@@ -487,7 +486,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 		names, readErr = dirNames(dir, 100)
 		if len(names) > 0 {
 			// move the files into place with the new local set ID
-			newSnapNames, err := moveCachedSnapshots(names, id, tempImportDir)
+			newSnapNames, err := moveCachedSnapshots(tempImportDir, names, id)
 			// XXX: if we fail here we need to undo the snapshot
 			//      import
 			if err != nil {
@@ -502,11 +501,12 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	return size, snapNames, err
 }
 
-func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, err error) {
+func unpackVerifySnapshotImport(r io.Reader, p string) (exportFound bool, size int64, err error) {
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
 
+	var extractedSnapshots []string
 	for tarErr == nil {
 		header, tarErr = tr.Next()
 		if tarErr == io.EOF {
@@ -522,11 +522,13 @@ func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, 
 			return false, 0, errors.New("unexpected directory in import file")
 		}
 
+		target := path.Join(p, header.Name)
 		if header.Name == "export.json" {
 			exportFound = true
+		} else {
+			extractedSnapshots = append(extractedSnapshots, target)
 		}
 
-		target := path.Join(p, header.Name)
 		t, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 		if err != nil {
 			return false, 0, fmt.Errorf("failed creating file `%s`: %v", target, err)
@@ -538,35 +540,47 @@ func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, 
 		}
 		size += writtenSize
 	}
+
+	// validate
+	for _, name := range extractedSnapshots {
+		// we don't care about set id at this point
+		r, err := backendOpen(name, ExtractFnameSetID)
+		if err != nil {
+			return false, 0, fmt.Errorf("cannot open snapshot: %v", err)
+		}
+		err = r.Check(context.TODO(), nil)
+		r.Close()
+		if err != nil {
+			return false, 0, fmt.Errorf("validation failed for %q: %v", name, err)
+		}
+	}
 	return exportFound, size, nil
 }
 
-func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) {
+func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) ([]string, error) {
 	snaps := []string{}
 	for _, name := range names {
 		if name == "export.json" {
 			// ignore metadata file
 			continue
 		}
-		// XXX: do all the checking/renaming in
-		// unpackSnapshotImport and maybe rename to
-		// "unpackVerifySnapshotImport"
-		old := path.Join(p, name)
+
+		old := path.Join(cachedSnapshotsCDir, name)
 
 		// read old snapshot, override its set id internally
 		r, err := backendOpen(old, id)
 		if err != nil {
 			return nil, fmt.Errorf("cannot open snapshot: %v", err)
 		}
-		err = r.Check(context.TODO(), nil)
 		r.Close()
 		if err != nil {
 			return nil, fmt.Errorf("validation failed for %q: %v", name, err)
 		}
 		snapshot := &r.Snapshot
-
 		snaps = append(snaps, snapshot.Snap)
 
+		// Filename() returns snapshot filename under dirs.SnapshotsDir, so
+		// snapshots gets moved from cachedSnapshotsCDir.
 		newSnapshotName := Filename(snapshot)
 		if err := os.Rename(old, newSnapshotName); err != nil {
 			return nil, err

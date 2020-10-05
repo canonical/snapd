@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"context"
@@ -907,11 +908,6 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
 		snapName, version, revision := parseSnapshotFilename(c, fn)
-
-		// set id of the imported snapshot. This verifies that moveCachedSnapshots
-		// uses correct set id with backend.Open()
-		c.Assert(setID, check.Equals, uint64(14))
-
 		f, err := os.Open(os.DevNull)
 		c.Assert(err, check.IsNil, check.Commentf(fn))
 		return &backend.Reader{
@@ -930,12 +926,12 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err := backend.MockCreateExportFile(tarFile1, true, false)
+	err := createTestExportFile(tarFile1, true, false)
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	err = backend.MockCreateExportFile(tarFile2, false, false)
+	err = createTestExportFile(tarFile2, false, false)
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
@@ -945,7 +941,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create an exported snapshot with a directory
 	tarFile4 := path.Join(tempdir, "exported4.snapshot")
-	err = backend.MockCreateExportFile(tarFile4, true, true)
+	err = createTestExportFile(tarFile4, true, true)
 	c.Check(err, check.IsNil)
 
 	type tableT struct {
@@ -1031,7 +1027,7 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(c.MkDir(), "exported1.snapshot")
-	err = backend.MockCreateExportFile(tarFile1, true, false)
+	err = createTestExportFile(tarFile1, true, false)
 	c.Assert(err, check.IsNil)
 
 	f, err := os.Open(tarFile1)
@@ -1041,7 +1037,7 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 	//      by something that is less indirect, e.g. by *not* mocking
 	//      Open() and teach "MockCreateExportFile" to create invalid
 	//      hashes
-	c.Assert(err, check.ErrorMatches, `validation failed for "5_.*_1.0_199.zip": zip: not a valid zip file`)
+	c.Assert(err, check.ErrorMatches, `.*validation failed for "5_.*_1.0_199.zip": zip: not a valid zip file`)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
@@ -1245,4 +1241,76 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 	se, err := backend.NewSnapshotExport(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
 	c.Assert(se, check.IsNil)
+}
+
+func createTestExportFile(filename string, exportJSON bool, withDir bool) error {
+	tf, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer tf.Close()
+	tw := tar.NewWriter(tf)
+	defer tw.Close()
+
+	for _, s := range []string{"foo", "bar", "baz"} {
+		fname := fmt.Sprintf("5_%s_1.0_199.zip", s)
+
+		buf := bytes.NewBuffer(nil)
+		zipW := zip.NewWriter(buf)
+		f, err := zipW.Create(s)
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write([]byte(s)); err != nil {
+			return err
+		}
+		if err := zipW.Close(); err != nil {
+			return err
+		}
+
+		hdr := &tar.Header{
+			Name: fname,
+			Mode: 0644,
+			Size: int64(buf.Len()),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err := tw.Write(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+	// XXX: create meta.json with valid/invalid content for tests
+
+	if withDir {
+		hdr := &tar.Header{
+			Name:     dirs.SnapshotsDir,
+			Mode:     0755,
+			Size:     int64(0),
+			Typeflag: tar.TypeDir,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte("")); err != nil {
+			return nil
+		}
+	}
+
+	if exportJSON {
+		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
+		hdr := &tar.Header{
+			Name: "export.json",
+			Mode: 0644,
+			Size: int64(len(exp)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte(exp)); err != nil {
+			return nil
+		}
+	}
+
+	return nil
 }
