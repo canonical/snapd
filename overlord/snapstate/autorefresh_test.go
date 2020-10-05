@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -524,8 +525,11 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLoc
 
 	// we shouldn't have had a message about "all snaps are up to date", we
 	// should have a message about being aborted mid way
-	c.Assert(logbuf.String(), testutil.Contains, "Auto-refresh was delayed mid-way through launching, aborting to try again later")
-	c.Assert(logbuf.String(), testutil.Contains, "auto-refresh: all snaps are up-to-date")
+
+	re1 := regexp.MustCompile(`(?m).*Auto-refresh was delayed mid-way through launching, aborting to try again later`)
+	c.Assert(re1.Match([]byte(logbuf.String())), Equals, true)
+	re2 := regexp.MustCompile(`(?m).*auto-refresh: all snaps are up-to-date`)
+	c.Assert(re2.Match([]byte(logbuf.String())), Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
