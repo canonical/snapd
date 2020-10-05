@@ -32,10 +32,14 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -43,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
-	"gopkg.in/check.v1"
 )
 
 type snapshotSuite struct {
@@ -887,22 +890,23 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
+func parseSnapshotFilename(c *check.C, fname string) (snapName, version string, revision int) {
+	m := regexp.MustCompile("^(.+)_(.+)_(.+)_(.+).zip$")
+	parts := m.FindStringSubmatch(path.Base(fname))
+	c.Assert(parts, check.HasLen, 5)
+
+	snapName, version = parts[2], parts[3]
+	var err error
+	revision, err = strconv.Atoi(parts[4])
+	c.Assert(err, check.IsNil)
+	return snapName, version, revision
+}
+
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
 	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		var sid uint64
-		var revision int
-		var snapName, version string
-		filename := path.Base(fn)
-		parseF := strings.Replace(filename, "_", " ", 3)
-		parseF = strings.Replace(parseF, ".zip", "", 1)
-		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
-			return nil, fmt.Errorf("unexpected filename format: %v", err)
-		}
-
-		// set id from the filename - see MockCreateExportFile.
-		c.Assert(sid, check.Equals, uint64(5))
+		snapName, version, revision := parseSnapshotFilename(c, fn)
 
 		// set id of the imported snapshot. This verifies that moveCachedSnapshots
 		// uses correct set id with backend.Open()
@@ -1003,16 +1007,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		var sid uint64
-		var revision int
-		var snapName, version string
-		filename := path.Base(fn)
-		parseF := strings.Replace(filename, "_", " ", 3)
-		parseF = strings.Replace(parseF, ".zip", "", 1)
-		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
-			return nil, fmt.Errorf("unexpected filename format: %v", err)
-		}
-
+		snapName, version, revision := parseSnapshotFilename(c, fn)
 		f, err := os.Open(os.DevNull)
 		c.Assert(err, check.IsNil, check.Commentf(fn))
 		return &backend.Reader{

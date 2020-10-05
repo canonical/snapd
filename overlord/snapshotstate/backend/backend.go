@@ -567,8 +567,8 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 
 		snaps = append(snaps, snapshot.Snap)
 
-		new := Filename(snapshot)
-		if err := os.Rename(old, new); err != nil {
+		newSnapshotName := Filename(snapshot)
+		if err := os.Rename(old, newSnapshotName); err != nil {
 			return nil, err
 		}
 	}
