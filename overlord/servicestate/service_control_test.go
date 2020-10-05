@@ -467,8 +467,8 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 	})
@@ -497,7 +497,7 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -526,7 +526,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -554,8 +554,8 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 	})
@@ -615,7 +615,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snap.test-snap.foo.service"},
+		{"disable", "snap.test-snap.foo.service"},
 	})
 }
 

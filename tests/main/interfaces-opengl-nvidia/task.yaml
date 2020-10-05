@@ -94,10 +94,8 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
 
-    install_local test-snapd-policy-app-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-policy-app-consumer
 
     echo "When the interface is connected"
     snap connect test-snapd-policy-app-consumer:opengl core:opengl

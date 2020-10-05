@@ -200,7 +200,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "core18":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -231,6 +231,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		Confinement: confinement,
 		SnapType:    typ,

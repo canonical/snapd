@@ -22,12 +22,14 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -44,6 +46,14 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	snapshotList = newList
 	return func() {
 		snapshotList = oldList
+	}
+}
+
+func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+	oldExport := snapshotExport
+	snapshotExport = newExport
+	return func() {
+		snapshotExport = oldExport
 	}
 }
 
@@ -68,6 +78,14 @@ func MockSnapshotForget(newForget func(*state.State, uint64, []string) ([]string
 	snapshotForget = newForget
 	return func() {
 		snapshotForget = oldForget
+	}
+}
+
+func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error)) (restore func()) {
+	oldImport := snapshotImport
+	snapshotImport = newImport
+	return func() {
+		snapshotImport = oldImport
 	}
 }
 
@@ -99,7 +117,14 @@ func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
 	return changeSnapshots(c, r, user).(*resp)
 }
 
+func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface{} {
+	return getSnapshotExport(c, r, user)
+}
+
 var (
-	SnapshotMany = snapshotMany
-	SnapshotCmd  = snapshotCmd
+	SnapshotMany      = snapshotMany
+	SnapshotCmd       = snapshotCmd
+	SnapshotExportCmd = snapshotExportCmd
 )
+
+type SnapshotExportResponse = snapshotExportResponse

@@ -42,6 +42,11 @@ var snapshotCmd = &Command{
 	POST:     changeSnapshots,
 }
 
+var snapshotExportCmd = &Command{
+	Path: "/v2/snapshots/{id}/export",
+	GET:  getSnapshotExport,
+}
+
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	var setID uint64
@@ -83,6 +88,11 @@ func (action snapshotAction) String() string {
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/x.snapd.snapshot" {
+		return doSnapshotImport(c, r, user)
+	}
+
 	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&action); err != nil {
@@ -136,4 +146,49 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+// getSnapshotExport streams an archive containing an export of existing snapshots.
+//
+// The snapshots are re-packaged into a single uncompressed tar archive and
+// internally contain multiple zip files.
+func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	vars := muxVars(r)
+	sid := vars["id"]
+	setID, err := strconv.ParseUint(sid, 10, 64)
+	if err != nil {
+		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
+	}
+
+	export, err := snapshotExport(context.TODO(), setID)
+	if err != nil {
+		return BadRequest("cannot export %v: %v", setID, err)
+	}
+	// init (size calculation) can be slow so drop the lock
+	st.Unlock()
+	err = export.Init()
+	st.Lock()
+	if err != nil {
+		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
+	}
+
+	return &snapshotExportResponse{SnapshotExport: export}
+}
+
+func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+	defer r.Body.Close()
+
+	// XXX: check that we have enough space to import the compressed snapshots
+	st := c.d.overlord.State()
+	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	return SyncResponse(result, nil)
 }
