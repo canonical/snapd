@@ -472,6 +472,18 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 		return 0, nil, fmt.Errorf("%s: no export.json file in uploaded data", errPrefix)
 	}
 
+	// undo all moved snapshots on error
+	var movedSnapshotFiles []string
+	defer func() {
+		if err != nil {
+			for _, fname := range movedSnapshotFiles {
+				if e := os.Remove(fname); e != nil {
+					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
+				}
+			}
+		}
+	}()
+
 	// walk the cache directory to store the snapshot files from the
 	// temp import location to the real location
 	dir, err := osOpen(tempImportDir)
@@ -479,19 +491,6 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	defer dir.Close()
-
-	var snapshotFiles []string
-
-	// undo all moved snapshots on error
-	defer func() {
-		if err != nil {
-			for _, fname := range snapshotFiles {
-				if e := os.Remove(fname); e != nil {
-					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
-				}
-			}
-		}
-	}()
 
 	var readErr error
 	for readErr == nil {
@@ -506,7 +505,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 				return 0, nil, err
 			}
 			snapNames = append(snapNames, newSnapNames...)
-			snapshotFiles = append(snapshotFiles, newFiles...)
+			movedSnapshotFiles = append(movedSnapshotFiles, newFiles...)
 		}
 	}
 	if readErr != nil && readErr != io.EOF {
@@ -516,7 +515,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	return size, snapNames, nil
 }
 
-func unpackVerifySnapshotImport(r io.Reader, p string) (exportFound bool, size int64, err error) {
+func unpackVerifySnapshotImport(r io.Reader, targetDir string) (exportFound bool, size int64, err error) {
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
@@ -537,21 +536,21 @@ func unpackVerifySnapshotImport(r io.Reader, p string) (exportFound bool, size i
 			return false, 0, errors.New("unexpected directory in import file")
 		}
 
-		target := path.Join(p, header.Name)
+		targetPath := path.Join(targetDir, header.Name)
 		if header.Name == "export.json" {
 			exportFound = true
 		} else {
-			extractedSnapshots = append(extractedSnapshots, target)
+			extractedSnapshots = append(extractedSnapshots, targetPath)
 		}
 
-		t, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 		if err != nil {
-			return false, 0, fmt.Errorf("failed creating file `%s`: %v", target, err)
+			return false, 0, fmt.Errorf("cannot create file %q: %v", targetPath, err)
 		}
 		defer t.Close()
 		writtenSize, err := io.Copy(t, tr)
 		if err != nil {
-			return false, 0, fmt.Errorf("failed copying file `%s`: %v", target, err)
+			return false, 0, fmt.Errorf("cannot copy file %q: %v", targetPath, err)
 		}
 		size += writtenSize
 	}
