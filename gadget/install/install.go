@@ -103,8 +103,6 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	// We're currently generating a single encryption key, this may change later
-	// if we create multiple encrypted partitions.
 	type keySet struct {
 		key  secboot.EncryptionKey
 		rkey secboot.RecoveryKey
@@ -192,8 +190,8 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 
 	saveKeySet := keysForRoles[gadget.SystemSave]
 	if saveKeySet != nil {
-		saveKey := filepath.Join(boot.InstallHostFDEDataDir, "save.key")
-		reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall-save.key")
+		saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
+		reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
 
 		if err := saveKeySet.key.Save(saveKey); err != nil {
 			return fmt.Errorf("cannot store save key: %v", err)
