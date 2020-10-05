@@ -480,25 +480,40 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	}
 	defer dir.Close()
 
+	var snapshotFiles []string
+
+	// undo all moved snapshots on error
+	defer func() {
+		if err != nil {
+			for _, fname := range snapshotFiles {
+				if e := os.Remove(fname); e != nil {
+					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
+				}
+			}
+		}
+	}()
+
 	var readErr error
 	for readErr == nil {
 		var names []string
 		names, readErr = dirNames(dir, 100)
 		if len(names) > 0 {
 			// move the files into place with the new local set ID
-			newSnapNames, err := moveCachedSnapshots(tempImportDir, names, id)
-			// XXX: if we fail here we need to undo the snapshot
-			//      import
+			var newSnapNames []string
+			var newFiles []string
+			newSnapNames, newFiles, err = moveCachedSnapshots(tempImportDir, names, id)
 			if err != nil {
 				return 0, nil, err
 			}
 			snapNames = append(snapNames, newSnapNames...)
+			snapshotFiles = append(snapshotFiles, newFiles...)
 		}
 	}
 	if readErr != nil && readErr != io.EOF {
-		return 0, nil, fmt.Errorf("%s: failed read from import cache: %v", errPrefix, readErr)
+		err = fmt.Errorf("%s: failed read from import cache: %v", errPrefix, readErr)
+		return 0, nil, err
 	}
-	return size, snapNames, err
+	return size, snapNames, nil
 }
 
 func unpackVerifySnapshotImport(r io.Reader, p string) (exportFound bool, size int64, err error) {
@@ -557,8 +572,17 @@ func unpackVerifySnapshotImport(r io.Reader, p string) (exportFound bool, size i
 	return exportFound, size, nil
 }
 
-func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) ([]string, error) {
-	snaps := []string{}
+func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) (snaps, newFiles []string, err error) {
+	defer func() {
+		if err != nil {
+			for _, fname := range newFiles {
+				if e := os.Remove(fname); e != nil {
+					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
+				}
+			}
+		}
+	}()
+
 	for _, name := range names {
 		if name == "export.json" {
 			// ignore metadata file
@@ -568,13 +592,14 @@ func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) 
 		old := path.Join(cachedSnapshotsCDir, name)
 
 		// read old snapshot, override its set id internally
-		r, err := backendOpen(old, id)
+		var r *Reader
+		r, err = backendOpen(old, id)
 		if err != nil {
-			return nil, fmt.Errorf("cannot open snapshot: %v", err)
+			return nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 		}
 		r.Close()
 		if err != nil {
-			return nil, fmt.Errorf("validation failed for %q: %v", name, err)
+			return nil, nil, fmt.Errorf("validation failed for %q: %v", name, err)
 		}
 		snapshot := &r.Snapshot
 		snaps = append(snaps, snapshot.Snap)
@@ -582,11 +607,12 @@ func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) 
 		// Filename() returns snapshot filename under dirs.SnapshotsDir, so
 		// snapshots gets moved from cachedSnapshotsCDir.
 		newSnapshotName := Filename(snapshot)
-		if err := os.Rename(old, newSnapshotName); err != nil {
-			return nil, err
+		if err = os.Rename(old, newSnapshotName); err != nil {
+			return nil, nil, err
 		}
+		newFiles = append(newFiles, newSnapshotName)
 	}
-	return snaps, nil
+	return snaps, newFiles, nil
 }
 
 type exportMetadata struct {
