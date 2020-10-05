@@ -204,7 +204,7 @@ func (e ConnectionError) Unwrap() error {
 const AllowInteractionHeader = "X-Allow-Interaction"
 
 // raw performs a request and returns the resulting http.Response and
-// error you usually only need to call this directly if you expect the
+// error. You usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
 func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
