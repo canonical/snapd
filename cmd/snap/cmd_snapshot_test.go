@@ -126,7 +126,7 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 			}
 			if r.Method == "POST" {
-				if r.Header.Get("Content-Type") == client.SnapshotExportContentType {
+				if r.Header.Get("Content-Type") == client.SnapshotExportMediaType {
 					fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["htop"]}}`)
 				} else {
 
@@ -137,7 +137,7 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
 		case "/v2/snapshots/1/export":
-			w.Header().Set("Content-Type", client.SnapshotExportContentType)
+			w.Header().Set("Content-Type", client.SnapshotExportMediaType)
 			fmt.Fprint(w, "Hello World!")
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)

@@ -89,7 +89,7 @@ func (action snapshotAction) String() string {
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	if contentType == client.SnapshotExportContentType {
+	if contentType == client.SnapshotExportMediaType {
 		return doSnapshotImport(c, r, user)
 	}
 

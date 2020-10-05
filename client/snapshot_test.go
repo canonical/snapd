@@ -149,7 +149,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	}
 
 	table := []tableT{
-		{"dummy-export", client.SnapshotExportContentType, 200},
+		{"dummy-export", client.SnapshotExportMediaType, 200},
 		{"dummy-export", "application/x-tar", 400},
 		{"", "", 400},
 	}
@@ -206,7 +206,7 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 			continue
 		}
 		c.Assert(err, check.IsNil, comm)
-		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, client.SnapshotExportContentType)
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, client.SnapshotExportMediaType)
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
 	}
