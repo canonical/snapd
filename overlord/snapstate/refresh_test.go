@@ -208,7 +208,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
 
-func (s *refreshSuite) TestDoHardRefreshCheckAllowed(c *C) {
+func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -221,7 +221,7 @@ func (s *refreshSuite) TestDoHardRefreshCheckAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	lock, err := snapstate.DoHardRefreshCheck(s.state, snapst, info)
+	lock, err := snapstate.DoHardRefreshFlow(s.state, snapst, info)
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
@@ -235,7 +235,7 @@ func (s *refreshSuite) TestDoHardRefreshCheckAllowed(c *C) {
 	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
 }
 
-func (s *refreshSuite) TestDoHardRefreshCheckDisallowed(c *C) {
+func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -248,7 +248,7 @@ func (s *refreshSuite) TestDoHardRefreshCheckDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	lock, err := snapstate.DoHardRefreshCheck(s.state, snapst, info)
+	lock, err := snapstate.DoHardRefreshFlow(s.state, snapst, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 	c.Assert(lock, IsNil)
 

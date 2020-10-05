@@ -158,7 +158,7 @@ func (err BusySnapError) Pids() []int {
 	return err.pids
 }
 
-// doHardRefreshCheck performs the complete hard refresh check interaction.
+// doHardRefreshFlow performs the complete hard refresh interaction.
 //
 // This check uses HardNothingRunningRefreshCheck along with interaction
 // with two locks - the snap lock, shared by snap-confine and snapd and the
@@ -172,7 +172,7 @@ func (err BusySnapError) Pids() []int {
 // resumes, the snap is no longer linked and normal startup is inhibited. In
 // consequence "snap run foo" will block and snap-confine will fail with
 // unlinked snap error.
-func doHardRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) (lock *osutil.FileLock, err error) {
+func doHardRefreshFlow(st *state.State, snapst *SnapState, info *snap.Info) (lock *osutil.FileLock, err error) {
 	// A process may be created after the soft refresh done upon
 	// the request to refresh a snap. If such process is alive by
 	// the time this code is reached the refresh process is stopped.

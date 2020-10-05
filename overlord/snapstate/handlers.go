@@ -834,10 +834,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if experimentalRefreshAppAwareness {
-		// Perform a hard refresh check. Upon success the returned lock can be
+		// Invoke the hard refresh flow. Upon success the returned lock can be
 		// used to prevent snap-confine from advancing until UnlinkSnap,
 		// executed below, completes.
-		lock, err := doHardRefreshCheck(st, snapst, oldInfo)
+		lock, err := doHardRefreshFlow(st, snapst, oldInfo)
 		if err != nil {
 			return err
 		}

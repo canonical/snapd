@@ -263,7 +263,7 @@ var (
 // refresh
 var (
 	DoSoftRefreshCheck = doSoftRefreshCheck
-	DoHardRefreshCheck = doHardRefreshCheck
+	DoHardRefreshFlow  = doHardRefreshFlow
 )
 
 func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
