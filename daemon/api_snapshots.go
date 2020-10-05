@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -186,10 +187,12 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return BadRequest("cannot parse Content-Length: %v", err)
 	}
+	// ensure we don't read more than we expect
+	limitedBodyReader := io.LimitReader(r.Body, expectedSize)
 
 	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
-	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body, expectedSize)
+	setID, snapNames, _, err := snapshotImport(context.TODO(), st, limitedBodyReader, expectedSize)
 	if err != nil {
 		return BadRequest(err.Error())
 	}
