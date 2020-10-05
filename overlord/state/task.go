@@ -509,7 +509,7 @@ func (ts *TaskSet) WaitAll(anotherTs *TaskSet) {
 	}
 }
 
-// AddTask adds the the task to the task set.
+// AddTask adds the task to the task set.
 func (ts *TaskSet) AddTask(task *Task) {
 	for _, t := range ts.tasks {
 		if t == task {

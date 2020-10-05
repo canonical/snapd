@@ -527,7 +527,7 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // identical/preserved files may be stamped to improve the later step of update
 // process.
 //
-// The backup directory structure mirrors the the structure of destination
+// The backup directory structure mirrors the structure of destination
 // location. Given the following destination structure:
 //
 // foo

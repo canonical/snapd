@@ -1,4 +1,4 @@
-summary: Check that the the docker snap works basically
+summary: Check that the docker snap works basically
 
 # only run on ubuntus for now, the docker snap has issues on non-ubuntu ATM
 # TODO:UC20: enable for UC20, fails with what looks like apparmor
