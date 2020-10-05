@@ -463,7 +463,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	}
 	defer os.RemoveAll(tempImportDir)
 
-	// unpack the tar file to a temporary location and validate.
+	// Unpack the streamed tar to a temporary location and validate
 	exportFound, size, err := unpackVerifySnapshotImport(r, tempImportDir)
 	if err != nil {
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
