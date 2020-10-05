@@ -274,8 +274,8 @@ func (m *autoRefresh) Ensure() error {
 			}
 		}
 
-		// refresh is also "held" if the next time is after now
-		if !m.nextRefresh.After(now) {
+		// refresh is also "held" if the next time is in the future
+		if m.nextRefresh.Before(now) {
 			var can bool
 			can, err = m.canRefreshRespectingMetered(now, lastRefresh)
 			if err != nil {
