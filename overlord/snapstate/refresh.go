@@ -164,14 +164,13 @@ func (err BusySnapError) Pids() []int {
 // with two locks - the snap lock, shared by snap-confine and snapd and the
 // snap run inhibition lock, shared by snapd and snap run.
 //
-// On success this function returns a locked lock, allowing the caller to
-// atomically, with regards to snap-confine, finish any action that required
-// the check.
+// On success this function returns a locked snap run inhibition lock, allowing
+// the caller to atomically, with regards to "snap run", finish any action that
+// required the apps and hooks not to be running. The lock prevents snap run
+// from launching any new processes as applications of hooks of the given snap.
 //
-// In practice this is used to unlink the snap from disk. Once snap-confine
-// resumes, the snap is no longer linked and normal startup is inhibited. In
-// consequence "snap run foo" will block and snap-confine will fail with
-// unlinked snap error.
+// In practice, we either inihibit app startup and refresh the snap _or_
+// inhibit the refresh change and continue running existing app processes.
 func doHardRefreshFlow(st *state.State, snapst *SnapState, info *snap.Info) (lock *osutil.FileLock, err error) {
 	// A process may be created after the soft refresh done upon
 	// the request to refresh a snap. If such process is alive by
