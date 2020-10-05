@@ -526,7 +526,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLoc
 	// should have a message about being aborted mid way
 
 	c.Assert(logbuf.String(), testutil.Contains, "Auto-refresh was delayed mid-way through launching, aborting to try again later")
-	c.Assert(logbuf.String(), testutil.Contains, "auto-refresh: all snaps are up-to-date")
+	c.Assert(logbuf.String(), Not(testutil.Contains), "auto-refresh: all snaps are up-to-date")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
