@@ -120,7 +120,7 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size int64, shaSums map[string]string) *client.Snapshot {
 	return &client.Snapshot{
 		SetID:    setID,
-		Snap:    snapName,
+		Snap:     snapName,
 		SnapID:   "id",
 		Revision: revision,
 		Version:  "1.0",

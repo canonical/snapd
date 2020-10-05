@@ -929,12 +929,16 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err := createTestExportFile(tarFile1, true, false, false)
+	flags := &createTestExportFlags{
+		exportJSON: true,
+	}
+	err := createTestExportFile(tarFile1, flags)
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	err = createTestExportFile(tarFile2, false, false, false)
+	flags = &createTestExportFlags{}
+	err = createTestExportFile(tarFile2, flags)
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
@@ -944,7 +948,11 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create an exported snapshot with a directory
 	tarFile4 := path.Join(tempdir, "exported4.snapshot")
-	err = createTestExportFile(tarFile4, true, true, false)
+	flags = &createTestExportFlags{
+		exportJSON: true,
+		withDir:    true,
+	}
+	err = createTestExportFile(tarFile4, flags)
 	c.Check(err, check.IsNil)
 
 	type tableT struct {
@@ -1010,7 +1018,11 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 
 	// create snapshot export file
 	tarFile1 := path.Join(c.MkDir(), "exported1.snapshot")
-	err = createTestExportFile(tarFile1, true, false, true)
+	flags := &createTestExportFlags{
+		exportJSON:      true,
+		corruptChecksum: true,
+	}
+	err = createTestExportFile(tarFile1, flags)
 	c.Assert(err, check.IsNil)
 
 	f, err := os.Open(tarFile1)
@@ -1222,7 +1234,13 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 	c.Assert(se, check.IsNil)
 }
 
-func createTestExportFile(filename string, exportJSON bool, withDir bool, corruptChecksum bool) error {
+type createTestExportFlags struct {
+	exportJSON      bool
+	withDir         bool
+	corruptChecksum bool
+}
+
+func createTestExportFile(filename string, flags *createTestExportFlags) error {
 	tf, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -1252,12 +1270,12 @@ func createTestExportFile(filename string, exportJSON bool, withDir bool, corrup
 			return err
 		}
 
-		if corruptChecksum {
+		if flags.corruptChecksum {
 			hasher.Write([]byte{0})
 		}
 		sha["archive.tgz"] = fmt.Sprintf("%x", hasher.Sum(nil))
 
-		snapshot := backend.MockSnapshot(5, s, snap.Revision{N:199}, sz.Size(), sha)
+		snapshot := backend.MockSnapshot(5, s, snap.Revision{N: 199}, sz.Size(), sha)
 
 		// create meta.json
 		metaWriter, err := zipW.Create("meta.json")
@@ -1291,7 +1309,7 @@ func createTestExportFile(filename string, exportJSON bool, withDir bool, corrup
 		}
 	}
 
-	if withDir {
+	if flags.withDir {
 		hdr := &tar.Header{
 			Name:     dirs.SnapshotsDir,
 			Mode:     0755,
@@ -1306,7 +1324,7 @@ func createTestExportFile(filename string, exportJSON bool, withDir bool, corrup
 		}
 	}
 
-	if exportJSON {
+	if flags.exportJSON {
 		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
 		hdr := &tar.Header{
 			Name: "export.json",
