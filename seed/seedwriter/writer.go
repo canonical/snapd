@@ -547,6 +547,12 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 		return err
 	}
 
+	if info.Confinement == snap.DevModeConfinement {
+		if err := w.policy.allowsDangerousFeatures(); err != nil {
+			return err
+		}
+	}
+
 	sn.Path = p
 	return nil
 }
