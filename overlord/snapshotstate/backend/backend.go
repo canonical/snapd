@@ -523,7 +523,7 @@ func (t *importTransaction) Cancel() error {
 }
 
 // Commit will commit a given transaction
-func (t importTransaction) Commit() error {
+func (t *importTransaction) Commit() error {
 	if err := os.Remove(t.importInProgressFilepath()); err != nil {
 		return err
 	}
@@ -535,75 +535,35 @@ func (t importTransaction) Commit() error {
 func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames []string, err error) {
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
-	// prepare cache location to unpack the import file
-	tempImportDir := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", id))
-	if err := os.MkdirAll(path.Dir(tempImportDir), 0700); err != nil {
-		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
+	// XXX: newImportTransaction calls start implicitly?
+	tr := newImportTransaction(id)
+	if err := tr.Start(); err != nil {
+		return 0, nil, err
 	}
-	if err := os.Mkdir(tempImportDir, 0700); err != nil {
-		if os.IsExist(err) {
-			return 0, nil, fmt.Errorf("%s: already in progress for this id", errPrefix)
-		}
-		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	defer os.RemoveAll(tempImportDir)
+	defer tr.Cancel()
 
-	// Unpack the streamed tar to a temporary location and validate
-	exportFound, size, err := unpackVerifySnapshotImport(r, tempImportDir)
+	// Unpack the streamed tar
+	exportFound, size, err := unpackVerifySnapshotImport(r, id)
 	if err != nil {
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if !exportFound {
 		return 0, nil, fmt.Errorf("%s: no export.json file in uploaded data", errPrefix)
 	}
-
-	// undo all moved snapshots on error
-	var movedSnapshotFiles []string
-	defer func() {
-		if err != nil {
-			for _, fname := range movedSnapshotFiles {
-				if e := os.Remove(fname); e != nil {
-					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
-				}
-			}
-		}
-	}()
-
-	// walk the cache directory to store the snapshot files from the
-	// temp import location to the real location
-	dir, err := osOpen(tempImportDir)
-	if err != nil {
-		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	defer dir.Close()
-
-	var readErr error
-	for readErr == nil {
-		var names []string
-		names, readErr = dirNames(dir, 100)
-		if len(names) > 0 {
-			// move the files into place with the new local set ID
-			newSnapNames, newFiles, err := moveCachedSnapshots(tempImportDir, names, id)
-			if err != nil {
-				return 0, nil, err
-			}
-			snapNames = append(snapNames, newSnapNames...)
-			movedSnapshotFiles = append(movedSnapshotFiles, newFiles...)
-		}
-	}
-	if readErr != nil && readErr != io.EOF {
-		err = fmt.Errorf("%s: failed read from import cache: %v", errPrefix, readErr)
+	if err := tr.Commit(); err != nil {
 		return 0, nil, err
 	}
+
 	return size, snapNames, nil
 }
 
-func unpackVerifySnapshotImport(r io.Reader, targetDir string) (exportFound bool, size int64, err error) {
+func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (exportFound bool, size int64, err error) {
+	targetDir := dirs.SnapshotsDir
+
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
 
-	var extractedSnapshots []string
 	for tarErr == nil {
 		header, tarErr = tr.Next()
 		if tarErr == io.EOF {
@@ -619,12 +579,25 @@ func unpackVerifySnapshotImport(r io.Reader, targetDir string) (exportFound bool
 			return false, 0, errors.New("unexpected directory in import file")
 		}
 
-		targetPath := path.Join(targetDir, header.Name)
 		if header.Name == "export.json" {
+			// XXX: read into memory and validate once we
+			// hashes in export.json
 			exportFound = true
-		} else {
-			extractedSnapshots = append(extractedSnapshots, targetPath)
+			continue
 		}
+
+		// Format of the snapshot import is:
+		//     $setID_.....
+		// But because the setID is local this will not be correct
+		// for our system and we need to discard this setID.
+		//
+		// So chop off the incorrect (old) setID and just use
+		// the rest that is still valid.
+		l := strings.SplitN(header.Name, "_", 2)
+		if len(l) != 2 {
+			return false, 0, fmt.Errorf("unexpected filename in stream: %v", header.Name)
+		}
+		targetPath := path.Join(targetDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
 
 		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
@@ -636,62 +609,19 @@ func unpackVerifySnapshotImport(r io.Reader, targetDir string) (exportFound bool
 			return false, 0, fmt.Errorf("cannot copy file %q: %v", targetPath, err)
 		}
 		size += writtenSize
-	}
 
-	// validate
-	for _, name := range extractedSnapshots {
-		// we don't care about set id at this point
-		r, err := backendOpen(name, ExtractFnameSetID)
+		r, err := backendOpen(targetPath, realSetID)
 		if err != nil {
 			return false, 0, fmt.Errorf("cannot open snapshot: %v", err)
 		}
 		err = r.Check(context.TODO(), nil)
 		r.Close()
 		if err != nil {
-			return false, 0, fmt.Errorf("validation failed for %q: %v", name, err)
+			return false, 0, fmt.Errorf("validation failed for %q: %v", targetPath, err)
 		}
 	}
+
 	return exportFound, size, nil
-}
-
-func moveCachedSnapshots(cachedSnapshotsCDir string, names []string, id uint64) (snaps, newFiles []string, err error) {
-	defer func() {
-		if err != nil {
-			for _, fname := range newFiles {
-				if e := os.Remove(fname); e != nil {
-					logger.Noticef("cannot remove imported snapshot file %q: %v", fname, e)
-				}
-			}
-		}
-	}()
-
-	for _, name := range names {
-		if name == "export.json" {
-			// ignore metadata file
-			continue
-		}
-
-		old := path.Join(cachedSnapshotsCDir, name)
-
-		// read old snapshot, override its set id internally
-		r, err := backendOpen(old, id)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
-		}
-		r.Close()
-		snapshot := &r.Snapshot
-		snaps = append(snaps, snapshot.Snap)
-
-		// Filename() returns snapshot filename under
-		// dirs.SnapshotsDir, so snapshots gets moved from
-		// cachedSnapshotsCDir.
-		newSnapshotName := Filename(snapshot)
-		if err = os.Rename(old, newSnapshotName); err != nil {
-			return nil, nil, err
-		}
-		newFiles = append(newFiles, newSnapshotName)
-	}
-	return snaps, newFiles, nil
 }
 
 type exportMetadata struct {
