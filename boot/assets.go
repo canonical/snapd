@@ -171,9 +171,9 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 var ErrObserverNotApplicable = errors.New("observer not applicable")
 
 // TrustedAssetsInstallObserverForModel returns a new trusted assets observer
-// for use during installation of the run mode system provided the device model
-// indicates support for trusted or managed assets. Otherwise, nil and
-// ErrObserverNotApplicable is returned.
+// for use during installation of the run mode system to track trusted and
+// control managed assets, provided the device model indicates this might be
+// needed. Otherwise, nil and ErrObserverNotApplicable is returned.
 func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
@@ -339,7 +339,7 @@ func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.Encryptio
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
 // tracking changes to the trusted boot assets and preserving managed assets,
-// provided such support is indicated by the device model. Otherwise, nil and
+// provided the device model indicates this might be needed. Otherwise, nil and
 // ErrObserverNotApplicable is returned.
 func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUpdateObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
