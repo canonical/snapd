@@ -34,7 +34,7 @@ go install github.com/snapcore/snapd/i18n/xgettext-go
 
 # exclude vendor and _build subdir
 I18N_FILES="$(mktemp -d)/i18n.files"
-find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > "$I18N_FILES"
+find "$HERE" -type d \( -name "vendor" -o -name "_build" -o -name ".git" \) -prune -o -name "*.go" -type f -print > "$I18N_FILES"
 # shellcheck disable=SC2064
 trap "rm -rf $(dirname "$I18N_FILES")" EXIT
 

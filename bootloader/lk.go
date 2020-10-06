@@ -205,8 +205,10 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	dirty, _ := env.FreeBootPartition(blobName)
-	if dirty {
+	err := env.RemoveKernelRevisionFromBootPartition(blobName)
+	if err == nil {
+		// found and removed the revision from the bootimg matrix, need to
+		// update the env to persist the change
 		return env.Save()
 	}
 	return nil

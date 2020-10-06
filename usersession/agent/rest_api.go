@@ -21,12 +21,12 @@ package agent
 
 import (
 	"encoding/json"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -167,8 +167,19 @@ type dummyReporter struct{}
 func (dummyReporter) Notify(string) {}
 
 func postServiceControl(c *Command, r *http.Request) Response {
-	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType != "application/json" {
 		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	charset := strings.ToUpper(params["charset"])
+	if charset != "" && charset != "UTF-8" {
+		return BadRequest("unknown charset in content type: %s", contentType)
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -183,6 +194,6 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
+	sysd := systemd.New(systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
 }

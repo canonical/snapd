@@ -11,9 +11,7 @@ execute: |
     seccomp_profile_directory="/var/lib/snapd/seccomp/bpf"
 
     echo "Security profiles are generated and loaded for apps"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
     for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success

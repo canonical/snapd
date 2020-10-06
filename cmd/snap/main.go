@@ -350,7 +350,6 @@ func Parser(cli *client.Client) *flags.Parser {
 	})
 	// Add the debug command
 	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
-	debugCommand.Hidden = true
 	if err != nil {
 		logger.Panicf("cannot add command %q: %v", "debug", err)
 	}

@@ -7,9 +7,7 @@ details: |
     is not an error if it doesn't exist.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
 execute: |
     echo "We can try to discard a namespace before snap runs"

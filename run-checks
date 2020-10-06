@@ -225,6 +225,8 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+        # also run spread-shellcheck
+        ./spread-shellcheck spread.yaml tests
     fi
 
     echo "Checking spelling errors"
@@ -392,5 +394,11 @@ There are files left in the git tree after the tests:
 
 $UNCLEAN
 EOF
+    exit 1
+fi
+
+if git describe --always --dirty | grep -q dirty; then
+    echo "Build tree is dirty"
+    git diff
     exit 1
 fi

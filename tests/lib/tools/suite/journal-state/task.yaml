@@ -31,6 +31,6 @@ execute: |
     cursor2=$("$TESTSTOOLS"/journal-state get-last-cursor)
     test "$("$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor2" | grep -c "TEST-XX1")" -eq 0
 
-    # Check the the subcommand match-log works
+    # Check that the subcommand match-log works
     "$TESTSTOOLS"/journal-state match-log TEST-XX1
     not "$TESTSTOOLS"/journal-state match-log TEST-XX1 -u testservice

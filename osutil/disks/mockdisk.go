@@ -82,18 +82,18 @@ func (d *MockDiskMapping) Dev() string {
 // Mountpoint is a combination of a mountpoint location and whether that
 // mountpoint is a decrypted device. It is only used in identifying mount points
 // with MountPointIsFromDisk and DiskFromMountPoint with
-// MockMountPointDisksToPartionMapping.
+// MockMountPointDisksToPartitionMapping.
 type Mountpoint struct {
 	Mountpoint        string
 	IsDecryptedDevice bool
 }
 
-// MockMountPointDisksToPartionMapping will mock DiskFromMountPoint such that
+// MockMountPointDisksToPartitionMapping will mock DiskFromMountPoint such that
 // the specified mapping is returned/used. Specifically, keys in the provided
 // map are mountpoints, and the values for those keys are the disks that will
 // be returned from DiskFromMountPoint or used internally in
 // MountPointIsFromDisk.
-func MockMountPointDisksToPartionMapping(mockedMountPoints map[Mountpoint]*MockDiskMapping) (restore func()) {
+func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*MockDiskMapping) (restore func()) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
 	// verify that all unique MockDiskMapping's have unique DevNum's

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -71,6 +72,7 @@ var (
 	LongSnapDescription     = longSnapDescription
 	SnapUsage               = snapUsage
 	SnapHelpCategoriesIntro = snapHelpCategoriesIntro
+	SnapHelpAllIntro        = snapHelpAllIntro
 	SnapHelpAllFooter       = snapHelpAllFooter
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
@@ -327,7 +329,7 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 
 type ServiceName = serviceName
 
-func MockCreateTransientScopeForTracking(fn func(securityTag string) error) (restore func()) {
+func MockCreateTransientScopeForTracking(fn func(securityTag string, opts *cgroup.TrackingOptions) error) (restore func()) {
 	old := cgroupCreateTransientScopeForTracking
 	cgroupCreateTransientScopeForTracking = fn
 	return func() {

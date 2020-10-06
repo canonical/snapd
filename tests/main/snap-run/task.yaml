@@ -16,6 +16,10 @@ debug: |
     fi
 
 execute: |
+    echo "Running a trivial command causes no DENIED messages"
+    test-snapd-sh.sh -c 'echo hello'
+    dmesg | not grep DENIED
+
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
 
