@@ -532,33 +532,33 @@ func (t *importTransaction) Commit() error {
 }
 
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames []string, err error) {
+func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, err error) {
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
-	// XXX: newImportTransaction calls start implicitly?
 	tr := newImportTransaction(id)
+	if tr.InProgress() {
+		return nil, fmt.Errorf("%s: already in progress for this id", errPrefix)
+	}
 	if err := tr.Start(); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 	defer tr.Cancel()
 
 	// Unpack the streamed tar
-	exportFound, size, err := unpackVerifySnapshotImport(r, id)
+	snapNames, err = unpackVerifySnapshotImport(r, id)
 	if err != nil {
-		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	// XXX: should just be an error of unpackVerifySnapshotImport()
-	if !exportFound {
-		return 0, nil, fmt.Errorf("%s: no export.json file in uploaded data", errPrefix)
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if err := tr.Commit(); err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	return size, snapNames, nil
+	return snapNames, nil
 }
 
-func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (exportFound bool, size int64, err error) {
+func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
+	var exportFound bool
+
 	targetDir := dirs.SnapshotsDir
 
 	tr := tar.NewReader(r)
@@ -572,12 +572,12 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (exportFound bool
 		}
 		switch {
 		case tarErr != nil:
-			return false, 0, fmt.Errorf("failed reading snapshot import: %v", tarErr)
+			return nil, fmt.Errorf("failed reading snapshot import: %v", tarErr)
 		case header == nil:
 			// should not happen
-			return false, 0, fmt.Errorf("tar header not found")
+			return nil, fmt.Errorf("tar header not found")
 		case header.Typeflag == tar.TypeDir:
-			return false, 0, errors.New("unexpected directory in import file")
+			return nil, errors.New("unexpected directory in import file")
 		}
 
 		if header.Name == "export.json" {
@@ -596,33 +596,36 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (exportFound bool
 		// the rest that is still valid.
 		l := strings.SplitN(header.Name, "_", 2)
 		if len(l) != 2 {
-			return false, 0, fmt.Errorf("unexpected filename in stream: %v", header.Name)
+			return nil, fmt.Errorf("unexpected filename in stream: %v", header.Name)
 		}
 		targetPath := path.Join(targetDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
 
 		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
-			return false, 0, fmt.Errorf("cannot create file %q: %v", targetPath, err)
+			return snapNames, fmt.Errorf("cannot create file %q: %v", targetPath, err)
 		}
 		defer t.Close()
-		writtenSize, err := io.Copy(t, tr)
-		if err != nil {
-			return false, 0, fmt.Errorf("cannot copy file %q: %v", targetPath, err)
+
+		if _, err := io.Copy(t, tr); err != nil {
+			return snapNames, fmt.Errorf("cannot copy file %q: %v", targetPath, err)
 		}
-		size += writtenSize
 
 		r, err := backendOpen(targetPath, realSetID)
 		if err != nil {
-			return false, 0, fmt.Errorf("cannot open snapshot: %v", err)
+			return snapNames, fmt.Errorf("cannot open snapshot: %v", err)
 		}
 		err = r.Check(context.TODO(), nil)
 		r.Close()
+		snapNames = append(snapNames, r.Snap)
 		if err != nil {
-			return false, 0, fmt.Errorf("validation failed for %q: %v", targetPath, err)
+			return snapNames, fmt.Errorf("validation failed for %q: %v", targetPath, err)
 		}
 	}
+	if !exportFound {
+		return nil, fmt.Errorf("no export.json file in uploaded data")
+	}
 
-	return exportFound, size, nil
+	return snapNames, nil
 }
 
 type exportMetadata struct {

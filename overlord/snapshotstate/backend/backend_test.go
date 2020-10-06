@@ -913,6 +913,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		snapName, version, revision := parseSnapshotFilename(c, fn)
 		f, err := os.Open(os.DevNull)
 		c.Assert(err, check.IsNil, check.Commentf(fn))
+		defer f.Close()
 		return &backend.Reader{
 			File: f,
 			Snapshot: client.Snapshot{
@@ -965,9 +966,9 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	table := []tableT{
 		{14, tarFile1, false, ""},
 		{14, tarFile2, false, "cannot import snapshot 14: no export.json file in uploaded data"},
-		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this id"},
 		{14, tarFile3, false, "cannot import snapshot 14: failed reading snapshot import: unexpected EOF"},
 		{14, tarFile4, false, "cannot import snapshot 14: unexpected directory in import file"},
+		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this id"},
 	}
 
 	for i, t := range table {
@@ -976,26 +977,24 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		// reset
 		err = os.RemoveAll(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
-		err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+		err := os.MkdirAll(dirs.SnapshotsDir, 0700)
 		c.Assert(err, check.IsNil, comm)
-		cache := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", t.setID))
+		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
-			// create the cache directory the set ID
-			err = os.MkdirAll(cache, 0755)
+			err = ioutil.WriteFile(importingFile, nil, 0644)
 			c.Assert(err, check.IsNil, comm)
 		} else {
-			err = os.RemoveAll(cache)
+			err = os.RemoveAll(importingFile)
 			c.Assert(err, check.IsNil, comm)
 		}
 
 		f, err := os.Open(t.filename)
 		c.Assert(err, check.IsNil, comm)
+		defer f.Close()
 
-		size, snapNames, err := backend.Import(context.Background(), t.setID, f)
+		snapNames, err := backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
-			c.Check(err.Error(), check.Equals, t.error, comm)
-			c.Check(size, check.Equals, int64(0), comm)
-			f.Close()
+			c.Check(err, check.ErrorMatches, t.error, comm)
 			continue
 		}
 		c.Check(err, check.IsNil, comm)
@@ -1004,11 +1003,10 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 		dir, err := os.Open(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
+		defer dir.Close()
 		names, err := dir.Readdirnames(100)
 		c.Assert(err, check.IsNil, comm)
 		c.Check(len(names), check.Equals, 3, comm)
-
-		f.Close()
 	}
 }
 
@@ -1027,8 +1025,8 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 
 	f, err := os.Open(tarFile1)
 	c.Assert(err, check.IsNil)
-	_, _, err = backend.Import(context.Background(), 14, f)
-	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/5_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
+	_, err = backend.Import(context.Background(), 14, f)
+	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/14_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
@@ -1060,7 +1058,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	// now import it
 	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")), check.IsNil)
 
-	_, names, err := backend.Import(ctx, 123, buf)
+	names, err := backend.Import(ctx, 123, buf)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"hello-snap"})
 

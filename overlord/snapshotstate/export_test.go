@@ -146,7 +146,7 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	}
 }
 
-func MockBackendImport(f func(context.Context, uint64, io.Reader) (int64, []string, error)) (restore func()) {
+func MockBackendImport(f func(context.Context, uint64, io.Reader) ([]string, error)) (restore func()) {
 	old := backendImport
 	backendImport = f
 	return func() {
