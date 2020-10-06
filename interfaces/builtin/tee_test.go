@@ -97,6 +97,7 @@ func (s *TeeInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to Trusted Execution Environment devices`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "tee")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
 }
 
 func (s *TeeInterfaceSuite) TestAutoConnect(c *C) {

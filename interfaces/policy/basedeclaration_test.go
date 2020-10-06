@@ -713,6 +713,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
 	}
@@ -945,6 +946,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"udisks2":               true,
 		"uinput":                true,
 		"unity8":                true,
