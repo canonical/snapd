@@ -104,6 +104,34 @@ var isConnectedTests = []struct {
 	// snap1:audio-record slot is not connected to classic snap5
 	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
 	exitCode: 11,
+}, {
+	// snap1:plug1 does not use a whitelisted interface
+	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
+	err:  `cannot use --apparmor-label check with snap1:plug1`,
+}, {
+	// snap1:slot1 does not use a whitelisted interface
+	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "slot1"},
+	err:  `cannot use --apparmor-label check with snap1:slot1`,
+}, {
+	// snap1:cc slot is not connected to snap2
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap2.app", "cc"},
+	exitCode: 1,
+}, {
+	// snap1:cc slot is connected to snap3
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap3.app", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:cc slot is not connected to a non-snap pid
+	args:     []string{"is-connected", "--apparmor-label", "/usr/bin/evince", "cc"},
+	exitCode: 10,
+}, {
+	// snap1:cc slot is connected to a classic snap5
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:audio-record slot is not connected to classic snap5
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "audio-record"},
+	exitCode: 11,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {

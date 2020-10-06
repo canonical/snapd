@@ -53,7 +53,7 @@ func labelFromPid(pid int) (string, error) {
 	return label, nil
 }
 
-func decodeLabel(label string) (snap, app, hook string, err error) {
+func DecodeLabel(label string) (snap, app, hook string, err error) {
 	parts := strings.Split(label, ".")
 	if parts[0] != "snap" {
 		return "", "", "", fmt.Errorf("security label %q does not belong to a snap", label)
@@ -72,5 +72,5 @@ func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
 	if err != nil {
 		return "", "", "", err
 	}
-	return decodeLabel(label)
+	return DecodeLabel(label)
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
@@ -38,7 +39,8 @@ type isConnectedCommand struct {
 	Positional struct {
 		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
 	} `positional-args:"true" required:"true"`
-	Pid int `long:"pid" description:"Process ID for a plausibly connected process"`
+	Pid           int    `long:"pid" description:"Process ID for a plausibly connected process"`
+	AppArmorLabel string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
 }
 
 var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
@@ -53,11 +55,11 @@ $ echo $?
 Snaps can only query their own plugs and slots - snap name is implicit and
 implied by the snapctl execution context.
 
-The --pid option can be used to determine whether a plug or slot is
-connected to the snap identified by the given process ID.  In this
-mode, additional failure exit codes may be returned: 10 if the other
-process is not snap confined, or 11 if the other snap is not connected
-but uses classic confinement.
+The --pid and --aparmor-label options can be used to determine whether
+a plug or slot is connected to the snap identified by the given
+process ID or AppArmor label.  In this mode, additional failure exit
+codes may be returned: 10 if the other process is not snap confined,
+or 11 if the other snap is not connected but uses classic confinement.
 `)
 
 func init() {
@@ -110,7 +112,19 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	}
 
 	var otherSnap *snap.Info
-	if c.Pid != 0 {
+	if c.AppArmorLabel != "" {
+		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
+			return fmt.Errorf("cannot use --apparmor-label check with %s:%s", snapName, plugOrSlot)
+		}
+		name, _, _, err := apparmor.DecodeLabel(c.AppArmorLabel)
+		if err != nil {
+			return &UnsuccessfulError{ExitCode: 10}
+		}
+		otherSnap, err = snapstate.CurrentInfo(st, name)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot get snap info for AppArmor label %q: %s", c.AppArmorLabel, err)
+		}
+	} else if c.Pid != 0 {
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
 			return fmt.Errorf("cannot use --pid check with %s:%s", snapName, plugOrSlot)
 		}
