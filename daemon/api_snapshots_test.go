@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -431,4 +432,27 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, `cannot parse Content-Length: strconv.ParseInt: parsing "": invalid syntax`)
+}
+
+func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
+	var dataRead int
+
+	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, error) {
+		data, err := ioutil.ReadAll(r)
+		c.Assert(err, check.IsNil)
+		dataRead = len(data)
+		return uint64(0), nil, nil
+	})()
+
+	data := []byte("much more data than expected from Content-Length")
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	// limit to 10 and check that this is really all that is read
+	req.Header.Add("Content-Length", "10")
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
+
+	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(dataRead, check.Equals, 10)
 }
