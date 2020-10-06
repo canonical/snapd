@@ -20,6 +20,7 @@
 package snapshotstate_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1513,40 +1514,39 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 	c.Assert(du, check.Equals, time.Duration(0))
 }
 
-func (snapshotSuite) TestImportSnapshot(c *check.C) {
+func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 	st := state.New(nil)
-	snapNames := []string{"baz", "bar", "foo"}
 
-	fakeImport := func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
-		return snapNames, nil
-	}
+	fakeSnapNames := []string{"baz", "bar", "foo"}
+	fakeSnapshotData := "fake-import-data"
 
-	defer snapshotstate.MockBackendImport(fakeImport)()
+	buf := bytes.NewBufferString(fakeSnapshotData)
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		d, err := ioutil.ReadAll(r)
+		c.Assert(err, check.IsNil)
+		c.Check(fakeSnapshotData, check.Equals, string(d))
+		return fakeSnapNames, nil
+	})
+	defer restore()
 
-	r, err := snapshotstate.MockCreateExportStream(true)
-	c.Assert(err, check.IsNil)
-
-	sid, names, err := snapshotstate.Import(context.TODO(), st, r)
+	sid, names, err := snapshotstate.Import(context.TODO(), st, buf)
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
-	c.Check(names, check.DeepEquals, snapNames)
+	c.Check(names, check.DeepEquals, fakeSnapNames)
 }
 
 func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	st := state.New(nil)
 
-	fakeImport := func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
-		return nil, errors.New("no")
-	}
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		return nil, errors.New("some-error")
+	})
+	defer restore()
 
-	defer snapshotstate.MockBackendImport(fakeImport)()
-
-	r, err := snapshotstate.MockCreateExportStream(true)
-	c.Assert(err, check.IsNil)
-
+	r := bytes.NewBufferString("faked-import-data")
 	sid, _, err := snapshotstate.Import(context.TODO(), st, r)
 	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Equals, "no")
+	c.Assert(err.Error(), check.Equals, "some-error")
 	c.Check(sid, check.Equals, uint64(0))
 }
 func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
