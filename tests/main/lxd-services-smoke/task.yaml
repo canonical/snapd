@@ -1,0 +1,12 @@
+summary: Ensure refreshing lxd and removing it works.
+
+systems: [ubuntu-18.04*, ubuntu-20.04*]
+
+execute: |
+  snap install lxd
+  snap stop lxd
+  snap start lxd
+  snap refresh --edge lxd
+
+  # XXX: this (always?) fails
+  snap remove lxd --purge
