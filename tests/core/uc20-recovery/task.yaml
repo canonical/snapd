@@ -67,7 +67,7 @@ execute: |
         # that spread uses
         # silence the output so that nothing is output to a ssh command,
         # potentially confusing spread
-        sudo mkdir /home/gopath > /dev/null
+        sudo mkdir -p /home/gopath > /dev/null
         sudo mount --bind /host/ubuntu-data/user-data/gopath /home/gopath > /dev/null
     fi
     EOF
