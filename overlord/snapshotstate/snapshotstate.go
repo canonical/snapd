@@ -299,14 +299,14 @@ var List = backend.List
 //      But it needs to happen early *before* anything can start new imports
 
 // Import a given snapshot ID from an exported snapshot
-func Import(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, error) {
+func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
 	st.Lock()
-	setID, err := newSnapshotSetID(st)
+	setID, err = newSnapshotSetID(st)
 	st.Unlock()
 	if err != nil {
 		return 0, nil, err
 	}
-	snapNames, err := backendImport(ctx, setID, r)
+	snapNames, err = backendImport(ctx, setID, r)
 	if err != nil {
 		return 0, nil, err
 	}
