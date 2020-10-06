@@ -29,10 +29,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -475,6 +475,12 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
+// importInProgressFor return true if the given snapshot id has an import
+// that is in progress.
+func importInProgressFor(setID uint64) bool {
+	return newImportTransaction(setID).InProgress()
+}
+
 // importTransaction keeps track of the given snapshot ID import and
 // ensures it can be committed/cancelled in an atomic way.
 //
@@ -486,34 +492,49 @@ var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 // a commit.
 type importTransaction struct {
 	id        uint64
+	flockPath string
+	flock     *osutil.FileLock
 	committed bool
 }
 
+// newImportTransaction creates a new importTransaction for the given
+// snapshot id.
 func newImportTransaction(setID uint64) *importTransaction {
-	return &importTransaction{id: setID}
+	return &importTransaction{
+		flockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID)),
+		id:        setID,
+	}
 }
 
-func (t *importTransaction) importInProgressFilesGlob() string {
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
+// newImportTransactionFromImportFile creates a new importTransaction
+// for the given import file path. It may return an error if an
+// invalid file was specified.
+func newImportTransactionFromImportFile(p string) (*importTransaction, error) {
+	m := regexp.MustCompile("^([0-9]+)_importing$")
+	parts := m.FindStringSubmatch(path.Base(p))
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("cannot determine snapshot id from %q", p)
+	}
+	setID, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return newImportTransaction(setID), nil
 }
 
 // Start marks the start of a snapshot import
 func (t *importTransaction) Start() error {
-	return ioutil.WriteFile(importInProgressFilepath(t.id), nil, 0644)
+	return t.lock()
 }
 
 // InProgress returns true if there is an import for this transactions
 // snapshot ID already.
 func (t *importTransaction) InProgress() bool {
-	return osutil.FileExists(importInProgressFilepath(t.id))
-}
-
-func importInProgressFilepath(setID uint64) string {
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID))
-}
-
-func importInProgressFor(setID uint64) bool {
-	return osutil.FileExists(importInProgressFilepath(setID))
+	if flock, err := osutil.OpenExistingLockForReading(t.flockPath); err == nil {
+		defer flock.Close()
+		return flock.TryLock() == osutil.ErrAlreadyLocked
+	}
+	return false
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging
@@ -522,7 +543,7 @@ func (t *importTransaction) Cancel() error {
 	if t.committed {
 		return ErrCannotCancel
 	}
-	inProgressImports, err := filepath.Glob(t.importInProgressFilesGlob())
+	inProgressImports, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id)))
 	if err != nil {
 		return err
 	}
@@ -531,6 +552,9 @@ func (t *importTransaction) Cancel() error {
 		if err := os.Remove(p); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if err := t.unlock(); err != nil {
+		errs = append(errs, err)
 	}
 	if len(errs) > 0 {
 		buf := bytes.NewBuffer(nil)
@@ -544,11 +568,70 @@ func (t *importTransaction) Cancel() error {
 
 // Commit will commit a given transaction
 func (t *importTransaction) Commit() error {
-	if err := os.Remove(importInProgressFilepath(t.id)); err != nil {
+	t.committed = true
+	return t.unlock()
+}
+
+func (t *importTransaction) lock() error {
+	flock, err := osutil.NewFileLock(t.flockPath)
+	if err != nil {
 		return err
 	}
-	t.committed = true
+	if err := flock.Lock(); err != nil {
+		return err
+	}
+	t.flock = flock
 	return nil
+}
+
+func (t *importTransaction) unlock() error {
+	if t.flock == nil {
+		return nil
+	}
+	if err := t.flock.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(t.flockPath); err != nil {
+		return err
+	}
+	t.flock = nil
+	return nil
+}
+
+// CleanupAbandondedImports will clean any import that is in progress.
+// This is meant to be call at startup of snapd before any real imports
+// happen.
+//
+// The amount of snapshots cleaned is returned or an error
+func CleanupAbandondedImports() (cleaned int, err error) {
+	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, "*_importing"))
+	if err != nil {
+		return 0, err
+	}
+
+	var errs []error
+	for _, p := range inProgressSnapshots {
+		tr, err := newImportTransactionFromImportFile(p)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if tr.InProgress() {
+			continue
+		}
+		if err := tr.Cancel(); err != nil {
+			errs = append(errs, err)
+		}
+		cleaned++
+	}
+	if len(errs) > 0 {
+		buf := bytes.NewBuffer(nil)
+		for _, err := range errs {
+			fmt.Fprintf(buf, " - %v\n", err)
+		}
+		return cleaned, fmt.Errorf("cannot cleanup imports:\n%s", buf.String())
+	}
+	return cleaned, nil
 }
 
 // Import a snapshot from the export file format

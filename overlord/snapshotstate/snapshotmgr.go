@@ -58,6 +58,7 @@ type SnapshotManager struct {
 	state *state.State
 
 	lastForgetExpiredSnapshotTime time.Time
+	cleanupAbandondedImportsRan   bool
 }
 
 // Manager returns a new SnapshotManager
@@ -84,6 +85,15 @@ func (mgr *SnapshotManager) Ensure() error {
 	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(autoExpirationInterval)) {
 		return mgr.forgetExpiredSnapshots()
 	}
+
+	// cleanup abandonded imports once per startup
+	if !mgr.cleanupAbandondedImportsRan {
+		if _, err := backend.CleanupAbandondedImports(); err != nil {
+			logger.Noticef("cannot cleanup incomplete imports: %v", err)
+		}
+		mgr.cleanupAbandondedImportsRan = true
+	}
+
 	return nil
 }
 
