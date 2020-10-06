@@ -128,6 +128,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 	}
 	defer dir.Close()
 
+	importsInProgress := map[uint64]bool{}
 	var names []string
 	var readErr error
 	for readErr == nil && err == nil {
@@ -143,6 +144,17 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			if !ok {
 				continue
 			}
+			// keep track of in-progress in a struct as well
+			// to avoid races from the fact that we read only
+			// 100 dir entries at a time
+			if importsInProgress[setID] {
+				continue
+			}
+			if newImportTransaction(setID).InProgress() {
+				importsInProgress[setID] = true
+				continue
+			}
+
 			filename := filepath.Join(dirs.SnapshotsDir, name)
 			reader, openError := backendOpen(filename, setID)
 			// reader can be non-nil even when openError is not nil (in
@@ -464,21 +476,29 @@ type importTransaction struct {
 	commited bool
 }
 
-func (t importTransaction) importInProgressFilepath() string {
+func newImportTransaction(setID uint64) *importTransaction {
+	return &importTransaction{id: setID}
+}
+
+func (t *importTransaction) importInProgressFilepath() string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.id))
 }
-func (t importTransaction) importInProgressFilesGlob() string {
+func (t *importTransaction) importInProgressFilesGlob() string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
 }
 
 // Start marks the start of a snapshot import
-func (t importTransaction) Start() error {
+func (t *importTransaction) Start() error {
 	return ioutil.WriteFile(t.importInProgressFilepath(), nil, 0644)
+}
+
+func (t *importTransaction) InProgress() bool {
+	return osutil.FileExists(t.importInProgressFilepath())
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging
 // to this snapshot ID.
-func (t importTransaction) Cancel() error {
+func (t *importTransaction) Cancel() error {
 	if t.commited {
 		return ErrCannotCancel
 	}
