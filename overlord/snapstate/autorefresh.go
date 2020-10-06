@@ -261,8 +261,8 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !held {
-		// expired hold case
 		if !holdTime.IsZero() {
+			// expired hold case
 			m.clearRefreshHold()
 			if m.nextRefresh.Before(holdTime) {
 				// next refresh is obsolete, compute the next one
