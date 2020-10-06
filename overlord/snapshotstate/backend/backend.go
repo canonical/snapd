@@ -547,6 +547,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (size int64, snapNames 
 	if err != nil {
 		return 0, nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
+	// XXX: should just be an error of unpackVerifySnapshotImport()
 	if !exportFound {
 		return 0, nil, fmt.Errorf("%s: no export.json file in uploaded data", errPrefix)
 	}
