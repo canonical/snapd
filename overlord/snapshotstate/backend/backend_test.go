@@ -35,9 +35,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -894,52 +892,17 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
-func parseSnapshotFilename(c *check.C, fname string) (snapName, version string, revision int) {
-	m := regexp.MustCompile("^(.+)_(.+)_(.+)_(.+).zip$")
-	parts := m.FindStringSubmatch(path.Base(fname))
-	c.Assert(parts, check.HasLen, 5)
-
-	snapName, version = parts[2], parts[3]
-	var err error
-	revision, err = strconv.Atoi(parts[4])
-	c.Assert(err, check.IsNil)
-	return snapName, version, revision
-}
-
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
-	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		snapName, version, revision := parseSnapshotFilename(c, fn)
-		f, err := os.Open(os.DevNull)
-		c.Assert(err, check.IsNil, check.Commentf(fn))
-		defer f.Close()
-		return &backend.Reader{
-			File: f,
-			Snapshot: client.Snapshot{
-				// real backend.Open() uses setID override if passed, this is tested
-				// in Open() tests.
-				SetID:    setID,
-				Time:     time.Time{},
-				Snap:     snapName,
-				Revision: snap.Revision{N: revision},
-				Version:  version,
-			},
-		}, nil
-	})()
-
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	flags := &createTestExportFlags{
-		exportJSON: true,
-	}
-	err := createTestExportFile(tarFile1, flags)
+	err := createTestExportFile(tarFile1, &createTestExportFlags{exportJSON: true})
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	flags = &createTestExportFlags{}
-	err = createTestExportFile(tarFile2, flags)
+	err = createTestExportFile(tarFile2, &createTestExportFlags{})
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
@@ -949,7 +912,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create an exported snapshot with a directory
 	tarFile4 := path.Join(tempdir, "exported4.snapshot")
-	flags = &createTestExportFlags{
+	flags := &createTestExportFlags{
 		exportJSON: true,
 		withDir:    true,
 	}

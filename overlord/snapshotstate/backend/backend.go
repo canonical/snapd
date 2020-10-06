@@ -144,7 +144,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			if !ok {
 				continue
 			}
-			// keep track of in-progress in a struct as well
+			// keep track of in-progress in a map as well
 			// to avoid races from the fact that we read only
 			// 100 dir entries at a time
 			if importsInProgress[setID] {
@@ -492,6 +492,9 @@ func (t *importTransaction) Start() error {
 	return ioutil.WriteFile(t.importInProgressFilepath(), nil, 0644)
 }
 
+// InProgress returns true if there is an import for this transactions
+// snapshot ID already.
+//
 func (t *importTransaction) InProgress() bool {
 	return osutil.FileExists(t.importInProgressFilepath())
 }
@@ -544,7 +547,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	}
 	defer tr.Cancel()
 
-	// Unpack the streamed tar
+	// Unpack and validate the streamed data
 	snapNames, err = unpackVerifySnapshotImport(r, id)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
@@ -558,8 +561,6 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 
 func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
 	var exportFound bool
-
-	targetDir := dirs.SnapshotsDir
 
 	tr := tar.NewReader(r)
 	var tarErr error
@@ -598,7 +599,7 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 		if len(l) != 2 {
 			return nil, fmt.Errorf("unexpected filename in stream: %v", header.Name)
 		}
-		targetPath := path.Join(targetDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
+		targetPath := path.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
 
 		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
@@ -621,9 +622,11 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 			return snapNames, fmt.Errorf("validation failed for %q: %v", targetPath, err)
 		}
 	}
+
 	if !exportFound {
 		return nil, fmt.Errorf("no export.json file in uploaded data")
 	}
+	// XXX: validate using the unmarshalled export.json hashes here
 
 	return snapNames, nil
 }
