@@ -389,10 +389,9 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	data := []byte("mocked snapshot export data file")
 
 	setID := uint64(3)
-	size := int64(len(data))
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
-		return setID, snapNames, size, nil
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+		return setID, snapNames, nil
 	})()
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
@@ -407,8 +406,8 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
-		return uint64(0), nil, 0, errors.New("no")
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+		return uint64(0), nil, errors.New("no")
 	})()
 
 	data := []byte("mocked snapshot export data file")
@@ -424,10 +423,6 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
-		return uint64(0), nil, 0, errors.New("no")
-	})()
-
 	data := []byte("mocked snapshot export data file")
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
@@ -442,11 +437,11 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	var dataRead int
 
-	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, int64, error) {
+	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, error) {
 		data, err := ioutil.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		dataRead = len(data)
-		return uint64(0), nil, int64(0), nil
+		return uint64(0), nil, nil
 	})()
 
 	data := []byte("much more data than expected from Content-Length")

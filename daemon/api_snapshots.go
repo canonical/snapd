@@ -192,7 +192,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
-	setID, snapNames, _, err := snapshotImport(context.TODO(), st, limitedBodyReader, expectedSize)
+	setID, snapNames, err := snapshotImport(context.TODO(), st, limitedBodyReader, expectedSize)
 	if err != nil {
 		return BadRequest(err.Error())
 	}
