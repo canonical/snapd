@@ -90,7 +90,8 @@ prepare: |
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-  # TODO: enable when ready
+  # TODO: enable this when ready, currently serial assertions requests don't 
+  # work with the fakedevicesvc, needs a little bit of work somewhere
   # start fake device svc
   # systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
 
