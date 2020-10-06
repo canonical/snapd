@@ -203,8 +203,6 @@ func (m *autoRefresh) Ensure() error {
 	if CanAutoRefresh == nil {
 		return nil
 	}
-
-	// NOTE: this will unlock and re-lock state for network ops
 	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
 		return err
 	}
