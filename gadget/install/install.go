@@ -194,10 +194,10 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
 
 		if err := saveKeySet.key.Save(saveKey); err != nil {
-			return fmt.Errorf("cannot store save key: %v", err)
+			return fmt.Errorf("cannot store system save key: %v", err)
 		}
 		if err := saveKeySet.rkey.Save(reinstallSaveKey); err != nil {
-			return fmt.Errorf("cannot store save reinstall key: %v", err)
+			return fmt.Errorf("cannot store reinstall key: %v", err)
 		}
 	}
 
