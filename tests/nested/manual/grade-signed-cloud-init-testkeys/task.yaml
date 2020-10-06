@@ -75,7 +75,7 @@ prepare: |
   # will break things because the signing keys won't match, etc. and 
   # specifically snap-bootstrap in the kernel snap from the store won't trust
   # the seed keys to unlock the encrypted data partition in the initramfs
-  sed defaults.yaml -e "s/HOLD-TIME/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
+  sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
     pc-gadget/meta/gadget.yaml
 
   # TODO: enable this bit when things are ready to use a testkeys signed model

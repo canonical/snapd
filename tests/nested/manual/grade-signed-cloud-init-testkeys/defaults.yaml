@@ -1,6 +1,6 @@
 defaults:
   system:
     refresh:
-      hold: "HOLD-TIME"
+      hold: "@HOLD-TIME@"
     journal:
       persistent: true
