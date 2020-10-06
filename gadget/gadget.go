@@ -623,6 +623,28 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
+var (
+	reservedLabels = []string{
+		ubuntuBootLabel, ubuntuSeedLabel,
+		ubuntuDataLabel, ubuntuSaveLabel,
+	}
+)
+
+func validateReservedLabels(vs *VolumeStructure) error {
+	if vs.Role != "" {
+		// structure specifies a role, its labels will be checked later
+		return nil
+	}
+	if vs.Label == "" {
+		return nil
+	}
+	if strutil.ListContains(reservedLabels, vs.Label) {
+		// a structure without a role uses one of reserved labels
+		return fmt.Errorf("label %q is reserved", vs.Label)
+	}
+	return nil
+}
+
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
@@ -657,6 +679,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
+		return err
+	}
+
+	if err := validateReservedLabels(vs); err != nil {
 		return err
 	}
 

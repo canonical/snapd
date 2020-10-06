@@ -1318,6 +1318,37 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestValidateStructureReservedLabels(c *C) {
+
+	gv := &gadget.Volume{}
+
+	for _, tc := range []struct {
+		role, label, err string
+	}{
+		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
+		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},
+		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
+		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`},
+		// these are ok
+		{role: "system-boot", label: "ubuntu-boot"},
+		{label: "random-ubuntu-label"},
+	} {
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+			Type:       "21686148-6449-6E6F-744E-656564454649",
+			Role:       tc.role,
+			Filesystem: "ext4",
+			Label:      tc.label,
+			Size:       10 * 1024,
+		}, gv)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+
+}
+
 func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapPreceding(c *C) {
 	overlappingGadgetYaml := `
 volumes:
