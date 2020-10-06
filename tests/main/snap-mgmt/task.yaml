@@ -10,8 +10,6 @@ prepare: |
     # TODO: unify this with tests/main/postrm-purge/task.yaml
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
 
     snap set core experimental.user-daemons=true
 
@@ -26,7 +24,7 @@ prepare: |
             # None of the "user" snaps work on 14.04
             continue
         fi
-        install_local "$name"
+        "$TESTSTOOLS"/snaps-state install-local "$name"
         snap list | MATCH test-snapd-service
     done
 

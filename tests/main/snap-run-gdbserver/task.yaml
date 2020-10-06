@@ -4,9 +4,7 @@ summary: Check that `snap run --experimental-gdbserver` works
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     apt install -y gdbserver gdb
 
 restore: |

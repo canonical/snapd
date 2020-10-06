@@ -18,9 +18,7 @@ environment:
 
 prepare: |
     echo "Install a helper snap (for confinement testing)"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up
