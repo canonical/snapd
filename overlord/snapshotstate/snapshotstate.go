@@ -293,7 +293,7 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 var List = backend.List
 
 // Import a given snapshot ID from an exported snapshot
-func Import(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, int64, error) {
+func Import(ctx context.Context, st *state.State, r io.Reader, size int64) (uint64, []string, int64, error) {
 	return 0, nil, 0, fmt.Errorf("snapshot import not implemented yet")
 }
 
