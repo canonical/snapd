@@ -33,6 +33,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -849,6 +850,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// do the final unlink
 	linkCtx := backend.LinkContext{
 		FirstInstall: false,
+		// This task is only used for unlinking a snap during refreshes so we
+		// can safely hard-code this condition here.
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
 	err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {

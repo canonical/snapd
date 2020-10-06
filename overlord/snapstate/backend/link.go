@@ -46,6 +46,10 @@ type LinkContext struct {
 	// VitalityRank is used to hint how much the services should be
 	// protected from the OOM killer
 	VitalityRank int
+
+	// RunInhibitHint is used only in Unlink snap, and can be used to
+	// establish run inhibition lock for refresh operations.
+	RunInhibitHint runinhibit.Hint
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -261,10 +265,11 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
 func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
-	// inhibit startup of new programs
-	// TODO: we probably need a dedicated field to provide the hint.
-	inhibitHint := runinhibit.HintInhibitedForRefresh
-	err0 := runinhibit.LockWithHint(info.InstanceName(), inhibitHint)
+	var err0 error
+	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
+		// inhibit startup of new programs
+		err0 = runinhibit.LockWithHint(info.InstanceName(), hint)
+	}
 
 	// remove generated services, binaries etc
 	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)

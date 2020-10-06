@@ -283,8 +283,7 @@ apps:
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 
 	// no inhibition lock
-	// XXX: this is wrong but needs changes to LinkContext to correct.
-	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FilePresent)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
@@ -650,7 +649,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
 
 	linkCtx := backend.LinkContext{
-		FirstInstall: true,
+		FirstInstall:   true,
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
@@ -689,7 +689,11 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	}
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", units)
-	err = s.be.UnlinkSnap(info, backend.LinkContext{FirstInstall: false}, nil)
+	linkCtx := backend.LinkContext{
+		FirstInstall:   false,
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+	}
+	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileEquals, "precious")
