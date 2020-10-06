@@ -93,7 +93,7 @@ func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error 
 	}
 
 	dir := filepath.Join(root, sysctlConfsDir)
-	if opts != nil && !osutil.IsDirectory(dir) {
+	if opts != nil {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
