@@ -22,12 +22,14 @@ package backend
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -443,6 +445,69 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	snapshot.Size += sz.Size()
 
+	return nil
+}
+
+var ErrCannotCancel = errors.New("cannot cancel: import already finished")
+
+// importTransaction keeps track of the given snapshot ID import and
+// ensures it can be commited/canceld in an atomic way.
+//
+// Start() must be called before the first data is imported. When the
+// import is successful Commit() should be called.
+//
+// Cancel() will cancel the given import and cleanup. It's always save
+// to defer a Cancel() it will just return a "ErrCannotCanel" after
+// a commit.
+type importTransaction struct {
+	id       uint64
+	commited bool
+}
+
+func (t importTransaction) importInProgressFilepath() string {
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.id))
+}
+func (t importTransaction) importInProgressFilesGlob() string {
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
+}
+
+// Start marks the start of a snapshot import
+func (t importTransaction) Start() error {
+	return ioutil.WriteFile(t.importInProgressFilepath(), nil, 0644)
+}
+
+// Cancel cancels a snapshot import and cleanups any files on disk belonging
+// to this snapshot ID.
+func (t importTransaction) Cancel() error {
+	if t.commited {
+		return ErrCannotCancel
+	}
+	inProgressImports, err := filepath.Glob(t.importInProgressFilesGlob())
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, p := range inProgressImports {
+		if err := os.Remove(p); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		buf := bytes.NewBuffer(nil)
+		for _, err := range errs {
+			fmt.Fprintf(buf, " - %v\n", err)
+		}
+		return fmt.Errorf("cannot cancel import of id %d:\n%s", t.id, buf.String())
+	}
+	return nil
+}
+
+// Commit will commit a given transaction
+func (t importTransaction) Commit() error {
+	if err := os.Remove(t.importInProgressFilepath()); err != nil {
+		return err
+	}
+	t.commited = true
 	return nil
 }
 
