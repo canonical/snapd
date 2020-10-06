@@ -19,12 +19,8 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
     echo "Given a snap declaring the network plug is installed"
-    install_local "$SNAP_NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
     echo "And a service is listening"
     # shellcheck source=tests/lib/network.sh

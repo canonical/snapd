@@ -7,9 +7,7 @@ details: |
     hooks get permissions to access those areas.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-layout
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
 
 debug: |
     ls -ld /etc || :
@@ -18,12 +16,10 @@ debug: |
     ls -ld /etc/demo.cfg || :
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     for i in $(seq 2); do
         if [ "$i" -eq 2 ]; then
             echo "The snap works across refreshes"
-            install_local test-snapd-layout
+            "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
         fi
 
         echo "snap declaring layouts doesn't explode on startup"
