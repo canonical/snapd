@@ -25,7 +25,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -389,13 +391,14 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	setID := uint64(3)
 	size := int64(len(data))
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
 		return setID, snapNames, size, nil
 	})()
 
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	req.Header.Add("Content-Length", strconv.Itoa(len(data)))
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/x.snapd.snapshot")
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
 	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -404,17 +407,57 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
+		return uint64(0), nil, 0, errors.New("no")
+	})()
+
+	data := []byte("mocked snapshot export data file")
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	req.Header.Add("Content-Length", strconv.Itoa(len(data)))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
+
+	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
+}
+
+func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, int64, error) {
 		return uint64(0), nil, 0, errors.New("no")
 	})()
 
 	data := []byte("mocked snapshot export data file")
 	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "application/x.snapd.snapshot")
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
 	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
+	c.Check(rsp.ErrorResult().Message, check.Equals, `cannot parse Content-Length: strconv.ParseInt: parsing "": invalid syntax`)
+}
+
+func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
+	var dataRead int
+
+	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, int64, error) {
+		data, err := ioutil.ReadAll(r)
+		c.Assert(err, check.IsNil)
+		dataRead = len(data)
+		return uint64(0), nil, int64(0), nil
+	})()
+
+	data := []byte("much more data than expected from Content-Length")
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	// limit to 10 and check that this is really all that is read
+	req.Header.Add("Content-Length", "10")
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
+
+	rsp := daemon.ChangeSnapshots(daemon.SnapshotCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(dataRead, check.Equals, 10)
 }

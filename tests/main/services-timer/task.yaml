@@ -2,9 +2,7 @@ summary: Check that snap timer services work
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-timer-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service
 
     echo "We can see the timers being active"
     for service in regular-timer random-timer range-timer trivial-timer; do
