@@ -292,6 +292,12 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // Note that the state must be locked by the caller.
 var List = backend.List
 
+// XXX: Something needs to cleanup incomplete imports. This is conceptually
+//      very simple: on startup, do:
+//      for setID in *_importing:
+//          newImportTransaction(setID).Cancel()
+//      But it needs to happen early *before* anything can start new imports
+
 // Import a given snapshot ID from an exported snapshot
 func Import(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, error) {
 	st.Lock()
