@@ -1,0 +1,6 @@
+name: test-snap
+version: 1.0
+apps:
+    test-snap-service:
+        command: bin/start
+        daemon: simple
