@@ -156,7 +156,7 @@ func NewStore(topDir, addr string, assertFallback bool, actionEndpointContextual
 	mux.HandleFunc("/api/v1/snaps/auth/nonces", debugLogger(http.HandlerFunc(store.authNonceEndpoint)))
 	mux.HandleFunc("/api/v1/snaps/auth/sessions", debugLogger(http.HandlerFunc(store.authSessionsEndpoint)))
 	// v2
-	mux.HandleFunc("/v2/snaps/refresh", debugLogger(http.HandlerFunc(store.snapActionEndpoint)))
+	mux.HandleFunc("/v2/snaps/refresh", debugLogger(http.HandlerFunc(store.snapActionEndpointFunc(actionEndpointContextual))))
 
 	return store
 }
@@ -361,7 +361,8 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fn, ok := snaps[pkg]
+	// TODO: support revisions too
+	fn, ok := snaps[snapRevRef{name: pkg}]
 	if !ok {
 		http.NotFound(w, req)
 		return
@@ -400,13 +401,20 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) collectSnaps() (map[string]string, error) {
+// TODO: should we add some kind of basic naming.SnapRevRef to the naming
+//       package for this kind of thing ?
+type snapRevRef struct {
+	revision int
+	name     string
+}
+
+func (s *Store) collectSnaps() (map[snapRevRef]string, error) {
 	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
 		return nil, err
 	}
 
-	snaps := map[string]string{}
+	snaps := map[snapRevRef]string{}
 
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
@@ -420,7 +428,19 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		snaps[info.SnapName()] = fn
+
+		snapPlaceInfo, err := snap.ParsePlaceInfoFromSnapFileName(filepath.Base(fn))
+		if err != nil {
+			// then the filename is just a "core.snap" or something, pretend it's
+			// revision 0 or unset
+			snaps[snapRevRef{name: info.SnapName()}] = fn
+		} else {
+			// use the place info for the name and the revision
+			snaps[snapRevRef{
+				name:     snapPlaceInfo.SnapName(),
+				revision: snapPlaceInfo.SnapRevision().N,
+			}] = fn
+		}
 	}
 
 	return snaps, err
@@ -504,7 +524,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := snaps[name]; ok {
+		// TODO: support snap revisions in the snapRevRef{} here too
+		if fn, ok := snaps[snapRevRef{name: name}]; ok {
 			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs)
 			if essInfo == nil {
 				if err != errInfo {
@@ -580,6 +601,7 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 type currentSnap struct {
 	SnapID      string `json:"snap-id"`
 	InstanceKey string `json:"instance-key"`
+	Revision    int    `json:"revision"`
 }
 
 type snapAction struct {
@@ -626,106 +648,216 @@ type detailsResultV2 struct {
 	Type        string `json:"type"`
 }
 
-func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
-	var reqData snapActionRequest
-	var replyData snapActionResultList
+func (s *Store) snapActionEndpointFunc(refreshesAreContextual bool) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var reqData snapActionRequest
+		var replyData snapActionResultList
 
-	decoder := json.NewDecoder(req.Body)
-	if err := decoder.Decode(&reqData); err != nil {
-		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
-		return
-	}
-
-	bs, err := s.collectAssertions()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
-		return
-	}
-
-	var remoteStore string
-	if snapdenv.UseStagingStore() {
-		remoteStore = "staging"
-	} else {
-		remoteStore = "production"
-	}
-	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
-		return
-	}
-
-	snaps, err := s.collectSnaps()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
-		return
-	}
-
-	actions := reqData.Actions
-	if len(actions) == 1 && actions[0].Action == "refresh-all" {
-		actions = make([]snapAction, len(reqData.Context))
-		for i, s := range reqData.Context {
-			actions[i] = snapAction{
-				Action:      "refresh",
-				SnapID:      s.SnapID,
-				InstanceKey: s.InstanceKey,
-			}
-		}
-	}
-
-	// check if we have downloadable snap of the given SnapID or name
-	for _, a := range actions {
-		name := a.Name
-		snapID := a.SnapID
-		if a.Action == "refresh" {
-			name = snapIDtoName[snapID]
-		}
-
-		if name == "" {
-			http.Error(w, fmt.Sprintf("unknown snap-id: %q", snapID), 400)
+		decoder := json.NewDecoder(req.Body)
+		if err := decoder.Decode(&reqData); err != nil {
+			http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
 			return
 		}
 
-		if fn, ok := snaps[name]; ok {
-			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
-			if essInfo == nil {
-				if err != errInfo {
-					panic(err)
+		bs, err := s.collectAssertions()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
+			return
+		}
+
+		var remoteStore string
+		if snapdenv.UseStagingStore() {
+			remoteStore = "staging"
+		} else {
+			remoteStore = "production"
+		}
+		snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
+		if err != nil {
+			http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
+			return
+		}
+
+		snaps, err := s.collectSnaps()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
+			return
+		}
+
+		actions := reqData.Actions
+		if len(actions) == 1 && actions[0].Action == "refresh-all" {
+			actions = make([]snapAction, len(reqData.Context))
+			for i, s := range reqData.Context {
+				actions[i] = snapAction{
+					Action:      "refresh",
+					SnapID:      s.SnapID,
+					InstanceKey: s.InstanceKey,
 				}
+			}
+		}
+
+		// check if we have downloadable snap of the given SnapID or name
+		for _, a := range actions {
+			name := a.Name
+			snapID := a.SnapID
+			if a.Action == "refresh" {
+				name = snapIDtoName[snapID]
+			}
+
+			if name == "" {
+				http.Error(w, fmt.Sprintf("unknown snap-id: %q", snapID), 400)
 				return
 			}
 
-			res := &snapActionResult{
-				Result:      a.Action,
-				InstanceKey: a.InstanceKey,
-				SnapID:      essInfo.SnapID,
-				Name:        essInfo.Name,
-				Snap: detailsResultV2{
-					Architectures: []string{"all"},
-					SnapID:        essInfo.SnapID,
-					Name:          essInfo.Name,
-					Version:       essInfo.Version,
-					Revision:      essInfo.Revision,
-					Confinement:   essInfo.Confinement,
-					Type:          essInfo.Type,
-				},
-			}
-			res.Snap.Publisher.ID = essInfo.DeveloperID
-			res.Snap.Publisher.Username = essInfo.DevelName
-			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
-			res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
-			res.Snap.Download.Size = essInfo.Size
-			replyData.Results = append(replyData.Results, res)
-		}
-	}
+			if refreshesAreContextual {
+				// the real store does not just serve a "name.snap" file for all
+				// refreshes, we need to do a bit more logic to act like a real
+				// store for refreshes, we need to use the ID and current
+				// revision of the snap from the context of the request, then
+				// look at what revisions are available from our assertions to
+				// serve as actual refreshes if there are newer revisions
+				if snapID == "" {
+					http.Error(w, "missing required snap-id in request", 400)
+					return
+				}
 
-	// use indent because this is a development tool, output
-	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
-		return
+				foundRevisions := []asserts.Assertion{}
+				collector := func(a asserts.Assertion) {
+					foundRevisions = append(foundRevisions, a)
+				}
+
+				// search for all snap revisions that have matching snap-id
+				hint := map[string]string{
+					"snap-id": snapID,
+				}
+				err := bs.Search(asserts.SnapRevisionType, hint, collector, asserts.SnapRevisionType.MaxSupportedFormat())
+				if err != nil {
+					http.Error(w, fmt.Sprintf("internal error searching assertion backend: %v", err), 500)
+					return
+				}
+
+				// get the current revision from the context for the refresh action
+				currentRevision := 0
+				found := false
+				for _, snapContext := range reqData.Context {
+					if snapContext.SnapID == snapID {
+						currentRevision = snapContext.Revision
+						found = true
+						break
+					}
+				}
+				if !found {
+					http.Error(w, fmt.Sprintf("missing context for snap-id %s in request", snapID), 400)
+					return
+				}
+
+				found = false
+				newestRev := &asserts.SnapRevision{}
+				for _, revAssert := range foundRevisions {
+					snapRevAssert := revAssert.(*asserts.SnapRevision)
+					if snapRevAssert.SnapRevision() > currentRevision {
+						newestRev = snapRevAssert
+						found = true
+					}
+				}
+				if found {
+					// TODO: maybe instead we should use the sha3-384 eventually
+					//       instead of snap files named like core20_12.snap to
+					//       identify the snap revision, but this would require
+					//       naming files with their sha3-384 which is a bit of a
+					//       pain
+
+					if fn, ok := snaps[snapRevRef{revision: newestRev.SnapRevision(), name: name}]; ok {
+						essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+						if essInfo == nil {
+							if err != errInfo {
+								panic(err)
+							}
+							return
+						}
+
+						// use req.Host here in case the fakestore is being used to
+						// serve snaps to something like a VM, which will be
+						// configured to talk to localhost the way some of the
+						// spread tests are
+						downloadURL := fmt.Sprintf("http://%s", req.Host)
+
+						res := &snapActionResult{
+							Result:      a.Action,
+							InstanceKey: a.InstanceKey,
+							SnapID:      essInfo.SnapID,
+							Name:        essInfo.Name,
+							Snap: detailsResultV2{
+								Architectures: []string{"all"},
+								SnapID:        essInfo.SnapID,
+								Name:          essInfo.Name,
+								Version:       essInfo.Version,
+								Revision:      essInfo.Revision,
+								Confinement:   essInfo.Confinement,
+								Type:          essInfo.Type,
+							},
+						}
+						res.Snap.Publisher.ID = essInfo.DeveloperID
+						res.Snap.Publisher.Username = essInfo.DevelName
+						res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", downloadURL, filepath.Base(fn))
+						res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
+						res.Snap.Download.Size = essInfo.Size
+						replyData.Results = append(replyData.Results, res)
+
+					} else {
+						http.Error(w, fmt.Sprintf("internal error finding snap file for snap %s revision %d", name, newestRev.Revision()), 500)
+						return
+					}
+				}
+
+				// TODO: what should happen in the else case? probably nothing? it
+				//       just means we didn't find any newer snap revisions for this
+				//       snap, but unclear what the real store returns in this
+				//       situation
+
+			} else {
+				if fn, ok := snaps[snapRevRef{name: name}]; ok {
+					essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+					if essInfo == nil {
+						if err != errInfo {
+							panic(err)
+						}
+						return
+					}
+
+					res := &snapActionResult{
+						Result:      a.Action,
+						InstanceKey: a.InstanceKey,
+						SnapID:      essInfo.SnapID,
+						Name:        essInfo.Name,
+						Snap: detailsResultV2{
+							Architectures: []string{"all"},
+							SnapID:        essInfo.SnapID,
+							Name:          essInfo.Name,
+							Version:       essInfo.Version,
+							Revision:      essInfo.Revision,
+							Confinement:   essInfo.Confinement,
+							Type:          essInfo.Type,
+						},
+					}
+					res.Snap.Publisher.ID = essInfo.DeveloperID
+					res.Snap.Publisher.Username = essInfo.DevelName
+					res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
+					res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
+					res.Snap.Download.Size = essInfo.Size
+					replyData.Results = append(replyData.Results, res)
+				}
+			}
+		}
+
+		// use indent because this is a development tool, output
+		// should look nice
+		out, err := json.MarshalIndent(replyData, "", "    ")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
+			return
+		}
+		w.Write(out)
 	}
-	w.Write(out)
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {

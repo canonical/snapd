@@ -22,6 +22,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -316,8 +317,17 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 }
 
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
-	fn := snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
-	dst := filepath.Join(s.store.blobDir, filepath.Base(fn))
+	return s.makeTestSnapWithRevision(c, snapYamlContent, 0)
+}
+
+func (s *storeTestSuite) makeTestSnapWithRevision(c *C, snapYamlContent string, revision int) string {
+	fn, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamlContent, nil, nil)
+	dstFilename := filepath.Base(fn)
+	if revision != 0 {
+		// rename to have a name_rev.snap name
+		dstFilename = fmt.Sprintf("%s_%d.snap", info.SnapName(), revision)
+	}
+	dst := filepath.Join(s.store.blobDir, dstFilename)
 	err := osutil.CopyFile(fn, dst, 0)
 	c.Assert(err, IsNil)
 	return dst
@@ -398,11 +408,14 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 
 func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
+	// test snaps named with "name_123.snap" too
+	s.makeTestSnapWithRevision(c, "name: bar\nversion: 1", 888)
 
 	snaps, err := s.store.collectSnaps()
 	c.Assert(err, IsNil)
-	c.Assert(snaps, DeepEquals, map[string]string{
-		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+	c.Assert(snaps, DeepEquals, map[snapRevRef]string{
+		snapRevRef{name: "foo"}:                filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+		snapRevRef{name: "bar", revision: 888}: filepath.Join(s.store.blobDir, "bar_888.snap"),
 	})
 }
 
@@ -650,4 +663,102 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 			"type":        "app",
 		},
 	})
+}
+
+func (s *storeTestSuite) TestContextualSnapActionEndpointHappy(c *C) {
+	// shutdown the non-contextual version of the store
+	s.store.Stop()
+
+	// setup a new store with contextual refresh actions
+	topdir := c.MkDir()
+	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
+	c.Assert(err, IsNil)
+	s.store = NewStore(topdir, defaultAddr, false, true)
+	err = s.store.Start()
+	c.Assert(err, IsNil)
+
+	transport := &http.Transport{}
+	s.client = &http.Client{
+		Transport: transport,
+	}
+
+	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
+	// the fakestore should only know about revision 2, the client will be on revision 3
+	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 2)
+
+	refreshReqJSONBytes := []byte(`{
+	"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"xidididididididididididididididid","tracking-channel":"stable","revision":3}],
+	"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"xidididididididididididididididid"}]
+	}`)
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", refreshReqJSONBytes)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	// no results because no snap revisions are available from the store to
+	// serve
+	c.Assert(body.Results, IsNil)
+
+	// now add an assertion for revision 4, which will be new enough
+	snapFnRev4 := s.makeTestSnapWithRevision(c, "name: foo\nversion: 10", 4)
+	s.makeAssertions(c, snapFnRev4, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 4)
+
+	// making the same request again will result in an action to refresh to
+	// revision 4 because now we have a newer revision available
+	resp2, err := s.StorePostJSON("/v2/snaps/refresh", refreshReqJSONBytes)
+	c.Assert(err, IsNil)
+	defer resp2.Body.Close()
+
+	c.Check(resp2.StatusCode, Equals, 200)
+	var body2 struct {
+		Results []map[string]interface{}
+	}
+	bodyBytes, err := ioutil.ReadAll(resp2.Body)
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(bodyBytes, &body2), IsNil, Commentf("body is %s", string(bodyBytes)))
+	c.Check(body2.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFnRev4)
+	c.Check(body2.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "xidididididididididididididididid",
+		"name":         "foo",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "xidididididididididididididididid",
+			"name":          "foo",
+			"publisher": map[string]interface{}{
+				"username": "foo-devel",
+				"id":       "foo-devel-id",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/foo_4.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "10",
+			"revision":    float64(4),
+			"confinement": "strict",
+			"type":        "app",
+		},
+	})
+
+	// we can also actually perform the download too
+	snapResult, ok := body2.Results[0]["snap"].(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	dlResult, ok := snapResult["download"].(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	dlURL, ok := dlResult["url"].(string)
+	c.Assert(ok, Equals, true)
+
+	// make the download request
+	dlResp, err := s.client.Get(dlURL)
+	c.Assert(err, IsNil)
+	c.Check(dlResp.StatusCode, Equals, 200)
+	defer dlResp.Body.Close()
 }
