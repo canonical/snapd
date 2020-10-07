@@ -294,9 +294,13 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
+	// the bootloader config may have been installed when the ubuntu-boot
+	// partition was created, but for a trusted assets the bootloader config
+	// will be installed further down; for now identify the run mode
+	// bootloader by looking at the gadget
+	bl, err := bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot identify run system bootloader: %v", err)
 	}
 
 	// extract the kernel first and mark kernel_status ready

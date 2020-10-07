@@ -8,9 +8,7 @@ details: |
     placed into the appropriate hierarchy under the freezer cgroup.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
     rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true

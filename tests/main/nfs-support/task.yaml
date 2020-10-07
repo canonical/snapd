@@ -15,9 +15,7 @@ systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*]
 backends: [-autopkgtest]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     # If /proc/fs/nfsd is not initially mounted then ask the test to unmount it later.
     if not mountinfo.query /proc/fs/nfsd .fs_type=nfsd; then

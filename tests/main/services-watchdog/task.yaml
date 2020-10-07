@@ -10,11 +10,8 @@ debug: |
     done
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "When the service snap  is installed"
-    install_local test-snapd-service-watchdog
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-watchdog
 
     # the interface is disconnected by default
     snap connect test-snapd-service-watchdog:daemon-notify
