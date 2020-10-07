@@ -176,7 +176,28 @@ func copyNetworkConfig(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authenication files like
+// copyUbuntuDataMisc copies miscellaneous other files from the run mode system
+// to the recover system such as:
+//  - timesync clock to keep the same time setting in recover as in run mode
+func copyUbuntuDataMisc(src, dst string) error {
+	for _, globEx := range []string{
+		// systemd's timesync clock file so that the time in recover mode moves
+		// forward to what it was in run mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyUbuntuDataAuth copies the authentication files like
 //  - extrausers passwd,shadow etc
 //  - sshd host configuration
 //  - user .ssh dir
@@ -195,13 +216,6 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
-		// so that the time in recover mode moves forward to what it was in run
-		// mode
-		// NOTE: we don't sync back the time movement from recover mode to run
-		// mode currently, unclear how/when we could do this, but recover mode
-		// isn't meant to be long lasting and as such it's probably not a big
-		// problem to "lose" the time spent in recover mode
-		"system-data/var/lib/systemd/timesync/clock",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -303,6 +317,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
+	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
 
