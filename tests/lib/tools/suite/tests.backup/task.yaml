@@ -64,4 +64,4 @@ execute: |
 
     # Validate prepare cannot be called if backup dir does not exist
     rm -rf "$TMP_DIR"
-    tests.backup prepare "$TMP_DIR" 2>&1 | MATCH "tests.backup: cannot backup $BACKUP_DIR, not a directory"
+    tests.backup prepare "$TMP_DIR" 2>&1 | MATCH "tests.backup: cannot backup $TMP_DIR, not a directory"
