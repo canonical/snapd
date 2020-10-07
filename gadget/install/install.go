@@ -52,14 +52,14 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer SystemInstallObserver) error {
+func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemState, error) {
 	if gadgetRoot == "" {
-		return fmt.Errorf("cannot use empty gadget root directory")
+		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	if err != nil {
-		return fmt.Errorf("cannot layout the volume: %v", err)
+		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
 
 	// XXX: the only situation where auto-detect is not desired is
@@ -69,24 +69,24 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 	if device == "" {
 		device, err = deviceFromRole(lv, gadget.SystemSeed)
 		if err != nil {
-			return fmt.Errorf("cannot find device to create partitions on: %v", err)
+			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(device)
 	if err != nil {
-		return fmt.Errorf("cannot read %v partitions: %v", device, err)
+		return nil, fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
 	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
-		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
+		return nil, fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
 	// remove partitions added during a previous install attempt
 	if err := removeCreatedPartitions(diskLayout); err != nil {
-		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
+		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
@@ -94,20 +94,16 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
 	for _, keyFile := range sealedKeyFiles {
 		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
+			return nil, fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
 		}
 	}
 
 	created, err := createMissingPartitions(diskLayout, lv)
 	if err != nil {
-		return fmt.Errorf("cannot create the partitions: %v", err)
+		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	type keySet struct {
-		key  secboot.EncryptionKey
-		rkey secboot.RecoveryKey
-	}
-	makeKeySet := func() (*keySet, error) {
+	makeKeySet := func() (*EncryptionKeySet, error) {
 		key, err := secboot.NewEncryptionKey()
 		if err != nil {
 			return nil, fmt.Errorf("cannot create encryption key: %v", err)
@@ -117,93 +113,57 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		if err != nil {
 			return nil, fmt.Errorf("cannot create recovery key: %v", err)
 		}
-		return &keySet{
-			key:  key,
-			rkey: rkey,
+		return &EncryptionKeySet{
+			Key:         key,
+			RecoveryKey: rkey,
 		}, nil
 	}
 	roleNeedsEncryption := func(role string) bool {
 		return role == gadget.SystemData || role == gadget.SystemSave
 	}
-	keysForRoles := map[string]*keySet{}
+	var keysForRoles map[string]*EncryptionKeySet
 
 	for _, part := range created {
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
 			keys, err := makeKeySet()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			dataPart, err := newEncryptedDevice(&part, keys.key, part.Label)
+			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			if err := dataPart.AddRecoveryKey(keys.key, keys.rkey); err != nil {
-				return err
+			if err := dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey); err != nil {
+				return nil, err
 			}
 
 			// update the encrypted device node
 			part.Node = dataPart.Node
+			if keysForRoles == nil {
+				keysForRoles = map[string]*EncryptionKeySet{}
+			}
 			keysForRoles[part.Role] = keys
 		}
 
 		if err := makeFilesystem(&part); err != nil {
-			return err
+			return nil, err
 		}
 
 		if err := writeContent(&part, gadgetRoot, observer); err != nil {
-			return err
+			return nil, err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
 			if err := mountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	if !options.Encrypt {
-		return nil
-	}
-
-	// TODO:UC20: move key handling to the caller
-
-	// ensure directories
-	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
-	}
-
-	dataKeySet := keysForRoles[gadget.SystemData]
-	if dataKeySet == nil {
-		return fmt.Errorf("internal error: system data encryption key set is unset")
-	}
-
-	// Write the recovery key
-	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
-	if err := dataKeySet.rkey.Save(recoveryKeyFile); err != nil {
-		return fmt.Errorf("cannot store recovery key: %v", err)
-	}
-
-	if observer != nil {
-		observer.ChosenEncryptionKey(dataKeySet.key)
-	}
-
-	saveKeySet := keysForRoles[gadget.SystemSave]
-	if saveKeySet != nil {
-		saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
-		reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
-
-		if err := saveKeySet.key.Save(saveKey); err != nil {
-			return fmt.Errorf("cannot store system save key: %v", err)
-		}
-		if err := saveKeySet.rkey.Save(reinstallSaveKey); err != nil {
-			return fmt.Errorf("cannot store reinstall key: %v", err)
-		}
-	}
-
-	return nil
+	return &InstalledSystemState{
+		KeysForRoles: keysForRoles,
+	}, nil
 }
 
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {

@@ -20,7 +20,6 @@
 package install
 
 import (
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -31,9 +30,14 @@ type Options struct {
 	Encrypt bool
 }
 
-type SystemInstallObserver interface {
-	gadget.ContentObserver
-	// ChosenEncryptionKey stores the encrypted data partition key to be sealed
-	// at the end of the installation process.
-	ChosenEncryptionKey(secboot.EncryptionKey)
+// EncryptionKeySet is a set of encryption keys.
+type EncryptionKeySet struct {
+	Key         secboot.EncryptionKey
+	RecoveryKey secboot.RecoveryKey
+}
+
+// InstalledSystemState carries state information about an installed system.
+type InstalledSystemState struct {
+	// KeysForRoles contains a key set for relevant structure roles
+	KeysForRoles map[string]*EncryptionKeySet
 }
