@@ -57,36 +57,36 @@ func ValidationSetKey(accountID, name string) string {
 // The method assumes valid tr fields.
 func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	var vsmap map[string]*json.RawMessage
-	err := st.Get("validation-set-tracking", &vsmap)
+	err := st.Get("validation-sets", &vsmap)
 	if err != nil && err != state.ErrNoState {
-		panic("internal error: cannot unmarshal validation-set-tracking state: " + err.Error())
+		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if vsmap == nil {
 		vsmap = make(map[string]*json.RawMessage)
 	}
 	data, err := json.Marshal(tr)
 	if err != nil {
-		panic("internal error: cannot marshal validation set tracking data: " + err.Error())
+		panic("internal error: cannot marshal validation set tracking state: " + err.Error())
 	}
 	raw := json.RawMessage(data)
 	key := ValidationSetKey(tr.AccountID, tr.Name)
 	vsmap[key] = &raw
-	st.Set("validation-set-tracking", vsmap)
+	st.Set("validation-sets", vsmap)
 }
 
 // DeleteValidationSet deletes a validation set for the given accoundID and name.
 // It is not an error to delete a non-existing one.
 func DeleteValidationSet(st *state.State, accountID, name string) {
 	var vsmap map[string]*json.RawMessage
-	err := st.Get("validation-set-tracking", &vsmap)
+	err := st.Get("validation-sets", &vsmap)
 	if err != nil && err != state.ErrNoState {
-		panic("internal error: cannot unmarshal validation-set-tracking state: " + err.Error())
+		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if len(vsmap) == 0 {
 		return
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
-	st.Set("validation-set-tracking", vsmap)
+	st.Set("validation-sets", vsmap)
 	return
 }
 
@@ -99,7 +99,7 @@ func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSet
 	*tr = ValidationSetTracking{}
 
 	var vset map[string]*json.RawMessage
-	err := st.Get("validation-set-tracking", &vset)
+	err := st.Get("validation-sets", &vset)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSet
 	// old JSON marshaling probably) and carried over from snapstate.Get.
 	err = json.Unmarshal([]byte(*raw), &tr)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal validation set tracking: %v", err)
+		return fmt.Errorf("cannot unmarshal validation set tracking state: %v", err)
 	}
 	return nil
 }
@@ -120,7 +120,7 @@ func GetValidationSet(st *state.State, accountID, name string, tr *ValidationSet
 // ValidationSets retrieves all ValidationSetTracking data.
 func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) {
 	var vsmap map[string]*ValidationSetTracking
-	if err := st.Get("validation-set-tracking", &vsmap); err != nil && err != state.ErrNoState {
+	if err := st.Get("validation-sets", &vsmap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	return vsmap, nil
