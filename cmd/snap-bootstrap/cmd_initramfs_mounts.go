@@ -163,6 +163,11 @@ func copyNetworkConfig(src, dst string) error {
 		//            network configuration for recover mode as well, but for
 		//            now this is fine
 		"system-data/etc/netplan/*",
+		// etc/machine-id is part of what systemd-networkd uses to generate a
+		// DHCP clientid (the other part being the interface name), so to have
+		// the same IP addresses across run mode and recover mode, we need to
+		// also copy the machine-id across
+		"system-data/etc/machine-id",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
