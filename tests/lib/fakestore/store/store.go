@@ -145,6 +145,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	// don't log download it's too verbose and mostly binary data
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/api/v1/snaps/assertions/", debugLogger(http.HandlerFunc(store.assertionsEndpoint)))
+	mux.HandleFunc("/api/v1/snaps/auth/nonces", debugLogger(http.HandlerFunc(store.authNonceEndpoint)))
+	mux.HandleFunc("/api/v1/snaps/auth/sessions", debugLogger(http.HandlerFunc(store.authSessionsEndpoint)))
 	// v2
 	mux.HandleFunc("/v2/snaps/refresh", debugLogger(http.HandlerFunc(store.snapActionEndpoint)))
 
@@ -296,6 +298,36 @@ type detailsReplyJSON struct {
 	DownloadDigest  string   `json:"download_sha3_384"`
 	Confinement     string   `json:"confinement"`
 	Type            string   `json:"type"`
+}
+
+type nonceResponse struct {
+	Nonce string `json:"nonce"`
+}
+
+func (s *Store) authNonceEndpoint(w http.ResponseWriter, req *http.Request) {
+	resp := &nonceResponse{Nonce: "hello-there"}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error marshalling nonce json: %v", err), 500)
+		return
+	}
+
+	w.Write(b)
+}
+
+type authSessionResponse struct {
+	Macaroon string `json:"macaroon"`
+}
+
+func (s *Store) authSessionsEndpoint(w http.ResponseWriter, req *http.Request) {
+	resp := &authSessionResponse{Macaroon: "general-kenobi"}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error marshalling session json: %v", err), 500)
+		return
+	}
+
+	w.Write(b)
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {

@@ -112,7 +112,36 @@ func (s *storeTestSuite) TestSearchEndpoint(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, "search not implemented")
+}
 
+func (s *storeTestSuite) TestNonceEndpoint(c *C) {
+	resp, err := s.StoreGet("/api/v1/snaps/auth/nonces")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	var nonceResp struct {
+		Nonce string
+	}
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	err = json.NewDecoder(resp.Body).Decode(&nonceResp)
+	c.Assert(err, IsNil)
+	c.Assert(nonceResp.Nonce, Equals, "hello-there")
+}
+
+func (s *storeTestSuite) TestSessionsEndpoint(c *C) {
+	resp, err := s.StoreGet("/api/v1/snaps/auth/sessions")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	var macaroonResp struct {
+		Macaroon string
+	}
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	err = json.NewDecoder(resp.Body).Decode(&macaroonResp)
+	c.Assert(err, IsNil)
+	c.Assert(macaroonResp.Macaroon, Equals, "general-kenobi")
 }
 
 func (s *storeTestSuite) TestDetailsEndpointWithAssertions(c *C) {
