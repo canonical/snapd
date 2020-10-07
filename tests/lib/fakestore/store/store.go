@@ -20,6 +20,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -53,6 +55,49 @@ func hexify(in string) string {
 		panic(err)
 	}
 	return fmt.Sprintf("%x", bs)
+}
+
+type wrappedWriter struct {
+	w          http.ResponseWriter
+	status     int
+	respBuffer *bytes.Buffer
+}
+
+func (w *wrappedWriter) Header() http.Header {
+	return w.w.Header()
+}
+
+func (w *wrappedWriter) Write(bs []byte) (int, error) {
+	// save a copy
+	w.respBuffer.Write(bs)
+	// pass it through
+	return w.w.Write(bs)
+}
+
+func (w *wrappedWriter) WriteHeader(status int) {
+	// save a copy
+	w.status = status
+	// pass it through
+	w.w.WriteHeader(status)
+}
+
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func debugLogger(handler http.Handler) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ww := &wrappedWriter{
+			w:          w,
+			respBuffer: &bytes.Buffer{},
+		}
+		t0 := time.Now()
+		handler.ServeHTTP(ww, r)
+		t := time.Now().Sub(t0)
+		logger.Debugf("RESPONSE: %s %s %s %s (@ %s) %d %s", r.RemoteAddr, r.Method, r.URL, t, t0, ww.status, ww.respBuffer.String())
+	}
 }
 
 // Store is our snappy software store implementation
@@ -93,14 +138,15 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		},
 	}
 
-	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
-	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
-	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
+	mux.HandleFunc("/", debugLogger(http.HandlerFunc(rootEndpoint)))
+	mux.HandleFunc("/api/v1/snaps/search", debugLogger(http.HandlerFunc(store.searchEndpoint)))
+	mux.HandleFunc("/api/v1/snaps/details/", debugLogger(http.HandlerFunc(store.detailsEndpoint)))
+	mux.HandleFunc("/api/v1/snaps/metadata", debugLogger(http.HandlerFunc(store.bulkEndpoint)))
+	// don't log download it's too verbose and mostly binary data
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
-	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
+	mux.HandleFunc("/api/v1/snaps/assertions/", debugLogger(http.HandlerFunc(store.assertionsEndpoint)))
 	// v2
-	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
+	mux.HandleFunc("/v2/snaps/refresh", debugLogger(http.HandlerFunc(store.snapActionEndpoint)))
 
 	return store
 }
