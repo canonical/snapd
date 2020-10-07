@@ -153,11 +153,12 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	return store
 }
 
-// URL returns the base-url that the store is listening on
+// URL returns the base-url that the store is listening on.
 func (s *Store) URL() string {
 	return s.url
 }
 
+// SnapsDir returns the blob dir for snap files.
 func (s *Store) SnapsDir() string {
 	return s.blobDir
 }
