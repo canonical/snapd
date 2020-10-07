@@ -430,10 +430,14 @@ func resolveApp(snapApp string) (string, error) {
 // for some errors. Otherwise the generic exit code 1 is returned.
 func exitCodeFromError(err error) int {
 	var mksquashfsError squashfs.MksquashfsError
+	var cmdlineFlagsError *flags.Error
+	var unknownCmdError unknownCommandError
 
 	switch {
 	case err == nil:
 		return 0
+	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+		return 5
 	case client.IsRetryable(err):
 		return 10
 	case xerrors.As(err, &mksquashfsError):
@@ -525,6 +529,14 @@ var wrongDashes = string([]rune{
 	0x2e3b, // three-em dash
 })
 
+type unknownCommandError struct {
+	errStr string
+}
+
+func (e unknownCommandError) Error() string {
+	return e.errStr
+}
+
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
@@ -548,7 +560,7 @@ func run() error {
 					}
 				}
 				// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
-				return fmt.Errorf(i18n.G("unknown command %q, see '%s'."), sub, sug)
+				return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, see '%s'."), sub, sug)}
 			}
 		}
 
