@@ -58,11 +58,11 @@ unique identifier (for each instance) to a snap's name.
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
 
-Revision choice via the --revision override requires the the user to
+Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 
-Note a later refresh will typically undo a revision override, taking the snap
+Note that a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
 
 Use --name to set the instance name when installing from snap file.
@@ -87,7 +87,7 @@ none are specified.
 With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options.
 
-Revision choice via the --revision override requires the the user to
+Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 

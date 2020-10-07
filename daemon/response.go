@@ -259,6 +259,7 @@ type snapshotExportResponse struct {
 // ServeHTTP from the Response interface
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	w.Header().Add("Content-Type", client.SnapshotExportMediaType)
 	if err := s.StreamTo(w); err != nil {
 		logger.Debugf("cannot export snapshot: %v", err)
 	}

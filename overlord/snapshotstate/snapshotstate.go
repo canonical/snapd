@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -290,6 +291,11 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // List valid snapshots.
 // Note that the state must be locked by the caller.
 var List = backend.List
+
+// Import a given snapshot ID from an exported snapshot
+func Import(ctx context.Context, st *state.State, r io.Reader, size int64) (setID uint64, snapNames []string, err error) {
+	return 0, nil, fmt.Errorf("snapshot import not implemented yet")
+}
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
