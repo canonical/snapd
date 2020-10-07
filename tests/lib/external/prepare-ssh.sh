@@ -7,6 +7,8 @@ USER_NAME="${3:-$(whoami)}"
 USER_PASS="${4:-}"
 USER_TYPE="${5:-}"
 
+SSHPASS_PARAM=""
+
 execute_remote(){
     # shellcheck disable=SC2029
     $SSHPASS_PARAM ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p "$INSTANCE_PORT" "$USER_NAME@$INSTANCE_IP" "$@"
@@ -18,7 +20,6 @@ if [ -z "$USER_TYPE" ]; then
 fi
 
 # It is needed to use sshpass to connect using password
-SSHPASS_PARAM=""
 if [ -n "$USER_PASS" ]; then
     SSHPASS_PARAM="sshpass -p $USER_PASS"
 fi

@@ -568,7 +568,7 @@ prepare: |
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* ]] || ( [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [ "$SPREAD_BACKEND" == "classic-desktop" ] ); then
+    if [[ "$SPREAD_SYSTEM" == debian-* ]] || ( [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [ "$SPREAD_BACKEND" = "classic-desktop" ] ); then
         apt-get update && apt-get install -y eatmydata
     fi
 
