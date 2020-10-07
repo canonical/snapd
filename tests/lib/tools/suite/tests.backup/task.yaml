@@ -53,7 +53,7 @@ execute: |
     test ! -e "${PWD}.tar"
 
     # Validate restore cannot be called if backup file does not exist
-    tests.backup restore 2>&1 | MATCH 'tests.backup: cannot restore, backup file does not exist'
+    tests.backup restore 2>&1 | MATCH "tests.backup: cannot restore ${PWD}.tar, the file does not exist"
 
     # Check the tool support a path to prepare and restore
     TMP_DIR=$(mktemp -d)
@@ -64,4 +64,4 @@ execute: |
 
     # Validate prepare cannot be called if backup dir does not exist
     rm -rf "$TMP_DIR"
-    tests.backup prepare "$TMP_DIR" 2>&1 | MATCH 'tests.backup: cannot prepare, backup dir does not exist'
+    tests.backup prepare "$TMP_DIR" 2>&1 | MATCH "tests.backup: cannot backup $BACKUP_DIR, not a directory"

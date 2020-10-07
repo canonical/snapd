@@ -1,15 +1,18 @@
 #!/bin/bash -e
+# Tool used to backup/restore a specific directory
+# It is used by the test tool to make sure each test
+# leaves the test directory as was initially
 
 show_help() {
-    echo "usage: tests.backup prepare"
-    echo "       tests.backup restore"
+    echo "usage: tests.backup prepare [PATH]"
+    echo "       tests.backup restore [PATH]"
 }
 
 cmd_prepare() {
     local BACKUP_PATH=$1
 
     if [ ! -d "$BACKUP_PATH" ]; then
-        echo "tests.backup: cannot prepare, backup dir does not exist" >&2
+        echo "tests.backup: cannot backup $BACKUP_DIR, not a directory" >&2
         exit 1
     fi
     tar cf "${BACKUP_PATH}.tar" "$BACKUP_PATH"
@@ -18,11 +21,13 @@ cmd_prepare() {
 cmd_restore() {
     local BACKUP_PATH=$1
     if [ -f "${BACKUP_PATH}.tar" ]; then
+        # Find all the files in the path $BACKUP_PATH and delete them
+        # This command deletes also the hidden files
         find "${BACKUP_PATH}" -maxdepth 1 -mindepth 1 -exec rm -rf {} \;
         tar -C/ -xf "${BACKUP_PATH}.tar"
         rm "${BACKUP_PATH}.tar"
     else
-        echo "tests.backup: cannot restore, backup file does not exist" >&2
+        echo "tests.backup: cannot restore ${BACKUP_PATH}.tar, the file does not exist" >&2
         exit 1
     fi
 }
