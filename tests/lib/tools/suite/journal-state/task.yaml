@@ -13,15 +13,8 @@ execute: |
     # Check that the test is correctly started in the journal log
     "$TESTSTOOLS"/journal-state start-new-log
     echo "Add some extra logs" | systemd-cat -t snapd-test
-    # Here cannot be used the retry tool because we need to evaluate the whole
-    # test command within the retry but the cursor1 var within the test
-    for _ in $(seq 10); do
-        if test $(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB") -eq 1; then
-            break
-        fi
-        sleep 1
-    done
-    test $(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB") -eq 1
+    # shellcheck disable=SC2016
+    retry --wait 1 --attempts 10 sh -c 'test $(journalctl --cursor '\'"$cursor1"\'' | grep -c '"$SPREAD_JOB"') -eq 1'
 
     # Check that the subcommand check-log-started works
     # The subcommand check-log-started could fail if the log does not contain the current SPREAD_JOB information
