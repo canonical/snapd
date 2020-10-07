@@ -7,11 +7,8 @@ restore: |
     rm -f ./*.snap
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "When the service state is reported as active"
     while ! systemctl show -p ActiveState "$SERVICE_NAME" | grep -Pq "ActiveState=active"; do sleep 0.5; done
