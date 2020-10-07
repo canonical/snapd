@@ -29,11 +29,13 @@ execute: |
 
     # Check that the subcommand get-log works
     echo "TEST-XX1" | systemd-cat -t snapd-test
+    # shellcheck disable=SC2016
     retry --wait 1 --attempts 10 sh -c 'test $("$TESTSTOOLS"/journal-state get-log | grep -c TEST-XX1) -eq 1'
 
     # Check that the subcommand get-last-cursor works
     echo "TEST-XX2" | systemd-cat -t snapd-test
     echo "Add some extra logs" | systemd-cat -t different-test
+    # shellcheck disable=SC2016
     retry --wait 1 --attempts 10 sh -c 'test $("$TESTSTOOLS"/journal-state get-log | grep -c TEST-XX2) -eq 1'
 
     cursor2=$("$TESTSTOOLS"/journal-state get-last-cursor)
