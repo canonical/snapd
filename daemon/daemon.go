@@ -21,7 +21,9 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -54,6 +56,12 @@ import (
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
 
 var systemdSdNotify = systemd.SdNotify
+
+const (
+	daemonRestartMsg = "system is restarting"
+	systemRestartMsg = "daemon is restarting"
+	socketRestartMsg = "daemon is stopping to wait for socket activation"
+)
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
@@ -259,14 +267,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()
-		switch rst {
-		case state.RestartSystem, state.RestartSystemNow:
-			rsp.transmitMaintenance(client.ErrorKindSystemRestart, "system is restarting")
-		case state.RestartDaemon:
-			rsp.transmitMaintenance(client.ErrorKindDaemonRestart, "daemon is restarting")
-		case state.RestartSocket:
-			rsp.transmitMaintenance(client.ErrorKindDaemonRestart, "daemon is stopping to wait for socket activation")
-		}
+		rsp.Maintenance = maintenanceForRestartType(rst)
+
 		if rsp.Type != ResponseTypeError {
 			st.Lock()
 			count, stamp := st.WarningsSummary()
@@ -441,6 +443,16 @@ func (d *Daemon) Start() error {
 		return err
 	}
 
+	// before serving actual connections empty the maintenance.json file as we
+	// are no longer down for maintenance, this state most closely corresponds
+	// to state.RestartUnset
+	// TODO: should this state (not down for maintenance) have it's own
+	// RestartType?
+	err = d.writeMaintenanceFile(state.RestartUnset)
+	if err != nil {
+		return err
+	}
+
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
 	d.serve = &http.Server{
 		Handler:   logit(d.router),
@@ -481,6 +493,10 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		// save the restart kind to write out a maintenance.json in a bit
+		d.restartSystem = t
 	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
@@ -490,17 +506,20 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		// remember we need to restart the system
+		// save the restart kind to write out a maintenance.json in a bit
 		d.restartSystem = t
 	case state.RestartSocket:
 		d.mu.Lock()
 		defer d.mu.Unlock()
+		// save the restart kind to write out a maintenance.json in a bit
+		d.restartSystem = t
 		d.restartSocket = true
 	case state.StopDaemon:
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 	}
+
 	d.tomb.Kill(nil)
 }
 
@@ -510,6 +529,20 @@ var (
 	rebootRetryWaitTimeout = 5 * time.Minute
 	rebootMaxTentatives    = 3
 )
+
+func (d *Daemon) writeMaintenanceFile(rst state.RestartType) error {
+	b, err := json.Marshal(maintenanceForRestartType(rst))
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
@@ -526,10 +559,18 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
-	restartSystem := d.restartSystem != state.RestartUnset
+	restartSystem := (d.restartSystem == state.RestartSystemNow || d.restartSystem == state.RestartSystem)
 	immediateReboot := d.restartSystem == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
+
+	// before not accepting any new client connections we need to write the
+	// maintenance.json file for potential clients to see after the daemon stops
+	// responding so they can read it correctly and handle the maintenance
+	err := d.writeMaintenanceFile(d.restartSystem)
+	if err != nil {
+		logger.Noticef("error writing maintenance file: %v", err)
+	}
 
 	d.snapdListener.Close()
 	d.standbyOpinions.Stop()
@@ -562,7 +603,6 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if !restartSystem {
 		// tell systemd that we are stopping
 		systemdSdNotify("STOPPING=1")
-
 	}
 
 	if restartSocket {
@@ -580,7 +620,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	d.overlord.Stop()
 
-	err := d.tomb.Wait()
+	err = d.tomb.Wait()
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)

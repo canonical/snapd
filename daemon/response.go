@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -67,11 +68,26 @@ type resp struct {
 	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
-func (r *resp) transmitMaintenance(kind client.ErrorKind, message string) {
-	r.Maintenance = &errorResult{
-		Kind:    kind,
-		Message: message,
+func maintenanceForRestartType(rst state.RestartType) *errorResult {
+	e := &errorResult{}
+	switch rst {
+	case state.RestartSystem, state.RestartSystemNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = daemonRestartMsg
+	case state.RestartDaemon:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = systemRestartMsg
+	case state.RestartSocket:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = socketRestartMsg
+	case state.RestartUnset:
+		// don't set anything as unset means it's not really an errorResult here
+		// so leave it empty
+		//, but don't return nil so it still formats as valid
+		// json
+		return nil
 	}
+	return e
 }
 
 func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
@@ -92,7 +108,7 @@ func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
-// Increment the counter if you read this: 42
+// Increment the counter if you read this: 43
 type Meta struct {
 	Sources           []string   `json:"sources,omitempty"`
 	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
