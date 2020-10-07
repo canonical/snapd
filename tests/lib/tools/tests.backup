@@ -12,7 +12,7 @@ cmd_prepare() {
     local BACKUP_PATH=$1
 
     if [ ! -d "$BACKUP_PATH" ]; then
-        echo "tests.backup: cannot backup $BACKUP_DIR, not a directory" >&2
+        echo "tests.backup: cannot backup $BACKUP_PATH, not a directory" >&2
         exit 1
     fi
     tar cf "${BACKUP_PATH}.tar" "$BACKUP_PATH"
