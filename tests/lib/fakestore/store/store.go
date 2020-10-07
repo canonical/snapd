@@ -112,8 +112,16 @@ type Store struct {
 	srv *graceful.Server
 }
 
-// NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
-func NewStore(topDir, addr string, assertFallback bool) *Store {
+// NewStore creates a new store server serving snaps from the given top
+// directory and assertions from topDir/asserts. If assertFallback is true
+// missing assertions are looked up in the main online store.
+// If actionEndpointContextual is true, then the actions endpoint acts more
+// like the real store, looking up all available assertion revisions and only
+// providing snap revision refreshes that actually correspond to a real refresh.
+// TODO: port old tests/usages from the previous action behavior to work with
+// the new one so we only have one implementation, which is closest to what the
+// real store does with contextual responses.
+func NewStore(topDir, addr string, assertFallback bool, actionEndpointContextual bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {

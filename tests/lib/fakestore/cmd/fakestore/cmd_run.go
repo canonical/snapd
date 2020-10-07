@@ -28,9 +28,10 @@ import (
 )
 
 type cmdRun struct {
-	TopDir         string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
-	Addr           string `long:"addr" default:"localhost:11028" description:"Store address"`
-	AssertFallback bool   `long:"assert-fallback" description:"Fallback to the main online store for missing assertions"`
+	TopDir                    string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	Addr                      string `long:"addr" default:"localhost:11028" description:"Store address"`
+	AssertFallback            bool   `long:"assert-fallback" description:"Fallback to the main online store for missing assertions"`
+	ActionsEndpointContextual bool   `long:"actions-endpoint-contextual" description:"Make the actions endpoint act like the real store, serving only real refreshes based on context"`
 
 	HttpProxy  string `long:"http-proxy" description:"HTTP proxy address"`
 	HttpsProxy string `long:"https-proxy" description:"HTTPS proxy address"`
@@ -46,7 +47,7 @@ func (x *cmdRun) Execute(args []string) error {
 		os.Setenv("http_proxy", x.HttpProxy)
 	}
 
-	return runServer(x.TopDir, x.Addr, x.AssertFallback)
+	return runServer(x.TopDir, x.Addr, x.AssertFallback, x.ActionsEndpointContextual)
 }
 
 func init() {
@@ -55,8 +56,8 @@ func init() {
 	}
 }
 
-func runServer(topDir, addr string, assertFallback bool) error {
-	st := store.NewStore(topDir, addr, assertFallback)
+func runServer(topDir, addr string, assertFallback, actionsEndpointContextual bool) error {
+	st := store.NewStore(topDir, addr, assertFallback, actionsEndpointContextual)
 
 	if err := st.Start(); err != nil {
 		return err
