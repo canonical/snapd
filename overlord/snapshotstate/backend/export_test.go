@@ -31,6 +31,8 @@ var (
 	AddDirToZip     = addDirToZip
 	TarAsUser       = tarAsUser
 	PickUserWrapper = pickUserWrapper
+
+	IsSnapshotFilename = isSnapshotFilename
 )
 
 func MockIsTesting(newIsTesting bool) func() {
@@ -65,7 +67,7 @@ func MockDirNames(newDirNames func(*os.File, int) ([]string, error)) func() {
 	}
 }
 
-func MockOpen(newOpen func(string) (*Reader, error)) func() {
+func MockOpen(newOpen func(string, uint64) (*Reader, error)) func() {
 	oldOpen := backendOpen
 	backendOpen = newOpen
 	return func() {

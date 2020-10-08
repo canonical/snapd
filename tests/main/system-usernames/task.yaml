@@ -23,9 +23,7 @@ environment:
 
 prepare: |
     echo "Install helper snaps with default confinement"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
     # make sure this snap is removed in case it was installed

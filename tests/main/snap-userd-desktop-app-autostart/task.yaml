@@ -5,11 +5,8 @@ restore: |
     rm -f ~/snap/test-snapd-xdg-autostart/current/.config/autostart/foo.desktop
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "When the snap is installed"
-    install_local test-snapd-xdg-autostart
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-autostart
 
     # run the app directly, it will dump a *.desktop file
     snap run test-snapd-xdg-autostart.foo

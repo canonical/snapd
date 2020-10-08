@@ -20,9 +20,7 @@ execute: |
         exit 1
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh-core16
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core16
 
     echo "and core16 was not pulled in"
     not snap list core16

@@ -67,6 +67,10 @@ create_test_user(){
     fi
     unset owner
 
+    # Add a new line first to prevent an error which happens when
+    # the file has not new line, and we see this:
+    # syntax error, unexpected WORD, expecting END or ':' or '\n'
+    echo >> /etc/sudoers
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
     chown test.test -R "$SPREAD_PATH"
@@ -642,6 +646,8 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+        # $PWD was removed and recreated, enter the new directory
+        cd "$PWD"
     fi
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then

@@ -5,9 +5,7 @@ details: |
   remains connected.
 
 prepare: |
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
-  install_local test-disconnect
+  "$TESTSTOOLS"/snaps-state install-local test-disconnect
 
 restore: |
   rm -f /var/snap/test-disconnect/common/do-not-fail
