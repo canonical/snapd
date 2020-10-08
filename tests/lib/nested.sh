@@ -1009,19 +1009,20 @@ nested_start_classic_vm() {
     PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m 4096"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="-m 2048"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
-    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_RANDOM PARAM_SNAPSHOT
+    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_CD PARAM_RANDOM PARAM_SNAPSHOT
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
     PARAM_USB="-usb"
     PARAM_CPU=""
+    PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
 
@@ -1082,7 +1083,8 @@ nested_start_classic_vm() {
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
     nested_wait_for_ssh
 }
