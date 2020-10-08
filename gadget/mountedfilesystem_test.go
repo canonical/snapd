@@ -28,9 +28,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -117,7 +117,10 @@ func verifyDirContents(c *C, where string, expected map[string]contentType) {
 	cleanWhere := filepath.Clean(where)
 
 	got := make(map[string]contentType)
-	filepath.Walk(where, func(name string, fi os.FileInfo, err error) error {
+	err := filepath.Walk(where, func(name string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if name == where {
 			return nil
 		}
@@ -134,8 +137,12 @@ func verifyDirContents(c *C, where string, expected map[string]contentType) {
 
 		return nil
 	})
-
-	c.Assert(got, DeepEquals, expected)
+	c.Assert(err, IsNil)
+	if len(expected) > 0 {
+		c.Assert(got, DeepEquals, expected)
+	} else {
+		c.Assert(got, HasLen, 0)
+	}
 }
 
 func (s *mountedfilesystemTestSuite) TestWriteFile(c *C) {
@@ -250,14 +257,18 @@ type mockContentChange struct {
 }
 
 type mockWriteObserver struct {
-	content        map[string][]*mockContentChange
-	observeErr     error
-	expectedStruct *gadget.LaidOutStructure
-	c              *C
+	content         map[string][]*mockContentChange
+	preserveTargets []string
+	observeErr      error
+	expectedStruct  *gadget.LaidOutStructure
+	c               *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if m.c == nil {
+		panic("c is unset")
+	}
 	m.c.Assert(data, NotNil)
 	m.c.Assert(op, Equals, gadget.ContentWrite, Commentf("unexpected operation %v", op))
 	if m.content == nil {
@@ -276,7 +287,11 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
-	return true, m.observeErr
+
+	if strutil.ListContains(m.preserveTargets, relativeTargetPath) {
+		return gadget.ChangeIgnore, nil
+	}
+	return gadget.ChangeApply, m.observeErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
@@ -662,6 +677,52 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	verifyWrittenGadgetData(c, outDir, gdWritten)
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C) {
+	// some data for the gadget
+	gd := []gadgetData{
+		{name: "foo", target: "foo-dir/foo", content: "foo from gadget"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+	makeSizedFile(c, filepath.Join(outDir, "foo"), 0, []byte("foo from disk"))
+
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{
+					Source: "foo",
+					// would overwrite existing foo
+					Target: "foo",
+				}, {
+					Source: "foo",
+					// does not exist
+					Target: "foo-new",
+				},
+			},
+		},
+	}
+
+	obs := &mockWriteObserver{
+		c:              c,
+		expectedStruct: ps,
+		preserveTargets: []string{
+			"foo",
+			"foo-new",
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Write(outDir, nil)
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
+	c.Check(filepath.Join(outDir, "foo-new"), testutil.FileAbsent)
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C) {
 	// some data for the gadget
 	gd := []gadgetData{
@@ -833,19 +894,29 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 type mockContentUpdateObserver struct {
 	contentUpdate   map[string][]*mockContentChange
 	contentRollback map[string][]*mockContentChange
+	preserveTargets []string
 	observeErr      error
 	expectedStruct  *gadget.LaidOutStructure
 	c               *C
 }
 
+func (m *mockContentUpdateObserver) reset() {
+	m.contentUpdate = nil
+	m.contentRollback = nil
+}
+
 func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if m.c == nil {
+		panic("c is unset")
+	}
 	if m.contentUpdate == nil {
 		m.contentUpdate = make(map[string][]*mockContentChange)
 	}
 	if m.contentRollback == nil {
 		m.contentRollback = make(map[string][]*mockContentChange)
 	}
+	m.c.Assert(data, NotNil)
 
 	// the after content must always be set
 	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
@@ -870,7 +941,14 @@ func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceSt
 
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
-	return true, m.observeErr
+
+	if m.observeErr != nil {
+		return gadget.ChangeAbort, m.observeErr
+	}
+	if strutil.ListContains(m.preserveTargets, relativeTargetPath) {
+		return gadget.ChangeIgnore, nil
+	}
+	return gadget.ChangeApply, nil
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
@@ -2512,6 +2590,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		{name: "foo", target: "/foo", content: "data"},
 		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
 		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "data"},
+		{name: "preserved/same-content", target: "preserved/same-content", content: "can't touch this"},
+	}
+	gdSameContent := []gadgetData{
+		{name: "foo", target: "/foo-same", content: "data"},
 	}
 	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
 	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
@@ -2522,12 +2604,15 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	makeExistingData(c, outDir, []gadgetData{
 		{target: "dtb", content: "updated"},
 		{target: "foo", content: "can't touch this"},
+		{target: "foo-same", content: "data"},
 		{target: "data-copy-preserved", content: "can't touch this"},
 		{target: "data-copy", content: "can't touch this"},
 		{target: "nested-copy/nested", content: "can't touch this"},
 		{target: "nested-copy/more-nested/"},
 		{target: "not-listed", content: "can't touch this"},
 		{target: "unrelated/data/here", content: "unrelated"},
+		{target: "preserved/same-content-for-list", content: "can't touch this"},
+		{target: "preserved/same-content-for-observer", content: "can't touch this"},
 	})
 	// these exist in the root directory and are preserved
 	preserve := []string{
@@ -2536,6 +2621,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"/data-copy-preserved",
 		"nested-copy/nested",
 		"not-listed", // not present in 'gadget' contents
+		"preserved/same-content-for-list",
 	}
 	// these are preserved, but don't exist in the root, so data from gadget
 	// will be written
@@ -2556,6 +2642,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 					// would overwrite /foo
 					Source: "foo",
 					Target: "/",
+				}, {
+					// nothing written, content is unchanged
+					Source: "foo",
+					Target: "/foo-same",
 				}, {
 					// preserved, but not present, will be
 					// written
@@ -2583,6 +2673,12 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 				}, {
 					Source: "/boot-assets/empty-dir/",
 					Target: "/lone-dir/nested/",
+				}, {
+					Source: "preserved/same-content",
+					Target: "preserved/same-content-for-list",
+				}, {
+					Source: "preserved/same-content",
+					Target: "preserved/same-content-for-observer",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2595,6 +2691,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	muo := &mockContentUpdateObserver{
 		c:              c,
 		expectedStruct: ps,
+		preserveTargets: []string{
+			"preserved/same-content-for-observer",
+		},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2604,14 +2703,17 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	c.Assert(rw, NotNil)
 
 	originalState := map[string]contentType{
-		"foo":                     typeFile,
-		"dtb":                     typeFile,
-		"data-copy":               typeFile,
-		"not-listed":              typeFile,
-		"data-copy-preserved":     typeFile,
-		"nested-copy/nested":      typeFile,
-		"nested-copy/more-nested": typeDir,
-		"unrelated/data/here":     typeFile,
+		"foo":                                 typeFile,
+		"foo-same":                            typeFile,
+		"dtb":                                 typeFile,
+		"data-copy":                           typeFile,
+		"not-listed":                          typeFile,
+		"data-copy-preserved":                 typeFile,
+		"nested-copy/nested":                  typeFile,
+		"nested-copy/more-nested":             typeDir,
+		"unrelated/data/here":                 typeFile,
+		"preserved/same-content-for-list":     typeFile,
+		"preserved/same-content-for-observer": typeFile,
 	}
 	verifyDirContents(c, outDir, originalState)
 
@@ -2620,16 +2722,21 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), map[string]contentType{
-		"nested-copy.backup":             typeFile,
-		"nested-copy/nested.preserve":    typeFile,
-		"nested-copy/more-nested.backup": typeFile,
-		"foo.preserve":                   typeFile,
-		"data-copy-preserved.preserve":   typeFile,
-		"data-copy.backup":               typeFile,
-		"dtb.backup":                     typeFile,
+		"nested-copy.backup":                       typeFile,
+		"nested-copy/nested.preserve":              typeFile,
+		"nested-copy/more-nested.backup":           typeFile,
+		"foo.preserve":                             typeFile,
+		"foo-same.same":                            typeFile,
+		"data-copy-preserved.preserve":             typeFile,
+		"data-copy.backup":                         typeFile,
+		"dtb.backup":                               typeFile,
+		"preserved.backup":                         typeFile,
+		"preserved/same-content-for-list.preserve": typeFile,
+		"preserved/same-content-for-observer.same": typeFile,
 	})
 
 	expectedObservedContentChange := map[string][]*mockContentChange{
+		// observer is notified about changed and new files
 		outDir: {
 			{"foo-dir/foo", &gadget.ContentChange{
 				After: filepath.Join(s.dir, "foo"),
@@ -2698,6 +2805,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 
 	verifyDirContents(c, outDir, map[string]contentType{
 		"foo":        typeFile,
+		"foo-same":   typeFile,
 		"not-listed": typeFile,
 
 		// boot-assets/some-dir/data -> /data-copy
@@ -2739,6 +2847,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 
 		// boot-assets/empty-dir/ -> /lone-dir/nested/
 		"lone-dir/nested": typeDir,
+
+		"preserved/same-content-for-list":     typeFile,
+		"preserved/same-content-for-observer": typeFile,
 	})
 
 	// files that existed were preserved
@@ -2747,7 +2858,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		c.Check(p, testutil.FileEquals, "can't touch this")
 	}
 	// everything else was written
-	verifyWrittenGadgetData(c, outDir, gdWritten)
+	verifyWrittenGadgetData(c, outDir, append(gdWritten, gdSameContent...))
 
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
@@ -2905,7 +3016,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 }
 
-func (s *mountedfilesystemTestSuite) testMountedUpdaterGrubBootAssets(c *C, managed bool, role string, preserved bool) {
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreservesBootAssets(c *C) {
 	// mirror pc-amd64-gadget
 	gd := []gadgetData{
 		{name: "grub.conf", content: "grub.conf from gadget"},
@@ -2918,9 +3029,6 @@ func (s *mountedfilesystemTestSuite) testMountedUpdaterGrubBootAssets(c *C, mana
 
 	existingGrubCfg := `# Snapd-Boot-Config-Edition: 1
 managed grub.cfg from disk`
-	if !managed {
-		existingGrubCfg = `existing grub.cfg from disk`
-	}
 	makeExistingData(c, outDir, []gadgetData{
 		{target: "EFI/boot/grubx64.efi", content: "grubx64.efi from disk"},
 		{target: "EFI/ubuntu/grub.cfg", content: existingGrubCfg},
@@ -2930,7 +3038,7 @@ managed grub.cfg from disk`
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       2048,
-			Role:       role,
+			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
@@ -2943,14 +3051,31 @@ managed grub.cfg from disk`
 			},
 		},
 	}
+	obs := &mockContentUpdateObserver{
+		c:               c,
+		expectedStruct:  ps,
+		preserveTargets: []string{"EFI/ubuntu/grub.cfg"},
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, ps)
 			return outDir, nil
 		},
-		nil)
+		obs)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
+
+	expectedFileStamps := map[string]contentType{
+		"EFI.backup":                  typeFile,
+		"EFI/boot/grubx64.efi.backup": typeFile,
+		"EFI/boot.backup":             typeFile,
+		"EFI/ubuntu.backup":           typeFile,
+
+		// listed explicitly in the structure
+		"foo.preserve": typeFile,
+		// requested by observer
+		"EFI/ubuntu/grub.cfg.ignore": typeFile,
+	}
 
 	for _, step := range []struct {
 		name string
@@ -2971,14 +3096,9 @@ managed grub.cfg from disk`
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "update":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
-			if preserved {
-				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
-					`# Snapd-Boot-Config-Edition: 1
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
+				`# Snapd-Boot-Config-Edition: 1
 managed grub.cfg from disk`)
-			} else {
-				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
-					`grub.conf from gadget`)
-			}
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "rollback":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
@@ -2987,55 +3107,143 @@ managed grub.cfg from disk`)
 		default:
 			c.Fatalf("unexpected step: %q", step.name)
 		}
+		verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedFileStamps)
 	}
 }
 
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManaged(c *C) {
-	managed := true
-	preserved := true
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemBoot, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubSeedAssetsManaged(c *C) {
-	managed := true
-	preserved := true
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsNotManaged(c *C) {
-	managed := false
-	preserved := false
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManagedOtherRole(c *C) {
-	managed := true
-	preserved := false
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemData, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterBootAssetsErr(c *C) {
-	outDir := filepath.Join(c.MkDir(), "out-dir")
-
-	bootloader.ForceError(errors.New("foo"))
-	defer bootloader.ForceError(nil)
+var (
 	// based on pc gadget
-	ps := &gadget.LaidOutStructure{
+	psForObserver = &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
-				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
+				{Source: "foo", Target: "foo"},
+			},
+			Update: gadget.VolumeUpdate{
+				Edition: 1,
 			},
 		},
 	}
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
+)
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c *C) {
+	gd := []gadgetData{
+		{name: "foo", content: "foo from gadget"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	obs := &mockContentUpdateObserver{
+		c:               c,
+		expectedStruct:  psForObserver,
+		preserveTargets: []string{"foo"},
+	}
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psForObserver, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
+			c.Check(to, DeepEquals, psForObserver)
 			return outDir, nil
 		},
-		nil)
-	c.Assert(err, ErrorMatches, "cannot preserve managed boot assets: foo")
-	c.Assert(rw, IsNil)
+		obs)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	expectedNewFileChanges := map[string][]*mockContentChange{
+		outDir: {
+			{"foo", &gadget.ContentChange{After: filepath.Join(s.dir, "foo")}},
+		},
+	}
+	expectedStamps := map[string]contentType{
+		"foo.ignore": typeFile,
+	}
+	// file does not exist
+	err = rw.Backup()
+	c.Assert(err, IsNil)
+	// no stamps
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedStamps)
+	// observer got notified about change
+	c.Assert(obs.contentUpdate, DeepEquals, expectedNewFileChanges)
+
+	obs.reset()
+
+	// try the same pass again
+	err = rw.Backup()
+	c.Assert(err, IsNil)
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedStamps)
+	// observer already requested the change to be ignored once
+	c.Assert(obs.contentUpdate, HasLen, 0)
+
+	// file does not exist and is not written
+	err = rw.Update()
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
+	c.Assert(filepath.Join(outDir, "foo"), testutil.FileAbsent)
+
+	// nothing happens on rollback
+	err = rw.Rollback()
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(outDir, "foo"), testutil.FileAbsent)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingFile(c *C) {
+	gd := []gadgetData{
+		{name: "foo", content: "foo from gadget"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	obs := &mockContentUpdateObserver{
+		c:               c,
+		expectedStruct:  psForObserver,
+		preserveTargets: []string{"foo"},
+	}
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psForObserver, s.backup,
+		func(to *gadget.LaidOutStructure) (string, error) {
+			c.Check(to, DeepEquals, psForObserver)
+			return outDir, nil
+		},
+		obs)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	// file exists now
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "foo", content: "foo from disk"},
+	})
+	expectedExistingFileChanges := map[string][]*mockContentChange{
+		outDir: {
+			{"foo", &gadget.ContentChange{
+				After:  filepath.Join(s.dir, "foo"),
+				Before: filepath.Join(s.backup, "struct-0/foo.backup"),
+			}},
+		},
+	}
+	expectedExistingFileStamps := map[string]contentType{
+		"foo.ignore": typeFile,
+	}
+	err = rw.Backup()
+	c.Assert(err, IsNil)
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedExistingFileStamps)
+	// get notified about change
+	c.Assert(obs.contentUpdate, DeepEquals, expectedExistingFileChanges)
+
+	obs.reset()
+	// backup called again (eg. after reset)
+	err = rw.Backup()
+	c.Assert(err, IsNil)
+	verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedExistingFileStamps)
+	// observer already requested the change to be ignored once
+	c.Assert(obs.contentUpdate, HasLen, 0)
+
+	// and nothing gets updated
+	err = rw.Update()
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
+	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
+
+	// the file existed and was preserved, nothing gets removed on rollback
+	err = rw.Rollback()
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 }

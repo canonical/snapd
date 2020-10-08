@@ -224,6 +224,14 @@ func (x *cmdModel) Execute(args []string) error {
 		fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
 	}
 
+	// only output the grade if it is non-empty, either it is not in the model
+	// assertion for all non-uc20 model assertions, or it is non-empty and
+	// required for uc20 model assertions
+	grade := modelAssertion.HeaderString("grade")
+	if grade != "" {
+		fmt.Fprintf(w, "grade%s\t%s\n", separator, grade)
+	}
+
 	// serial is same for all variants
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 

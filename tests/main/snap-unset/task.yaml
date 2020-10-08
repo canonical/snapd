@@ -1,11 +1,8 @@
 summary: Check that `snap unset` works and removes config options.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Build basic test snap"
-    install_local basic-hooks
+    "$TESTSTOOLS"/snaps-state install-local basic-hooks
 
 execute: |
     echo "Setting up initial configuration"

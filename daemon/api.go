@@ -581,7 +581,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 				Status: 400,
 			}, nil)
 		}
-		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+		if e, ok := err.(*httputil.PersistentNetworkError); ok {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
@@ -896,6 +896,7 @@ var (
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
 	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -2411,7 +2412,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)

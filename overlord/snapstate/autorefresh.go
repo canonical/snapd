@@ -254,52 +254,72 @@ func (m *autoRefresh) Ensure() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	// should we hold back refreshes?
-	holdTime, err := m.EffectiveRefreshHold()
+	held, holdTime, err := m.isRefreshHeld(refreshSchedule)
 	if err != nil {
 		return err
 	}
-	if holdTime.After(now) {
-		return nil
-	}
-	if !holdTime.IsZero() {
-		// expired hold case
-		m.clearRefreshHold()
-		if m.nextRefresh.Before(holdTime) {
-			// next refresh is obsolete, compute the next one
-			delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
-			now = time.Now()
-			m.nextRefresh = now.Add(delta)
-		}
-	}
 
 	// do refresh attempt (if needed)
-	if !m.nextRefresh.After(now) {
-		var can bool
-		can, err = m.canRefreshRespectingMetered(now, lastRefresh)
-		if err != nil {
-			return err
-		}
-		if !can {
-			// clear nextRefresh so that another refresh time is calculated
-			m.nextRefresh = time.Time{}
-			return nil
-		}
-
-		// Check that we have reasonable delays between attempts.
-		// If the store is under stress we need to make sure we do not
-		// hammer it too often
-		if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
-			return nil
+	if !held {
+		if !holdTime.IsZero() {
+			// expired hold case
+			m.clearRefreshHold()
+			if m.nextRefresh.Before(holdTime) {
+				// next refresh is obsolete, compute the next one
+				delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
+				now = time.Now()
+				m.nextRefresh = now.Add(delta)
+			}
 		}
 
-		err = m.launchAutoRefresh()
-		if _, ok := err.(*httputil.PerstistentNetworkError); !ok {
-			m.nextRefresh = time.Time{}
-		} // else - refresh will be retried after refreshRetryDelay
+		// refresh is also "held" if the next time is in the future
+		// note that the two times here could be exactly equal, so we use
+		// !After() because that is true in the case that the next refresh is
+		// before now, and the next refresh is equal to now without requiring an
+		// or operation
+		if !m.nextRefresh.After(now) {
+			var can bool
+			can, err = m.canRefreshRespectingMetered(now, lastRefresh)
+			if err != nil {
+				return err
+			}
+			if !can {
+				// clear nextRefresh so that another refresh time is calculated
+				m.nextRefresh = time.Time{}
+				return nil
+			}
+
+			// Check that we have reasonable delays between attempts.
+			// If the store is under stress we need to make sure we do not
+			// hammer it too often
+			if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
+				return nil
+			}
+
+			err = m.launchAutoRefresh(refreshSchedule)
+			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
+				m.nextRefresh = time.Time{}
+			} // else - refresh will be retried after refreshRetryDelay
+		}
 	}
 
 	return err
+}
+
+// isRefreshHeld returns whether an auto-refresh is currently held back or not,
+// as indicated by m.EffectiveRefreshHold().
+func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+	now := time.Now()
+	// should we hold back refreshes?
+	holdTime, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	if holdTime.After(now) {
+		return true, holdTime, nil
+	}
+
+	return false, holdTime, nil
 }
 
 func (m *autoRefresh) ensureLastRefreshAnchor() {
@@ -384,7 +404,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh() error {
+func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
@@ -393,8 +413,30 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}()
 
 	m.lastRefreshAttempt = time.Now()
+
+	// NOTE: this will unlock and re-lock state for network ops
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
-	if _, ok := err.(*httputil.PerstistentNetworkError); ok {
+
+	// TODO: we should have some way to lock just creating and starting changes,
+	//       as that would alleviate this race condition we are guarding against
+	//       with this check and probably would eliminate other similar race
+	//       conditions elsewhere
+
+	// re-check if the refresh is held because it could have been re-held and
+	// pushed back, in which case we need to abort the auto-refresh and wait
+	held, _, holdErr := m.isRefreshHeld(refreshSchedule)
+	if holdErr != nil {
+		return holdErr
+	}
+
+	if held {
+		// then a request came in that pushed the refresh out, so we will need
+		// to try again later
+		logger.Noticef("Auto-refresh was delayed mid-way through launching, aborting to try again later")
+		return nil
+	}
+
+	if _, ok := err.(*httputil.PersistentNetworkError); ok {
 		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
 	}

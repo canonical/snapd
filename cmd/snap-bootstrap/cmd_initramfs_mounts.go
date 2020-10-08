@@ -37,7 +37,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -139,12 +143,6 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
-		return err
-	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
@@ -165,6 +163,11 @@ func copyNetworkConfig(src, dst string) error {
 		//            network configuration for recover mode as well, but for
 		//            now this is fine
 		"system-data/etc/netplan/*",
+		// etc/machine-id is part of what systemd-networkd uses to generate a
+		// DHCP clientid (the other part being the interface name), so to have
+		// the same IP addresses across run mode and recover mode, we need to
+		// also copy the machine-id across
+		"system-data/etc/machine-id",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -173,7 +176,28 @@ func copyNetworkConfig(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authenication files like
+// copyUbuntuDataMisc copies miscellaneous other files from the run mode system
+// to the recover system such as:
+//  - timesync clock to keep the same time setting in recover as in run mode
+func copyUbuntuDataMisc(src, dst string) error {
+	for _, globEx := range []string{
+		// systemd's timesync clock file so that the time in recover mode moves
+		// forward to what it was in run mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyUbuntuDataAuth copies the authentication files like
 //  - extrausers passwd,shadow etc
 //  - sshd host configuration
 //  - user .ssh dir
@@ -192,13 +216,6 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
-		// so that the time in recover mode moves forward to what it was in run
-		// mode
-		// NOTE: we don't sync back the time movement from recover mode to run
-		// mode currently, unclear how/when we could do this, but recover mode
-		// isn't meant to be long lasting and as such it's probably not a big
-		// problem to "lose" the time spent in recover mode
-		"system-data/var/lib/systemd/timesync/clock",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -302,18 +319,15 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
+	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
 
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
-	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
@@ -362,7 +376,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	}
 
 	// load model and verified essential snaps metadata
-	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd}
+	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
 	model, essSnaps, err := mst.ReadEssential("", typs)
 	if err != nil {
 		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
@@ -381,6 +395,11 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
 	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			// don't need to mount the gadget anywhere, but we use the snap
+			// later hence it is loaded
+			continue
+		}
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
@@ -402,10 +421,38 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	//            writing it in Go instead of shellscript is desirable
 
 	// 2.3. mount "ubuntu-data" on a tmpfs
-	opts := &systemdMountOptions{
+	mntOpts := &systemdMountOptions{
 		Tmpfs: true,
 	}
-	return doSystemdMount("tmpfs", boot.InitramfsDataDir, opts)
+	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
+	if err != nil {
+		return err
+	}
+
+	// finally get the gadget snap from the essential snaps and use it to
+	// configure the ephemeral system
+	// should only be one seed snap
+	gadgetPath := ""
+	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			gadgetPath = essentialSnap.Path
+		}
+	}
+	gadgetSnap := squashfs.New(gadgetPath)
+
+	// we need to configure the ephemeral system with defaults and such using
+	// from the seed gadget
+	configOpts := &sysconfig.Options{
+		// never allow cloud-init to run inside the ephemeral system, in the
+		// install case we don't want it to ever run, and in the recover case
+		// cloud-init will already have run in run mode, so things like network
+		// config and users should already be setup and we will copy those
+		// further down in the setup for recover mode
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InitramfsWritableDir,
+		GadgetSnap:     gadgetSnap,
+	}
+	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {

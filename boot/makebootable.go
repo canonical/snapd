@@ -294,9 +294,13 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
+	// the bootloader config may have been installed when the ubuntu-boot
+	// partition was created, but for a trusted assets the bootloader config
+	// will be installed further down; for now identify the run mode
+	// bootloader by looking at the gadget
+	bl, err := bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot identify run system bootloader: %v", err)
 	}
 
 	// extract the kernel first and mark kernel_status ready
@@ -346,7 +350,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
-	_, ok = bl.(bootloader.ManagedAssetsBootloader)
+	_, ok = bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
 
@@ -358,6 +362,13 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 		if !ok {
 			return fmt.Errorf("cannot install boot config with a mismatched gadget")
+		}
+	}
+
+	if sealer != nil {
+		// seal the encryption key to the parameters specified in modeenv
+		if err := sealKeyToModeenv(sealer.encryptionKey, model, modeenv); err != nil {
+			return err
 		}
 	}
 

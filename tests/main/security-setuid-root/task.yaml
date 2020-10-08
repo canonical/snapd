@@ -10,9 +10,7 @@ details: |
 systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     echo "Ensure the snap-confine profiles on core are not loaded"
     for p in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
         apparmor_parser -R "$p"
