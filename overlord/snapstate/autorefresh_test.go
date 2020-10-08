@@ -568,6 +568,94 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	c.Check(nextRefresh1.Before(nextRefresh), Equals, false)
 }
 
+func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeastZeroTimes(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup hold-time as time.Time{} and next-refresh as now to simulate real
+	// console-conf-start situations
+	t0 := time.Now()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", time.Time{})
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	snapstate.MockNextRefresh(af, t0)
+
+	err := af.EnsureRefreshHoldAtLeast(time.Hour)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh did not happen
+	c.Check(s.store.ops, HasLen, 0)
+
+	// hold is now more than an hour later than when the test started
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+
+	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
+	// Before() and After() are false for the same time instants
+	c.Assert(t0.Add(time.Hour).After(t1), Equals, false)
+}
+
+func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup last-refresh as happening a long time ago, and refresh-hold as
+	// having been expired
+	t0 := time.Now()
+	s.state.Set("last-refresh", t0.Add(-12*time.Hour))
+
+	holdTime := t0.Add(-1 * time.Minute)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	snapstate.MockNextRefresh(af, holdTime.Add(-2*time.Minute))
+
+	err := af.EnsureRefreshHoldAtLeast(time.Hour)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh did not happen
+	c.Check(s.store.ops, HasLen, 0)
+
+	// hold is now more than an hour later than when the test started
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+
+	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
+	// Before() and After() are false for the same time instants
+	c.Assert(t0.Add(time.Hour).After(t1), Equals, false)
+
+	// setting it to a shorter time will not change it
+	err = af.EnsureRefreshHoldAtLeast(30 * time.Minute)
+	c.Assert(err, IsNil)
+
+	// time is still equal to t1
+	tr = config.NewTransaction(s.state)
+	var t2 time.Time
+	err = tr.Get("core", "refresh.hold", &t2)
+	// when traversing json through the core config transaction, there will be
+	// different wall/monotonic clock times, we remove this ambiguity by
+	// formatting as rfc3339 which will strip this negligible difference in time
+	c.Assert(t1.Format(time.RFC3339), Equals, t2.Format(time.RFC3339))
+}
+
 func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

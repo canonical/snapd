@@ -259,3 +259,7 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
+	return m.ensureRefreshHoldAtLeast(d)
+}

@@ -556,6 +556,39 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 
+// EnsureAutoRefreshesAreDelayed will delay refreshes for the specified amount
+// of time, as well as return any active auto-refresh changes that are currently
+// not ready so that the client can wait for those.
+func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*state.Change, error) {
+
+	// TODO: what about gadget defaults for refresh.hold or other gadget refresh
+	//       options? Unlikely that these are used with console-conf, so for now
+	//       we ignore that, but if the gadget sets the refresh.hold to later in
+	//       time than we were called with, that will be left alone, but if they
+	//       set it sooner, that will be effectively undone if they haven't
+	//       already started
+
+	// always delay for at least the specified time, this ensures that even if
+	// there are active refreshes right now, there won't be more auto-refreshes
+	// that happen after the current set finish
+	err := m.autoRefresh.ensureRefreshHoldAtLeast(delay)
+	if err != nil {
+		return nil, err
+	}
+
+	// look for auto refresh changes in progress
+	autoRefreshChgs := []*state.Change{}
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			autoRefreshChgs = append(autoRefreshChgs, chg)
+		}
+	}
+
+	// TODO: should we also get which specific snaps are being refreshed to
+	//       display to the user if there are auto-refreshes?
+	return autoRefreshChgs, nil
+}
+
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {

@@ -6253,3 +6253,50 @@ func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
 		RequireTypeBase:  false,
 	})
 }
+
+func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t0 := time.Now()
+	// with no changes in flight still works and we set the auto-refresh time as
+	// at least one minute past the start of the test
+	chgs, err := s.snapmgr.EnsureAutoRefreshesAreDelayed(time.Minute)
+	c.Assert(err, IsNil)
+	c.Assert(chgs, HasLen, 0)
+
+	var holdTime time.Time
+	tr := config.NewTransaction(s.state)
+	err = tr.Get("core", "refresh.hold", &holdTime)
+	c.Assert(err, IsNil)
+	// use After() == false in case holdTime is _exactly_ one minute later than
+	// t0, in which case both After() and Before() will be false
+	c.Assert(t0.Add(time.Minute).After(holdTime), Equals, false)
+
+	// now make some auto-refresh changes to make sure we get those figured out
+	chg0 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg0.AddTask(s.state.NewTask("nop", "do nothing"))
+
+	// make it in doing state
+	chg0.SetStatus(state.DoingStatus)
+
+	// this one will be picked up too
+	chg1 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg1.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg1.SetStatus(state.DoStatus)
+
+	// this one won't, it's Done
+	chg2 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg2.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg2.SetStatus(state.DoneStatus)
+
+	// nor this one, it's Undone
+	chg3 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg3.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg3.SetStatus(state.UndoneStatus)
+
+	// now we get our change ID returned when calling EnsureAutoRefreshesAreDelayed
+	chgs, err = s.snapmgr.EnsureAutoRefreshesAreDelayed(time.Minute)
+	c.Assert(err, IsNil)
+	c.Assert(chgs, DeepEquals, []*state.Change{chg0, chg1})
+}
