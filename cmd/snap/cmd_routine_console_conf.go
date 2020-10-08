@@ -45,9 +45,10 @@ user to begin configuring the device.
 `)
 
 func init() {
-	addRoutineCommand("console-conf-start", shortRoutineConsoleConfStartHelp, longRoutineConsoleConfStartHelp, func() flags.Commander {
+	c := addRoutineCommand("console-conf-start", shortRoutineConsoleConfStartHelp, longRoutineConsoleConfStartHelp, func() flags.Commander {
 		return &cmdRoutineConsoleConfStart{}
 	}, nil, nil)
+	c.hidden = true
 }
 
 func maybeHandleMaintenance(cli *client.Client, retryFunc func() error) (wasMaintenance bool, handlingError error) {
