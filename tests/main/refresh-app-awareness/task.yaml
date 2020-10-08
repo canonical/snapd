@@ -47,7 +47,7 @@ execute: |
 
     # We can run "snap run" as a test user, which does not have the permission
     # to create the run inhibition lock file.
-    tests.session -u test exec test-snapd-refresh.version | MATCH v1
+    tests.session -u test exec snap run test-snapd-refresh.version | MATCH v1
 
     # Run a sleeper app to keep the snap busy. The purpose of the stamp file is
     # to allow us to synchronize with the concurrently running program.
@@ -97,4 +97,4 @@ execute: |
 
     # We can run "snap run" as a test user, which does not have the permission
     # to open the run inhibition lock file for writing.
-    tests.session -u test exec test-snapd-refresh.version | MATCH v2
+    tests.session -u test exec snap run test-snapd-refresh.version | MATCH v2

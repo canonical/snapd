@@ -9,9 +9,7 @@ environment:
     ALIAS/testsnapdtoolscat: test_cat
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
 restore: |
     #shellcheck source=tests/lib/dirs.sh

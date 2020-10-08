@@ -159,7 +159,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -288,15 +288,19 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
+		// Bootloader for run mode
+		Role: bootloader.RoleRunMode,
 		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
+		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
-		// Bootloader that supports kernel asset extraction
-		ExtractedRunKernelImage: true,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
+	// the bootloader config may have been installed when the ubuntu-boot
+	// partition was created, but for a trusted assets the bootloader config
+	// will be installed further down; for now identify the run mode
+	// bootloader by looking at the gadget
+	bl, err := bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot identify run system bootloader: %v", err)
 	}
 
 	// extract the kernel first and mark kernel_status ready
@@ -346,7 +350,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
-	_, ok = bl.(bootloader.ManagedAssetsBootloader)
+	_, ok = bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
 
@@ -361,12 +365,19 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	if sealer != nil {
+		// seal the encryption key to the parameters specified in modeenv
+		if err := sealKeyToModeenv(sealer.encryptionKey, model, modeenv); err != nil {
+			return err
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
 		// let the bootloader know we will be touching the recovery
 		// partition
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {

@@ -79,12 +79,6 @@ func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool
 	return func() { osutilEnsureUserGroup = old }
 }
 
-func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {
-	old := osutilCheckFreeSpace
-	osutilCheckFreeSpace = mock
-	return func() { osutilCheckFreeSpace = old }
-}
-
 var (
 	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
@@ -102,6 +96,8 @@ var (
 	DefaultContentPlugProviders = defaultContentPlugProviders
 
 	HasOtherInstances = hasOtherInstances
+
+	SafetyMarginDiskSpace = safetyMarginDiskSpace
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -247,6 +243,14 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	currentSnaps = f
 	return func() {
 		currentSnaps = old
+	}
+}
+
+func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+	old := installSize
+	installSize = f
+	return func() {
+		installSize = old
 	}
 }
 

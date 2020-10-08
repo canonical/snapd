@@ -9,11 +9,8 @@ details: |
     can access timezone information and update it.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # Install a snap declaring a plug on timezone-control
-    install_local test-snapd-timedate-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
 
 restore: |
     # Restore the initial timezone

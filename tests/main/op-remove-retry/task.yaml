@@ -14,9 +14,7 @@ execute: |
     . "$TESTSLIB"/systemd.sh
 
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
     echo "And its mount point is kept busy"
     # we need a marker file, because just using systemd to figure out

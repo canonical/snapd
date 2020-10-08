@@ -13,9 +13,7 @@ prepare: |
     if is_core_system; then
         snap install test-snapd-upower --edge
     fi
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snap
+    "$TESTSTOOLS"/snaps-state install-local test-snap
 
 execute: |
     # shellcheck source=tests/lib/systems.sh

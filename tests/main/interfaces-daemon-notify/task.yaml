@@ -10,9 +10,7 @@ details: |
     to systemd through the notify socket
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-daemon-notify
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-notify
 
 execute: |
     echo "The interface is not connected by default"

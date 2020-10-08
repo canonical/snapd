@@ -3,6 +3,8 @@ defaults:
     service:
       rsyslog:
         disable: true
+      console-conf:
+        disable: true
     watchdog:
       runtime-timeout: 13m
     system:

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -312,8 +312,8 @@ func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asser
 	return fs.LoadAssertionsErr
 }
 
-func (fs *Fake16Seed) Model() (*asserts.Model, error) {
-	return fs.AssertsModel, nil
+func (fs *Fake16Seed) Model() *asserts.Model {
+	return fs.AssertsModel
 }
 
 func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
