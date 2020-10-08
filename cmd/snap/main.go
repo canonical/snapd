@@ -436,12 +436,13 @@ func exitCodeFromError(err error) int {
 	switch {
 	case err == nil:
 		return 0
-	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
-		return 5
 	case client.IsRetryable(err):
 		return 10
 	case xerrors.As(err, &mksquashfsError):
 		return 20
+	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+		// EX_USAGE, see sysexit.h
+		return 64
 	default:
 		return 1
 	}

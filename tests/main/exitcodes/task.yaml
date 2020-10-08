@@ -12,14 +12,14 @@ execute: |
     snap unknown-command
     RET=$?
     set -e
-    test "$RET" -eq 5
+    test "$RET" -eq 64
 
     echo "snap command with unknown flag return exit code 5"
     set +e
     snap pack --unknown-option
     RET=$?
     set -e
-    test "$RET" -eq 5
+    test "$RET" -eq 64
 
     echo "snap command with broken mksquashfs returns exit code 20"
     mount -o bind /bin/false /usr/bin/mksquashfs
