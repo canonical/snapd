@@ -27,7 +27,7 @@ cmd_prepare() {
 
 cmd_defer() {
     if [ ! -e defer.sh ]; then
-        echo "tests.cleanup: cannot defer, must call tests.prepare first" >&2
+        echo "tests.cleanup: cannot defer, must call tests.cleanup prepare first" >&2
         exit 1
     fi
     echo "$*" >> defer.sh
@@ -59,7 +59,7 @@ cmd_pop() {
 
 cmd_restore() {
     if [ ! -e defer.sh ]; then
-        echo "tests.cleanup: cannot restore, must call tests.prepare first" >&2
+        echo "tests.cleanup: cannot restore, must call tests.cleanup prepare first" >&2
         exit 1
     fi
     tac defer.sh | while read -r CMD; do
