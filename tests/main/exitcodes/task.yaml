@@ -2,9 +2,8 @@ summary: Checks for snap exit codes
 
 systems: [ubuntu-1*, ubuntu-2*]
 
-restore: |
-    umount /usr/bin/mksquashfs || true
-    umount /snap/core/current/usr/bin/mksquashfs || true
+prepare: |
+    tests.cleanup prepare
 
 execute: |
     echo "snap command with unknown command return exit code 5"
@@ -22,10 +21,15 @@ execute: |
     test "$RET" -eq 64
 
     echo "snap command with broken mksquashfs returns exit code 20"
-    mount -o bind /bin/false /usr/bin/mksquashfs
-    mount -o bind /bin/false /snap/core/current/usr/bin/mksquashfs
+    for b in /usr/bin/mksquashfs /snap/core/current/usr/bin/mksquashfs; do
+        mount -o bind /bin/false "$b"
+        tests.cleanup defer umount "$b"
+    done
     set +e
     snap pack "$TESTSLIB/snaps/test-snapd-sh"
     RET=$?
     set -e
     test "$RET" -eq 20
+
+restore: |
+    tests.cleanup restore
