@@ -1,3 +1,182 @@
+snapd (2.47) xenial; urgency=medium
+
+  * New upstream release, LP: #1895929
+    - tests: fix nested core20 shellcheck bug
+    - many/apparmor: adjust rule for reading apparmor profile for new
+      kernel
+    - snap-repair: add uc20 support
+    - cmd/snap/auto-import: stop importing system user assertions from
+      initramfs mnts
+    - cmd/s-b/initramfs-mounts: use ConfigureTargetSystem for install,
+      recover modes
+    - gadget: resolve device mapper devices for fallback device lookup
+    - secboot: add boot manager profile to pcr protection profile
+    - sysconfig,o/devicestate: mv DisableNoCloud to
+      DisableAfterLocalDatasourcesRun
+    - tests: make gadget-reseal more robust
+    - tests: skip nested images pre-configuration by default
+    - tests: fix for basic20 test running on external backend and rpi
+    - tests: improve kernel reseal test
+    - boot: adjust comments, naming, log success around reseal
+    - tests/nested, fakestore: changes necessary to run nested uc20
+      signed/secured tests
+    - tests: add nested core20 gadget reseal test
+    - boot/modeenv: track unknown keys in Read and put back into modeenv
+      during Write
+    - interfaces/process-control: add sched_setattr to seccomp
+    - boot: with unasserted kernels reseal if there's a hint modeenv
+      changed
+    - client: bump the default request timeout to 120s
+    - configcore: do not error in console-conf.disable for install mode
+    - boot: streamline bootstate20.go reseal and tests changes
+    - boot: reseal when changing kernel
+    - cmd/snap/model: specify grade in the model command output
+    - tests: simplify
+      repack_snapd_snap_with_deb_content_and_run_mode_first_boot_tweaks
+    - test: improve logging in nested tests
+    - nested: add support to telnet to serial port in nested VM
+    - secboot: use the snapcore/secboot native recovery key type
+    - tests/lib/nested.sh: use more focused cloud-init config for uc20
+    - tests/lib/nested.sh: wait for the tpm socket to exist
+    - spread.yaml, tests/nested: misc changes
+    - tests: add more checks to disk space awareness spread test
+    - tests: disk space awareness spread test
+    - boot: make MockUC20Device use a model and MockDevice more
+      realistic
+    - boot,many: reseal only when meaningful and necessary
+    - tests/nested/core20/kernel-failover: add test for failed refresh
+      of uc20 kernel
+    - tests: fix nested to work with qemu and kvm
+    - boot: reseal when updating boot assets
+    - tests: fix snap-routime-portal-info test
+    - boot: verify boot chain file in seal and reseal tests
+    - tests: use full path to test-snapd-refresh.version binary
+    - boot: store boot chains during install, helper for checking
+      whether reseal is needed
+    - boot: add call to reseal an existing key
+    - boot: consider boot chains with unrevisioned kernels incomparable
+    - overlord: assorted typos and miscellaneous changes
+    - boot: group SealKeyModelParams by model, improve testing
+    - secboot: adjust parameters to buildPCRProtectionProfile
+    - strutil: add SortedListsUniqueMergefrom the doc comment:
+    - snap/naming: upgrade TODO to TODO:UC20
+    - secboot: add call to reseal an existing key
+    - boot: in seal.go adjust error message and function names
+    - o/snapstate: check available disk space in RemoveMany
+    - boot: build bootchains data for sealing
+    - tests: remove "set -e" from function only shell libs
+    - o/snapstate: disk space check on UpdateMany
+    - o/snapstate: disk space check with snap update
+    - snap: implement new `snap reboot` command
+    - boot: do not reorder boot assets when generating predictable boot
+      chains and other small tweaks
+    - tests: some fixes and improvements for nested execution
+    - tests/core/uc20-recovery: fix check for at least specific calls to
+      mock-shutdown
+    - boot: be consistent using bootloader.Role* consts instead of
+      strings
+    - boot: helper for generating secboot load chains from a given boot
+      asset sequence
+    - boot: tweak boot chains to support a list of kernel command lines,
+      keep track of model and kernel boot file
+    - boot,secboot: switch to expose and use snapcore/secboot load event
+      trees
+    - tests: use `nested_exec` in core{20,}-early-config test
+    - devicestate: enable cloud-init on uc20 for grade signed and
+      secured
+    - boot: add "rootdir" to baseBootenvSuite and use in tests
+    - tests/lib/cla_check.py: don't allow users.noreply.github.com
+      commits to pass CLA
+    - boot: represent boot chains, helpers for marshalling and
+      equivalence checks
+    - boot: mark successful with boot assets
+    - client, api: handle insufficient space error
+    - o/snapstate: disk space check with single snap install
+    - configcore: "service.console-conf.disable" is gadget defaults only
+    - packaging/opensuse: fix for /usr/libexec on TW, do not hardcode
+      AppArmor profile path
+    - tests: skip udp protocol in nfs-support test on ubuntu-20.10
+    - packaging/debian-sid: tweak code preparing _build tree
+    - many: move seal code from gadget/install to boot
+    - tests: remove workaround for cups on ubuntu-20.10
+    - client: implement RebootToSystem
+    - many: seed.Model panics now if called before LoadAssertions
+    - daemon: add /v2/systems "reboot" action API
+    - github: run tests also on push to release branches
+    - interfaces/bluez: let slot access audio streams
+    - seed,c/snap-bootstrap: simplify snap-bootstrap seed reading with
+      new seed.ReadSystemEssential
+    - interfaces: allow snap-update-ns to read /proc/cmdline
+    - tests: new organization for nested tests
+    - o/snapstate, features: add feature flags for disk space awareness
+    - tests: workaround for cups issue on 20.10 where default printer is
+      not configured.
+    - interfaces: update cups-control and add cups for providing snaps
+    - boot: keep track of the original asset when observing updates
+    - tests: simplify and fix tests for disk space checks on snap remove
+    - sysconfig/cloudinit.go: add AllowCloudInit and use GadgetDir for
+      cloud.conf
+    - tests/main: mv core specific tests to core suite
+    - tests/lib/nested.sh: reset the TPM when we create the uc20 vm
+    - devicestate: rename "mockLogger" to "logbuf"
+    - many: introduce ContentChange for tracking gadget content in
+      observers
+    - many: fix partion vs partition typo
+    - bootloader: retrieve boot chains from bootloader
+    - devicestate: add tests around logging in RequestSystemAction
+    - boot: handle canceled update
+    - bootloader: tweak doc comments (thanks Samuele)
+    - seed/seedwriter: test local asserted snaps with UC20 grade signed
+    - sysconfig/cloudinit.go: add DisableNoCloud to
+      CloudInitRestrictOptions
+    - many: use BootFile type in load sequences
+    - boot,bootloader: clarifications after the changes to introduce
+      bootloader.Options.Role
+    - boot,bootloader,gadget: apply new bootloader.Options.Role
+    - o/snapstate, features: add feature flag for disk space check on
+      remove
+    - testutil: add checkers for symbolic link target
+    - many: refactor tpm seal parameter setting
+    - boot/bootstate20: reboot to rollback to previous kernel
+    - boot: add unit test helpers
+    - boot: observe update & rollback of trusted assets
+    - interfaces/utf: Add MIRKey to u2f devices
+    - o/devicestate/devicestate_cloudinit_test.go: test cleanup for uc20
+      cloud-init tests
+    - many: check that users of BaseTest don't forget to consume
+      cleanups
+    - tests/nested/core20/tpm: verify trusted boot assets tracking
+    - github: run macOS job with Go 1.14
+    - many: misc doc-comment changes and typo fixes
+    - o/snapstate: disk space check with InstallMany
+    - many: cloud-init cleanups from previous PR's
+    - tests: running tests on opensuse leap 15.2
+    - run-checks: check for dirty build tree too
+    - vendor: run ./get-deps.sh to update the secboot hash
+    - tests: update listing test for "-dirty" versions
+    - overlord/devicestate: do not release the state lock when updating
+      gadget assets
+    - secboot: read kernel efi image from snap file
+    - snap: add size to the random access file return interface
+    - daemon: correctly parse Content-Type HTTP header.
+    - tests: account for apt-get on core18
+    - cmd/snap-bootstrap/initramfs-mounts: compute string outside of
+      loop
+    - mkversion.sh: simple hack to include dirty in version if the tree
+      is dirty
+    - cgroup,snap: track hooks on system bus only
+    - interfaces/systemd: compare dereferenced Service
+    - run-checks: only check files in git for misspelling
+    - osutil: add a package doc comment (via doc.go)
+    - boot: complain about reused asset name during initial install
+    - snapstate: installSize helper that calculates total size of snaps
+      and their prerequisites
+    - snapshots: export of snapshots
+    - boot/initramfs_test.go: reset boot vars on the bootloader for each
+      iteration
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Sep 2020 17:19:13 +0200
+
 snapd (2.46.1) xenial; urgency=medium
 
   * New upstream release, LP: #1891134
@@ -4311,7 +4490,7 @@ snapd (2.35) xenial; urgency=medium
     - logger: try to not have double dates
     - debian: use deb-systemd-invoke instead of systemctl directly
     - tests: run all main tests on core18
-    - many: finish sharing a single TaskRunner with all the the managers
+    - many: finish sharing a single TaskRunner with all the managers
     - interfaces/repo: added AllHotplugInterfaces helper
     - snapstate: ensure kernel-track is honored on switch/refresh
     - overlord/ifacestate: support implicit slots on snapd

@@ -163,7 +163,13 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
 	if assertQuery != nil {
-		panic("no assertion query support")
+		toResolve, err := assertQuery.ToResolve()
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(toResolve) != 0 {
+			panic("no assertion query support")
+		}
 	}
 
 	if ctx == nil {
@@ -7645,6 +7651,28 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"change-kind": "some-global-op",
+			},
+		},
+	})
+}
+
+func (s *apiSuite) TestErrToResponseInsufficentSpace(c *check.C) {
+	err := &snapstate.InsufficientSpaceError{
+		Snaps:      []string{"foo", "bar"},
+		ChangeKind: "some-change",
+		Path:       "/path",
+		Message:    "specific error msg",
+	}
+	rsp := errToResponse(err, nil, BadRequest, "%s: %v", "ERR").(*resp)
+	c.Check(rsp, check.DeepEquals, &resp{
+		Status: 507,
+		Type:   ResponseTypeError,
+		Result: &errorResult{
+			Message: "specific error msg",
+			Kind:    client.ErrorKindInsufficientDiskSpace,
+			Value: map[string]interface{}{
+				"snap-names":  []string{"foo", "bar"},
+				"change-kind": "some-change",
 			},
 		},
 	})

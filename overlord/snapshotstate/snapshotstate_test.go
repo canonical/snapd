@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -60,6 +61,7 @@ func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 }
 
 func (snapshotSuite) TearDownTest(c *check.C) {
@@ -70,13 +72,43 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	// Disk last set id unset, state set id unset, use 1
 	sid, err := snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 
+	var stateSetID uint64
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(1))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 9 > state set id 1, use 9++ = 10
 	sid, err = snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
-	c.Check(sid, check.Equals, uint64(2))
+	c.Check(sid, check.Equals, uint64(10))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(10))
+
+	// Disk last set id 9 < state set id 10, use 10++ = 11
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(11))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(11))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 88 > state set id 11, use 88++ = 89
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(89))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(89))
 }
 
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {

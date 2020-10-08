@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -75,7 +76,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -105,9 +106,52 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
 	c.Check(err, ErrorMatches, `option "service.rsyslog.disable" has invalid value "foo"`)
+}
+
+func (s *sysconfigSuite) TestInstallModeEarlyDefaultsFromGadgetSeedSnap(c *C) {
+	const gadgetDefaultsYaml = `
+defaults:
+  system:
+    service:
+      rsyslog.disable: true
+      ssh.disable: true
+    journal.persistent: true
+`
+	snapFile := snaptest.MakeTestSnapWithFiles(c, "name: pc\ntype: gadget\nversion: 1", [][]string{
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
+	})
+
+	snapContainer := squashfs.New(snapFile)
+
+	var sysctlArgs [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlRestorer()
+
+	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
+	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
+
+	// sanity
+	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
+	exists, _, _ := osutil.DirExists(journalPath)
+	c.Check(exists, Equals, false)
+
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+		TargetRootDir: boot.InstallHostWritableDir,
+		GadgetSnap:    snapContainer,
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
+	exists, _, _ = osutil.DirExists(journalPath)
+	c.Check(exists, Equals, true)
+
+	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InstallHostWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
 }

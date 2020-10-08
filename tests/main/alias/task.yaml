@@ -1,9 +1,7 @@
 summary: Check snap alias and snap unalias
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local aliases
+    "$TESTSTOOLS"/snaps-state install-local aliases
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
