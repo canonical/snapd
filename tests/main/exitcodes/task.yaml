@@ -4,6 +4,7 @@ systems: [ubuntu-1*, ubuntu-2*]
 
 restore: |
     umount /usr/bin/mksquashfs || true
+    umount /snap/core/current/usr/bin/mksquashfs || true
 
 execute: |
     echo "snap command with unknown command return exit code 5"
@@ -22,6 +23,7 @@ execute: |
 
     echo "snap command with broken mksquashfs returns exit code 20"
     mount -o bind /bin/false /usr/bin/mksquashfs
+    mount -o bind /bin/false /snap/core/current/usr/bin/mksquashfs
     set +e
     snap pack "$TESTSLIB/snaps/test-snapd-sh"
     RET=$?
