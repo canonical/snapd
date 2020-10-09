@@ -175,19 +175,20 @@ def checkfile(path):
         raise errors
 
 
-def findfiles(indir):
-    for root, _, files in os.walk(indir, topdown=True):
-        for name in files:
-            if name in ['spread.yaml', 'task.yaml']:
-                yield os.path.join(root, name)
+def findfiles(locations):
+    for loc in locations:
+        if os.path.isdir(loc):
+            for root, _, files in os.walk(loc, topdown=True):
+                for name in files:
+                    if name in ['spread.yaml', 'task.yaml']:
+                        yield os.path.join(root, name)
+        else:
+            yield loc
 
 
-def checkpath(loc, max_workers):
-    if os.path.isdir(loc):
-        # setup iterator
-        locations = findfiles(loc)
-    else:
-        locations = [loc]
+def checkpaths(locs, max_workers):
+    # setup iterator
+    locations = findfiles(locs)
 
     failed = []
 
@@ -225,11 +226,10 @@ def loadfilelist(flistpath):
 def main(opts):
     paths = opts.paths or ['.']
     failures = ShellcheckFailures()
-    for pth in paths:
-        try:
-            checkpath(pth, opts.max_procs)
-        except ShellcheckFailures as sf:
-            failures.merge(sf)
+    try:
+        checkpaths(paths, opts.max_procs)
+    except ShellcheckFailures as sf:
+        failures.merge(sf)
 
     if failures:
         if opts.can_fail:
