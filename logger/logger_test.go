@@ -127,7 +127,7 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 
 func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1"), 0644)
+	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
 	c.Assert(err, IsNil)
 	restore := logger.MockProcCmdline(mockProcCmdline)
 	defer restore()
