@@ -1632,6 +1632,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 		"system-data/etc/netplan/50-cloud-init.yaml",   // example cloud-init filename
 		// systemd clock file
 		"system-data/var/lib/systemd/timesync/clock",
+		"system-data/etc/machine-id", // machine-id for systemd-networkd
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
@@ -1641,6 +1642,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 		"user-data/user2/.snap/sneaky-not-auth.json",
 		"system-data/etc/not-networking/netplan",
 		"system-data/var/lib/systemd/timesync/clock-not-the-clock",
+		"system-data/etc/machine-id-except-not",
 	}
 	for _, mockFile := range append(mockCopiedFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockFile)
