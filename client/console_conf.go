@@ -24,11 +24,12 @@ import "time"
 // ConsoleConfStartResponse is the response for starting the console-conf
 // routine.
 type ConsoleConfStartResponse struct {
-	ActiveSnapAutoRefreshChanges []string `json:"active-snap-auto-refreshes,omitempty"`
+	ActiveAutoRefreshChanges []string `json:"active-auto-refreshes,omitempty"`
+	ActiveAutoRefreshSnaps   []string `json:"active-auto-refresh-snaps,omitempty"`
 }
 
 // ConsoleConfStart starts the console-conf start routine.
-func (client *Client) ConsoleConfStart() ([]string, error) {
+func (client *Client) ConsoleConfStart() ([]string, []string, error) {
 	resp := &ConsoleConfStartResponse{}
 	// do the post with a short timeout so that if snapd is not available due to
 	// maintenance we will return very quickly so the caller can handle that
@@ -36,5 +37,5 @@ func (client *Client) ConsoleConfStart() ([]string, error) {
 		Timeout: 2 * time.Second,
 	}
 	_, err := client.doSyncWithOpts("POST", "/v2/internal/console-conf-start", nil, nil, nil, resp, opts)
-	return resp.ActiveSnapAutoRefreshChanges, err
+	return resp.ActiveAutoRefreshChanges, resp.ActiveAutoRefreshSnaps, err
 }

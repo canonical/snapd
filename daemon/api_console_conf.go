@@ -43,7 +43,8 @@ type consoleConfRoutine struct{}
 // ConsoleConfStartRoutineResult is the result of running the console-conf start
 // routine..
 type ConsoleConfStartRoutineResult struct {
-	ActiveSnapAutoRefreshChanges []string `json:"active-snap-auto-refreshes,omitempty"`
+	ActiveAutoRefreshChanges []string `json:"active-auto-refreshes,omitempty"`
+	ActiveAutoRefreshSnaps   []string `json:"active-auto-refresh-snaps,omitempty"`
 }
 
 func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -78,12 +79,20 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	}
 
 	chgIds := make([]string, 0, len(snapAutoRefreshChanges))
+	snapNames := make([]string, 0)
 	for _, chg := range snapAutoRefreshChanges {
 		chgIds = append(chgIds, chg.ID())
+		var updatedSnaps []string
+		err := chg.Get("snap-names", &updatedSnaps)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+		snapNames = append(snapNames, updatedSnaps...)
 	}
 
 	// we have changes that the client should wait for before being ready
 	return SyncResponse(&ConsoleConfStartRoutineResult{
-		ActiveSnapAutoRefreshChanges: chgIds,
+		ActiveAutoRefreshChanges: chgIds,
+		ActiveAutoRefreshSnaps:   snapNames,
 	}, nil)
 }

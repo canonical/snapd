@@ -584,8 +584,6 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 		}
 	}
 
-	// TODO: should we also get which specific snaps are being refreshed to
-	//       display to the user if there are auto-refreshes?
 	return autoRefreshChgs, nil
 }
 

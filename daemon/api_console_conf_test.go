@@ -53,9 +53,8 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 
 	// no changes in state, no changes in response
 	rsp := consoleConfStartRoutine(routineConsoleConfStartCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, FitsTypeOf, &ConsoleConfStartRoutineResult{})
-	c.Assert(rsp.Result.(*ConsoleConfStartRoutineResult).ActiveSnapAutoRefreshChanges, HasLen, 0)
+	c.Check(rsp.Type, Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, DeepEquals, &ConsoleConfStartRoutineResult{})
 
 	// we did set the refresh.hold time back 20 minutes though
 	st.Lock()
@@ -76,21 +75,25 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 
 	// make it in doing state
 	chg0.SetStatus(state.DoingStatus)
+	chg0.Set("snap-names", []string{"doing-snap"})
 
 	// this one will be picked up too
 	chg1 := st.NewChange("auto-refresh", "auto-refresh-the-things")
 	chg1.AddTask(st.NewTask("nop", "do nothing"))
 	chg1.SetStatus(state.DoStatus)
+	chg1.Set("snap-names", []string{"do-snap"})
 
 	// this one won't, it's Done
 	chg2 := st.NewChange("auto-refresh", "auto-refresh-the-things")
 	chg2.AddTask(st.NewTask("nop", "do nothing"))
 	chg2.SetStatus(state.DoneStatus)
+	chg2.Set("snap-names", []string{"done-snap"})
 
 	// nor this one, it's Undone
 	chg3 := st.NewChange("auto-refresh", "auto-refresh-the-things")
 	chg3.AddTask(st.NewTask("nop", "do nothing"))
 	chg3.SetStatus(state.UndoneStatus)
+	chg3.Set("snap-names", []string{"undone-snap"})
 
 	st.Unlock()
 	defer st.Lock()
@@ -98,11 +101,15 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	req2, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
 	c.Assert(err, IsNil)
 	rsp2 := consoleConfStartRoutine(routineConsoleConfStartCmd, req2, nil).(*resp)
-	c.Assert(rsp2.Type, Equals, ResponseTypeSync)
+	c.Check(rsp2.Type, Equals, ResponseTypeSync)
 	c.Assert(rsp2.Result, FitsTypeOf, &ConsoleConfStartRoutineResult{})
-	respChanges := rsp2.Result.(*ConsoleConfStartRoutineResult).ActiveSnapAutoRefreshChanges
-	sort.Strings(respChanges)
+	res := rsp2.Result.(*ConsoleConfStartRoutineResult)
+	sort.Strings(res.ActiveAutoRefreshChanges)
+	sort.Strings(res.ActiveAutoRefreshSnaps)
 	expChgs := []string{chg0.ID(), chg1.ID()}
 	sort.Strings(expChgs)
-	c.Assert(respChanges, DeepEquals, expChgs)
+	c.Assert(res, DeepEquals, &ConsoleConfStartRoutineResult{
+		ActiveAutoRefreshChanges: expChgs,
+		ActiveAutoRefreshSnaps:   []string{"do-snap", "doing-snap"},
+	})
 }
