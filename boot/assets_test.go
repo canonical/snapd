@@ -225,18 +225,23 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 }
 
 func (s *assetsSuite) TestInstallObserverNew(c *C) {
-	useEncryption := true
 	d := c.MkDir()
-	// we get an observer for UC20
+	// bootloader in gadget cannot be identified
 	uc20Model := boottest.MakeMockUC20Model()
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
-	c.Assert(obs, NotNil)
-	// we also get one when there's no encryption of the data partitions
-	useEncryption = false
-	obs, err = boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
-	c.Assert(obs, NotNil)
+	for _, encryption := range []bool{true, false} {
+		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+		c.Assert(err, ErrorMatches, "cannot find bootloader: cannot determine bootloader")
+		c.Assert(obs, IsNil)
+	}
+
+	// pretend grub is used
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "grub.conf"), nil, 0755), IsNil)
+
+	for _, encryption := range []bool{true, false} {
+		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+		c.Assert(err, IsNil)
+		c.Assert(obs, NotNil)
+	}
 
 	// but nil for non UC20
 	nonUC20Model := boottest.MakeMockModel()
@@ -523,40 +528,6 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 }
 
-func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
-	d := c.MkDir()
-
-	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
-	tab.TrustedAssetsErr = fmt.Errorf("mocked trusted assets error")
-
-	bootloader.ForceError(fmt.Errorf("mocked bootloader error"))
-	// we get an observer for UC20
-	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
-	c.Assert(obs, NotNil)
-
-	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("data"), 0644)
-	c.Assert(err, IsNil)
-
-	// there is no known bootloader in gadget
-	res, err := obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
-		"asset", &gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, ErrorMatches, "cannot find bootloader: mocked bootloader error")
-	c.Check(res, Equals, gadget.ChangeAbort)
-
-	// force a bootloader now
-	bootloader.ForceError(nil)
-	bootloader.Force(tab)
-	defer bootloader.Force(nil)
-
-	res, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
-		"asset", &gadget.ContentChange{After: filepath.Join(d, "foobar")})
-	c.Assert(err, ErrorMatches, `cannot list "trusted-assets" bootloader trusted assets: mocked trusted assets error`)
-	c.Check(res, Equals, gadget.ChangeAbort)
-}
-
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	d := c.MkDir()
 
@@ -572,6 +543,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
+	// trusted assets for the run bootloader were asked for
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -594,8 +567,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("other-asset-%s", dataHash)),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)),
 	})
-	// the list of trusted assets was asked for just once
-	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// the list of trusted assets for recovery was asked for
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 	// let's see what the observer has tracked
 	tracked := obs.CurrentTrustedRecoveryBootAssetsMap()
 	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
@@ -618,12 +591,14 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
+	// got the list of trusted assets for run bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 
 	// does not fail when the bootloader has no trusted assets
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	c.Assert(err, IsNil)
 	// asked for the list of trusted assets
-	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 	// nothing was tracked
 	tracked := obs.CurrentTrustedRecoveryBootAssetsMap()
 	c.Check(tracked, IsNil)
@@ -649,6 +624,8 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
+	// got the list of trusted assets for run bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
 
 	err = ioutil.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644)
 	c.Assert(err, IsNil)
@@ -660,12 +637,16 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	// same asset name but different content
 	c.Assert(err, ErrorMatches, `cannot reuse recovery asset name "asset"`)
-	// the list of trusted assets was asked for just once
-	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// got the list of trusted assets for recovery bootloader
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 	d := c.MkDir()
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{
+		"asset",
+	})
 
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
@@ -673,24 +654,20 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryErr(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
-		"asset",
-	})
-
 	// no trusted asset
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	c.Assert(err, ErrorMatches, "cannot open asset file: .*/asset: no such file or directory")
-	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
 	tab.TrustedAssetsErr = fmt.Errorf("fail")
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
-	c.Assert(err, ErrorMatches, `cannot list "trusted" recovery bootloader trusted assets: fail`)
-	c.Check(tab.TrustedAssetsCalls, Equals, 2)
+	c.Assert(err, ErrorMatches, `cannot identify recovery system bootloader: cannot list "trusted" bootloader trusted assets: fail`)
+	c.Check(tab.TrustedAssetsCalls, Equals, 3)
 
 	// force an error
 	bootloader.ForceError(fmt.Errorf("fail bootloader"))
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
-	c.Assert(err, ErrorMatches, `cannot identify recovery system bootloader: fail bootloader`)
+	c.Assert(err, ErrorMatches, `cannot identify recovery system bootloader: cannot find bootloader: fail bootloader`)
 }
 
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {

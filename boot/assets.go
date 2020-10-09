@@ -182,11 +182,29 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if gadgetDir == "" {
 		return nil, fmt.Errorf("internal error: gadget dir not provided")
 	}
-
+	// TODO:UC20: clarify use of empty rootdir when getting the lists of
+	// managed and trusted assets
+	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, "",
+		&bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		})
+	if err != nil {
+		return nil, err
+	}
+	if !useEncryption {
+		// we do not care about trusted assets when not encrypting data
+		// partition
+		runTrusted = nil
+	}
 	return &TrustedAssetsInstallObserver{
-		model:              model,
-		cache:              newTrustedAssetsCache(dirs.SnapBootAssetsDir),
-		gadgetDir:          gadgetDir,
+		model:     model,
+		cache:     newTrustedAssetsCache(dirs.SnapBootAssetsDir),
+		gadgetDir: gadgetDir,
+
+		blName:             runBl.Name(),
+		managedAssets:      runManaged,
+		trustedAssets:      runTrusted,
 		trackTrustedAssets: useEncryption,
 	}, nil
 }
@@ -238,26 +256,11 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		return gadget.ChangeApply, nil
 	}
 
-	if o.blName == "" {
-		runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(o.gadgetDir, InitramfsUbuntuBootDir,
-			&bootloader.Options{
-				Role:        bootloader.RoleRunMode,
-				NoSlashBoot: true,
-			})
-		if err != nil {
-			return gadget.ChangeAbort, err
-		}
-		o.blName = runBl.Name()
-		if o.trackTrustedAssets {
-			o.trustedAssets = runTrusted
-		}
-		o.managedAssets = runManaged
-	}
 	if len(o.managedAssets) != 0 && strutil.ListContains(o.managedAssets, relativeTarget) {
 		// this asset is managed by bootloader installation
 		return gadget.ChangeIgnore, nil
 	}
-	if !o.trackTrustedAssets || len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
+	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
 		return gadget.ChangeApply, nil
 	}
@@ -287,20 +290,15 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		// assets do not need tracking, nothing to do
 		return nil
 	}
-	bl, err := bootloader.Find(recoveryRootDir, &bootloader.Options{
+	bl, trustedAssets, _, err := findMaybeTrustedBootloaderAndAssets(recoveryRootDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot identify recovery system bootloader: %v", err)
 	}
-	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		// not a trusted assets bootloader
+	if len(trustedAssets) == 0 {
+		// not a trusted assets bootloader or has no trusted assets
 		return nil
-	}
-	trustedAssets, err := tbl.TrustedAssets()
-	if err != nil {
-		return fmt.Errorf("cannot list %q recovery bootloader trusted assets: %v", bl.Name(), err)
 	}
 	for _, trustedAsset := range trustedAssets {
 		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), bl.Name(), filepath.Base(trustedAsset))
