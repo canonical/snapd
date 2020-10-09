@@ -225,11 +225,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	dataKeySet := keysForRoles[gadget.SystemData]
 
-	// ensure directories
-	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
+	// ensure directory for keys exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
 	}
 
 	// Write the recovery key
