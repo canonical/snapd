@@ -107,5 +107,8 @@ func main() {
 		if err := ioutil.WriteFile("unsealed-key", dataKey.Key[:], 0644); err != nil {
 			panic(err)
 		}
+		if err := ioutil.WriteFile("recovery-key", dataKey.RecoveryKey[:], 0644); err != nil {
+			panic(err)
+		}
 	}
 }
