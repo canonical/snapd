@@ -186,19 +186,18 @@ def findfiles(locations):
             yield loc
 
 
+def check1path(path):
+    try:
+        checkfile(path)
+    except ShellcheckError as err:
+        return err
+    return None
+
+
 def checkpaths(locs, max_workers):
     # setup iterator
     locations = findfiles(locs)
-
     failed = []
-
-    def check1path(path):
-        try:
-            checkfile(path)
-        except ShellcheckError as err:
-            return err
-        return None
-
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for serr in executor.map(check1path, locations):
             if serr is None:
