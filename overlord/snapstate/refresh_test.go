@@ -209,6 +209,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
+	backend := &fakeSnappyBackend{}
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -221,21 +222,22 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	lock, err := snapstate.DoHardRefreshFlow(s.state, snapst, info)
+	lock, err := snapstate.DoHardRefreshFlow(backend, s.state, snapst, info)
 	c.Assert(err, IsNil)
+	c.Assert(lock, NotNil)
 	defer lock.Close()
 
 	// We should be able to unlock the lock without an error because
 	// it was acquired in the same process by the tested logic.
 	c.Assert(lock.Unlock(), IsNil)
 
-	// In addition, there's now a run inhibit lock with a refresh hint.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
-	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+	// In addition, the fake backend recorded that a lock was established.
+	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
+	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
+	backend := &fakeSnappyBackend{}
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -248,12 +250,11 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	lock, err := snapstate.DoHardRefreshFlow(s.state, snapst, info)
+	lock, err := snapstate.DoHardRefreshFlow(backend, s.state, snapst, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 	c.Assert(lock, IsNil)
 
 	// Sanity check: the inhibition lock was not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
-	c.Assert(err, IsNil)
-	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
+	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
 }

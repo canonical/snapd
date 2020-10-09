@@ -137,6 +137,9 @@ var (
 	NewCatalogRefresh            = newCatalogRefresh
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+
+	DoSoftRefreshCheck = doSoftRefreshCheck
+	DoHardRefreshFlow  = doHardRefreshFlow
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -258,12 +261,6 @@ func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (ui
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
-)
-
-// refresh
-var (
-	DoSoftRefreshCheck = doSoftRefreshCheck
-	DoHardRefreshFlow  = doHardRefreshFlow
 )
 
 func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
