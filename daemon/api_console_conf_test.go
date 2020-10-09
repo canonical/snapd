@@ -63,6 +63,7 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	tr := config.NewTransaction(st)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
 
 	c.Assert(t0.Add(20*time.Minute).After(t1), Equals, false)
 

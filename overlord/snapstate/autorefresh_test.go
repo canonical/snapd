@@ -598,6 +598,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeastZeroTimes(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
 
 	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
 	// Before() and After() are false for the same time instants
@@ -637,6 +638,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
 
 	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
 	// Before() and After() are false for the same time instants
@@ -650,6 +652,8 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t2 time.Time
 	err = tr.Get("core", "refresh.hold", &t2)
+	c.Assert(err, IsNil)
+
 	// when traversing json through the core config transaction, there will be
 	// different wall/monotonic clock times, we remove this ambiguity by
 	// formatting as rfc3339 which will strip this negligible difference in time
