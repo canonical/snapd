@@ -1,0 +1,40 @@
+summary: Ensure that calling fdehook binaries works
+
+# enough to test this on ubuntu 20.04+
+systems: [ubuntu-2*]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
+
+execute: |
+    # build a fde hook runner
+    go build run-fdehook.go
+
+    # create trivial "unlock" fde hook
+    mkdir -p fake-kernel/meta/hooks/
+    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    #!/bin/sh -e
+    echo "$(cat -)"
+    EOF
+    chmod +x fake-kernel/meta/hooks/fde
+    # validate that unlock input/output works
+    echo fake-sealed-key | ./run-fdehook ./fake-kernel | MATCH "unsealed key"
+
+    # bind mount target needs to be created outside of the sandbox
+    touch /tmp/test-bind-mount
+    # now validate that mounting is sandboxed
+    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    #!/bin/sh -e
+    mount -o bind /bin/true /tmp/test-binary
+    echo "mount was successful"
+    EOF
+    set +e
+    ./run-fdehook ./fake-kernel
+    RET=$?
+    set -e
+    test "$RET" -ne 0
+    # no mount was performed
+    not test -x /tmp/test-bind-mount
