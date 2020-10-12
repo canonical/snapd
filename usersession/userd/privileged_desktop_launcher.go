@@ -208,7 +208,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 		}
 	}
 
-	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s /snap/bin/", desktopFile)
+	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s " + dirs.SnapBinariesDir, desktopFile)
 	if !strings.HasPrefix(launch, expectedPrefix) {
 		return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value: %q", desktopFile, launch)
 	}
