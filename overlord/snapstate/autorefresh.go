@@ -539,8 +539,6 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		}
 
 		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
-			// TODO: this is not unit-tested.
-
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
 			refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)

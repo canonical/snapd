@@ -711,7 +711,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }
 
-func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
+func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -737,6 +737,39 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
 	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+	c.Check(notificationSent, Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	notificationSent := false
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationSent = true
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*7*24/2-time.Second)
+	})
+	defer restore()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition / 2)
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &pastInstant,
+	}
+
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapInfo: si}
+	})
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+
+	pending, _ := s.state.PendingWarnings()
+	c.Assert(pending, HasLen, 0) // This case does not warn
 	c.Check(notificationSent, Equals, true)
 }
 
