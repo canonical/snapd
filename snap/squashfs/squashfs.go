@@ -476,11 +476,11 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 }
 
 type MksquashfsError struct {
-	errStr string
+	msg string
 }
 
 func (m MksquashfsError) Error() string {
-	return m.errStr
+	return m.msg
 }
 
 type BuildOpts struct {

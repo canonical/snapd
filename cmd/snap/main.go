@@ -531,11 +531,11 @@ var wrongDashes = string([]rune{
 })
 
 type unknownCommandError struct {
-	errStr string
+	msg string
 }
 
 func (e unknownCommandError) Error() string {
-	return e.errStr
+	return e.msg
 }
 
 func run() error {
