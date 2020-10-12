@@ -39,27 +39,43 @@ execute: |
     systemctl restart snapd.socket
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     test-snapd-desktop.sh -c echo 'hello world'
     tests.session -u test exec test-snapd-desktop.sh -c 'echo hello world'
     tests.session -u test exec test-snapd-desktop.sh -c 'mkdir /home/test/foo'
     tests.session -u test exec test-snapd-desktop.sh -c 'echo foo >/home/test/foo/bar'
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # the way we set up linger makes systemd and SELinux unhappy and may trigger
+    # a denials like this:
+    # type=AVC msg=audit(07/27/20 14:52:25.845:3443) : avc: denied { setattr }
+    #     for pid=96609 comm=(d-logind) name=linger dev="sda2" ino=1437682
+    #     scontext=system_u:system_r:init_t:s0
+    #     tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0 tclass=dir
+    #     permissive=1
+    # type=AVC msg=audit(07/27/20 14:52:25.845:3444) : avc: denied { read } for
+    #     pid=96609 comm=(d-logind) name=linger dev="sda2" ino=1437682
+    #     scontext=system_u:system_r:init_t:s0
+    #     tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0 tclass=dir
+    #     permissive=1
+    #
+    # This is a first checkpoint after the session was started, so if denials
+    # were logged, they it will show up now, but not for subsequent checkpoints.
+    # XXX ausearch exits with 1 when there are denials
+    ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+    grep -v -E 'avc:  denied  { (setattr|read) } .* name=linger .* scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
+        not MATCH 'type=AVC'
+
     # another revision triggers copy of snap data
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # removal triggers cleanups
     snap remove test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-appstream-metadata
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-appstream-metadata
     snap connect test-snapd-appstream-metadata:appstream-metadata
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     snap stop test-snapd-service
     snap start test-snapd-service
     # TODO: enable once there is a workaround for denials caused by journalctl
@@ -67,13 +83,13 @@ execute: |
     snap remove test-snapd-service
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-layout
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
     test-snapd-layout.sh -c 'ls /'
     su test -c "test-snapd-layout.sh -c 'ls /'"
     snap remove test-snapd-layout
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local socket-activation
+    "$TESTSTOOLS"/snaps-state install-local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
     snap remove socket-activation
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
@@ -82,7 +98,7 @@ execute: |
     # is bind mounted into the mount namespace of a snap, thus the SELinux
     # contexts from the host appear inside, and the policy needs to allow
     # proper transitions with these labels
-    install_local test-snapd-snapctl-core18
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-snapctl-core18
     snap restart test-snapd-snapctl-core18
     snap remove test-snapd-snapctl-core18
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

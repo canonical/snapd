@@ -28,12 +28,9 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # get the full journal to see any out-of-memory errors
     # shellcheck disable=SC2119
-    get_journalctl_log
+    "$TESTSTOOLS"/journal-state get-log
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
@@ -48,10 +45,8 @@ execute: |
     fi
 
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local "$PROVIDER_SNAP"
-    install_local "$CONSUMER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
     echo "For each snap-provided slot from $PROVIDER_SNAP"
     for slotcmd in "$SNAP_MOUNT_DIR"/bin/"$PROVIDER_SNAP".* ; do

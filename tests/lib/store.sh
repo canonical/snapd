@@ -5,9 +5,6 @@ STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
-# shellcheck source=tests/lib/journalctl.sh
-. "$TESTSLIB/journalctl.sh"
-
 _configure_store_backends(){
     systemctl stop snapd.service snapd.socket
     mkdir -p "$(dirname $STORE_CONFIG)"
@@ -45,6 +42,51 @@ make_snap_installable(){
 
     new_snap_declaration "$dir" "$snap_path"
     new_snap_revision "$dir" "$snap_path"
+}
+
+make_snap_installable_with_id(){
+    local dir="$1"
+    local snap_path="$2"
+    local snap_id="$3"
+
+    if ! command -v yaml2json; then
+        snap install remarshal
+    fi
+    if ! command -v jq; then
+        #shellcheck source=tests/lib/core-config.sh
+        . "$TESTSLIB"/core-config.sh
+
+        SUFFIX="$(get_test_snap_suffix)"
+        snap install "jq$SUFFIX"
+    fi
+
+    # unsquash the snap to get it's name
+    unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
+    snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
+    rm -rf /tmp/snap-squashfs
+
+
+    cat >> /tmp/snap-decl.json << EOF
+{
+    "type": "snap-declaration",
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "snap-name": "${snap_name}"
+}
+EOF
+
+    cat >> /tmp/snap-rev.json << EOF
+{
+    "type": "snap-revision",
+    "snap-id": "${snap_id}"
+}
+EOF
+
+    fakestore new-snap-declaration --dir "$dir" --snap-decl-json=/tmp/snap-decl.json "$snap_path"
+    fakestore new-snap-revision --dir "$dir" --snap-rev-json=/tmp/snap-rev.json "$snap_path"
+
+    rm -rf /tmp/snap-decl.json
+    rm -rf /tmp/snap-rev.json
 }
 
 new_snap_declaration(){
@@ -97,7 +139,7 @@ setup_fake_store(){
 
     echo "fakestore service not started properly"
     ss -ntlp | grep "127.0.0.1:$PORT" || true
-    get_journalctl_log -u fakestore || true
+    "$TESTSTOOLS"/journal-state get-log -u fakestore || true
     systemctl status fakestore || true
     exit 1
 }

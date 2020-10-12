@@ -50,7 +50,7 @@ restore: |
     umount /sys/class/gpio || true
 
 debug: |
-    journalctl -u fake-gpio.service
+    "$TESTSTOOLS"/journal-state get-log -u fake-gpio.service
 
 execute: |
     # Core image that were created using spread will have a fake "gpio-pin".
@@ -62,9 +62,7 @@ execute: |
     fi
 
     echo "Install a snap that uses the gpio consumer"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local gpio-consumer
+    "$TESTSTOOLS"/snaps-state install-local gpio-consumer
 
     echo "And connect the gpio pin"
     snap connect gpio-consumer:gpio :gpio-pin

@@ -173,7 +173,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			// Classic, PrepareDir is the root dir itself
 			rootDir = opts.PrepareDir
 		} else {
-			// Core 16/18,  writing for the writeable partion
+			// Core 16/18,  writing for the writeable partition
 			rootDir = filepath.Join(opts.PrepareDir, "image")
 			bootRootDir = rootDir
 		}
@@ -414,7 +414,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, bootRootDir, bootWith); err != nil {
+	if err := boot.MakeBootable(model, bootRootDir, bootWith, nil); err != nil {
 		return err
 	}
 

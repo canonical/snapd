@@ -11,9 +11,7 @@ environment:
 
 prepare: |
     echo "Given a snap with a failing command is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local "$SNAP_NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
 execute: |
     echo "Install unexisting snap prints error"
@@ -79,8 +77,6 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    #shellcheck source=tests/lib/strings.sh
-    . "$TESTSLIB"/strings.sh
 
     if is_classic_confinement_supported ; then
         echo "Installing a strict snap in classic works but --classic is ignored"

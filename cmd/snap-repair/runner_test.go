@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -50,6 +51,8 @@ import (
 )
 
 type baseRunnerSuite struct {
+	testutil.BaseTest
+
 	tmpdir string
 
 	seedTime time.Time
@@ -71,6 +74,21 @@ type baseRunnerSuite struct {
 	repairsSigning *assertstest.SigningDB
 
 	restoreLogger func()
+}
+
+func makeReadOnly(c *C, dir string) (restore func()) {
+	// skip tests that need this because uid==0 does not honor
+	// write permissions in directories (yay, unix)
+	if os.Getuid() == 0 {
+		// FIXME: we could use osutil.Chattr() here
+		c.Skip("too lazy to make path readonly as root")
+	}
+	err := os.Chmod(dir, 0555)
+	c.Assert(err, IsNil)
+	return func() {
+		err := os.Chmod(dir, 0755)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *baseRunnerSuite) SetUpSuite(c *C) {
@@ -110,31 +128,14 @@ func (s *baseRunnerSuite) SetUpSuite(c *C) {
 }
 
 func (s *baseRunnerSuite) SetUpTest(c *C) {
-	_, s.restoreLogger = logger.MockLogger()
+	s.BaseTest.SetUpTest(c)
+
+	_, restoreLogger := logger.MockLogger()
+	s.AddCleanup(restoreLogger)
 
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-
-	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
-
-	// dummy seed yaml
-	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
-	c.Assert(err, IsNil)
-	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
-	c.Assert(err, IsNil)
-	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
-	c.Assert(err, IsNil)
-	err = os.Chtimes(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), seedTime, seedTime)
-	c.Assert(err, IsNil)
-	s.seedTime = seedTime
-
-	s.t0 = time.Now().UTC().Truncate(time.Minute)
-}
-
-func (s *baseRunnerSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	s.restoreLogger()
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
@@ -610,120 +611,15 @@ func (s *runnerSuite) TestLoadState(c *C) {
 	c.Check(model, Equals, "my-model")
 }
 
-func (s *runnerSuite) initSeed(c *C) {
-	err := os.MkdirAll(s.seedAssertsDir, 0775)
-	c.Assert(err, IsNil)
-}
-
-func (s *runnerSuite) writeSeedAssert(c *C, fname string, a asserts.Assertion) {
-	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
-	c.Assert(err, IsNil)
-}
-
-func (s *runnerSuite) rmSeedAssert(c *C, fname string) {
-	err := os.Remove(filepath.Join(s.seedAssertsDir, fname))
-	c.Assert(err, IsNil)
-}
-
-func (s *runnerSuite) TestLoadStateInitState(c *C) {
-	// sanity
-	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
-	// setup realistic seed/assertions
-	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
-	defer r()
-	s.initSeed(c)
-	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
-	s.writeSeedAssert(c, "brand.account", s.brandAcct)
-	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
-	s.writeSeedAssert(c, "model", s.modelAs)
-
-	runner := repair.NewRunner()
-	err := runner.LoadState()
-	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
-
-	brand, model := runner.BrandModel()
-	c.Check(brand, Equals, "my-brand")
-	c.Check(model, Equals, "my-model-2")
-
-	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
-}
-
-func (s *runnerSuite) TestLoadStateInitDeviceInfoFail(c *C) {
-	// sanity
-	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
-	// setup realistic seed/assertions
-	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
-	defer r()
-	s.initSeed(c)
-
-	const errPrefix = "cannot set device information: "
-	tests := []struct {
-		breakFunc   func()
-		expectedErr string
-	}{
-		{func() { s.rmSeedAssert(c, "model") }, errPrefix + "no model assertion in seed data"},
-		{func() { s.rmSeedAssert(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
-		{func() { s.rmSeedAssert(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
-		{func() {
-			// broken signature
-			blob := asserts.Encode(s.brandAcct)
-			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
-			c.Assert(err, IsNil)
-		}, errPrefix + "cannot decode signature:.*"},
-		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
-	}
-
-	for _, test := range tests {
-		s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
-		s.writeSeedAssert(c, "brand.account", s.brandAcct)
-		s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
-		s.writeSeedAssert(c, "model", s.modelAs)
-
-		test.breakFunc()
-
-		runner := repair.NewRunner()
-		err := runner.LoadState()
-		c.Check(err, ErrorMatches, test.expectedErr)
-	}
-}
-
-func (s *runnerSuite) TestTLSTime(c *C) {
-	s.freshState(c)
-	runner := repair.NewRunner()
-	err := runner.LoadState()
-	c.Assert(err, IsNil)
-	epoch := time.Unix(0, 0)
-	r := repair.MockTimeNow(func() time.Time {
-		return epoch
-	})
-	defer r()
-	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
-}
-
-func makeReadOnly(c *C, dir string) (restore func()) {
-	// skip tests that need this because uid==0 does not honor
-	// write permissions in directories (yay, unix)
-	if os.Getuid() == 0 {
-		// FIXME: we could use osutil.Chattr() here
-		c.Skip("too lazy to make path readonly as root")
-	}
-	err := os.Chmod(dir, 0555)
-	c.Assert(err, IsNil)
-	return func() {
-		err := os.Chmod(dir, 0755)
-		c.Assert(err, IsNil)
-	}
-}
-
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
+	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	c.Assert(err, IsNil)
+
 	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
 	defer restore()
 
 	runner := repair.NewRunner()
-	err := runner.LoadState()
+	err = runner.LoadState()
 	c.Check(err, ErrorMatches, `cannot create repair state directory:.*`)
 }
 
@@ -1513,6 +1409,7 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.baseRunnerSuite.SetUpTest(c)
 
 	s.mockServer = makeMockServer(c, &s.seqRepairs, false)
+	s.AddCleanup(func() { s.mockServer.Close() })
 
 	s.runner = repair.NewRunner()
 	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
@@ -1520,14 +1417,8 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
-	s.restoreErrTrackerReportRepair = repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
-}
-
-func (s *runScriptSuite) TearDownTest(c *C) {
-	s.baseRunnerSuite.TearDownTest(c)
-
-	s.restoreErrTrackerReportRepair()
-	s.mockServer.Close()
+	restoreErrTrackerReportRepair := repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
+	s.AddCleanup(restoreErrTrackerReportRepair)
 }
 
 func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
@@ -1777,4 +1668,219 @@ ls -l ${PATH##*:}/repair
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
+}
+
+// shared1620RunnerSuite is embedded by runner16Suite and
+// runner20Suite and the tests are run once with a simulated uc16 and
+// once with a simulated uc20 environment
+type shared1620RunnerSuite struct {
+	baseRunnerSuite
+
+	writeSeedAssert func(c *C, fname string, a asserts.Assertion)
+}
+
+func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
+	s.freshState(c)
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+	epoch := time.Unix(0, 0)
+	r := repair.MockTimeNow(func() time.Time {
+		return epoch
+	})
+	defer r()
+	c.Check(runner.TLSTime().Equal(s.seedTime), Equals, true)
+}
+
+func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
+	// sanity
+	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+	s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+	s.writeSeedAssert(c, "brand.account", s.brandAcct)
+	s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+	s.writeSeedAssert(c, "model", s.modelAs)
+
+	runner := repair.NewRunner()
+	err := runner.LoadState()
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
+
+	brand, model := runner.BrandModel()
+	c.Check(brand, Equals, "my-brand")
+	c.Check(model, Equals, "my-model-2")
+
+	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
+}
+
+type runner16Suite struct {
+	shared1620RunnerSuite
+}
+
+var _ = Suite(&runner16Suite{})
+
+func (s *runner16Suite) SetUpTest(c *C) {
+	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
+
+	// dummy seed yaml
+	err := os.MkdirAll(s.seedAssertsDir, 0755)
+	c.Assert(err, IsNil)
+	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
+	c.Assert(err, IsNil)
+	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
+	c.Assert(err, IsNil)
+	err = os.Chtimes(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), seedTime, seedTime)
+	c.Assert(err, IsNil)
+	s.seedTime = seedTime
+
+	s.t0 = time.Now().UTC().Truncate(time.Minute)
+
+	s.writeSeedAssert = s.writeSeedAssert16
+}
+
+func (s *runner16Suite) writeSeedAssert16(c *C, fname string, a asserts.Assertion) {
+	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *runner16Suite) rmSeedAssert16(c *C, fname string) {
+	err := os.Remove(filepath.Join(s.seedAssertsDir, fname))
+	c.Assert(err, IsNil)
+}
+
+func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
+	// sanity
+	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	// setup realistic seed/assertions
+	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r()
+
+	const errPrefix = "cannot set device information: "
+	tests := []struct {
+		breakFunc   func()
+		expectedErr string
+	}{
+		{func() { s.rmSeedAssert16(c, "model") }, errPrefix + "no model assertion in seed data"},
+		{func() { s.rmSeedAssert16(c, "brand.account") }, errPrefix + "no brand account assertion in seed data"},
+		{func() { s.rmSeedAssert16(c, "brand.account-key") }, errPrefix + `cannot find public key.*`},
+		{func() {
+			// broken signature
+			blob := asserts.Encode(s.brandAcct)
+			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			c.Assert(err, IsNil)
+		}, errPrefix + "cannot decode signature:.*"},
+		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
+	}
+
+	for _, test := range tests {
+		s.writeSeedAssert(c, "store.account-key", s.storeSigning.StoreAccountKey(""))
+		s.writeSeedAssert(c, "brand.account", s.brandAcct)
+		s.writeSeedAssert(c, "brand.account-key", s.brandAcctKey)
+		s.writeSeedAssert(c, "model", s.modelAs)
+
+		test.breakFunc()
+
+		runner := repair.NewRunner()
+		err := runner.LoadState()
+		c.Check(err, ErrorMatches, test.expectedErr)
+	}
+}
+
+type runner20Suite struct {
+	shared1620RunnerSuite
+}
+
+var _ = Suite(&runner20Suite{})
+
+var mockModeenv = []byte(`
+mode=run
+model=my-brand/my-model-2
+`)
+
+func (s *runner20Suite) SetUpTest(c *C) {
+	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
+	err := os.MkdirAll(s.seedAssertsDir, 0755)
+	c.Assert(err, IsNil)
+
+	// write dummy modeenv
+	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
+	c.Assert(err, IsNil)
+	// validate that modeenv is actually valid
+	_, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+
+	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
+	c.Assert(err, IsNil)
+	err = os.Chtimes(dirs.SnapModeenvFile, seedTime, seedTime)
+	c.Assert(err, IsNil)
+	s.seedTime = seedTime
+	s.t0 = time.Now().UTC().Truncate(time.Minute)
+
+	s.writeSeedAssert = s.writeSeedAssert20
+}
+
+func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertion) {
+	var fn string
+	if _, ok := a.(*asserts.Model); ok {
+		fn = filepath.Join(s.seedAssertsDir, "../model")
+	} else {
+		fn = filepath.Join(s.seedAssertsDir, fname)
+	}
+	err := ioutil.WriteFile(fn, asserts.Encode(a), 0644)
+	c.Assert(err, IsNil)
+
+	// ensure model assertion file has the correct seed time
+	if _, ok := a.(*asserts.Model); ok {
+		err = os.Chtimes(fn, s.seedTime, s.seedTime)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
+	runner := repair.NewRunner()
+
+	for _, tc := range []struct {
+		modelStr    string
+		expectedErr string
+	}{
+		{
+			`invalid-key-value`,
+			"cannot set device information: No option model in section ",
+		}, {
+			`model=`,
+			`cannot set device information: cannot find brand/model in modeenv model string ""`,
+		}, {
+			`model=brand-but-no-model`,
+			`cannot set device information: cannot find brand/model in modeenv model string "brand-but-no-model"`,
+		},
+	} {
+		err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
+		c.Assert(err, IsNil)
+		err = runner.LoadState()
+		c.Check(err, ErrorMatches, tc.expectedErr)
+	}
+}
+
+func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c *C) {
+	runner := repair.NewRunner()
+
+	err := os.Chmod(dirs.SnapModeenvFile, 0300)
+	c.Assert(err, IsNil)
+	s.AddCleanup(func() {
+		err := os.Chmod(dirs.SnapModeenvFile, 0644)
+		c.Assert(err, IsNil)
+	})
+	err = runner.LoadState()
+	c.Check(err, ErrorMatches, "cannot set device information: open /.*/modeenv: permission denied")
 }

@@ -74,7 +74,9 @@ type Pool struct {
 	unresolved    map[string]*unresolvedRec
 	prerequisites map[string]*unresolvedRec
 
-	bs     Backstore
+	bs        Backstore
+	unchanged map[string]bool
+
 	groups map[uint16]*groupRec
 
 	curPhase poolPhase
@@ -96,6 +98,7 @@ func NewPool(groundDB RODatabase, n int) *Pool {
 		unresolved:    make(map[string]*unresolvedRec),
 		prerequisites: make(map[string]*unresolvedRec),
 		bs:            NewMemoryBackstore(),
+		unchanged:     make(map[string]bool),
 		groups:        make(map[uint16]*groupRec),
 	}
 }
@@ -118,8 +121,9 @@ func (p *Pool) ensureGroup(group string) (gnum uint16, err error) {
 		return 0, err
 	}
 	if gRec := p.groups[gnum]; gRec == nil {
-		gRec = new(groupRec)
-		p.groups[gnum] = gRec
+		p.groups[gnum] = &groupRec{
+			name: group,
+		}
 	}
 	return gnum, nil
 }
@@ -169,6 +173,7 @@ func (u *unresolvedRec) merge(at *AtRevision, gnum uint16, gr *internal.Grouping
 // A groupRec keeps track of all the resolved assertions in a group
 // or whether the group should be considered in error (err != nil).
 type groupRec struct {
+	name     string
 	err      error
 	resolved []Ref
 }
@@ -224,6 +229,9 @@ func (p *Pool) isPredefined(ref *Ref) (bool, error) {
 }
 
 func (p *Pool) isResolved(ref *Ref) (bool, error) {
+	if p.unchanged[ref.Unique()] {
+		return true, nil
+	}
 	_, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 	if err == nil {
 		return true, nil
@@ -415,7 +423,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 	return nil
 }
 
-func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u *unresolvedRec, a Assertion, extrag *internal.Grouping) error {
+func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u *unresolvedRec, a Assertion, extrag *internal.Grouping) (ok bool, err error) {
 	if a.Revision() > u.at.Revision {
 		if extrag == nil {
 			extrag = &u.grouping
@@ -436,11 +444,11 @@ func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u 
 			delete(unresolved, uniq)
 			if err := p.add(a, extrag); err != nil {
 				p.setErr(extrag, err)
-				return err
+				return false, err
 			}
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // Add adds the given assertion associated with the given grouping to the
@@ -452,15 +460,24 @@ func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u 
 // requiring the assertion plus the groups in grouping will be considered.
 // The latter is mostly relevant in scenarios where the server is pushing
 // assertions.
-func (p *Pool) Add(a Assertion, grouping Grouping) error {
+// If an error is returned it refers to an immediate or local error.
+// Errors related to the assertions are associated with the relevant groups
+// and can be retrieved with Err, in which case ok is set to false.
+func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 	if err := p.phase(poolPhaseAdd); err != nil {
-		return err
+		return false, err
 	}
 
 	if !a.SupportedFormat() {
-		return &UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+		e := &UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
+		p.AddGroupingError(e, grouping)
+		return false, nil
 	}
 
+	return p.addToGrouping(a, grouping, p.groupings.Deserialize)
+}
+
+func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping func(string) (*internal.Grouping, error)) (ok bool, err error) {
 	uniq := a.Ref().Unique()
 	var u *unresolvedRec
 	var extrag *internal.Grouping
@@ -472,11 +489,11 @@ func (p *Pool) Add(a Assertion, grouping Grouping) error {
 	} else {
 		ok, err := p.isPredefined(a.Ref())
 		if err != nil {
-			return err
+			return false, err
 		}
 		if ok {
 			// nothing to do
-			return nil
+			return true, nil
 		}
 		// a is not tracked as unresolved in any way so far,
 		// this is an atypical scenario where something gets
@@ -492,16 +509,55 @@ func (p *Pool) Add(a Assertion, grouping Grouping) error {
 
 	if u.serializedLabel != grouping {
 		var err error
-		extrag, err = p.groupings.Deserialize(string(grouping))
+		extrag, err = deserializeGrouping(string(grouping))
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	return p.resolveWith(unresolved, uniq, u, a, extrag)
 }
 
-// TODO: AddBatch
+// AddBatch adds all the assertions in the Batch to the Pool,
+// associated with the given grouping and as resolved in all the
+// groups requiring them. It is equivalent to using Add on each of them.
+// If an error is returned it refers to an immediate or local error.
+// Errors related to the assertions are associated with the relevant groups
+// and can be retrieved with Err, in which case ok set to false.
+func (p *Pool) AddBatch(b *Batch, grouping Grouping) (ok bool, err error) {
+	if err := p.phase(poolPhaseAdd); err != nil {
+		return false, err
+	}
+
+	// b dealt with unsupported formats already
+
+	// deserialize grouping if needed only once
+	var cachedGrouping *internal.Grouping
+	deser := func(_ string) (*internal.Grouping, error) {
+		if cachedGrouping != nil {
+			// do a copy as addToGrouping and resolveWith
+			// might add to their input
+			g := cachedGrouping.Copy()
+			return &g, nil
+		}
+		var err error
+		cachedGrouping, err = p.groupings.Deserialize(string(grouping))
+		return cachedGrouping, err
+	}
+
+	inError := false
+	for _, a := range b.added {
+		ok, err := p.addToGrouping(a, grouping, deser)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			inError = true
+		}
+	}
+
+	return !inError, nil
+}
 
 var (
 	ErrUnresolved       = errors.New("unresolved assertion")
@@ -528,6 +584,9 @@ func (p *Pool) unresolvedBookkeeping() {
 		if e == nil {
 			if u.at.Revision == RevisionNotKnown {
 				e = ErrUnresolved
+			} else {
+				// unchanged
+				p.unchanged[uniq] = true
 			}
 		}
 		if e != nil {
@@ -568,6 +627,20 @@ func (p *Pool) Err(group string) error {
 		return ErrUnknownPoolGroup
 	}
 	return gRec.err
+}
+
+// Errors returns a mapping of groups in error to their errors.
+func (p *Pool) Errors() map[string]error {
+	res := make(map[string]error)
+	for _, gRec := range p.groups {
+		if err := gRec.err; err != nil {
+			res[gRec.name] = err
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
 }
 
 // AddError associates error e with the unresolved assertion.
@@ -630,7 +703,8 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 
 // CommitTo adds the assertions from groups without errors to the
 // given assertion database. Commit errors can be retrieved via Err
-// per group.
+// per group. An error is returned directly only if CommitTo is called
+// with possible pending unresolved assertions.
 func (p *Pool) CommitTo(db *Database) error {
 	if p.curPhase == poolPhaseAddUnresolved {
 		return fmt.Errorf("internal error: cannot commit Pool during add unresolved phase")
@@ -675,5 +749,27 @@ NextGroup:
 		}
 	}
 
+	return nil
+}
+
+// ClearGroups clears the pool in terms of information associated with groups
+// while preserving information about already resolved or unchanged assertions.
+// It is useful for reusing a pool once the maximum of usable groups
+// that was set with NewPool has been exhausted. Group errors must be
+// queried before calling it otherwise they are lost. It is an error
+// to call it when there are still pending unresolved assertions in
+// the pool.
+func (p *Pool) ClearGroups() error {
+	if len(p.unresolved) != 0 || len(p.prerequisites) != 0 {
+		return fmt.Errorf("internal error: trying to clear groups of asserts.Pool with pending unresolved or prerequisites")
+	}
+
+	p.numbering = make(map[string]uint16)
+	// use a fresh Groupings as well so that max group tracking starts
+	// from scratch.
+	// NewGroupings cannot fail on a value accepted by it previously
+	p.groupings, _ = internal.NewGroupings(p.groupings.N())
+	p.groups = make(map[uint16]*groupRec)
+	p.curPhase = poolPhaseAdd
 	return nil
 }

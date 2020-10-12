@@ -102,7 +102,7 @@ func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error)
 	}
 }
 
-func MockBackendOpen(f func(string) (*backend.Reader, error)) (restore func()) {
+func MockBackendOpen(f func(string, uint64) (*backend.Reader, error)) (restore func()) {
 	old := backendOpen
 	backendOpen = f
 	return func() {
@@ -139,6 +139,14 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	backendCleanup = f
 	return func() {
 		backendCleanup = old
+	}
+}
+
+func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error)) (restore func()) {
+	old := backendEstimateSnapshotSize
+	backendEstimateSnapshotSize = f
+	return func() {
+		backendEstimateSnapshotSize = old
 	}
 }
 

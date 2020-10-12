@@ -32,7 +32,7 @@ import (
 )
 
 func ensureGPGHomeDirectory() (string, error) {
-	real, err := osutil.RealUser()
+	real, err := osutil.UserMaybeSudoUser()
 	if err != nil {
 		return "", err
 	}

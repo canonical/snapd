@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -42,11 +43,18 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	systemKey, err := interfaces.RecordedSystemKey()
+	if err != nil {
+		return fmt.Errorf("cannot get recorded system key: %v", err)
+	}
+
 	if m.preseed {
 		var preseeded bool
 		// the "preseeded" flag on this task is set to allow skipping the logic
 		// below in case this handler is retried in preseeding mode due to an
 		// EnsureBefore(0) done somewhere else.
+		// XXX: we should probably drop the flag from the task now that we have
+		// one on the state.
 		if err := t.Get("preseeded", &preseeded); err != nil && err != state.ErrNoState {
 			return err
 		}
@@ -66,6 +74,10 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 				}
 			}
 
+			st.Set("preseeded", preseeded)
+			st.Set("preseed-system-key", systemKey)
+			st.Set("preseed-time", timeNow())
+
 			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
 			// could start). Let this task finish after snapd restart when preseed mode is off.
 			st.RequestRestart(state.StopDaemon)
@@ -75,6 +87,11 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// normal snapd run after snapd restart (not in preseed mode anymore)
+
+	st.Set("seed-restart-system-key", systemKey)
+	if err := m.setTimeOnce("seed-restart-time", startTime); err != nil {
+		return err
+	}
 
 	// enable all services generated as part of preseeding, but not enabled
 	// XXX: this should go away once the problem of install & services is fixed.

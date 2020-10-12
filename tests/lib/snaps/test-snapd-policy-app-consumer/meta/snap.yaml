@@ -74,6 +74,9 @@ apps:
   cpu-control:
     command: bin/run
     plugs: [ cpu-control ]
+  cups:
+    command: bin/run
+    plugs: [ cups ]
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
@@ -131,6 +134,9 @@ apps:
   accounts-service:
     command: bin/run
     plugs: [ accounts-service ]
+  gconf:
+    command: bin/run
+    plugs: [ gconf ]
   gpg-keys:
     command: bin/run
     plugs: [ gpg-keys ]
@@ -188,6 +194,9 @@ apps:
   juju-client-observe:
     command: bin/run
     plugs: [ juju-client-observe ]
+  kernel-crypto-api:
+    command: bin/run
+    plugs: [ kernel-crypto-api ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -398,6 +407,9 @@ apps:
   uhid:
     command: bin/run
     plugs: [ uhid ]
+  uinput:
+    command: bin/run
+    plugs: [ uinput ]
   uio:
     command: bin/run
     plugs: [ uio ]
@@ -416,6 +428,9 @@ apps:
   upower-observe:
     command: bin/run
     plugs: [ upower-observe ]
+  vcio:
+    command: bin/run
+    plugs: [ vcio ]
   wayland:
     command: bin/run
     plugs: [ wayland ]
