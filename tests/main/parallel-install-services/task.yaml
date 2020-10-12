@@ -10,10 +10,7 @@ restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -27,7 +24,7 @@ execute: |
     for instance in foo longname; do
         echo "Install a snap as instance named test-snapd-service_$instance"
         expected="^test-snapd-service_$instance 1.0 installed\$"
-        install_local_as test-snapd-service "test-snapd-service_$instance" | MATCH "$expected"
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service "test-snapd-service_$instance" | MATCH "$expected"
 
         test -d "$SNAP_MOUNT_DIR/test-snapd-service_$instance/x1"
 

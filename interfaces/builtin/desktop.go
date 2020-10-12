@@ -158,7 +158,18 @@ dbus (receive)
 
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
-/usr/share/applications/{,*} r,
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others
+/usr/share/applications/ r,
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
+
 dbus (send)
     bus=session
     path=/
@@ -253,6 +264,20 @@ deny /var/lib/snapd/desktop/icons/{,**/} r,
 # we have better XDG_DATA_DIRS handling, silence these noisy denials.
 # https://github.com/snapcrafters/discord/issues/23#issuecomment-637607843
 deny @{HOME}/.local/share/flatpak/exports/share/** r,
+
+# Allow access to the IBus portal (IBUS_USE_PORTAL=1)
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.IBus.Portal
+      member=CreateInputContext
+      peer=(name=org.freedesktop.portal.IBus),
+
+dbus (send, receive)
+      bus=session
+      path=/org/freedesktop/IBus/InputContext_[0-9]*
+      interface=org.freedesktop.IBus.InputContext
+      peer=(label=unconfined),
 `
 
 type desktopInterface struct {

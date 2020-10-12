@@ -186,6 +186,13 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
 
+# Allow ObjectManager methods from and signals to unconfined clients.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    peer=(label=unconfined),
+
 # Allow access to hostname system service
 dbus (receive, send)
     bus=system

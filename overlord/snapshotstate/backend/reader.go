@@ -42,6 +42,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ExtractFnameSetID can be passed to Open() to have set ID inferred from
+// snapshot filename.
+const ExtractFnameSetID = 0
+
 // A Reader is a snapshot that's been opened for reading.
 type Reader struct {
 	*os.File
@@ -50,13 +54,17 @@ type Reader struct {
 
 // Open a Snapshot given its full filename.
 //
+// The returned reader will have its setID set to the value of the argument,
+// or inferred from the snapshot filename if ExtractFnameSetID constant is
+// passed.
+//
 // If the returned error is nil, the caller must close the reader (or
 // its file) when done with it.
 //
 // If the returned error is non-nil, the returned Reader will be nil,
 // *or* have a non-empty Broken; in the latter case its file will be
 // closed.
-func Open(fn string) (reader *Reader, e error) {
+func Open(fn string, setID uint64) (reader *Reader, e error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -72,7 +80,7 @@ func Open(fn string) (reader *Reader, e error) {
 	}
 
 	// first try to load the metadata itself
-	var sz sizer
+	var sz osutil.Sizer
 	hasher := crypto.SHA3_384.New()
 	metaReader, metaSize, err := zipMember(f, metadataName)
 	if err != nil {
@@ -84,6 +92,18 @@ func Open(fn string) (reader *Reader, e error) {
 		return nil, err
 	}
 
+	if setID == ExtractFnameSetID {
+		// set id from the filename has the authority and overrides the one from
+		// meta file.
+		var ok bool
+		ok, setID = isSnapshotFilename(fn)
+		if !ok {
+			return nil, fmt.Errorf("not a snapshot filename: %q", fn)
+		}
+	}
+
+	reader.SetID = setID
+
 	// OK, from here on we have a Snapshot
 
 	if !reader.IsValid() {
@@ -91,8 +111,8 @@ func Open(fn string) (reader *Reader, e error) {
 		return reader, errors.New(reader.Broken)
 	}
 
-	if sz.size != metaSize {
-		reader.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
+	if sz.Size() != metaSize {
+		reader.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.Size())
 		return reader, errors.New(reader.Broken)
 	}
 
@@ -110,8 +130,8 @@ func Open(fn string) (reader *Reader, e error) {
 		reader.Broken = err.Error()
 		return reader, err
 	}
-	if sz.size != metaHashSize {
-		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
+	if sz.Size() != metaHashSize {
+		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.Size())
 		return reader, errors.New(reader.Broken)
 	}
 	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
@@ -190,7 +210,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 	isRoot := sys.Geteuid() == 0
 	si := snap.MinimalPlaceInfo(r.Snap, r.Revision)
 	hasher := crypto.SHA3_384.New()
-	var sz sizer
+	var sz osutil.Sizer
 
 	var curdir string
 	if !current.Unset() {
@@ -324,9 +344,9 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			return rs, fmt.Errorf("tar failed: %v", err)
 		}
 
-		if sz.size != expectedSize {
+		if sz.Size() != expectedSize {
 			return rs, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)",
-				r.Name(), entry, expectedSize, sz.size)
+				r.Name(), entry, expectedSize, sz.Size())
 		}
 
 		if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {

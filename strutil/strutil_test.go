@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -223,5 +223,29 @@ func (strutilSuite) TestEllipt(c *check.C) {
 	} {
 		c.Check(strutil.ElliptRight(t.in, t.n), check.Equals, t.right, check.Commentf("%q[:%d] -> %q", t.in, t.n, t.right))
 		c.Check(strutil.ElliptLeft(t.in, t.n), check.Equals, t.left, check.Commentf("%q[-%d:] -> %q", t.in, t.n, t.left))
+	}
+}
+
+func (strutilSuite) TestSortedListsUniqueMerge(c *check.C) {
+	l1 := []string{"a", "a", "c", "d", "e", "f", "h", "h"}
+	l2 := []string{"b", "c", "d", "d", "g"}
+	l3 := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+
+	tests := []struct {
+		sl1 []string
+		sl2 []string
+		res []string
+	}{
+		{nil, nil, nil},
+		{nil, []string{"a", "a", "b"}, []string{"a", "b"}},
+		{[]string{"a", "a", "b"}, nil, []string{"a", "b"}},
+		{l1, l2, l3},
+		{l2, l1, l3},
+		{l3, l3, l3},
+	}
+
+	for _, t := range tests {
+		res := strutil.SortedListsUniqueMerge(t.sl1, t.sl2)
+		c.Check(res, check.DeepEquals, t.res)
 	}
 }

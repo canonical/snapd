@@ -44,6 +44,8 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 		return created, nil
 	}
 
+	logger.Debugf("create partitions on %s: %s", dl.Device, buf.String())
+
 	// Write the partition table. By default sfdisk will try to re-read the
 	// partition table with the BLKRRPART ioctl but will fail because the
 	// kernel side rescan removes and adds partitions and we have partitions
@@ -69,7 +71,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
-	indexes := make([]string, 0, len(dl.PartitionTable.Partitions))
+	indexes := make([]string, 0, len(dl.Structure))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {
 			logger.Noticef("partition %s was created during previous install", s.Node)
@@ -81,6 +83,7 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Delete disk partitions
+	logger.Debugf("delete disk partitions %v", indexes)
 	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
@@ -92,18 +95,12 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Re-read the partition table from the device to update our partition list
-	layout, err := gadget.OnDiskVolumeFromDevice(dl.Device)
-	if err != nil {
-		return fmt.Errorf("cannot read disk layout: %v", err)
+	if err := gadget.UpdatePartitionList(dl); err != nil {
+		return err
 	}
-	if dl.ID != layout.ID {
-		return fmt.Errorf("partition table IDs don't match")
-	}
-	dl.Structure = layout.Structure
-	dl.PartitionTable = layout.PartitionTable
 
 	// Ensure all created partitions were removed
-	if remaining := gadget.CreatedDuringInstall(layout); len(remaining) > 0 {
+	if remaining := gadget.CreatedDuringInstall(dl); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 

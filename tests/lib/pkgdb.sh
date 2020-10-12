@@ -181,7 +181,7 @@ distro_install_local_package() {
             quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         opensuse-*)
-            quiet rpm -i --replacepkgs "$@"
+            quiet zypper in -y --no-recommends --allow-unsigned-rpm "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
@@ -479,7 +479,7 @@ distro_install_build_snapd(){
                 ;;
             arch-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snapd*.pkg.tar.xz
+                packages="${GOHOME}"/snapd*.pkg.tar.*
                 ;;
             *)
                 exit 1
@@ -639,20 +639,13 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-19.10-64)
-            echo "
-                evolution-data-server
-                fwupd
-                packagekit
-                qemu-utils
-                "
-            ;;
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
                 gccgo-9
                 packagekit
                 qemu-utils
+                shellcheck
                 "
             ;;
         ubuntu-20.10-64)

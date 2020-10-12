@@ -21,8 +21,10 @@ package snapshotstate_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -59,6 +61,7 @@ func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 }
 
 func (snapshotSuite) TearDownTest(c *check.C) {
@@ -69,13 +72,43 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	// Disk last set id unset, state set id unset, use 1
 	sid, err := snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 
+	var stateSetID uint64
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(1))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 9 > state set id 1, use 9++ = 10
 	sid, err = snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
-	c.Check(sid, check.Equals, uint64(2))
+	c.Check(sid, check.Equals, uint64(10))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(10))
+
+	// Disk last set id 9 < state set id 10, use 10++ = 11
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(11))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(11))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 88 > state set id 11, use 88++ = 89
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(89))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(89))
 }
 
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
@@ -1477,4 +1510,96 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
 	c.Assert(err, check.IsNil)
 	c.Assert(du, check.Equals, time.Duration(0))
+}
+
+func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+		return 123, nil
+	})()
+
+	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(sz, check.Equals, uint64(123))
+}
+
+func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+		return 100, nil
+	})()
+
+	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
+		c.Check(snapname, check.Equals, "some-snap")
+		buf := json.RawMessage(`{"hello": "there"}`)
+		return &buf, nil
+	})()
+
+	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	c.Assert(err, check.IsNil)
+	// size is 100 + 18
+	c.Check(sz, check.Equals, uint64(118))
+}
+
+func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+		return 0, fmt.Errorf("an error")
+	})()
+
+	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
+	c.Assert(err, check.ErrorMatches, `an error`)
+}
+
+func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	var gotUsers []string
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+		gotUsers = users
+		return 0, nil
+	})()
+
+	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsers, check.DeepEquals, []string{"user1", "user2"})
 }

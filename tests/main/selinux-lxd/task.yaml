@@ -27,7 +27,7 @@ restore: |
         umount /proc/sys/fs/binfmt_misc
     fi
 
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
     rm -f avc-after
 
