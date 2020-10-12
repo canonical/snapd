@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import itertools
 import logging
 import os
 import subprocess
@@ -34,6 +35,8 @@ D = os.getenv('D')
 # set to non-empty to enable verbose logging
 V = os.getenv('V')
 # set to a number to use these many threads
+# XXX: python has defaults, e.g. 3.9: `min(32, os.cpu_count() + 4)`
+#      should we just set to "None" and let python do the job?
 N = int(os.getenv('N') or cpu_count())
 # file with list of files that can fail validation
 CAN_FAIL = os.getenv('CAN_FAIL')
@@ -135,8 +138,8 @@ def checksection(data, env: Dict[str, str]):
         raise ShellcheckRunError(stdout)
 
 
-def checkfile(path):
-    logging.debug("checking file %s", path)
+def checkfile(path, max_workers):
+    logging.debug("checking file %s (%s)", path, max_workers)
     with open(path) as inf:
         data = yaml.load(inf, Loader=yaml.CSafeLoader)
 
@@ -161,7 +164,7 @@ def checkfile(path):
 
     if path.endswith('spread.yaml') and 'suites' in data:
         # check suites
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=N) as executor:
             futures = []
             for suite in data['suites'].keys():
                 for section in SECTIONS:
@@ -191,9 +194,9 @@ def findfiles(locations):
             yield loc
 
 
-def check1path(path):
+def check1path(path, max_workers):
     try:
-        checkfile(path)
+        checkfile(path, max_workers)
     except ShellcheckError as err:
         return err
     return None
@@ -204,7 +207,7 @@ def checkpaths(locs, max_workers):
     locations = findfiles(locs)
     failed = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for serr in executor.map(check1path, locations):
+        for serr in executor.map(check1path, locations, itertools.repeat(max_workers)):
             if serr is None:
                 continue
             logging.error(('shellcheck failed for file %s in sections: '
