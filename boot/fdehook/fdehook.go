@@ -39,6 +39,16 @@ func Enabled(kernelDir string) bool {
 	return osutil.FileExists(fdeHook(kernelDir))
 }
 
+// fdehookRuntimeMax is the maximum runtime a fdehook can execute
+func fdehookRuntimeMax() string {
+	// only used in tests (tests/main/fdehook)
+	if s := os.Getenv("DEBUG_FDEHOOK_RUNTIME_MAX"); s != "" {
+		return s
+	}
+	// XXX: reasonable default?
+	return "5m"
+}
+
 // fdeHookCmd returns a *exec.Cmd that runs the fdehook code with
 // (some) sandboxing around it. The sandbox will ensure that it's hard
 // for the hook to abuse that they are called in e.g. initrd.  But it
@@ -50,7 +60,14 @@ func fdeHookCmd(kernelDir string, args ...string) *exec.Cmd {
 		"systemd-run",
 		append([]string{
 			"--pipe", "--same-dir", "--wait", "--collect",
-			"--service-type=exec", "--quiet",
+			"--service-type=exec",
+			// XXX: using quiet will also supress useful
+			//      information like that a process hit
+			//      the hook timeout
+			"--quiet",
+			// ensure we get some result from the hook
+			// within a reasonable timeout
+			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehookRuntimeMax()),
 			// do not allow mounting, this ensures hooks
 			// in initrd can not mess around with
 			// ubuntu-data

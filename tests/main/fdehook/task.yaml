@@ -9,10 +9,14 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
+prepare: |
+    tests.cleanup prepare
+
 execute: |
     # build a fde hook runner
     go build run-fdehook.go
 
+    echo "Run trivial unlock fde hook"
     # create trivial "unlock" fde hook
     mkdir -p fake-kernel/meta/hooks/
     cat > fake-kernel/meta/hooks/fde <<'EOF'
@@ -23,8 +27,12 @@ execute: |
     # validate that unlock input/output works
     echo fake-sealed-key | ./run-fdehook ./fake-kernel | MATCH "unsealed key"
 
-    # bind mount target needs to be created outside of the sandbox
+    echo "Run fde hook at triggers the sandboxing via a mount"
+    # create bind mount *target* here (and add cleanup)
     touch /tmp/test-bind-mount
+    # the umount should not be needed as the mount will be blocked by seccomp
+    tests.cleanup defer umount "/tmp/test-bind-mount"
+    tests.cleanup defer rm -f "/tmp/test-bind-mount"
     # now validate that mounting is sandboxed
     cat > fake-kernel/meta/hooks/fde <<'EOF'
     #!/bin/sh -e
@@ -32,9 +40,25 @@ execute: |
     echo "mount was successful"
     EOF
     set +e
-    ./run-fdehook ./fake-kernel
+    echo fake-sealed-key | ./run-fdehook ./fake-kernel
     RET=$?
     set -e
     test "$RET" -ne 0
     # no mount was performed
     not test -x /tmp/test-bind-mount
+
+    echo "Run fdehook that runs too long"
+    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    #!/bin/sh -e
+    sleep 60
+    echo "done sleeping"
+    EOF
+    set +e
+    echo fake-sealed-key | DEBUG_FDEHOOK_RUNTIME_MAX=10s ./run-fdehook ./fake-kernel > output.txt
+    RET=$?
+    set -e
+    test "$RET" -ne 0
+    NOMATCH "done sleeping" < output.txt
+
+restore: |
+    tests.cleanup restore
