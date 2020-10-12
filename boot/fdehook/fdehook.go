@@ -61,13 +61,12 @@ func fdeHookCmd(kernelDir string, args ...string) *exec.Cmd {
 		append([]string{
 			"--pipe", "--same-dir", "--wait", "--collect",
 			"--service-type=exec",
-			// XXX: using quiet will also supress useful
-			//      information like that a process hit
-			//      the hook timeout
 			"--quiet",
 			// ensure we get some result from the hook
-			// within a reasonable timeout
+			// within a reasonable timeout and output
+			// from systemd if things go wrong
 			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehookRuntimeMax()),
+			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`),
 			// do not allow mounting, this ensures hooks
 			// in initrd can not mess around with
 			// ubuntu-data

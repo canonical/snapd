@@ -31,7 +31,7 @@ execute: |
     # create bind mount *target* here (and add cleanup)
     touch /tmp/test-bind-mount
     # the umount should not be needed as the mount will be blocked by seccomp
-    tests.cleanup defer umount "/tmp/test-bind-mount"
+    tests.cleanup defer "umount /tmp/test-bind-mount || true"
     tests.cleanup defer rm -f "/tmp/test-bind-mount"
     # now validate that mounting is sandboxed
     cat > fake-kernel/meta/hooks/fde <<'EOF'
@@ -59,6 +59,7 @@ execute: |
     set -e
     test "$RET" -ne 0
     NOMATCH "done sleeping" < output.txt
+    MATCH "timeout" < output.txt
 
 restore: |
     tests.cleanup restore
