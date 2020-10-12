@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -143,6 +144,41 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.Body, Equals, reqBody)
 	c.Check(cs.req.URL.Path, Equals, "/this")
+}
+
+func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
+
+	// write a maintenance.json that says snapd is down for a restart
+	maintErr := &client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	}
+
+	b, err := json.Marshal(maintErr)
+	c.Assert(err, IsNil)
+
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+	var v []int
+	cs.rsp = `[1,2]`
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	c.Check(err, IsNil)
+	c.Check(statusCode, Equals, 200)
+	c.Check(v, DeepEquals, []int{1, 2})
+	c.Assert(cs.req, NotNil)
+	c.Assert(cs.req.URL, NotNil)
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.Body, Equals, reqBody)
+	c.Check(cs.req.URL.Path, Equals, "/this")
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, Not(IsNil))
+
+	returnedMaintErr, ok := returnedErr.(*client.Error)
+	c.Check(ok, Equals, true)
+
+	c.Assert(returnedMaintErr, DeepEquals, maintErr)
 }
 
 func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
