@@ -172,6 +172,6 @@ func debugEnabledOnKernelCmdline() bool {
 	if err != nil {
 		return false
 	}
-	l := strings.Fields(string(buf))
+	l, _ := strutil.KernelCommandLineSplit(strings.TrimSpace(string(buf)))
 	return strutil.ListContains(l, "snapd.debug=1")
 }
