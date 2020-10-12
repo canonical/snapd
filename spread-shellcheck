@@ -18,6 +18,7 @@ import logging
 import os
 import subprocess
 import argparse
+import itertools
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from typing import Dict
@@ -130,12 +131,12 @@ def checksection(data, env: Dict[str, str]):
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             shell=True)
-    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=10)
+    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=30)
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
 
 
-def checkfile(path):
+def checkfile(path, executor):
     logging.debug("checking file %s", path)
     with open(path) as inf:
         data = yaml.load(inf, Loader=yaml.CSafeLoader)
@@ -161,20 +162,21 @@ def checkfile(path):
 
     if path.endswith('spread.yaml') and 'suites' in data:
         # check suites
-        with ThreadPoolExecutor() as executor:
-            futures = []
-            for suite in data['suites'].keys():
-                for section in SECTIONS:
-                    if section not in data['suites'][suite]:
-                        continue
-                        logging.debug("%s (suite %s): checking section %s", path, suite, section)
-                        futures.append(executor.submit(checksection, data['suites'][suite][section], env))
-            for future in futures:
-                try:
-                    future.result()
-                except ShellcheckRunError as serr:
-                    errors.addfailure('suites/' + suite + '/' + section,
-                                    serr.stderr.decode('utf-8'))
+        suites_sections_and_futures = []
+        for suite in data['suites'].keys():
+            for section in SECTIONS:
+                if section not in data['suites'][suite]:
+                    continue
+                logging.debug("%s (suite %s): checking section %s", path, suite, section)
+                future = executor.submit(checksection, data['suites'][suite][section], env)
+                suites_sections_and_futures.append((suite, section, future))
+        for item in suites_sections_and_futures:
+            suite, section, future = item
+            try:
+                future.result()
+            except ShellcheckRunError as serr:
+                errors.addfailure('suites/' + suite + '/' + section,
+                                serr.stderr.decode('utf-8'))
 
     if errors:
         raise errors
@@ -191,28 +193,27 @@ def findfiles(locations):
             yield loc
 
 
-def check1path(path):
+def check1path(path, executor):
     try:
-        checkfile(path)
+        checkfile(path, executor)
     except ShellcheckError as err:
         return err
     return None
 
 
-def checkpaths(locs, max_workers):
+def checkpaths(locs, executor):
     # setup iterator
     locations = findfiles(locs)
     failed = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for serr in executor.map(check1path, locations):
-            if serr is None:
-                continue
-            logging.error(('shellcheck failed for file %s in sections: '
-                           '%s; error log follows'),
-                          serr.path, ', '.join(serr.sectionerrors.keys()))
-            for section, error in serr.sectionerrors.items():
-                logging.error("%s: section '%s':\n%s", serr.path, section, error)
-            failed.append(serr.path)
+    for serr in executor.map(check1path, locations, itertools.repeat(executor)):
+        if serr is None:
+            continue
+        logging.error(('shellcheck failed for file %s in sections: '
+                       '%s; error log follows'),
+                      serr.path, ', '.join(serr.sectionerrors.keys()))
+        for section, error in serr.sectionerrors.items():
+            logging.error("%s: section '%s':\n%s", serr.path, section, error)
+        failed.append(serr.path)
 
     if failed:
         raise ShellcheckFailures(failures=failed)
@@ -230,10 +231,11 @@ def loadfilelist(flistpath):
 def main(opts):
     paths = opts.paths or ['.']
     failures = ShellcheckFailures()
-    try:
-        checkpaths(paths, opts.max_procs)
-    except ShellcheckFailures as sf:
-        failures.merge(sf)
+    with ThreadPoolExecutor(max_workers=opts.max_procs) as executor:
+        try:
+            checkpaths(paths, executor)
+        except ShellcheckFailures as sf:
+            failures.merge(sf)
 
     if failures:
         if opts.can_fail:
