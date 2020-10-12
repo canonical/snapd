@@ -17,7 +17,7 @@
  *
  */
 
-package userd
+package userd_test
 
 import (
 	"github.com/snapcore/snapd/strutil"
@@ -25,10 +25,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
-	"testing"
+	"github.com/snapcore/snapd/usersession/userd"
 )
-
-func Test(t *testing.T) { TestingT(t) }
 
 type privilegedDesktopLauncherInternalSuite struct {
 }
@@ -367,7 +365,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 	}
 
 	for _, test := range desktopIdTests {
-		actual, err := desktopFileIDToFilename(existsOnMockFileSystem, test.id)
+		actual, err := userd.DesktopFileIDToFilename(existsOnMockFileSystem, test.id)
 		c.Assert(err, IsNil)
 		c.Assert(actual, Equals, test.expect)
 	}
@@ -382,7 +380,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 	}
 
 	for _, id := range desktopIdTests {
-		_, err := desktopFileIDToFilename(existsOnMockFileSystem, id)
+		_, err := userd.DesktopFileIDToFilename(existsOnMockFileSystem, id)
 		c.Assert(err, NotNil)
 	}
 }
@@ -417,7 +415,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWit
 	}
 
 	for _, test := range exec_command {
-		actual, err := parseExecCommand(test.exec_command)
+		actual, err := userd.ParseExecCommand(test.exec_command)
 		c.Assert(err, IsNil)
 		c.Assert(actual, DeepEquals, test.expect)
 	}
@@ -431,7 +429,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithIn
 	}
 
 	for _, test := range exec_command {
-		_, err := parseExecCommand(test)
+		_, err := userd.ParseExecCommand(test)
 		c.Assert(err, NotNil)
 	}
 }
@@ -444,7 +442,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(fileContent), 0644)
 	c.Assert(err, IsNil)
 
-	exec, err := readExecCommandFromDesktopFile(desktopFile)
+	exec, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, IsNil)
 
 	c.Assert(exec, DeepEquals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
@@ -456,7 +454,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(chromiumDesktopFile), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = readExecCommandFromDesktopFile(desktopFile)
+	_, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }
 
@@ -470,13 +468,13 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(fileContent), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = readExecCommandFromDesktopFile(desktopFile)
+	_, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
-	_, err := readExecCommandFromDesktopFile(desktopFile)
+	_, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }
