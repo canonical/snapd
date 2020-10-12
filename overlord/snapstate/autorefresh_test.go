@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/timeutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type autoRefreshStore struct {
@@ -714,6 +715,14 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	notificationSent := false
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationSent = true
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*7*24)
+	})
+	defer restore()
+
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
@@ -728,11 +737,20 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
 	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+	c.Check(notificationSent, Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	notificationSent := false
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationSent = true
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
+	})
+	defer restore()
 
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
@@ -752,4 +770,5 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
 	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 7 days since its refresh was postponed. It will now be refreshed.`)
+	c.Check(notificationSent, Equals, true)
 }
