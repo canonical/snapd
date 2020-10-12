@@ -59,13 +59,13 @@ type PrivilegedDesktopLauncher struct {
 }
 
 // Name returns the name of the interface this object implements
-func (s *PrivilegedDesktopLauncher) Name() string {
+func (s *PrivilegedDesktopLauncher) Interface() string {
 	return "io.snapcraft.PrivilegedDesktopLauncher"
 }
 
 // BasePath returns the base path of the object
-func (s *PrivilegedDesktopLauncher) BasePath() dbus.ObjectPath {
-	return "/io/snapcraft/PrivilegedDesktopLauncher"
+func (s *PrivilegedDesktopLauncher) ObjectPath() dbus.ObjectPath {
+	return "/io/snapcraft/Launcher"
 }
 
 // IntrospectionData gives the XML formatted introspection description

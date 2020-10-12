@@ -22,7 +22,6 @@ package userd
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"os/exec"
 	"syscall"
 	"time"

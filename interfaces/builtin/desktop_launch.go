@@ -46,7 +46,7 @@ const desktopLaunchConnectedPlugAppArmor = `
 
 dbus (send)
     bus=session
-    path=/io/snapcraft/PrivilegedDesktopLauncher
+    path=/io/snapcraft/Launcher
     interface=io.snapcraft.PrivilegedDesktopLauncher
     member=OpenDesktopEntry
     peer=(label=unconfined),
