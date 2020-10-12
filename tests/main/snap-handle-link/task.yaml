@@ -23,9 +23,6 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "URI Handler fails if snap-store is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
     if tests.session -u test exec snap handle-link snap://package 2>errors.log; then
@@ -36,7 +33,7 @@ execute: |
     MATCH "Snap Store required" < errors.log
 
     echo "Now with snap-store installed"
-    install_local snap-store
+    "$TESTSTOOLS"/snaps-state install-local snap-store
     tests.session -u test exec snap handle-link snap://package | MATCH "Fake snap got snap://package"
 
     echo "The same should work with xdg-open"

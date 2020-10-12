@@ -8,11 +8,8 @@ prepare: |
     snap set system experimental.parallel-instances=true
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
-    install_local test-snapd-sh
-    install_local_as test-snapd-sh test-snapd-sh_foo
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
     su -l -c '! test -d ~/snap/test-snapd-sh' test
     su -l -c '! test -d ~/snap/test-snapd-sh_foo' test

@@ -23,10 +23,8 @@ environment:
 prepare: |
     # Install a pair of snaps that both have two content interfaces as
     # sub-directories of $SNAP_DATA and $SNAP_COMMON.
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-content-advanced-plug
-    install_local test-snapd-content-advanced-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-advanced-plug
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-advanced-slot
 
 execute: |
     # Test that initially there are no mount points on the plug side (because

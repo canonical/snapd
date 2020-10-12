@@ -168,9 +168,6 @@ type ExtractedRunKernelImageBootloader interface {
 type TrustedAssetsBootloader interface {
 	Bootloader
 
-	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
-	// TODO:UC20: remove once no longer used
-	IsCurrentlyManaged() (bool, error)
 	// ManagedAssets returns a list of boot assets managed by the bootloader
 	// in the boot filesystem.
 	ManagedAssets() []string

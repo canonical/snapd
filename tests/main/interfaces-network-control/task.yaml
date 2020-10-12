@@ -20,12 +20,8 @@ environment:
     ARP_ENTRY_ADDR: "30.30.30.30"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     echo "Given a snap declaring a plug on the network-control interface is installed"
-    install_local network-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-control-consumer
 
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
