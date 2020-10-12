@@ -721,7 +721,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 		Current:  si.Revision,
 	}
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapName: "pkg"}
+		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 
@@ -745,7 +745,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 		RefreshInhibitedTime: &pastInstant,
 	}
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapName: "pkg"}
+		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, IsNil)
 
