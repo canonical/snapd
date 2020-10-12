@@ -138,8 +138,8 @@ var (
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
 
-	DoSoftRefreshCheck = doSoftRefreshCheck
-	DoHardRefreshFlow  = doHardRefreshFlow
+	SoftCheckNothingRunningForRefresh = softCheckNothingRunningForRefresh
+	DoHardRefreshFlow                 = doHardRefreshFlow
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {

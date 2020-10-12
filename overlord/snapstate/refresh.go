@@ -182,11 +182,18 @@ func doHardRefreshFlow(backend managerBackend, st *state.State, snapst *SnapStat
 	})
 }
 
-// doSoftRefreshCheck performs the complete soft refresh check interaction.
+// softCheckNothingRunningForRefresh checks if non-service apps are off for a snap refresh.
 //
-// This check uses SoftNothingRunningRefreshCheck along with interaction with
-// the snap lock, shared by snap-confine and snapd.
-func doSoftRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) error {
+// The details of the check are explained by SoftNothingRunningRefreshCheck.
+// The check is performed while holding the snap lock, which ensures that we
+// are not racing with snap-confine, which is starting a new process in the
+// context of the given snap.
+//
+// In the case that the check fails, the state is modified to reflect when the
+// refresh was first postponed. Eventually the check does not fail, even if
+// non-service apps are running, because this mechanism only allows postponing
+// refreshes for a bounded amount of time.
+func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
 	// Grab per-snap lock to prevent new processes from starting. This is
 	// sufficient to perform the check, even though individual processes may
 	// fork or exit, we will have per-security-tag information about what is

@@ -177,7 +177,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	defer restore()
 
 	// Soft refresh should not fail.
-	err := snapstate.DoSoftRefreshCheck(s.state, snapst, info)
+	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
@@ -199,7 +199,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	defer restore()
 
 	// Soft refresh should fail with a proper error.
-	err := snapstate.DoSoftRefreshCheck(s.state, snapst, info)
+	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 
 	// Sanity check: the inhibition lock was not set.
