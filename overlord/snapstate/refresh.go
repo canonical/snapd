@@ -158,7 +158,7 @@ func (err BusySnapError) Pids() []int {
 	return err.pids
 }
 
-// doHardRefreshFlow performs the complete hard refresh interaction.
+// hardEnsureNothingRunningDuringRefresh performs the complete hard refresh interaction.
 //
 // This check uses HardNothingRunningRefreshCheck along with interaction with
 // two locks - the snap lock, shared by snap-confine and snapd and the snap run
@@ -172,7 +172,7 @@ func (err BusySnapError) Pids() []int {
 //
 // In practice, we either inhibit app startup and refresh the snap _or_ inhibit
 // the refresh change and continue running existing app processes.
-func doHardRefreshFlow(backend managerBackend, st *state.State, snapst *SnapState, info *snap.Info) (*osutil.FileLock, error) {
+func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, info *snap.Info) (*osutil.FileLock, error) {
 	return backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
 		// In case of successful refresh inhibition the snap state is modified
 		// to indicate when the refresh was first inhibited. If the first

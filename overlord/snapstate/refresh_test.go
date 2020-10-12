@@ -222,7 +222,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	lock, err := snapstate.DoHardRefreshFlow(backend, s.state, snapst, info)
+	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, info)
 	c.Assert(err, IsNil)
 	c.Assert(lock, NotNil)
 	defer lock.Close()
@@ -250,7 +250,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	lock, err := snapstate.DoHardRefreshFlow(backend, s.state, snapst, info)
+	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 	c.Assert(lock, IsNil)
 
