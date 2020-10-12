@@ -131,7 +131,7 @@ def checksection(data, env: Dict[str, str]):
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             shell=True)
-    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=10)
+    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=30)
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
 
