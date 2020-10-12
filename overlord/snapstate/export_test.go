@@ -259,3 +259,12 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
+	return &BusySnapError{
+		SnapInfo:      info,
+		pids:          pids,
+		busyAppNames:  busyAppNames,
+		busyHookNames: busyHookNames,
+	}
+}

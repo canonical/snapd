@@ -23,8 +23,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/httputil"
@@ -493,18 +491,6 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 	return t1, nil
 }
 
-func populateRefreshHints(refreshInfo *userclient.PendingSnapRefreshInfo, snapInfo *snap.Info, err *BusySnapError) {
-	for _, appName := range err.AppNames() {
-		if app, ok := snapInfo.Apps[appName]; ok {
-			path := app.DesktopFile()
-			if _, err := os.Stat(path); err == nil {
-				refreshInfo.BusyAppName = appName
-				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
-			}
-		}
-	}
-}
-
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -516,7 +502,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			InstanceName: info.InstanceName(),
 		}
 		if err, ok := err.(*BusySnapError); ok {
-			populateRefreshHints(refreshInfo, info, err)
+			refreshInfo = err.PendingSnapRefreshInfo()
 		}
 
 		asyncPendingRefreshNotification := func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {

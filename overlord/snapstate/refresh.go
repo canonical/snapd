@@ -21,12 +21,15 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 // pidsOfSnap is a mockable version of PidsOfSnap
@@ -156,12 +159,27 @@ type BusySnapError struct {
 	busyHookNames []string
 }
 
-// AppNames returns the name of applications that were busy.
+// PendingSnapRefreshInfo computes information necessary to perform user notification
+// of postponed refresh of a snap, based on the information about snap "business".
 //
-// The list may be empty, for example, because a hook is executing, or because
-// tracking malfunctioned.
-func (err *BusySnapError) AppNames() []string {
-	return err.busyAppNames
+// The returned value contains the instance name of the snap as well as, if possible,
+// information relevant for desktop notification services, such as application name
+// and the snapd-generated desktop file name.
+func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefreshInfo {
+	refreshInfo := &userclient.PendingSnapRefreshInfo{
+		InstanceName: err.SnapInfo.InstanceName(),
+	}
+	for _, appName := range err.busyAppNames {
+		if app, ok := err.SnapInfo.Apps[appName]; ok {
+			path := app.DesktopFile()
+			if _, err := os.Stat(path); err == nil {
+				refreshInfo.BusyAppName = appName
+				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
+				break
+			}
+		}
+	}
+	return refreshInfo
 }
 
 // Error formats an error string describing what is running.
