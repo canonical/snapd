@@ -491,6 +491,18 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 	return t1, nil
 }
 
+// asyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
+//
+// This allows the, possibly slow, communication with each snapd session agent,
+// to be performed without holding the snap state lock.
+var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	go func() {
+		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
+			logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		}
+	}()
+}
+
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -505,15 +517,6 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			refreshInfo = err.PendingSnapRefreshInfo()
 		}
 
-		asyncPendingRefreshNotification := func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-			// Send the notification asynchronously to avoid holding the state lock.
-			go func() {
-				if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
-					logger.Noticef("Cannot send notification about pending refresh: %v", err)
-				}
-			}()
-		}
-
 		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
 		client := userclient.New()
@@ -524,6 +527,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			Set(st, info.InstanceName(), snapst)
 			if _, ok := err.(*BusySnapError); ok {
 				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+				// Send the notification asynchronously to avoid holding the state lock.
 				asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 				// XXX: remove the warning or send it only if no notification was delivered?
 				st.Warnf(i18n.NG(

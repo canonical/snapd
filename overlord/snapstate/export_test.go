@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type ManagerBackend managerBackend
@@ -184,6 +185,14 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	localInstallLastCleanup = t
 	return func() {
 		localInstallLastCleanup = old
+	}
+}
+
+func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo)) (restore func()) {
+	old := asyncPendingRefreshNotification
+	asyncPendingRefreshNotification = fn
+	return func() {
+		asyncPendingRefreshNotification = old
 	}
 }
 
