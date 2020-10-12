@@ -46,9 +46,6 @@ const launcherIntrospectionXML = `
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
-	<method name='OpenDesktopEntry'>
-		<arg type='s' name='desktopFileID' direction='in'/>
-	</method>
 	<method name="OpenFile">
 		<arg type="s" name="parent_window" direction="in"/>
 		<arg type="h" name="fd" direction="in"/>
@@ -162,41 +159,6 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 
 	if err := exec.Command("xdg-open", addr).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
-	}
-
-	return nil
-}
-
-// OpenDesktopEntry implements the 'OpenDesktopEntry' method of the 'io.snapcraft.DesktopLauncher'
-// DBus interface. The desktopFileID is described here:
-// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
-func (s *Launcher) OpenDesktopEntry(desktopFileID string, sender dbus.Sender) *dbus.Error {
-	desktopFile, err := desktopFileIDToFilename(osutil.RegularFileExists, desktopFileID)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	err = verifyDesktopFileLocation(desktopFile)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	exec_command, err := readExecCommandFromDesktopFile(desktopFile)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	args, err := parseExecCommand(exec_command)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-  args = append([]string{"systemd-run", "--user", "--"}, args...)
-
-	cmd := exec.Command(args[0], args[1:]...)
-
-	if cmd.Run() != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
 	}
 
 	return nil
