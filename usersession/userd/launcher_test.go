@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 
@@ -31,7 +30,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
@@ -198,59 +196,4 @@ func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot use file descriptors opened using O_PATH")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
-}
-
-var mircadeDesktop = `[Desktop Entry]
-X-SnapInstanceName=mircade
-Name=mircade
-Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade
-Icon=/snap/mircade/143/meta/gui/mircade.png
-Comment=Sample confined desktop
-Type=Application
-Categories=Game
-`
-
-func (s *launcherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "systemd-run", "true")
-	defer cmd.Restore()
-
-	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
-	c.Assert(err, IsNil)
-
-	err = s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
-}
-
-func (s *launcherSuite) TestOpenDesktopEntryFailsWithBadDesktopId(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "systemd-run", "true")
-	defer cmd.Restore()
-
-	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
-	c.Assert(err, IsNil)
-
-	err = s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, NotNil)
-}
-
-func (s *launcherSuite) TestOpenDesktopEntryFailsWithBadExecutable(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	cmd := testutil.MockCommand(c, "systemd-run", "false")
-	defer cmd.Restore()
-
-	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
-	c.Assert(err, IsNil)
-
-	err = s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, NotNil)
 }

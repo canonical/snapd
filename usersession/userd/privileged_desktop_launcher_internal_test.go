@@ -30,10 +30,10 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type launcherInternalSuite struct {
+type privilegedDesktopLauncherInternalSuite struct {
 }
 
-var _ = Suite(&launcherInternalSuite{})
+var _ = Suite(&privilegedDesktopLauncherInternalSuite{})
 
 var mockFileSystem = []string{
 	"/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop",
@@ -355,7 +355,7 @@ func existsOnMockFileSystem(desktop_file string) bool {
 	return strutil.ListContains(mockFileSystem, desktop_file)
 }
 
-func (s *launcherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {
 
 	var desktopIdTests = []struct {
 		id     string
@@ -373,7 +373,7 @@ func (s *launcherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c
 	}
 }
 
-func (s *launcherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c *C) {
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
@@ -387,7 +387,7 @@ func (s *launcherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c 
 	}
 }
 
-func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
 	var exec_command = []struct {
 		exec_command string
 		expect       []string
@@ -423,7 +423,7 @@ func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C)
 	}
 }
 
-func (s *launcherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) {
 	// the only invalid entries are those that error from shlex.Split()
 	var exec_command = []string{
 		"/snap/bin/foo \"unclosed double quote",
@@ -436,7 +436,7 @@ func (s *launcherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) 
 	}
 }
 
-func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithValidContent(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithValidContent(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	// We need to correct the embedded path to the desktop file before writing the file
@@ -450,7 +450,7 @@ func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithValidConte
 	c.Assert(exec, DeepEquals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
 }
 
-func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExec(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExec(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	err := ioutil.WriteFile(desktopFile, []byte(chromiumDesktopFile), 0644)
@@ -460,7 +460,7 @@ func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExe
 	c.Assert(err, NotNil)
 }
 
-func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithNoDesktopEntry(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoDesktopEntry(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	// We need to correct the embedded path to the desktop file before writing the file
@@ -474,7 +474,7 @@ func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithNoDesktopE
 	c.Assert(err, NotNil)
 }
 
-func (s *launcherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	_, err := readExecCommandFromDesktopFile(desktopFile)

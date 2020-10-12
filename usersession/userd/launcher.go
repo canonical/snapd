@@ -29,7 +29,6 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
