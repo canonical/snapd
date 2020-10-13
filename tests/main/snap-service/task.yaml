@@ -4,9 +4,7 @@ kill-timeout: 5m
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"

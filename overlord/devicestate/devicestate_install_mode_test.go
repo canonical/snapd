@@ -175,7 +175,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brGadgetRoot, brDevice string
 	var brOpts install.Options
 	var installRunCalled int
-	var sealingObserver gadget.ContentObserver
+	var installSealingObserver gadget.ContentObserver
 	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs install.SystemInstallObserver) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
@@ -184,7 +184,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
-		sealingObserver = obs
+		installSealingObserver = obs
 		installRunCalled++
 		return nil
 	})
@@ -224,6 +224,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
+		} else {
+			c.Check(seal, IsNil)
 		}
 		bootMakeBootableCalled++
 		return nil
@@ -258,27 +260,25 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(installSystem.Status(), Equals, state.DoneStatus)
 
 	// in the right way
+	c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+	c.Assert(brDevice, Equals, "")
 	if tc.encrypt {
-		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
-		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:   true,
 			Encrypt: true,
 		})
-
-		// inteface is not nil
-		c.Assert(sealingObserver, NotNil)
-		// we expect a very specific type
-		trustedInstallObserver, ok := sealingObserver.(*boot.TrustedAssetsInstallObserver)
-		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", sealingObserver))
-		c.Assert(trustedInstallObserver, NotNil)
 	} else {
-		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
-		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount: true,
 		})
 	}
+	// inteface is not nil
+	c.Assert(installSealingObserver, NotNil)
+	// we expect a very specific type
+	trustedInstallObserver, ok := installSealingObserver.(*boot.TrustedAssetsInstallObserver)
+	c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
+	c.Assert(trustedInstallObserver, NotNil)
+
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})

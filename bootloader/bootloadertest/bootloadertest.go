@@ -391,8 +391,6 @@ type MockTrustedAssetsBootloader struct {
 	BootChainRunBl         []bootloader.Bootloader
 	BootChainKernelPath    []string
 
-	IsManaged                  bool
-	IsManagedErr               error
 	UpdateErr                  error
 	UpdateCalls                int
 	ManagedAssetsList          []string
@@ -405,10 +403,6 @@ func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	return &MockTrustedAssetsBootloader{
 		MockBootloader: b,
 	}
-}
-
-func (b *MockTrustedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
-	return b.IsManaged, b.IsManagedErr
 }
 
 func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {

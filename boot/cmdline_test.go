@@ -124,11 +124,7 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 
 	tbl := bl.WithTrustedAssets()
 	bootloader.Force(tbl)
-	tbl.IsManaged = false
 
-	// TODO:UC20: remove is managed checks
-
-	// is-managed is ignored with the right model and bootloader interface
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
@@ -160,7 +156,6 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	tbl.IsManaged = true
 	tbl.StaticCommandLine = "panic=-1"
 
 	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
@@ -169,9 +164,6 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
-
-	// managed status is effectively ignored
-	tbl.IsManaged = false
 
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
@@ -188,7 +180,6 @@ func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *
 	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	tbl.IsManaged = true
 	tbl.StaticCommandLine = "panic=-1"
 	tbl.CandidateStaticCommandLine = "candidate panic=-1"
 
@@ -197,7 +188,6 @@ func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
 
 	// managed status is effectively ignored
-	tbl.IsManaged = false
 	cmdline, err = boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
