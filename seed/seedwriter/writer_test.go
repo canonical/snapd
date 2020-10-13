@@ -2152,6 +2152,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
 	err = w.SetInfo(sn, info)
 	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
+	c.Check(sn.Info, Not(Equals), info)
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
