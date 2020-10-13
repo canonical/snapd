@@ -1,0 +1,69 @@
+#!/bin/bash -e
+# Tool used to backup/restore a specific directory
+# It is used by the test tool to make sure each test
+# leaves the test directory as was initially
+
+show_help() {
+    echo "usage: tests.backup prepare [PATH]"
+    echo "       tests.backup restore [PATH]"
+}
+
+cmd_prepare() {
+    local BACKUP_PATH=$1
+
+    if [ ! -d "$BACKUP_PATH" ]; then
+        echo "tests.backup: cannot backup $BACKUP_PATH, not a directory" >&2
+        exit 1
+    fi
+    tar cf "${BACKUP_PATH}.tar" "$BACKUP_PATH"
+}
+
+cmd_restore() {
+    local BACKUP_PATH=$1
+    if [ -f "${BACKUP_PATH}.tar" ]; then
+        # Find all the files in the path $BACKUP_PATH and delete them
+        # This command deletes also the hidden files
+        find "${BACKUP_PATH}" -maxdepth 1 -mindepth 1 -exec rm -rf {} \;
+        tar -C/ -xf "${BACKUP_PATH}.tar"
+        rm "${BACKUP_PATH}.tar"
+    else
+        echo "tests.backup: cannot restore ${BACKUP_PATH}.tar, the file does not exist" >&2
+        exit 1
+    fi
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            prepare)
+                local BACKUP_PATH="${2:-$(pwd)}"
+                cmd_prepare "$BACKUP_PATH"
+                exit
+                ;;
+            restore)
+                local BACKUP_PATH="${2:-$(pwd)}"
+                cmd_restore "$BACKUP_PATH"
+                exit
+                ;;
+            -*)
+                echo "tests.backup: unknown option $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "tests.backup: unknown command $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+main "$@"
