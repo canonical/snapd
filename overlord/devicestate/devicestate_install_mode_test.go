@@ -238,7 +238,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
-		if tc.encrypt && tc.trustedBootloader {
+		if tc.encrypt {
 			c.Check(seal, NotNil)
 		} else {
 			c.Check(seal, IsNil)
@@ -288,7 +288,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			Mount: true,
 		})
 	}
-	if tc.trustedBootloader && tc.encrypt {
+	if tc.encrypt {
 		// inteface is not nil
 		c.Assert(installSealingObserver, NotNil)
 		// we expect a very specific type
