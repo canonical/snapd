@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Snapd User Session Agent
+Exec=/bin/false
+DBusActivatable=true
+NoDisplay=true
