@@ -42,7 +42,7 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.launcher = &userd.PrivilegedDesktopLauncher{}
 
-  var rawMircadeDesktop = `[Desktop Entry]
+	var rawMircadeDesktop = `[Desktop Entry]
   X-SnapInstanceName=mircade
   Name=mircade
   Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade

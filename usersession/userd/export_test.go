@@ -34,13 +34,13 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 type FileExists fileExists
 
 func DesktopFileIDToFilename(desktopFileExists FileExists, desktopFileID string) (string, error) {
-  return desktopFileIDToFilename(fileExists(desktopFileExists), desktopFileID);
+	return desktopFileIDToFilename(fileExists(desktopFileExists), desktopFileID)
 }
 
 func ParseExecCommand(exec_command string) ([]string, error) {
-  return parseExecCommand(exec_command);
+	return parseExecCommand(exec_command)
 }
 
 func ReadExecCommandFromDesktopFile(desktopFile string) (string, error) {
-  return readExecCommandFromDesktopFile(desktopFile);
+	return readExecCommandFromDesktopFile(desktopFile)
 }

@@ -21,11 +21,11 @@ package userd_test
 
 import (
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/usersession/userd"
 	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
-	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type privilegedDesktopLauncherInternalSuite struct {

@@ -98,7 +98,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-  args = append([]string{"systemd-run", "--user", "--"}, args...)
+	args = append([]string{"systemd-run", "--user", "--"}, args...)
 
 	cmd := exec.Command(args[0], args[1:]...)
 
@@ -108,7 +108,6 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 
 	return nil
 }
-
 
 type fileExists func(string) bool
 
@@ -208,7 +207,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 		}
 	}
 
-	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s " + dirs.SnapBinariesDir, desktopFile)
+	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s "+dirs.SnapBinariesDir, desktopFile)
 	if !strings.HasPrefix(launch, expectedPrefix) {
 		return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value: %q", desktopFile, launch)
 	}
