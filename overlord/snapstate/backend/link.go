@@ -38,9 +38,6 @@ type LinkContext struct {
 	// FirstInstall indicates whether this is the first time given snap is
 	// installed
 	FirstInstall bool
-	// PrevDisabledServices is a list snap services that were manually
-	// disable in the previous revisions of this snap
-	PrevDisabledServices []string
 
 	// VitalityRank is used to hint how much the services should be
 	// protected from the OOM killer
