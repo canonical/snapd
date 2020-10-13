@@ -457,6 +457,9 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 }
 
 func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
+	// bootloader is not a trusted assets one, but we use encryption, one
+	// may try setting encryption key on the observer
+
 	d := c.MkDir()
 
 	// MockBootloader does not implement trusted assets
@@ -467,11 +470,16 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
-	c.Assert(obs, IsNil)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
+	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
+	// bootloader has no trusted assets, but encryption is enabled, and one
+	// may try setting a key on the observer
+
 	d := c.MkDir()
 
 	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
@@ -482,8 +490,10 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := true
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
-	c.Assert(obs, IsNil)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
+	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {

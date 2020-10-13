@@ -208,7 +208,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	}
 	hasManaged := len(runManaged) > 0
 	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
-	if !hasManaged && !hasTrusted {
+	if !hasManaged && !hasTrusted && !useEncryption {
 		// no managed assets, and no trusted assets or we are not
 		// tracking them due to no encryption to data partition
 		return nil, ErrObserverNotApplicable
