@@ -46,6 +46,8 @@ import (
 )
 
 type servicesTestSuite struct {
+	testutil.DBusTest
+
 	tempdir string
 
 	sysdLog [][]string
@@ -60,6 +62,7 @@ type servicesTestSuite struct {
 var _ = Suite(&servicesTestSuite{})
 
 func (s *servicesTestSuite) SetUpTest(c *C) {
+	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
@@ -87,6 +90,7 @@ func (s *servicesTestSuite) TearDownTest(c *C) {
 	s.systemctlRestorer()
 	s.delaysRestorer()
 	dirs.SetRootDir("")
+	s.DBusTest.TearDownTest(c)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
