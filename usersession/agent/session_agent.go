@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
@@ -41,6 +42,7 @@ import (
 
 type SessionAgent struct {
 	Version  string
+	bus      *dbus.Conn
 	listener net.Listener
 	serve    *http.Server
 	tomb     tomb.Tomb
@@ -48,6 +50,26 @@ type SessionAgent struct {
 
 	idle        *idleTracker
 	IdleTimeout time.Duration
+}
+
+const sessionAgentBusName = "io.snapcraft.SessionAgent"
+
+func dbusSessionBus() (*dbus.Conn, error) {
+	// use a private connection to the session bus, this way we can manage
+	// its lifetime without worrying of breaking other code
+	conn, err := dbus.SessionBusPrivate()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.Auth(nil); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := conn.Hello(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -165,6 +187,21 @@ func (l *closeOnceListener) Close() error {
 }
 
 func (s *SessionAgent) Init() error {
+	// Set up D-Bus connection
+	var err error
+	s.bus, err = dbusSessionBus()
+	if err != nil {
+		return err
+	}
+	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
+	if err != nil {
+		return err
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
+	}
+
+	// Set up REST API server
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err
@@ -227,6 +264,7 @@ func (s *SessionAgent) shutdownServerOnKill() error {
 	// logic as well.
 	s.listener.Close()
 	systemd.SdNotify("STOPPING=1")
+	s.bus.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	return s.serve.Shutdown(ctx)
