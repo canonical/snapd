@@ -404,18 +404,18 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWit
 		{"/snap/bin/foo '\"-f bar\"'", []string{"/snap/bin/foo", "\"-f bar\""}},
 		// valid with exec variables stripped out
 		{"/snap/bin/foo -f %U", []string{"/snap/bin/foo", "-f"}},
-		{"/snap/bin/foo -f %U %i", []string{"/snap/bin/foo", "-f"}},
+		{"/snap/bin/foo -f %U %i", []string{"/snap/bin/foo", "-f", "--icon", "/snap/chromium/1193/chromium.png"}},
 		{"/snap/bin/foo -f %U bar", []string{"/snap/bin/foo", "-f", "bar"}},
-		{"/snap/bin/foo -f %U bar %i", []string{"/snap/bin/foo", "-f", "bar"}},
+		{"/snap/bin/foo -f %U bar %i", []string{"/snap/bin/foo", "-f", "bar", "--icon", "/snap/chromium/1193/chromium.png"}},
 		// valid with mixture of literal '%' and exec variables
 		{"/snap/bin/foo -f %U %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %U %i %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %U %%bar %i", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %%bar %U %i", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %U %i %%bar", []string{"/snap/bin/foo", "-f", "--icon", "/snap/chromium/1193/chromium.png", "%bar"}},
+		{"/snap/bin/foo -f %U %%bar %i", []string{"/snap/bin/foo", "-f", "%bar", "--icon", "/snap/chromium/1193/chromium.png"}},
+		{"/snap/bin/foo -f %%bar %U %i", []string{"/snap/bin/foo", "-f", "%bar", "--icon", "/snap/chromium/1193/chromium.png"}},
 	}
 
 	for _, test := range exec_command {
-		actual, err := userd.ParseExecCommand(test.exec_command)
+		actual, err := userd.ParseExecCommand(test.exec_command, "/snap/chromium/1193/chromium.png")
 		c.Assert(err, IsNil)
 		c.Assert(actual, DeepEquals, test.expect)
 	}
@@ -429,7 +429,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithIn
 	}
 
 	for _, test := range exec_command {
-		_, err := userd.ParseExecCommand(test)
+		_, err := userd.ParseExecCommand(test, "/snap/chromium/1193/chromium.png")
 		c.Assert(err, NotNil)
 	}
 }
@@ -442,10 +442,11 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(fileContent), 0644)
 	c.Assert(err, IsNil)
 
-	exec, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
+	exec, icon, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, IsNil)
 
 	c.Assert(exec, DeepEquals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
+	c.Assert(icon, DeepEquals, "/snap/chromium/1193/chromium.png")
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExec(c *C) {
@@ -454,7 +455,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(chromiumDesktopFile), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
+	_, _, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }
 
@@ -468,13 +469,13 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	err := ioutil.WriteFile(desktopFile, []byte(fileContent), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
+	_, _, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
-	_, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
+	_, _, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, NotNil)
 }

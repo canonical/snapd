@@ -88,12 +88,12 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	exec_command, err := readExecCommandFromDesktopFile(desktopFile)
+	exec_command, icon, err := readExecCommandFromDesktopFile(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	args, err := parseExecCommand(exec_command)
+	args, err := parseExecCommand(exec_command, icon)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -180,12 +180,10 @@ func verifyDesktopFileLocation(desktopFile string) error {
 
 // readExecCommandFromDesktopFile parses the desktop file to get the Exec entry and
 // checks that the BAMF_DESKTOP_FILE_HINT is present and refers to the desktop file.
-func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
-	var launch string
-
+func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon string, err error) {
 	file, err := os.Open(desktopFile)
 	if err != nil {
-		return launch, err
+		return exec, icon, err
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
@@ -201,18 +199,21 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 			in_desktop_section = false
 		} else if strings.HasPrefix(line, "[") {
 			in_desktop_section = false
-		} else if in_desktop_section && strings.HasPrefix(line, "Exec=") {
-			launch = strings.TrimPrefix(line, "Exec=")
-			break
+		} else if in_desktop_section {
+			if strings.HasPrefix(line, "Exec=") {
+				exec = strings.TrimPrefix(line, "Exec=")
+			} else if strings.HasPrefix(line, "Icon=") {
+				icon = strings.TrimPrefix(line, "Icon=")
+			}
 		}
 	}
 
 	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s "+dirs.SnapBinariesDir, desktopFile)
-	if !strings.HasPrefix(launch, expectedPrefix) {
-		return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value: %q", desktopFile, launch)
+	if !strings.HasPrefix(exec, expectedPrefix) {
+		return "", "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value: %q", desktopFile, exec)
 	}
 
-	return launch, nil
+	return exec, icon, nil
 }
 
 // Parse the Exec command by stripping any exec variables.
@@ -221,7 +222,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 // implications that must be thought through regarding the influence of the launching
 // snap over the launcher wrt exec variables. For now we simply filter them out.
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
-func parseExecCommand(exec_command string) ([]string, error) {
+func parseExecCommand(exec_command string, icon string) ([]string, error) {
 	args, err := shlex.Split(exec_command)
 	if err != nil {
 		return []string{}, err
@@ -236,8 +237,16 @@ func parseExecCommand(exec_command string) ([]string, error) {
 			i++
 		} else if strings.HasPrefix(args[i], "%") {
 			switch args[i] {
-			case "%f", "%F", "%u", "%U", "%i":
+			case "%f", "%F", "%u", "%U":
 				args = append(args[:i], args[i+1:]...)
+			case "%i":
+				pre := args[:i]
+				post := args[i+1:]
+				if icon != "" {
+					post = append([]string{"--icon", icon}, post...)
+					i = i + 2
+				}
+				args = append(pre, post...)
 			default:
 				return []string{}, fmt.Errorf("cannot run %q", exec_command)
 			}

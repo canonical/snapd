@@ -37,10 +37,10 @@ func DesktopFileIDToFilename(desktopFileExists FileExists, desktopFileID string)
 	return desktopFileIDToFilename(fileExists(desktopFileExists), desktopFileID)
 }
 
-func ParseExecCommand(exec_command string) ([]string, error) {
-	return parseExecCommand(exec_command)
+func ParseExecCommand(exec_command string, icon string) ([]string, error) {
+	return parseExecCommand(exec_command, icon)
 }
 
-func ReadExecCommandFromDesktopFile(desktopFile string) (string, error) {
+func ReadExecCommandFromDesktopFile(desktopFile string) (exec string, icon string, err error) {
 	return readExecCommandFromDesktopFile(desktopFile)
 }
