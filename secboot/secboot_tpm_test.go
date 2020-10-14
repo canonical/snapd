@@ -412,14 +412,14 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		devicePath := filepath.Join("/dev/disk/by-partuuid", partuuid)
 
 		restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
-			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			keyPath string, pinReader io.Reader, options *sb.ActivateVolumeOptions) (bool, error) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, devicePath)
 			c.Assert(keyPath, Equals, filepath.Join("encrypt-key-dir", "name.sealed-key"))
-			c.Assert(*options, DeepEquals, sb.ActivateWithTPMSealedKeyOptions{
-				PINTries:            1,
-				RecoveryKeyTries:    3,
-				LockSealedKeyAccess: tc.lockRequest,
+			c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+				PassphraseTries:  1,
+				RecoveryKeyTries: 3,
+				LockSealedKeys:   tc.lockRequest,
 			})
 			if !tc.activated {
 				return false, errors.New("activation error")
@@ -429,7 +429,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		defer restore()
 
 		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
-			options *sb.ActivateWithRecoveryKeyOptions) error {
+			options *sb.ActivateVolumeOptions) error {
 			return tc.rkErr
 		})
 		defer restore()
@@ -593,9 +593,8 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile:                 "keyfile",
-			TPMPolicyUpdateDataFile: "policy-update-data-file",
-			TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
+			KeyFile:            "keyfile",
+			TPMLockoutAuthFile: filepath.Join(tmpDir, "lockout-auth-file"),
 		}
 
 		myKey := secboot.EncryptionKey{}
@@ -752,7 +751,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock provisioning
 		provisioningCalls := 0
-		restore = secboot.MockSbProvisionTPM(func(t *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error {
+		restore = secboot.MockProvisionTPM(func(t *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error {
 			provisioningCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(mode, Equals, sb.ProvisionModeFull)
@@ -763,14 +762,13 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock sealing
 		sealCalls := 0
-		restore = secboot.MockSbSealKeyToTPM(func(t *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
+		restore = secboot.MockSbSealKeyToTPM(func(t *sb.TPMConnection, key []byte, keyPath string, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(key, DeepEquals, myKey[:])
 			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(policyUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
-			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
-			return tc.sealErr
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(0x01880001))
+			return sb.TPMPolicyAuthKey{}, tc.sealErr
 		})
 		defer restore()
 
@@ -835,8 +833,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile:                 "keyfile",
-			TPMPolicyUpdateDataFile: "policy-update-data-file",
+			KeyFile: "keyfile",
 		}
 
 		sequences := []*sb.EFIImageLoadEvent{
@@ -903,13 +900,31 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
+		// mock unsealing authKey
+		mockSealedKeyObject := &sb.SealedKeyObject{}
+		restore = secboot.MockReadSealedKeyObject(func(path string) (*sb.SealedKeyObject, error) {
+			c.Assert(path, Equals, myParams.KeyFile)
+			// XXX
+			return mockSealedKeyObject, nil
+		})
+		defer restore()
+
+		mockAuthKey := sb.TPMPolicyAuthKey{1, 3, 3, 7}
+		restore = secboot.MockUnsealAuthKey(func(t *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
+			c.Assert(t, Equals, tpm)
+			c.Assert(k, Equals, mockSealedKeyObject)
+			// XXX
+			return mockAuthKey, nil
+		})
+		defer restore()
+
 		// mock PCR protection policy update
 		resealCalls := 0
-		restore = secboot.MockSbUpdateKeyPCRProtectionPolicy(func(t *sb.TPMConnection, keyPath, polUpdatePath string, profile *sb.PCRProtectionProfile) error {
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicy(func(t *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, profile *sb.PCRProtectionProfile) error {
 			resealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(polUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
+			c.Assert(authKey, DeepEquals, mockAuthKey)
 			c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})
@@ -931,9 +946,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKey := secboot.EncryptionKey{}
 	myParams := secboot.SealKeyParams{
-		KeyFile:                 "keyfile",
-		TPMPolicyUpdateDataFile: "policy-update-data-file",
-		TPMLockoutAuthFile:      "lockout-auth-file",
+		KeyFile:            "keyfile",
+		TPMLockoutAuthFile: "lockout-auth-file",
 	}
 
 	err := secboot.SealKey(myKey, &myParams)

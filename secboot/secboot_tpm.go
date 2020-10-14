@@ -63,7 +63,9 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled = isTPMEnabledImpl
+	isTPMEnabled  = isTPMEnabledImpl
+	unsealAuthKey = unsealAuthKeyImpl
+	provisionTPM  = provisionTPMImpl
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
@@ -372,13 +374,18 @@ func ResealKey(params *ResealKeyParams) error {
 	if err != nil {
 		return fmt.Errorf("cannot read the sealed key: %v", err)
 	}
-	pin := ""
-	_, authKey, err := k.UnsealFromTPM(tpm, pin)
+	authKey, err := unsealAuthKey(tpm, k)
 	if err != nil {
 		return fmt.Errorf("cannot unseal the authorization policy update key: %v", err)
 	}
 
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
+}
+
+func unsealAuthKeyImpl(tpm *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
+	pin := ""
+	_, authKey, err := k.UnsealFromTPM(tpm, pin)
+	return authKey, err
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
@@ -470,11 +477,15 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := tpm.EnsureProvisioned(sb.ProvisionModeFull, lockoutAuth); err != nil {
+	if err := provisionTPM(tpm, sb.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
+}
+
+func provisionTPMImpl(tpm *sb.TPMConnection, mode sb.ProvisionMode, lockoutAuth []byte) error {
+	return tpm.EnsureProvisioned(mode, lockoutAuth)
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
