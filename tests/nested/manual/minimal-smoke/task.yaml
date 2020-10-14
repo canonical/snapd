@@ -18,6 +18,8 @@ execute: |
 
     if nested_is_core_20_system ; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
+        # TODO:UC20: this should written down in the official docs
+        MINIMAL_MEM=384
     elif nested_is_core_18_system; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-18-64
     elif nested_is_core_16_system; then
