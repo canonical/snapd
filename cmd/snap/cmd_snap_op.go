@@ -475,7 +475,7 @@ type cmdInstall struct {
 	Name string `long:"name"`
 
 	Cohort        string `long:"cohort"`
-	IgnoreRunning bool   `long:"ignore-running"`
+	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
 	Positional    struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
