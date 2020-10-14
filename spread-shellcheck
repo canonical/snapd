@@ -283,4 +283,10 @@ if __name__ == '__main__':
     if NO_FAIL:
         opts.no_errors = True
 
+    if opts.max_procs == 1:
+        # TODO: temporary workaround for a deadlock when running with a single
+        # worker
+        opts.max_procs += 1
+        logging.warning('workers count bumped to 2 to workaround a deadlock')
+
     main(opts)
