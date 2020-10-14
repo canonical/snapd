@@ -6751,6 +6751,33 @@ func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	c.Check(calledFlags.Unaliased, check.Equals, true)
 }
 
+func (s *apiSuite) TestInstallIgnoreRunning(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action: "install",
+		// Install the snap without enabled automatic aliases
+		IgnoreRunning: true,
+		Snaps:         []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
+}
+
 func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
