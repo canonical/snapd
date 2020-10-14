@@ -5,10 +5,8 @@ summary: Check that `snap run` runs
 systems: [-*-s390x]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local basic-run
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local basic-run
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 debug: |
     if [ -f stderr ]; then

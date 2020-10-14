@@ -296,7 +296,7 @@ func NewEmulationMode(rootDir string) Systemd {
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
-// refers to the the instance launched to manage the user's desktop
+// refers to the instance launched to manage the user's desktop
 // session.  GlobalUserMode controls configuration respected by all
 // user instances on the system.
 //

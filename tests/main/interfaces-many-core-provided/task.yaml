@@ -33,11 +33,8 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Given a snap is installed"
-    install_local "$CONSUMER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
     # If possible, prepare a session for the test user. On many systems this
     # will allow running all tests as the unprivileged user. This shields us

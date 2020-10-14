@@ -474,6 +474,10 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 		return false, nil
 	}
 
+	return p.addToGrouping(a, grouping, p.groupings.Deserialize)
+}
+
+func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping func(string) (*internal.Grouping, error)) (ok bool, err error) {
 	uniq := a.Ref().Unique()
 	var u *unresolvedRec
 	var extrag *internal.Grouping
@@ -505,7 +509,7 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 
 	if u.serializedLabel != grouping {
 		var err error
-		extrag, err = p.groupings.Deserialize(string(grouping))
+		extrag, err = deserializeGrouping(string(grouping))
 		if err != nil {
 			return false, err
 		}
@@ -521,11 +525,29 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 // Errors related to the assertions are associated with the relevant groups
 // and can be retrieved with Err, in which case ok set to false.
 func (p *Pool) AddBatch(b *Batch, grouping Grouping) (ok bool, err error) {
-	// XXX parse the grouping only once
+	if err := p.phase(poolPhaseAdd); err != nil {
+		return false, err
+	}
+
+	// b dealt with unsupported formats already
+
+	// deserialize grouping if needed only once
+	var cachedGrouping *internal.Grouping
+	deser := func(_ string) (*internal.Grouping, error) {
+		if cachedGrouping != nil {
+			// do a copy as addToGrouping and resolveWith
+			// might add to their input
+			g := cachedGrouping.Copy()
+			return &g, nil
+		}
+		var err error
+		cachedGrouping, err = p.groupings.Deserialize(string(grouping))
+		return cachedGrouping, err
+	}
 
 	inError := false
 	for _, a := range b.added {
-		ok, err := p.Add(a, grouping)
+		ok, err := p.addToGrouping(a, grouping, deser)
 		if err != nil {
 			return false, err
 		}

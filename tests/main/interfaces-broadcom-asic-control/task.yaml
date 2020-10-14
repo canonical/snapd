@@ -11,9 +11,7 @@ details: |
     The broadcom-asic-control interface allow access to broadcom asic kernel module.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     "$TESTSTOOLS"/fs-state mock-file /dev/linux-user-bde
     "$TESTSTOOLS"/fs-state mock-file /dev/linux-kernel-bde

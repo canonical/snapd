@@ -44,6 +44,8 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 		return created, nil
 	}
 
+	logger.Debugf("create partitions on %s: %s", dl.Device, buf.String())
+
 	// Write the partition table. By default sfdisk will try to re-read the
 	// partition table with the BLKRRPART ioctl but will fail because the
 	// kernel side rescan removes and adds partitions and we have partitions
@@ -81,6 +83,7 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Delete disk partitions
+	logger.Debugf("delete disk partitions %v", indexes)
 	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)

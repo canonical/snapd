@@ -4,9 +4,7 @@ details: |
     The kvm interface allows read/write access to kvm.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-kvm
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-kvm
 
     if [ -e /dev/kvm ]; then
         mv /dev/kvm /dev/kvm.bak
