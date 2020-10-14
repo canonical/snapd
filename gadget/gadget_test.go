@@ -896,7 +896,7 @@ role: system-seed
 `
 	validSystemSave := uuidType + `
 role: system-save
-size: 123M
+size: 5M
 `
 	emptyRole := uuidType + `
 role: system-boot

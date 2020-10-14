@@ -166,6 +166,8 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 		return nil
 	}
 
+	// TODO:UC20: move key handling to the caller
+
 	// ensure directories
 	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
 		if err := os.MkdirAll(p, 0755); err != nil {
