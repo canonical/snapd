@@ -28,7 +28,7 @@ execute: |
         # Refer to the core 16 PC gadget for details:
         # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
         umount /boot/efi
-        # Use offset 64 as FAT32 kicks in for devices larger than 32MB
+        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
         dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       ubuntu-core-18-*)
@@ -36,7 +36,7 @@ execute: |
         # https://github.com/snapcore/pc-amd64-gadget/blob/18/gadget.yaml
         umount /boot/efi
         umount /boot/grub
-        # Use offset 64 as FAT32 kicks in for devices larger than 32MB
+        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
         dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       ubuntu-core-20-*)
@@ -48,7 +48,7 @@ execute: |
         umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
         umount /var/lib/snapd/seed
         umount /run/mnt/ubuntu-seed
-        # Use offset 64 as FAT32 kicks in for devices larger than 32MB
+        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
         dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       *)
