@@ -575,6 +575,19 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	return snapNames, nil
 }
 
+func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
+	t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
+	}
+	defer t.Close()
+
+	if _, err := io.Copy(t, tr); err != nil {
+		return fmt.Errorf("cannot write snapshot file %q: %v", targetPath, err)
+	}
+	return nil
+}
+
 func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
 	var exportFound bool
 
@@ -616,15 +629,8 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 			return nil, fmt.Errorf("unexpected filename in import stream: %v", header.Name)
 		}
 		targetPath := path.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
-
-		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
-		if err != nil {
-			return snapNames, fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
-		}
-		defer t.Close()
-
-		if _, err := io.Copy(t, tr); err != nil {
-			return snapNames, fmt.Errorf("cannot write snapshot file %q: %v", targetPath, err)
+		if err := writeOneSnapshotFile(targetPath, tr); err != nil {
+			return snapNames, err
 		}
 
 		r, err := backendOpen(targetPath, realSetID)
