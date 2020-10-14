@@ -162,7 +162,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			if importsInProgress[setID] {
 				continue
 			}
-			if newImportTransaction(setID).InProgress() {
+			if importInProgressFor(setID) {
 				importsInProgress[setID] = true
 				continue
 			}
@@ -492,23 +492,27 @@ func newImportTransaction(setID uint64) *importTransaction {
 	return &importTransaction{id: setID}
 }
 
-func (t *importTransaction) importInProgressFilepath() string {
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.id))
-}
 func (t *importTransaction) importInProgressFilesGlob() string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
 }
 
 // Start marks the start of a snapshot import
 func (t *importTransaction) Start() error {
-	return ioutil.WriteFile(t.importInProgressFilepath(), nil, 0644)
+	return ioutil.WriteFile(importInProgressFilepath(t.id), nil, 0644)
 }
 
 // InProgress returns true if there is an import for this transactions
 // snapshot ID already.
-//
 func (t *importTransaction) InProgress() bool {
-	return osutil.FileExists(t.importInProgressFilepath())
+	return osutil.FileExists(importInProgressFilepath(t.id))
+}
+
+func importInProgressFilepath(setID uint64) string {
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID))
+}
+
+func importInProgressFor(setID uint64) bool {
+	return osutil.FileExists(importInProgressFilepath(setID))
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging
@@ -532,14 +536,14 @@ func (t *importTransaction) Cancel() error {
 		for _, err := range errs {
 			fmt.Fprintf(buf, " - %v\n", err)
 		}
-		return fmt.Errorf("cannot cancel import of id %d:\n%s", t.id, buf.String())
+		return fmt.Errorf("cannot cancel import for set id %d:\n%s", t.id, buf.String())
 	}
 	return nil
 }
 
 // Commit will commit a given transaction
 func (t *importTransaction) Commit() error {
-	if err := os.Remove(t.importInProgressFilepath()); err != nil {
+	if err := os.Remove(importInProgressFilepath(t.id)); err != nil {
 		return err
 	}
 	t.committed = true
@@ -552,7 +556,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 
 	tr := newImportTransaction(id)
 	if tr.InProgress() {
-		return nil, fmt.Errorf("%s: already in progress for this id", errPrefix)
+		return nil, fmt.Errorf("%s: already in progress for this set id", errPrefix)
 	}
 	if err := tr.Start(); err != nil {
 		return nil, err
@@ -585,7 +589,7 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 		}
 		switch {
 		case tarErr != nil:
-			return nil, fmt.Errorf("failed reading snapshot import: %v", tarErr)
+			return nil, fmt.Errorf("cannot read snapshot import: %v", tarErr)
 		case header == nil:
 			// should not happen
 			return nil, fmt.Errorf("tar header not found")
@@ -609,18 +613,18 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 		// the rest that is still valid.
 		l := strings.SplitN(header.Name, "_", 2)
 		if len(l) != 2 {
-			return nil, fmt.Errorf("unexpected filename in stream: %v", header.Name)
+			return nil, fmt.Errorf("unexpected filename in import stream: %v", header.Name)
 		}
 		targetPath := path.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
 
 		t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
-			return snapNames, fmt.Errorf("cannot create file %q: %v", targetPath, err)
+			return snapNames, fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
 		}
 		defer t.Close()
 
 		if _, err := io.Copy(t, tr); err != nil {
-			return snapNames, fmt.Errorf("cannot copy file %q: %v", targetPath, err)
+			return snapNames, fmt.Errorf("cannot write snapshot file %q: %v", targetPath, err)
 		}
 
 		r, err := backendOpen(targetPath, realSetID)

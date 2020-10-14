@@ -929,9 +929,9 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	table := []tableT{
 		{14, tarFile1, false, ""},
 		{14, tarFile2, false, "cannot import snapshot 14: no export.json file in uploaded data"},
-		{14, tarFile3, false, "cannot import snapshot 14: failed reading snapshot import: unexpected EOF"},
+		{14, tarFile3, false, "cannot import snapshot 14: cannot read snapshot import: unexpected EOF"},
 		{14, tarFile4, false, "cannot import snapshot 14: unexpected directory in import file"},
-		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this id"},
+		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this set id"},
 	}
 
 	for i, t := range table {
