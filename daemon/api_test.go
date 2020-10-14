@@ -4053,6 +4053,43 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshIgnoreRunning(c *check.C) {
+	var calledFlags snapstate.Flags
+	installQueue := []string{}
+
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:        "refresh",
+		IgnoreRunning: true,
+		Snaps:         []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	flags := snapstate.Flags{}
+	flags.IgnoreRunning = true
+
+	c.Check(calledFlags, check.DeepEquals, flags)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
 func (s *apiSuite) TestRefreshCohort(c *check.C) {
 	cohort := ""
 
