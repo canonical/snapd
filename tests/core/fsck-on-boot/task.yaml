@@ -1,6 +1,6 @@
 summary: the boot base provides essential fsck programs
-# TODO:UC20: this test really fails on core20, fsck is not invoked!
-systems: [-ubuntu-core-20-64]
+# TODO:UC20: this test fails on core16, core18 and core20 and may require
+# separate fixes on each platform. really fails on core20, fsck is not invoked!
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
@@ -10,34 +10,18 @@ details: |
 prepare: |
   tests.cleanup prepare
 execute: |
-  echo "We can corrupt the boot partition"
-  # FAT uses a specific byte to effectively indicate that the file system is
-  # dirty. The precise details as to how this byte is used by each system vary,
-  # but Linux sets it on a non-read-only mount, and clears it on unmount. We
-  # can set it manually, verify it when the image is mounted and observe fsck
-  # clearing it. Note that larger block devices use FAT32 and the offset
-  # differs. FAT12 and FAT16 uses 37 while FAT32 uses 65.
-  printf "\x01" > one
-  tests.cleanup defer rm -f one
-
-  cat /proc/self/mountinfo > mount.log
-
-  if [ "$SPREAD_REBOOT" -eq 0 ]; then
+  unmount_vfat() {
     case "$SPREAD_SYSTEM" in
       ubuntu-core-16-*)
         # Refer to the core 16 PC gadget for details:
         # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
         umount /boot/efi
-        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
-        dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       ubuntu-core-18-*)
         # Refer to the core 18 PC gadget for details:
         # https://github.com/snapcore/pc-amd64-gadget/blob/18/gadget.yaml
         umount /boot/efi
         umount /boot/grub
-        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
-        dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       ubuntu-core-20-*)
         # TODO:UC20 The property of having to keep a mounted vfat at all time
@@ -48,25 +32,55 @@ execute: |
         umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
         umount /var/lib/snapd/seed
         umount /run/mnt/ubuntu-seed
-        # Use offset 65 as FAT32 kicks in for devices larger than 32MB
-        dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
         ;;
       *)
         echo "Please adjust the test to support this core system"
         false
         ;;
     esac
-    REBOOT
-  fi
+  }
 
-  # Note that we cannot read the dirty byte from the filesystem as it is
-  # automatically set by the kernel when vfat is mounted. We must resort
-  # to observing the kernel ring buffer. Should this message ever change, the
-  # sister fsck-vfat test does a controlled experiment in mounting a dirty
-  # vfat, to ensure that we are aware of such changes.
-  echo "On the next boot, we should not see the dirty flag anymore"
-  dmesg -c > dmesg-on-boot.log
-  not MATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck." < dmesg-on-boot.log
+  case "$SPREAD_REBOOT" in
+    0)
+      echo "We can corrupt the boot partition"
+      # FAT uses a specific byte to effectively indicate that the file system is
+      # dirty. The precise details as to how this byte is used by each system vary,
+      # but Linux sets it on a non-read-only mount, and clears it on unmount. We
+      # can set it manually, verify it when the image is mounted and observe fsck
+      # clearing it. Note that larger block devices use FAT32 and the offset
+      # differs. FAT12 and FAT16 uses 37 while FAT32 uses 65.
+      unmount_vfat
+      # Use offset 65 as FAT32 kicks in for devices larger than 32MB
+      printf "\x01" > one
+      tests.cleanup defer rm -f one
+      dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
+      tests.cleanup pop
+
+      # Reboot to give the early boot process a chance to fix the corruption.
+      REBOOT
+      ;;
+    1)
+      echo "On the next boot, we should not see the dirty flag anymore"
+      # Note that we cannot read the dirty byte from the filesystem as it is
+      # automatically set by the kernel when vfat is mounted. We must resort
+      # to observing the kernel ring buffer. Should this message ever change, the
+      # sister fsck-vfat test does a controlled experiment in mounting a dirty
+      # vfat, to ensure that we are aware of such changes.
+      dmesg -c > dmesg-on-boot.log
+      not MATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck." < dmesg-on-boot.log
+
+      # Unmount vfat again and read the dirty flag manually. The kerenl doesn't
+      # clean the dirty flag on unmount, if it was present on mount. This method is
+      # less sensitive to kernel log messages being preserved in the early boot
+      # chain.
+      unmount_vfat
+      dd if=/dev/sda2 of=dirty skip=65 bs=1 count=1 conv=notrunc
+      test "$(od -t x1 -A n dirty)" = " 00"  # NOTE: the leading space is relevant
+
+      # Reboot to restore mount points.
+      REBOOT
+      ;;
+  esac
 restore: |
   tests.cleanup restore
   rm -f ./*.log
