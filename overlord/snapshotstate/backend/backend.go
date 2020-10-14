@@ -145,8 +145,20 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				continue
 			}
 			// keep track of in-progress in a map as well
-			// to avoid races from the fact that we read only
-			// 100 dir entries at a time
+			// to avoid races. E.g.:
+			// 1. The dirNnames() are read
+			// 2. 99_some-snap_1.0_x1.zip is returned
+			// 3. the code checks if 99_importing is there,
+			//    it is so 99_some-snap is skipped
+			// 4. other snapshots are examined
+			// 5. in-parallel 99_importing finishes
+			// 7. 99_other-snap_1.0_x1.zip is now examined
+			// 8. code checks if 99_importing is there, but it
+			//    is no longer there because import
+			//    finished in the meantime. We still
+			//    want to not call the callback with
+			//    99_other-snap or the callback would get
+			//    an incomplete view about 99_snapshot.
 			if importsInProgress[setID] {
 				continue
 			}
