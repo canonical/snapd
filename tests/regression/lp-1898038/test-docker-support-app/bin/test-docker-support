@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+cat <<EOF > /tmp/test-profile
+#include <tunables/global>
+
+profile test-profile {
+  #include <abstractions/base>
+
+}
+EOF
+/usr/sbin/apparmor_parser -r /tmp/test-profile
