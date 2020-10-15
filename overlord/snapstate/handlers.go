@@ -1922,12 +1922,12 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapsup.LastActiveDisabledServices...,
 	)
 
-	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
-
 	// mark as inactive
 	snapst.Active = false
 	Set(st, snapsup.InstanceName(), snapst)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	return err
 }
