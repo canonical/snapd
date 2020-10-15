@@ -623,12 +623,6 @@ prepare_suite_each() {
     # Check if journalctl is ready to run the test
     "$TESTSTOOLS"/journal-state check-log-started
 
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
-            ;;
-    esac
-
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
