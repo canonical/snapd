@@ -175,7 +175,8 @@ jobs:
         echo "Dropping github.com/snapcore/secboot"
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
-        govendor remove github.com/snapcore/secboot +unused
+        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        ${{ github.workspace }}/bin/govendor remove +unused
         GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
       run: |
