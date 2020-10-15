@@ -88,6 +88,10 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() Boo
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
+func (o *TrustedAssetsInstallObserver) CurrentEncryptionKey() secboot.EncryptionKey {
+	return o.encryptionKey
+}
+
 func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
 	old := secbootSealKey
 	secbootSealKey = f
