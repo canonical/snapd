@@ -190,15 +190,17 @@ func (s *SessionAgent) Init() error {
 	// Set up D-Bus connection
 	var err error
 	s.bus, err = dbusSessionBus()
-	if err != nil {
-		return err
-	}
-	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		return err
-	}
-	if reply != dbus.RequestNameReplyPrimaryOwner {
-		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
+	if err == nil {
+		reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
+		if err != nil {
+			return err
+		}
+		if reply != dbus.RequestNameReplyPrimaryOwner {
+			return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
+		}
+	} else {
+		logger.Noticef("Could not connect to session bus: %v", err)
+
 	}
 
 	// Set up REST API server
