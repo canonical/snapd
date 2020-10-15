@@ -19,6 +19,17 @@
 
 package builtin
 
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+)
+
 /*
  * Multipass is a tool to create and manage Virtual Machines and their images.
  * Each VM runs as a separate "qemu" process (on Linux). VM images are automatically
@@ -114,15 +125,54 @@ lchown
 lchownat
 `
 
+type multipassSupportInterface struct {
+	commonInterface
+}
+
+func (iface *multipassSupportInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error {
+	// Generate rules to allow snap-update-ns to mount apparmor config
+	emit := spec.AddUpdateNSf
+	for _, target := range apparmorConfigDirs {
+		base := plug.Snap.Base
+		if base == "" {
+			base = "core"
+		}
+		source := fmt.Sprintf("/snap/%s/*", base) + target
+		emit("  # access to %s\n", target)
+		emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
+		emit("  umount %s/,\n\n", target)
+	}
+	return nil
+}
+
+func (iface *multipassSupportInterface) MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error {
+	// preserve apparmor config from the core snap
+	for _, dir := range apparmorConfigDirs {
+		base := plug.Snap.Base
+		if base == "" {
+			base = "core"
+		}
+		basePath, _ := filepath.EvalSymlinks(fmt.Sprintf("/snap/%s/current", base))
+		spec.AddMountEntry(osutil.MountEntry{
+			Name:    basePath + dir,
+			Dir:     dirs.StripRootDir(dir),
+			Options: []string{"bind"},
+		})
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "multipass-support",
-		summary:               multipassSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  multipassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  multipassSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: multipassSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  multipassSupportConnectedPlugSecComp,
+	registerIface(&multipassSupportInterface{
+		commonInterface: commonInterface{
+			name:                  "multipass-support",
+			summary:               multipassSupportSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationSlots:  multipassSupportBaseDeclarationSlots,
+			baseDeclarationPlugs:  multipassSupportBaseDeclarationPlugs,
+			connectedPlugAppArmor: multipassSupportConnectedPlugAppArmor,
+			connectedPlugSecComp:  multipassSupportConnectedPlugSecComp,
+		},
 	})
 }
