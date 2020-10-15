@@ -175,9 +175,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			// Note that because we are modifying the snap state this block
-			// must be located after the conflict check done above.
-			if err := inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck); err != nil {
+			// Note that because we are modifying the snap state inside
+			// softCheckNothingRunningForRefresh, this block must be located
+			// after the conflict check done above.
+			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
