@@ -294,9 +294,9 @@ if [ "$UNIT" = 1 ]; then
     go version
 
     tags=
-    if [ -n "${UNIT_TAGS-}" ]; then
-        echo "Using build tags: $UNIT_TAGS"
-        tags="-tags $UNIT_TAGS"
+    if [ -n "${GO_BUILD_TAGS-}" ]; then
+        echo "Using build tags: $GO_BUILD_TAGS"
+        tags="-tags $GO_BUILD_TAGS"
     fi
 
     echo Building

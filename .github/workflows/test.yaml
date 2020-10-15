@@ -176,7 +176,7 @@ jobs:
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
         govendor remove github.com/snapcore/secboot +unused
-        UNIT_TAGS=nosecboot ./run-checks --unit
+        GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
