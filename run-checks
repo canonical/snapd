@@ -407,6 +407,10 @@ EOF
     exit 1
 fi
 
+if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
+    exit 0
+fi
+
 if git describe --always --dirty | grep -q dirty; then
     echo "Build tree is dirty"
     git diff
