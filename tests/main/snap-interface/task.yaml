@@ -4,9 +4,7 @@ details: |
     The "snap interface" command displays a listing of used interfaces
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local network-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
     snap interface | MATCH 'network\s+ allows access to the network'
     snap interface --all | MATCH 'classic-support\s+ special permissions for the classic snap'
     snap interface network > out.yaml

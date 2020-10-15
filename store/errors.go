@@ -128,7 +128,7 @@ func (e InvalidAuthDataError) Error() string {
 
 // SnapActionError conveys errors that were reported on otherwise overall successful snap action (install/refresh) request.
 type SnapActionError struct {
-	// NoResults is set if the there were no results in the response
+	// NoResults is set if there were no results in the response
 	NoResults bool
 	// Refresh errors by snap name.
 	Refresh map[string]error

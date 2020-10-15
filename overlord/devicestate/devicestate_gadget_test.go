@@ -29,6 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
@@ -139,9 +141,14 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *
 	}
 	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
 		{"meta/gadget.yaml", gadgetYamlContent},
+		{"managed-asset", "managed asset rev 33"},
+		{"trusted-asset", "trusted asset rev 33"},
 	})
 	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
 		{"meta/gadget.yaml", gadgetYamlContent},
+		{"managed-asset", "managed asset rev 34"},
+		// SHA3-384: 88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b
+		{"trusted-asset", "trusted asset rev 34"},
 	})
 
 	s.state.Lock()
@@ -171,9 +178,19 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *
 	return chg, tsk
 }
 
-func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) {
+func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool) {
 	var updateCalled bool
 	var passedRollbackDir string
+
+	if grade != "" {
+		bootDir := c.MkDir()
+		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
+		tbl.TrustedAssetsList = []string{"trusted-asset"}
+		tbl.ManagedAssetsList = []string{"managed-asset"}
+		bootloader.Force(tbl)
+		defer func() { bootloader.Force(nil) }()
+	}
+
 	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
 		updateCalled = true
 		passedRollbackDir = path
@@ -191,6 +208,36 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 			trustedUpdateObserver, ok := observer.(*boot.TrustedAssetsUpdateObserver)
 			c.Assert(ok, Equals, true, Commentf("unexpected type: %T", observer))
 			c.Assert(trustedUpdateObserver, NotNil)
+
+			// check that observer is behaving correctly with
+			// respect to trusted and managed assets
+			targetDir := c.MkDir()
+			sourceStruct := &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Role: gadget.SystemSeed,
+				},
+			}
+			act, err := observer.Observe(gadget.ContentUpdate, sourceStruct, targetDir, "managed-asset",
+				&gadget.ContentChange{After: filepath.Join(update.RootDir, "managed-asset")})
+			c.Assert(err, IsNil)
+			c.Check(act, Equals, gadget.ChangeIgnore)
+			act, err = observer.Observe(gadget.ContentUpdate, sourceStruct, targetDir, "trusted-asset",
+				&gadget.ContentChange{After: filepath.Join(update.RootDir, "trusted-asset")})
+			c.Assert(err, IsNil)
+			c.Check(act, Equals, gadget.ChangeApply)
+			// check that the behavior is correct
+			m, err := boot.ReadModeenv("")
+			c.Assert(err, IsNil)
+			if encryption {
+				// with encryption enabled, trusted asset would
+				// have been picked up by the the observer and
+				// added to modenv
+				c.Assert(m.CurrentTrustedRecoveryBootAssets, NotNil)
+				c.Check(m.CurrentTrustedRecoveryBootAssets["trusted-asset"], DeepEquals,
+					[]string{"88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b"})
+			} else {
+				c.Check(m.CurrentTrustedRecoveryBootAssets, HasLen, 0)
+			}
 		}
 		return nil
 	})
@@ -208,11 +255,13 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 		err := modeenv.WriteTo("")
 		c.Assert(err, IsNil)
 
-		// sealed keys stamp
-		stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
-		c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-		err = ioutil.WriteFile(stamp, nil, 0644)
-		c.Assert(err, IsNil)
+		if encryption {
+			// sealed keys stamp
+			stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
+			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
+			err = ioutil.WriteFile(stamp, nil, 0644)
+			c.Assert(err, IsNil)
+		}
 	}
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -233,16 +282,22 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
-
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	// unset grade
-	s.testUpdateGadgetOnCoreSimple(c, "")
+	encryption := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption)
 }
 
-func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimple(c *C) {
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous")
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleWithEncryption(c *C) {
+	encryption := true
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleNoEncryption(c *C) {
+	encryption := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {

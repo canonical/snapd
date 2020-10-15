@@ -1,11 +1,8 @@
 summary: Snaps can install icon theme icons
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap providing icons"
-    install_local test-snapd-icon-theme
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-icon-theme
 
     echo "Icons provided by the snap are installed to a shared location"
     iconfile=/var/lib/snapd/desktop/icons/hicolor/scalable/apps/snap.test-snapd-icon-theme.foo.svg

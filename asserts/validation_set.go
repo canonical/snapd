@@ -32,7 +32,7 @@ import (
 // Presence represents a presence constraint.
 type Presence string
 
-var (
+const (
 	PresenceRequired Presence = "required"
 	PresenceOptional Presence = "optional"
 	PresenceInvalid  Presence = "invalid"

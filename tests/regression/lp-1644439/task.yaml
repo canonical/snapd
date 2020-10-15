@@ -19,9 +19,7 @@ details: |
 
 prepare: |
     echo "Having installed the test snap in devmode"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local_devmode test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools --devmode
 
 debug: |
     # Kernel version is an important input in understing failures of this test

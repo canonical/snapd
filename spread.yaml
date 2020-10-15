@@ -54,6 +54,19 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
+
+    # Directory where the nested images and test assets are stored
+    NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
+    # Channel used to create the nested vm
+    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
+    # Use cloud init to make initial system configuration instead of user assertion
+    NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
+    # Use cloud init to make initial system configuration instead of user assertion
+    NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
+    # Build and use snapd from current branch
+    NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
+    # Download and use an custom image from this url
+    NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
@@ -412,13 +425,9 @@ debug-each: |
             echo '# nested VM status'
             systemctl status nested-vm || true
             journalctl --no-pager -u nested-vm || true
-
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                echo '# nested VM serial boot log'
-                cat "${NESTED_LOGS_DIR}/serial.log"
+            nested_print_serial_log
                 # add another echo in case the serial log is missing a newline
                 echo
-            fi
 
             nested_exec sudo journalctl --no-pager -u snapd || true
         fi
@@ -613,19 +622,6 @@ prepare: |
     unset MATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
-
-    if [ -e /etc/profile.d/go.sh ]; then
-        # Up until recently openSUSE golang packaging injected environment
-        # variables into the global shell profile. This caused issues across
-        # updates and was, in fact, entirely useless. As such, if we are
-        # working against an older image that still has that file, we can
-        # remove it and unset certain variables to avoid the problem.
-        unset GOBIN
-        unset GOARCH
-        unset GOROOT
-        unset GOOS
-        rm -f /etc/profile.d/go.sh
-    fi
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
@@ -837,33 +833,19 @@ suites:
             - ubuntu-20.04-64
         environment:
             NESTED_TYPE: "classic"
-            # Channel used to create the nested vm
-            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
-            # Channel used to refresh when testing refresh and revert
-            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
-            # Download and use an custom image from this url
-            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -898,30 +880,16 @@ suites:
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
-            # Channel used to refresh when testing refresh and revert
-            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
-            # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
-            # Download and use an custom image from this url
-            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -959,31 +927,17 @@ suites:
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
             NESTED_TYPE: "core"
-            # Channel used to create the nested vm
-            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
-            # Channel used to refresh when testing refresh and revert
-            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
-            # Download and use an custom image from this url
-            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1022,31 +976,17 @@ suites:
         systems: [ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "core"
-            # Channel used to create the nested vm
-            NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-true}")'
-            # Build and use snapd from current branch
-            NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
-            # Download and use an custom image from this url
-            NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
         manual: true
         debug: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
-            if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-                cat "${NESTED_LOGS_DIR}/serial.log"
-            fi
+            nested_print_serial_log
         warn-timeout: 10m
         kill-timeout: 60m
         prepare: |

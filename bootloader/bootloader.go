@@ -162,13 +162,12 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
-// ManagedAssetsBootloader has its boot assets (typically boot config) managed
-// by snapd.
-type ManagedAssetsBootloader interface {
+// TrustedAssetsBootloader has boot assets that take part in the secure boot
+// process and need to be tracked, while other boot assets (typically boot
+// config) are managed by snapd.
+type TrustedAssetsBootloader interface {
 	Bootloader
 
-	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
-	IsCurrentlyManaged() (bool, error)
 	// ManagedAssets returns a list of boot assets managed by the bootloader
 	// in the boot filesystem.
 	ManagedAssets() []string
@@ -183,11 +182,7 @@ type ManagedAssetsBootloader interface {
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.
 	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
-}
 
-// TrustedAssetsBootloader has boot assets that take part in secure boot
-// process.
-type TrustedAssetsBootloader interface {
 	// TrustedAssets returns the list of relative paths to assets inside
 	// the bootloader's rootdir that are measured in the boot process in the
 	// order of loading during the boot.
