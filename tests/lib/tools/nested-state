@@ -4,22 +4,22 @@ show_help() {
     echo "usage: prepare"
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
-    echo "       boot-image IMAGE-TYPE [--param-cd PARAM] [--param-mem PARAM]"
+    echo "       create-vm IMAGE-TYPE [--param-cd PARAM] [--param-mem PARAM]"
     echo "       start-vm"
-    echo "       shutdown-vm"
-    echo "       delete-vm"
+    echo "       stop-vm"
+    echo "       remove-vm"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
     echo ""
     echo "COMMANDS:"
     echo "  prepare:     creates all the directories needed to run a nested test"
-    echo "  restore:     deletes all the directories and data used by nested tests"
+    echo "  restore:     removes all the directories and data used by nested tests"
     echo "  build-image: creates an image using ubuntu image tool"
-    echo "  boot-image:  first boot of the image which it remains running"
-    echo "  start-vm:    start the booted vm"
-    echo "  shutdown-vm: shutdown the running vm"
-    echo "  delete-vm:   delete the booten vm"
+    echo "  create-vm:   creates new virtual machine and leave it running"
+    echo "  start-vm:    starts a stopped vm"
+    echo "  stop-vm:     shutdowns a running vm"
+    echo "  remove-vm:   removes a vm"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core: work with a core image"
@@ -58,7 +58,7 @@ build_image() {
     done
 }
 
-boot_image() {
+create_vm() {
     if [ $# -eq 0 ]; then
         show_help
         exit 1
@@ -104,11 +104,11 @@ start_vm() {
     nested_start
 }
 
-shutdown_vm() {
+stop_vm() {
     nested_shutdown
 }
 
-delete_vm() {
+remove_vm() {
     nested_destroy_vm
 }
 
