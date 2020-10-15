@@ -336,7 +336,24 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	lp := &testLinkParticipant{}
+	linkChangeCount := 0
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, instanceName, &snapst)
+			linkChangeCount++
+			switch linkChangeCount {
+			case 1:
+				// Initially the snap gets linked.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, true)
+			case 2:
+				// Then link-snap is undone and the snap gets unlinked.
+				c.Check(err, Equals, state.ErrNoState)
+			}
+			return nil
+		},
+	}
 	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
 	defer restore()
 
@@ -846,6 +863,28 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	linkChangeCount := 0
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, instanceName, &snapst)
+			linkChangeCount++
+			switch linkChangeCount {
+			case 1:
+				// Initially the snap gets unlinked.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, false)
+			case 2:
+				// Then the undo handler re-links it.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, true)
+			}
+			return nil
+		},
+	}
+	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
@@ -890,6 +929,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(lp.instanceNames, DeepEquals, []string{"core", "core"})
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
