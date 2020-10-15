@@ -859,6 +859,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	Set(st, snapsup.InstanceName(), snapst)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 	return nil
 }
 
@@ -921,6 +924,8 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// so that we switch executing its snapd
 	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
 
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 	return nil
 }
 
