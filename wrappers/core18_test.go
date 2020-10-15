@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -232,10 +233,12 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	restoreEnsureDirState := wrappers.MockEnsureDirState(func(dir string, glob string, content map[string]osutil.FileState) (changed, removed []string, err error) {
+		return nil, nil, &os.PathError{Err: syscall.EROFS}
+	})
+	defer restoreEnsureDirState()
+
 	info := makeMockSnapdSnap(c)
-	c.Assert(os.Remove(dirs.SnapDBusSessionPolicyDir), IsNil)
-	// XXX: ugly, is there a better way to provoke syscall.EROFS (read-only fs)?
-	c.Assert(os.Symlink("/sys/fs/cgroup", dirs.SnapDBusSessionPolicyDir), IsNil)
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()

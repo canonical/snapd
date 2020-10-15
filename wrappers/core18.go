@@ -21,7 +21,6 @@ package wrappers
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -518,21 +517,40 @@ func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[stri
 	return sessionContent, systemContent, nil
 }
 
+func isReadOnlyFsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	perr, ok := err.(*os.PathError)
+	if ok {
+		err := perr.Err
+		if err != nil {
+			serr, ok := err.(syscall.Errno)
+			if ok && serr == syscall.EROFS {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var ensureDirState = osutil.EnsureDirState
+
 func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	sessionContent, systemContent, err := DeriveSnapdDBusConfig(s)
 	if err != nil {
 		return err
 	}
 
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
+	_, _, err = ensureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
 	if err != nil {
-		// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
-		// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
-		// so log the error but carry on. This fixes LP: 1899664.
-		// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
-		// this will only happen on future snapd refresh), but realistically this
-		// is not relevant on core18 devices.
-		if errors.Is(err, syscall.EROFS) {
+		if isReadOnlyFsError(err) {
+			// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
+			// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
+			// so log the error but carry on. This fixes LP: 1899664.
+			// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
+			// this will only happen on future snapd refresh), but realistically this
+			// is not relevant on core18 devices.
 			logger.Noticef("%s appears to be read-only, could not write snapd dbus config files", dirs.SnapDBusSessionPolicyDir)
 		} else {
 			return err
