@@ -639,7 +639,7 @@ type cmdRefresh struct {
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running"`
+	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -978,7 +978,7 @@ type cmdRevert struct {
 
 	modeMixin
 	Revision      string `long:"revision"`
-	IgnoreRunning bool   `long:"ignore-running"`
+	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
 	Positional    struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
