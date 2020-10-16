@@ -2131,7 +2131,8 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
 			}
 		}
-		// tasks for removing current revision of the snap are last
+		// add tasks for removing the current revision last,
+		// this is then also when common data will be removed
 		if currentIndex >= 0 {
 			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
 		}
