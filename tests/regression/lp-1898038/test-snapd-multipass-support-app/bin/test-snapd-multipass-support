@@ -1,2 +1,2 @@
 #!/bin/sh
-/sbin/apparmor_parser -r $SNAP/test-snapd-multipass-support.profile
+/sbin/apparmor_parser -r "$SNAP/test-snapd-multipass-support.profile"
