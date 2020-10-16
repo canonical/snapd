@@ -565,7 +565,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	defer tr.Cancel()
 
 	// Unpack and validate the streamed data
-	snapNames, err = unpackVerifySnapshotImport(r, id)
+	snapNames, err = unpackVerifySnapshotImport(ctx, r, id)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
@@ -589,7 +589,43 @@ func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
 	return nil
 }
 
-func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
+type DuplicatedSnapshotImportError struct {
+	setID uint64
+}
+
+func (e DuplicatedSnapshotImportError) Error() string {
+	return fmt.Sprintf("cannot import snapshot, already avaialble as snapshot id %v", e.setID)
+}
+
+func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash []byte) error {
+	snapshotSetMap := map[uint64]client.SnapshotSet{}
+
+	// XXX: deal with import in progress too
+
+	// get all current snapshotSets
+	err := Iter(ctx, func(reader *Reader) error {
+		ss := snapshotSetMap[reader.SetID]
+		ss.Snapshots = append(ss.Snapshots, &reader.Snapshot)
+		snapshotSetMap[reader.SetID] = ss
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("cannot calculate snapshot set hashes: %v", err)
+	}
+
+	for setID, ss := range snapshotSetMap {
+		h, err := ss.ContentHash()
+		if err != nil {
+			return fmt.Errorf("cannot calculate content hash for %v: %v", setID, err)
+		}
+		if bytes.Equal(h, contentHash) {
+			return DuplicatedSnapshotImportError{setID}
+		}
+	}
+	return nil
+}
+
+func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint64) (snapNames []string, err error) {
 	var exportFound bool
 
 	tr := tar.NewReader(r)
@@ -612,6 +648,17 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 		}
 
 		if header.Name == "early.json" {
+			var ej earlyJSON
+			dec := json.NewDecoder(tr)
+			if err := dec.Decode(&ej); err != nil {
+				return nil, err
+			}
+			// XXX: this is potentially slow as it needs
+			//      to open all snapshots files and read a
+			//      small amount of data from them
+			if err := checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash); err != nil {
+				return nil, err
+			}
 			continue
 		}
 
@@ -768,6 +815,10 @@ func (se *SnapshotExport) Close() {
 	se.snapshotFiles = nil
 }
 
+type earlyJSON struct {
+	ContentHash []byte `json:"content-hash"`
+}
+
 func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	// write out a tar
 	var files []string
@@ -775,12 +826,7 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	defer tw.Close()
 
 	// export contentHash as early.json
-	earlyJSON := struct {
-		ContentHash []byte `json:"content-hash"`
-	}{
-		ContentHash: se.contentHash,
-	}
-	h, err := json.Marshal(earlyJSON)
+	h, err := json.Marshal(earlyJSON{se.contentHash})
 	if err != nil {
 		return err
 	}
