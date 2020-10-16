@@ -10,49 +10,49 @@ execute: |
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
             os.query is-core
-            os.query is-core-16
-            os.query is-core-18 && exit 1
-            os.query is-classic && exit 1
+            os.query is-core16
+            not os.query is-core18
+            not os.query is-classic
             ;;
         ubuntu-core-18-*)
             os.query is-core
-            os.query is-core-18
-            os.query is-core-20 && exit 1
-            os.query is-classic && exit 1
+            os.query is-core18
+            not os.query is-core20
+            not os.query is-classic
             ;;
         ubuntu-core-20-*)
             os.query is-core
-            os.query is-core-20
-            os.query is-core-18 && exit 1
-            os.query is-classic && exit 1
+            os.query is-core20
+            not os.query is-core18
+            not os.query is-classic
             ;;
         ubuntu-14-*)
             os.query is-classic
             os.query is-trusty
-            os.query is-bionic && exit 1
-            os.query is-core && exit 1
+            not os.query is-bionic
+            not os.query is-core
             ;;
         ubuntu-16-*)
             os.query is-classic
             os.query is-xenial
-            os.query is-bionic && exit 1
-            os.query is-core && exit 1        
+            not os.query is-bionic
+            not os.query is-core
             ;;
         ubuntu-18-*)
             os.query is-classic
             os.query is-bionic
-            os.query is-focal && exit 1
-            os.query is-core && exit 1    
+            not os.query is-focal
+            not os.query is-core
             ;;
         ubuntu-20.04-*)
             os.query is-classic
             os.query is-focal
-            os.query is-xenial && exit 1
-            os.query is-core && exit 1    
+            not os.query is-xenial
+            not os.query is-core
             ;;
         *)
             os.query is-classic
-            os.query is-focal && exit 1
-            os.query is-core && exit 1
+            not os.query is-focal
+            not os.query is-core
             ;;
     esac
