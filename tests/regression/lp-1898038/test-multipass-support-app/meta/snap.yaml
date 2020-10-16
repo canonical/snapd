@@ -1,8 +1,0 @@
-name: test-multipass-support-app
-version: 1
-
-apps:
-    test-multipass-support:
-        command: bin/test-multipass-support
-        plugs:
-            - multipass-support
