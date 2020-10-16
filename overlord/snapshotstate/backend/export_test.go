@@ -20,14 +20,13 @@
 package backend
 
 import (
-	"archive/tar"
-	"fmt"
-	"github.com/snapcore/snapd/dirs"
 	"os"
 	"os/user"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -102,62 +101,6 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	}
 }
 
-func MockCreateExportFile(filename string, exportJSON bool, withDir bool) error {
-	tf, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer tf.Close()
-	tw := tar.NewWriter(tf)
-
-	for _, s := range []string{"foo", "bar", "baz"} {
-		f := fmt.Sprintf("5_%s_1.0_199.zip", s)
-
-		hdr := &tar.Header{
-			Name: f,
-			Mode: 0644,
-			Size: int64(len(s)),
-		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err := tw.Write([]byte(s)); err != nil {
-			return err
-		}
-	}
-
-	if withDir {
-		hdr := &tar.Header{
-			Name:     dirs.SnapshotsDir,
-			Mode:     0755,
-			Size:     int64(0),
-			Typeflag: tar.TypeDir,
-		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err = tw.Write([]byte("")); err != nil {
-			return nil
-		}
-	}
-
-	if exportJSON {
-		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
-		hdr := &tar.Header{
-			Name: "export.json",
-			Mode: 0644,
-			Size: int64(len(exp)),
-		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-		if _, err = tw.Write([]byte(exp)); err != nil {
-			return nil
-		}
-	}
-
-	return nil
-}
 func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (restore func()) {
 	old := usersForUsernames
 	usersForUsernames = f
@@ -171,5 +114,19 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	timeNow = f
 	return func() {
 		timeNow = oldTimeNow
+	}
+}
+
+func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size int64, shaSums map[string]string) *client.Snapshot {
+	return &client.Snapshot{
+		SetID:    setID,
+		Snap:     snapName,
+		SnapID:   "id",
+		Revision: revision,
+		Version:  "1.0",
+		Epoch:    snap.Epoch{},
+		Time:     timeNow(),
+		SHA3_384: shaSums,
+		Size:     size,
 	}
 }

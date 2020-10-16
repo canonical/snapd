@@ -7,11 +7,9 @@ details: |
     use /run/media path instead.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    install_local_devmode test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools --devmode
     mkdir -p ${MEDIA_DIR}/src
     mkdir -p ${MEDIA_DIR}/dst
     touch ${MEDIA_DIR}/src/canary

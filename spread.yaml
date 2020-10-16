@@ -623,19 +623,6 @@ prepare: |
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
 
-    if [ -e /etc/profile.d/go.sh ]; then
-        # Up until recently openSUSE golang packaging injected environment
-        # variables into the global shell profile. This caused issues across
-        # updates and was, in fact, entirely useless. As such, if we are
-        # working against an older image that still has that file, we can
-        # remove it and unset certain variables to avoid the problem.
-        unset GOBIN
-        unset GOARCH
-        unset GOROOT
-        unset GOOS
-        rm -f /etc/profile.d/go.sh
-    fi
-
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -869,6 +856,8 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_prepare_env
@@ -877,6 +866,8 @@ suites:
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
             nested_cleanup_env
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -918,6 +909,8 @@ suites:
             nested_prepare_env
             nested_create_classic_vm
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_start_classic_vm
@@ -925,6 +918,8 @@ suites:
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -966,6 +961,8 @@ suites:
             nested_prepare_env
             nested_create_core_vm
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_start_core_vm
@@ -974,6 +971,8 @@ suites:
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -1016,8 +1015,19 @@ suites:
             . "$TESTSLIB/nested.sh"
             nested_prepare_env
             nested_create_core_vm
+        prepare-each: |
+            tests.backup prepare
+
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
             nested_start_core_vm
             nested_wait_for_snap_command
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"

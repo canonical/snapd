@@ -8,9 +8,7 @@ environment:
 
 prepare: |
     echo "Given a basic snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "And another basic snap is installed"
     mkdir -p "$SNAP_INSTALL_DIR"

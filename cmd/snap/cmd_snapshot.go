@@ -500,8 +500,12 @@ func (x *importSnapshotCmd) Execute([]string) error {
 		return fmt.Errorf("error accessing file: %v", err)
 	}
 	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("cannot stat file: %v", err)
+	}
 
-	importSet, err := x.client.SnapshotImport(f)
+	importSet, err := x.client.SnapshotImport(f, st.Size())
 	if err != nil {
 		return err
 	}

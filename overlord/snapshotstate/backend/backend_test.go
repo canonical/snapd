@@ -24,6 +24,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,13 +40,15 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
-	"gopkg.in/check.v1"
 )
 
 type snapshotSuite struct {
@@ -891,48 +895,14 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
-	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		var sid uint64
-		var revision int
-		var snapName, version string
-		filename := path.Base(fn)
-		parseF := strings.Replace(filename, "_", " ", 3)
-		parseF = strings.Replace(parseF, ".zip", "", 1)
-		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
-			return nil, fmt.Errorf("unexpected filename format: %v", err)
-		}
-
-		// set id from the filename - see MockCreateExportFile.
-		c.Assert(sid, check.Equals, uint64(5))
-
-		// set id of the imported snapshot. This verifies that moveCachedSnapshots
-		// uses correct set id with backend.Open()
-		c.Assert(setID, check.Equals, uint64(14))
-
-		f, err := os.Open(os.DevNull)
-		c.Assert(err, check.IsNil, check.Commentf(fn))
-		return &backend.Reader{
-			File: f,
-			Snapshot: client.Snapshot{
-				// real backend.Open() uses setID override if passed, this is tested
-				// in Open() tests.
-				SetID:    setID,
-				Time:     time.Time{},
-				Snap:     snapName,
-				Revision: snap.Revision{N: revision},
-				Version:  version,
-			},
-		}, nil
-	})()
-
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err := backend.MockCreateExportFile(tarFile1, true, false)
+	err := createTestExportFile(tarFile1, &createTestExportFlags{exportJSON: true})
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with missing export.json
 	tarFile2 := path.Join(tempdir, "exported2.snapshot")
-	err = backend.MockCreateExportFile(tarFile2, false, false)
+	err = createTestExportFile(tarFile2, &createTestExportFlags{})
 	c.Check(err, check.IsNil)
 
 	// create invalid exported file
@@ -942,7 +912,11 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create an exported snapshot with a directory
 	tarFile4 := path.Join(tempdir, "exported4.snapshot")
-	err = backend.MockCreateExportFile(tarFile4, true, true)
+	flags := &createTestExportFlags{
+		exportJSON: true,
+		withDir:    true,
+	}
+	err = createTestExportFile(tarFile4, flags)
 	c.Check(err, check.IsNil)
 
 	type tableT struct {
@@ -954,10 +928,10 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	table := []tableT{
 		{14, tarFile1, false, ""},
-		{14, tarFile2, false, "snapshot import file incomplete: no export.json file"},
-		{14, tarFile1, true, "snapshot import already in progress for ID `14`"},
-		{14, tarFile3, false, "failed reading snapshot import: unexpected EOF"},
-		{14, tarFile4, false, "unexpected directory in import file"},
+		{14, tarFile2, false, "cannot import snapshot 14: no export.json file in uploaded data"},
+		{14, tarFile3, false, "cannot import snapshot 14: cannot read snapshot import: unexpected EOF"},
+		{14, tarFile4, false, "cannot import snapshot 14: unexpected directory in import file"},
+		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this set id"},
 	}
 
 	for i, t := range table {
@@ -966,26 +940,24 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		// reset
 		err = os.RemoveAll(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
-		err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+		err := os.MkdirAll(dirs.SnapshotsDir, 0700)
 		c.Assert(err, check.IsNil, comm)
-		cache := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", t.setID))
+		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
-			// create the cache directory the set ID
-			err = os.MkdirAll(cache, 0755)
+			err = ioutil.WriteFile(importingFile, nil, 0644)
 			c.Assert(err, check.IsNil, comm)
 		} else {
-			err = os.RemoveAll(cache)
+			err = os.RemoveAll(importingFile)
 			c.Assert(err, check.IsNil, comm)
 		}
 
 		f, err := os.Open(t.filename)
 		c.Assert(err, check.IsNil, comm)
+		defer f.Close()
 
-		size, snapNames, err := backend.Import(context.Background(), t.setID, f)
+		snapNames, err := backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
-			c.Check(err.Error(), check.Equals, t.error, comm)
-			c.Check(size, check.Equals, int64(0), comm)
-			f.Close()
+			c.Check(err, check.ErrorMatches, t.error, comm)
 			continue
 		}
 		c.Check(err, check.IsNil, comm)
@@ -994,58 +966,30 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 		dir, err := os.Open(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
+		defer dir.Close()
 		names, err := dir.Readdirnames(100)
 		c.Assert(err, check.IsNil, comm)
 		c.Check(len(names), check.Equals, 3, comm)
-
-		f.Close()
 	}
 }
 
 func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
-	tempdir := c.MkDir()
-
-	defer backend.MockOpen(func(fn string, setID uint64) (*backend.Reader, error) {
-		var sid uint64
-		var revision int
-		var snapName, version string
-		filename := path.Base(fn)
-		parseF := strings.Replace(filename, "_", " ", 3)
-		parseF = strings.Replace(parseF, ".zip", "", 1)
-		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
-			return nil, fmt.Errorf("unexpected filename format: %v", err)
-		}
-
-		f, err := os.Open(os.DevNull)
-		c.Assert(err, check.IsNil, check.Commentf(fn))
-		return &backend.Reader{
-			File: f,
-			Snapshot: client.Snapshot{
-				// real backend.Open() uses setID override if passed, this is tested
-				// in Open() tests.
-				SetID:    setID,
-				Time:     time.Time{},
-				Snap:     snapName,
-				Revision: snap.Revision{N: revision},
-				Version:  version,
-				// set dummy sha for Check() to be attempted.
-				SHA3_384: map[string]string{"foo": "bar"},
-			},
-		}, nil
-	})()
-
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
 	// create snapshot export file
-	tarFile1 := path.Join(tempdir, "exported1.snapshot")
-	err = backend.MockCreateExportFile(tarFile1, true, false)
+	tarFile1 := path.Join(c.MkDir(), "exported1.snapshot")
+	flags := &createTestExportFlags{
+		exportJSON:      true,
+		corruptChecksum: true,
+	}
+	err = createTestExportFile(tarFile1, flags)
 	c.Assert(err, check.IsNil)
 
 	f, err := os.Open(tarFile1)
 	c.Assert(err, check.IsNil)
-	_, _, err = backend.Import(context.Background(), 14, f)
-	c.Assert(err, check.ErrorMatches, `validation failed for "5_foo_1.0_199.zip": zip: not a valid zip file`)
+	_, err = backend.Import(context.Background(), 14, f)
+	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/14_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
@@ -1077,7 +1021,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	// now import it
 	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")), check.IsNil)
 
-	_, names, err := backend.Import(ctx, 123, buf)
+	names, err := backend.Import(ctx, 123, buf)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"hello-snap"})
 
@@ -1361,4 +1305,162 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 	se, err := backend.NewSnapshotExport(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
 	c.Assert(se, check.IsNil)
+}
+
+type createTestExportFlags struct {
+	exportJSON      bool
+	withDir         bool
+	corruptChecksum bool
+}
+
+func createTestExportFile(filename string, flags *createTestExportFlags) error {
+	tf, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer tf.Close()
+	tw := tar.NewWriter(tf)
+	defer tw.Close()
+
+	for _, s := range []string{"foo", "bar", "baz"} {
+		fname := fmt.Sprintf("5_%s_1.0_199.zip", s)
+
+		buf := bytes.NewBuffer(nil)
+		zipW := zip.NewWriter(buf)
+		defer zipW.Close()
+
+		sha := map[string]string{}
+
+		// create dummy archive.tgz
+		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
+		if err != nil {
+			return err
+		}
+		var sz osutil.Sizer
+		hasher := crypto.SHA3_384.New()
+		out := io.MultiWriter(archiveWriter, hasher, &sz)
+		if _, err := out.Write([]byte(s)); err != nil {
+			return err
+		}
+
+		if flags.corruptChecksum {
+			hasher.Write([]byte{0})
+		}
+		sha["archive.tgz"] = fmt.Sprintf("%x", hasher.Sum(nil))
+
+		snapshot := backend.MockSnapshot(5, s, snap.Revision{N: 199}, sz.Size(), sha)
+
+		// create meta.json
+		metaWriter, err := zipW.Create("meta.json")
+		if err != nil {
+			return err
+		}
+		hasher = crypto.SHA3_384.New()
+		enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
+		if err := enc.Encode(snapshot); err != nil {
+			return err
+		}
+
+		// write meta.sha3_384
+		metaSha3Writer, err := zipW.Create("meta.sha3_384")
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(metaSha3Writer, "%x\n", hasher.Sum(nil))
+		zipW.Close()
+
+		hdr := &tar.Header{
+			Name: fname,
+			Mode: 0644,
+			Size: int64(buf.Len()),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err := tw.Write(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	if flags.withDir {
+		hdr := &tar.Header{
+			Name:     dirs.SnapshotsDir,
+			Mode:     0700,
+			Size:     int64(0),
+			Typeflag: tar.TypeDir,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte("")); err != nil {
+			return nil
+		}
+	}
+
+	if flags.exportJSON {
+		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
+		hdr := &tar.Header{
+			Name: "export.json",
+			Mode: 0644,
+			Size: int64(len(exp)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte(exp)); err != nil {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func makeMockSnapshotZipContent(c *check.C) []byte {
+	buf := bytes.NewBuffer(nil)
+	zipW := zip.NewWriter(buf)
+
+	// create dummy archive.tgz
+	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
+	c.Assert(err, check.IsNil)
+	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
+	c.Assert(err, check.IsNil)
+
+	// create dummy meta.json
+	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
+	c.Assert(err, check.IsNil)
+	_, err = archiveWriter.Write([]byte("{}"))
+	c.Assert(err, check.IsNil)
+
+	zipW.Close()
+	return buf.Bytes()
+}
+
+func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	fn := "1_hello_1.0_x1.zip"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0644)
+	c.Assert(err, check.IsNil)
+
+	callbackCalled := 0
+	f := func(snapshot *backend.Reader) error {
+		callbackCalled++
+		return nil
+	}
+
+	err = backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(callbackCalled, check.Equals, 1)
+
+	// now pretend we are importing snapshot id 1
+	callbackCalled = 0
+	fn = "1_importing"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	c.Assert(err, check.IsNil)
+
+	// and while importing Iter() does not call the callback
+	err = backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(callbackCalled, check.Equals, 0)
 }

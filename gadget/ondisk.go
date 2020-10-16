@@ -36,6 +36,7 @@ const (
 	ubuntuBootLabel = "ubuntu-boot"
 	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
 
 	sectorSize Size = 512
 
@@ -109,7 +110,7 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 
 		// TODO:UC20 consider using gadget layout information to build a
 		// mapping of partition start offset to label/name
-		createdDuringInstall := []string{ubuntuBootLabel, ubuntuDataLabel}
+		createdDuringInstall := []string{ubuntuBootLabel, ubuntuSaveLabel, ubuntuDataLabel}
 		return strutil.ListContains(createdDuringInstall, fs.Label)
 	}
 	return false
@@ -351,6 +352,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 			s.Label = ubuntuSeedLabel
 		case SystemData:
 			s.Label = ubuntuDataLabel
+		case SystemSave:
+			s.Label = ubuntuSaveLabel
 		}
 
 		toBeCreated = append(toBeCreated, OnDiskStructure{

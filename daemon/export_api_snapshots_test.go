@@ -81,7 +81,7 @@ func MockSnapshotForget(newForget func(*state.State, uint64, []string) ([]string
 	}
 }
 
-func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error)) (restore func()) {
+func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader) (uint64, []string, error)) (restore func()) {
 	oldImport := snapshotImport
 	snapshotImport = newImport
 	return func() {

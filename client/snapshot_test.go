@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,7 +150,7 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	}
 
 	table := []tableT{
-		{"dummy-export", "application/x.snapd.snapshot", 200},
+		{"dummy-export", client.SnapshotExportMediaType, 200},
 		{"dummy-export", "application/x-tar", 400},
 		{"", "", 400},
 	}
@@ -198,16 +199,21 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		cs.rsp = t.rsp
 		cs.status = t.status
 
-		r := strings.NewReader("Hello World!")
-		importSet, err := cs.cli.SnapshotImport(r)
+		fakeSnapshotData := "fake"
+		r := strings.NewReader(fakeSnapshotData)
+		importSet, err := cs.cli.SnapshotImport(r, int64(len(fakeSnapshotData)))
 		if t.error != "" {
 			c.Assert(err, check.NotNil, comm)
 			c.Check(err.Error(), check.Equals, t.error, comm)
 			continue
 		}
 		c.Assert(err, check.IsNil, comm)
-		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/x.snapd.snapshot")
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, client.SnapshotExportMediaType)
+		c.Assert(cs.req.Header.Get("Content-Length"), check.Equals, strconv.Itoa(len(fakeSnapshotData)))
 		c.Check(importSet.ID, check.Equals, t.setID, comm)
 		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
+		d, err := ioutil.ReadAll(cs.req.Body)
+		c.Assert(err, check.IsNil)
+		c.Check(string(d), check.Equals, fakeSnapshotData)
 	}
 }

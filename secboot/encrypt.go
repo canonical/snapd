@@ -21,6 +21,10 @@ package secboot
 
 import (
 	"crypto/rand"
+	"os"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -38,4 +42,12 @@ func NewEncryptionKey() (EncryptionKey, error) {
 	_, err := rand.Read(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
+}
+
+// Save writes the key in the location specified by filename.
+func (key EncryptionKey) Save(filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }

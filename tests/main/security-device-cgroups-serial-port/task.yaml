@@ -21,9 +21,7 @@ restore: |
 
 execute: |
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Then the device is not assigned to that snap"
     if udevadm info /dev/ttyS4 > info.txt; then
