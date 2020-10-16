@@ -475,13 +475,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
 // importTransaction keeps track of the given snapshot ID import and
-// ensures it can be committed/canceld in an atomic way.
+// ensures it can be committed/cancelled in an atomic way.
 //
 // Start() must be called before the first data is imported. When the
 // import is successful Commit() should be called.
 //
-// Cancel() will cancel the given import and cleanup. It's always save
-// to defer a Cancel() it will just return a "ErrCannotCanel" after
+// Cancel() will cancel the given import and cleanup. It's always safe
+// to defer a Cancel() it will just return a "ErrCannotCancel" after
 // a commit.
 type importTransaction struct {
 	id        uint64
