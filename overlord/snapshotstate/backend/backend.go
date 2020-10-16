@@ -594,13 +594,13 @@ type DuplicatedSnapshotImportError struct {
 }
 
 func (e DuplicatedSnapshotImportError) Error() string {
-	return fmt.Sprintf("cannot import snapshot, already avaialble as snapshot id %v", e.setID)
+	return fmt.Sprintf("cannot import snapshot, already availalble as snapshot id %v", e.setID)
 }
 
 func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash []byte) error {
 	snapshotSetMap := map[uint64]client.SnapshotSet{}
 
-	// XXX: deal with import in progress too
+	// XXX: deal with import in progress here
 
 	// get all current snapshotSets
 	err := Iter(ctx, func(reader *Reader) error {

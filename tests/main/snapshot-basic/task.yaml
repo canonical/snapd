@@ -79,7 +79,7 @@ execute: |
 
     echo "But import again will not work"
     not snap import-snapshot "${SET_ID}_export.snapshot" 2>output.txt
-    MATCH "already available as snapshot id $RESTORE_ID" < output.txt
+    cat output.txt | tr -s '\n' ' ' | MATCH "already availalble as snapshot id $RESTORE_ID"
 
     # remove the exports and import
     rm "${SET_ID}"_export*.snapshot
