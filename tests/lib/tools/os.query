@@ -15,19 +15,19 @@ show_help() {
 }
 
 is_core(){
-    grep "NAME=\"Ubuntu Core\"" /etc/os-release
+    grep -qFx 'NAME="Ubuntu Core"' /etc/os-release
 }
 
 is_core16(){
-    grep "PRETTY_NAME=\"Ubuntu Core 16\"" /etc/os-release
+    grep -qFx 'PRETTY_NAME="Ubuntu Core 16"' /etc/os-release
 }
 
 is_core18(){
-    grep "PRETTY_NAME=\"Ubuntu Core 18\"" /etc/os-release
+    grep -qFx 'PRETTY_NAME="Ubuntu Core 18"' /etc/os-release
 }
 
 is_core20(){
-    grep "PRETTY_NAME=\"Ubuntu Core 20\"" /etc/os-release
+    grep -qFx 'PRETTY_NAME="Ubuntu Core 20"' /etc/os-release
 }
 
 is_classic(){
@@ -35,19 +35,19 @@ is_classic(){
 }
 
 is_trusty(){
-    grep "UBUNTU_CODENAME=trusty" /etc/os-release
+    grep -qFx 'UBUNTU_CODENAME=trusty' /etc/os-release
 }
 
 is_xenial() {
-    grep "UBUNTU_CODENAME=xenial" /etc/os-release
+    grep -qFx 'UBUNTU_CODENAME=xenial' /etc/os-release
 }
 
 is_bionic() {
-    grep "UBUNTU_CODENAME=bionic" /etc/os-release
+    grep -qFx 'UBUNTU_CODENAME=bionic' /etc/os-release
 }
 
 is_focal() {
-    grep "UBUNTU_CODENAME=focal" /etc/os-release
+    grep -qFx 'UBUNTU_CODENAME=focal' /etc/os-release
 }
 
 main() {
@@ -73,7 +73,7 @@ main() {
     done
 
     if [ -z "$(declare -f "$action")" ]; then
-        echo "systems-state: no such command: $subcommand"
+        echo "systems-state: no such command: $subcommand" >&2
         show_help
         exit 1
     fi
