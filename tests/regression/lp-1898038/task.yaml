@@ -13,8 +13,11 @@ execute: |
     # wait a bit to ensure the mount namespace exists
     sleep 5
     # check that within the snap mount namespace /etc/apparmor is mounted
-    test "$(nsenter -m/run/snapd/ns/test-docker-support-app.mnt mount | grep -c /etc/apparmor)" -eq 2
-    test "$(nsenter -m/run/snapd/ns/test-multipass-support-app.mnt mount | grep -c /etc/apparmor)" -eq 2
+    # and comes from a snap
+    test "$(nsenter -m/run/snapd/ns/test-docker-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
+    test "$(nsenter -m/run/snapd/ns/test-multipass-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
+    # also check the snaps loaded their apparmor profiles
+    test "$(aa-status | grep -c 'snap.test-\(docker\|multipass\)-support.app.test-\(docker\|multipass\)-support')" -eq 2
 restore: |
     tests.cleanup restore
 
