@@ -1302,3 +1302,53 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 
 	return nil
 }
+
+func makeMockSnapshotZipContent(c *check.C) []byte {
+	buf := bytes.NewBuffer(nil)
+	zipW := zip.NewWriter(buf)
+
+	// create dummy archive.tgz
+	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
+	c.Assert(err, check.IsNil)
+	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
+	c.Assert(err, check.IsNil)
+
+	// create dummy meta.json
+	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
+	c.Assert(err, check.IsNil)
+	_, err = archiveWriter.Write([]byte("{}"))
+	c.Assert(err, check.IsNil)
+
+	zipW.Close()
+	return buf.Bytes()
+}
+
+func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	fn := "1_hello_1.0_x1.zip"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0644)
+	c.Assert(err, check.IsNil)
+
+	callbackCalled := 0
+	f := func(snapshot *backend.Reader) error {
+		callbackCalled++
+		return nil
+	}
+
+	err = backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(callbackCalled, check.Equals, 1)
+
+	// now pretend we are importing snapshot id 1
+	callbackCalled = 0
+	fn = "1_importing"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	c.Assert(err, check.IsNil)
+
+	// and while importing Iter() does not call the callback
+	err = backend.Iter(context.Background(), f)
+	c.Check(err, check.IsNil)
+	c.Check(callbackCalled, check.Equals, 0)
+}
