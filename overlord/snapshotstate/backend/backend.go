@@ -561,6 +561,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	if err := tr.Start(); err != nil {
 		return nil, err
 	}
+	// Cancel once Committed is a NOP
 	defer tr.Cancel()
 
 	// Unpack and validate the streamed data
