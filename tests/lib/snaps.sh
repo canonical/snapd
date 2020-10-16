@@ -103,6 +103,9 @@ repack_snapd_deb_into_snapd_snap() {
 
     # repack into the target dir specified
     snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+
+    # cleanup
+    rm -rf snapd-unpacked
 }
 
 # repack_snapd_deb_into_core_snap will re-pack a core snap using the assets 
@@ -118,6 +121,9 @@ repack_snapd_deb_into_core_snap() {
 
     # repack into the target dir specified
     snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+
+    # cleanup
+    rm -rf core-unpacked
 }
 
 # repack_installed_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,

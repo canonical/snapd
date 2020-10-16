@@ -72,6 +72,7 @@ var (
 	LongSnapDescription     = longSnapDescription
 	SnapUsage               = snapUsage
 	SnapHelpCategoriesIntro = snapHelpCategoriesIntro
+	SnapHelpAllIntro        = snapHelpAllIntro
 	SnapHelpAllFooter       = snapHelpAllFooter
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories

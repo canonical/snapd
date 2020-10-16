@@ -76,7 +76,7 @@ execute: |
 
         do_classic=no
         if is_classic_confinement_supported ; then
-            install_local_classic test-snapd-classic-confinement
+            "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
             do_classic=yes
             # Preserve the state across reboots if necessary
             touch do-classic

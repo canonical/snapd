@@ -11,11 +11,9 @@ environment:
 
 prepare: |
     echo "Install a helper snap with default confinement"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     # we only need devmode since this test is only about whether or not
     # snap-confine dropped CAP_SYS_ADMIN
-    install_local_devmode test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh --devmode
 
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up

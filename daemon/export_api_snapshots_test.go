@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -77,6 +78,14 @@ func MockSnapshotForget(newForget func(*state.State, uint64, []string) ([]string
 	snapshotForget = newForget
 	return func() {
 		snapshotForget = oldForget
+	}
+}
+
+func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error)) (restore func()) {
+	oldImport := snapshotImport
+	snapshotImport = newImport
+	return func() {
+		snapshotImport = oldImport
 	}
 }
 

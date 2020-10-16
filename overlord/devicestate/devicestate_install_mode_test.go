@@ -30,6 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -163,19 +165,21 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadge
 }
 
 type encTestCase struct {
-	tpm     bool
-	bypass  bool
-	encrypt bool
+	tpm               bool
+	bypass            bool
+	encrypt           bool
+	trustedBootloader bool
 }
 
 func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
+	bootloaderRootdir := c.MkDir()
 
 	var brGadgetRoot, brDevice string
 	var brOpts install.Options
 	var installRunCalled int
-	var sealingObserver gadget.ContentObserver
+	var installSealingObserver gadget.ContentObserver
 	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs install.SystemInstallObserver) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
@@ -184,7 +188,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
-		sealingObserver = obs
+		installSealingObserver = obs
 		installRunCalled++
 		return nil
 	})
@@ -198,6 +202,18 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		}
 	})
 	defer restore()
+
+	if tc.trustedBootloader {
+		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
+		tab.TrustedAssetsList = []string{"trusted-asset"}
+		bootloader.Force(tab)
+		s.AddCleanup(func() { bootloader.Force(nil) })
+
+		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		c.Assert(err, IsNil)
+	}
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, grade, "")
@@ -224,6 +240,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
+		} else {
+			c.Check(seal, IsNil)
 		}
 		bootMakeBootableCalled++
 		return nil
@@ -258,27 +276,29 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(installSystem.Status(), Equals, state.DoneStatus)
 
 	// in the right way
+	c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+	c.Assert(brDevice, Equals, "")
 	if tc.encrypt {
-		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
-		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:   true,
 			Encrypt: true,
 		})
-
-		// inteface is not nil
-		c.Assert(sealingObserver, NotNil)
-		// we expect a very specific type
-		trustedInstallObserver, ok := sealingObserver.(*boot.TrustedAssetsInstallObserver)
-		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", sealingObserver))
-		c.Assert(trustedInstallObserver, NotNil)
 	} else {
-		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
-		c.Assert(brDevice, Equals, "")
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount: true,
 		})
 	}
+	if tc.encrypt {
+		// inteface is not nil
+		c.Assert(installSealingObserver, NotNil)
+		// we expect a very specific type
+		trustedInstallObserver, ok := installSealingObserver.(*boot.TrustedAssetsInstallObserver)
+		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
+		c.Assert(trustedInstallObserver, NotNil)
+	} else {
+		c.Assert(installSealingObserver, IsNil)
+	}
+
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
@@ -358,7 +378,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallDangerous(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: false, encrypt: true})
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
+	})
 	c.Assert(err, IsNil)
 }
 
@@ -378,7 +400,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallSigned(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: true, bypass: false, encrypt: true})
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
+	})
 	c.Assert(err, IsNil)
 }
 
@@ -393,7 +417,23 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
-	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerousEncryptionWithTPMNoTrustedAssets(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: false,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerousNoEncryptionWithTrustedAssets(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{
+		tpm: false, bypass: false, encrypt: false, trustedBootloader: true,
+	})
 	c.Assert(err, IsNil)
 }
 
@@ -536,7 +576,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudIn
 	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
+	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
+	})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -558,7 +600,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(
 		c.Assert(err, IsNil)
 	}
 
-	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
+	err = s.doRunChangeTestWithEncryption(c, "secured", encTestCase{
+		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
+	})
 	c.Assert(err, IsNil)
 
 	// and did NOT tell sysconfig about the cloud-init files, instead it was
