@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"crypto/sha256"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -216,4 +217,37 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Check(string(d), check.Equals, fakeSnapshotData)
 	}
+}
+
+func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
+	now := time.Now()
+	revno := snap.R(1)
+	sums := map[string]string{"user/foo.tgz": "some long hash"}
+
+	sh1 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh1_1 are the same except time
+	sh1_1 := &client.Snapshot{SetID: 1, Time: now.Add(10), Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh2 are the same except setID
+	sh2 := &client.Snapshot{SetID: 2, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+
+	h1, err := sh1.ContentHash()
+	c.Assert(err, check.IsNil)
+	// content hash uses sha256 internally
+	c.Check(h1, check.HasLen, sha256.Size)
+
+	// same except time means same hash
+	h1_1, err := sh1_1.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h1_1)
+
+	// same except set means same hash
+	h2, err := sh2.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h2)
+
+	// sh3 is actually different
+	sh3 := &client.Snapshot{SetID: 1, Time: now, Snap: "other-snap", Revision: revno, SHA3_384: sums}
+	h3, err := sh3.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.Not(check.DeepEquals), h3)
 }

@@ -22,6 +22,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -86,6 +87,21 @@ type Snapshot struct {
 // should be there for a snapshot that's just been opened.
 func (sh *Snapshot) IsValid() bool {
 	return !(sh == nil || sh.SetID == 0 || sh.Snap == "" || sh.Revision.Unset() || len(sh.SHA3_384) == 0 || sh.Time.IsZero())
+}
+
+// ContentHash returns a hash that can be used to identify the snapshot
+// but does not contain data like "time"
+func (sh *Snapshot) ContentHash() ([]byte, error) {
+	sh2 := *sh
+	sh2.SetID = 0
+	sh2.Time = time.Time{}
+	sh2.Auto = false
+	h := sha256.New()
+	enc := json.NewEncoder(h)
+	if err := enc.Encode(&sh2); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
 }
 
 // A SnapshotSet is a set of snapshots created by a single "snap save".
