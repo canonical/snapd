@@ -611,6 +611,10 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 			return nil, errors.New("unexpected directory in import file")
 		}
 
+		if header.Name == "early.json" {
+			continue
+		}
+
 		if header.Name == "export.json" {
 			// XXX: read into memory and validate once we
 			// hashes in export.json
@@ -664,6 +668,9 @@ type SnapshotExport struct {
 	// open snapshot files
 	snapshotFiles []*os.File
 
+	// contentHash of the full snapshot
+	contentHash []byte
+
 	// remember setID mostly for nicer errors
 	setID uint64
 
@@ -675,6 +682,7 @@ type SnapshotExport struct {
 // Close()ed after use to avoid leaking file descriptors.
 func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, err error) {
 	var snapshotFiles []*os.File
+	var snapshotSet client.SnapshotSet
 
 	defer func() {
 		// cleanup any open FDs if anything goes wrong
@@ -691,9 +699,13 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	// files are getting opened.
 	err = Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
-			// Duplicate the file descriptor of the reader we were handed as
-			// Iter() closes those as soon as this unnamed returns. We
-			// re-package the file descriptor into snapshotFiles below.
+			snapshotSet.Snapshots = append(snapshotSet.Snapshots, &reader.Snapshot)
+
+			// Duplicate the file descriptor of the reader
+			// we were handed as Iter() closes those as
+			// soon as this unnamed returns. We re-package
+			// the file descriptor into snapshotFiles
+			// below.
 			fd, err := syscall.Dup(int(reader.Fd()))
 			if err != nil {
 				return fmt.Errorf("cannot duplicate descriptor: %v", err)
@@ -713,7 +725,11 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 		return nil, fmt.Errorf("no snapshot data found for %v", setID)
 	}
 
-	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID}
+	h, err := snapshotSet.ContentHash()
+	if err != nil {
+		return nil, fmt.Errorf("cannot calcualte content hash for snapshot export %v: %v", setID, err)
+	}
+	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h}
 
 	// ensure we never leak FDs even if the user does not call close
 	runtime.SetFinalizer(se, (*SnapshotExport).Close)
@@ -757,6 +773,32 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	var files []string
 	tw := tar.NewWriter(w)
 	defer tw.Close()
+
+	// export contentHash as early.json
+	earlyJSON := struct {
+		ContentHash []byte `json:"content-hash"`
+	}{
+		ContentHash: se.contentHash,
+	}
+	h, err := json.Marshal(earlyJSON)
+	if err != nil {
+		return err
+	}
+	hdr := &tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "early.json",
+		Size:     int64(len(h)),
+		Mode:     0640,
+		ModTime:  timeNow(),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if _, err := tw.Write(h); err != nil {
+		return err
+	}
+
+	// write out the individual snapshots
 	for _, snapshotFile := range se.snapshotFiles {
 		stat, err := snapshotFile.Stat()
 		if err != nil {
@@ -794,7 +836,7 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("cannot marshal meta-data: %v", err)
 	}
-	hdr := &tar.Header{
+	hdr = &tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     "export.json",
 		Size:     int64(len(metaDataBuf)),

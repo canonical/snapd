@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1012,7 +1013,8 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 
 	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
-	c.Assert(export.Init(), check.IsNil)
+	err = export.Init()
+	c.Assert(err, check.IsNil)
 
 	buf := bytes.NewBuffer(nil)
 	c.Assert(export.StreamTo(buf), check.IsNil)
@@ -1152,8 +1154,8 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
 	c.Check(err, check.IsNil)
 
-	// num_files + export.json + footer
-	expectedSize := int64(4*512 + 1024 + 2*512)
+	// early.json + num_files + export.json + footer
+	expectedSize := int64(1024 + 4*512 + 1024 + 2*512)
 	// do on export at the start of the epoch
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
 	defer restore()
@@ -1351,4 +1353,45 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	err = backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
 	c.Check(callbackCalled, check.Equals, 0)
+}
+
+func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
+	ctx := context.TODO()
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(42),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	shID := uint64(12)
+	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
+
+	// now export it
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	c.Check(export.ContentHash(), check.HasLen, sha256.Size)
+
+	// and check that exporting it again leads to the same content hash
+	export2, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	c.Check(export.ContentHash(), check.DeepEquals, export2.ContentHash())
+
+	// but changing the snapshot changes the content hash
+	info = &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(9999),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
+
+	export3, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	c.Check(export.ContentHash(), check.Not(check.DeepEquals), export3.ContentHash())
 }

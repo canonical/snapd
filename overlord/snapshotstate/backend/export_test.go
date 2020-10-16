@@ -130,3 +130,7 @@ func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size in
 		Size:     size,
 	}
 }
+
+func (se *SnapshotExport) ContentHash() []byte {
+	return se.contentHash
+}
