@@ -521,15 +521,11 @@ func isReadOnlyFsError(err error) bool {
 	if err == nil {
 		return false
 	}
-	perr, ok := err.(*os.PathError)
-	if ok {
-		err := perr.Err
-		if err != nil {
-			serr, ok := err.(syscall.Errno)
-			if ok && serr == syscall.EROFS {
-				return true
-			}
-		}
+	if e, ok := err.(*os.PathError); ok {
+		err = e.Err
+	}
+	if e, ok := err.(syscall.Errno); ok {
+		return e == syscall.EROFS
 	}
 	return false
 }
