@@ -20,9 +20,7 @@ restore: |
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-user-service-sockets
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-sockets
 
     echo "And the user mode systemd instance is started"
     tests.session -u test prepare

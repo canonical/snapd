@@ -85,6 +85,7 @@ func CheckKeySealingSupported() error {
 		logger.Noticef("%v", err)
 		return err
 	}
+	defer tpm.Close()
 
 	if !isTPMEnabled(tpm) {
 		logger.Noticef("TPM device detected but not enabled")
@@ -93,7 +94,7 @@ func CheckKeySealingSupported() error {
 
 	logger.Noticef("TPM device detected and enabled")
 
-	return tpm.Close()
+	return nil
 }
 
 func checkSecureBootEnabled() error {
@@ -436,6 +437,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 	} else {
 		pcrProfile = modelPCRProfiles[0]
 	}
+
+	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
 	return pcrProfile, nil
 }

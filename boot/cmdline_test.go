@@ -122,13 +122,9 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	mbl := bl.WithManagedAssets()
-	bootloader.Force(mbl)
-	mbl.IsManaged = false
+	tbl := bl.WithTrustedAssets()
+	bootloader.Force(tbl)
 
-	// TODO:UC20: remove is managed checks
-
-	// is-managed is ignored with the right model and bootloader interface
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
@@ -156,12 +152,11 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	model := boottest.MakeMockUC20Model()
 
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	mbl.IsManaged = true
-	mbl.StaticCommandLine = "panic=-1"
+	tbl.StaticCommandLine = "panic=-1"
 
 	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
@@ -169,9 +164,6 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
-
-	// managed status is effectively ignored
-	mbl.IsManaged = false
 
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
@@ -184,20 +176,18 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *C) {
 	model := boottest.MakeMockUC20Model()
 
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
 
-	mbl.IsManaged = true
-	mbl.StaticCommandLine = "panic=-1"
-	mbl.CandidateStaticCommandLine = "candidate panic=-1"
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=-1"
 
 	cmdline, err := boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
 
 	// managed status is effectively ignored
-	mbl.IsManaged = false
 	cmdline, err = boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")

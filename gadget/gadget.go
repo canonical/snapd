@@ -50,6 +50,7 @@ const (
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
 	SystemSeed = "system-seed"
+	SystemSave = "system-save"
 
 	bootImage  = "system-boot-image"
 	bootSelect = "system-boot-select"
@@ -381,18 +382,14 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 }
 
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
-// root directory. If constraints is nil, ReadInfo will just check for
-// self-consistency, otherwise rules for the classic or system seed cases are
-// enforced.
+// root directory.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	return readInfo(ioutil.ReadFile, gadgetYamlFn, model)
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
-// meta/gadget.yaml in the given snap container. If constraints is
-// nil, ReadInfo will just check for self-consistency, otherwise rules
-// for the classic or system seed cases are enforced.
+// meta/gadget.yaml in the given snap container.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
 	gadgetYamlFn := "meta/gadget.yaml"
 	return readInfo(snapf.ReadFile, gadgetYamlFn, model)
@@ -409,6 +406,7 @@ type validationState struct {
 	SystemSeed *VolumeStructure
 	SystemData *VolumeStructure
 	SystemBoot *VolumeStructure
+	SystemSave *VolumeStructure
 }
 
 func validateVolume(name string, vol *Volume, model Model) error {
@@ -475,6 +473,11 @@ func validateVolume(name string, vol *Volume, model Model) error {
 				return fmt.Errorf("cannot have more than one partition with system-boot role")
 			}
 			state.SystemBoot = &vol.Structure[idx]
+		case SystemSave:
+			if state.SystemSave != nil {
+				return fmt.Errorf("cannot have more than one partition with system-save role")
+			}
+			state.SystemSave = &vol.Structure[idx]
 		}
 
 		previousEnd = end
@@ -493,7 +496,7 @@ func validateVolume(name string, vol *Volume, model Model) error {
 func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
-		return nil
+		// happy so far
 	case state.SystemSeed != nil && state.SystemData == nil:
 		return fmt.Errorf("the system-seed role requires system-data to be defined")
 	case state.SystemSeed == nil && state.SystemData != nil:
@@ -502,6 +505,11 @@ func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
+		}
+	}
+	if state.SystemSave != nil {
+		if err := ensureSystemSaveConsistency(state); err != nil {
 			return err
 		}
 	}
@@ -514,7 +522,6 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, model Model)
 		if wantsSystemSeed(model) {
 			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
 		}
-		return nil
 	case state.SystemSeed != nil && state.SystemData == nil:
 		return fmt.Errorf("the system-seed role requires system-data to be defined")
 	case state.SystemSeed == nil && state.SystemData != nil:
@@ -523,7 +530,7 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, model Model)
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
+		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
 				implicitSystemDataLabel, state.SystemData.Label)
 		}
@@ -533,6 +540,11 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, model Model)
 			return fmt.Errorf("model does not support the system-seed role")
 		}
 		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
+		}
+	}
+	if state.SystemSave != nil {
+		if err := ensureSystemSaveConsistency(state); err != nil {
 			return err
 		}
 	}
@@ -553,7 +565,16 @@ func ensureSeedDataLabelsUnset(state *validationState) error {
 	if state.SystemSeed.Label != "" {
 		return fmt.Errorf("system-seed structure must not have a label")
 	}
+	return nil
+}
 
+func ensureSystemSaveConsistency(state *validationState) error {
+	if state.SystemData == nil || state.SystemSeed == nil {
+		return fmt.Errorf("system-save requires system-seed and system-data structures")
+	}
+	if state.SystemSave.Label != "" {
+		return fmt.Errorf("system-save structure must not have a label")
+	}
 	return nil
 }
 
@@ -602,6 +623,28 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
+var (
+	reservedLabels = []string{
+		ubuntuBootLabel, ubuntuSeedLabel,
+		ubuntuDataLabel, ubuntuSaveLabel,
+	}
+)
+
+func validateReservedLabels(vs *VolumeStructure) error {
+	if vs.Role != "" {
+		// structure specifies a role, its labels will be checked later
+		return nil
+	}
+	if vs.Label == "" {
+		return nil
+	}
+	if strutil.ListContains(reservedLabels, vs.Label) {
+		// a structure without a role uses one of reserved labels
+		return fmt.Errorf("label %q is reserved", vs.Label)
+	}
+	return nil
+}
+
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
@@ -636,6 +679,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
+		return err
+	}
+
+	if err := validateReservedLabels(vs); err != nil {
 		return err
 	}
 
@@ -724,7 +771,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case SystemData, SystemSeed:
+	case SystemData, SystemSeed, SystemSave:
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
 	case schemaMBR:

@@ -15,9 +15,7 @@ restore: |
     rm -f stderr.log
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-xdg-settings
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-settings
 
     tests.session -u test prepare
 

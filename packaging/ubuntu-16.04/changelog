@@ -1,6 +1,29 @@
-snapd (2.47~pre1) xenial; urgency=medium
+snapd (2.47.1) xenial; urgency=medium
 
   * New upstream release, LP: #1895929
+    - o/configstate: create /etc/sysctl.d when applying early config
+      defaults
+    - cmd/snap-bootstrap/initramfs-mounts: also copy /etc/machine-id for
+      same IP addr
+    - packaging/{ubuntu,debian}: add liblzo2-dev as a dependency for
+      building snapd
+    - cmd/snap: allow snap help vs --all to diverge purposefully
+    - snap: snap help output refresh
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 08 Oct 2020 09:30:44 +0200
+
+snapd (2.47) xenial; urgency=medium
+
+  * New upstream release, LP: #1895929
+    - tests: fix nested core20 shellcheck bug
+    - many/apparmor: adjust rule for reading apparmor profile for new
+      kernel
+    - snap-repair: add uc20 support
+    - cmd/snap/auto-import: stop importing system user assertions from
+      initramfs mnts
+    - cmd/s-b/initramfs-mounts: use ConfigureTargetSystem for install,
+      recover modes
+    - gadget: resolve device mapper devices for fallback device lookup
     - secboot: add boot manager profile to pcr protection profile
     - sysconfig,o/devicestate: mv DisableNoCloud to
       DisableAfterLocalDatasourcesRun
@@ -166,7 +189,7 @@ snapd (2.47~pre1) xenial; urgency=medium
     - boot/initramfs_test.go: reset boot vars on the bootloader for each
       iteration
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 17 Sep 2020 08:45:54 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 29 Sep 2020 17:19:13 +0200
 
 snapd (2.46.1) xenial; urgency=medium
 
@@ -4481,7 +4504,7 @@ snapd (2.35) xenial; urgency=medium
     - logger: try to not have double dates
     - debian: use deb-systemd-invoke instead of systemctl directly
     - tests: run all main tests on core18
-    - many: finish sharing a single TaskRunner with all the the managers
+    - many: finish sharing a single TaskRunner with all the managers
     - interfaces/repo: added AllHotplugInterfaces helper
     - snapstate: ensure kernel-track is honored on switch/refresh
     - overlord/ifacestate: support implicit slots on snapd

@@ -33,6 +33,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -71,6 +73,39 @@ type Flags struct {
 	Auto bool
 }
 
+// LastSnapshotSetID returns the highest set id number for the snapshots stored
+// in snapshots directory; set ids are inferred from the filenames.
+func LastSnapshotSetID() (uint64, error) {
+	dir, err := osOpen(dirs.SnapshotsDir)
+	if err != nil {
+		if osutil.IsDirNotExist(err) {
+			// no snapshots
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot open snapshots directory: %v", err)
+	}
+	defer dir.Close()
+
+	var maxSetID uint64
+
+	var readErr error
+	for readErr == nil {
+		var names []string
+		names, readErr = dirNames(dir, 100)
+		for _, name := range names {
+			if ok, setID := isSnapshotFilename(name); ok {
+				if setID > maxSetID {
+					maxSetID = setID
+				}
+			}
+		}
+	}
+	if readErr != nil && readErr != io.EOF {
+		return 0, readErr
+	}
+	return maxSetID, nil
+}
+
 // Iter loops over all snapshots in the snapshots directory, applying the given
 // function to each. The snapshot will be closed after the function returns. If
 // the function returns an error, iteration is stopped (and if the error isn't
@@ -100,8 +135,13 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				break
 			}
 
+			// filter out non-snapshot directory entries
+			ok, setID := isSnapshotFilename(name)
+			if !ok {
+				continue
+			}
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			reader, openError := backendOpen(filename)
+			reader, openError := backendOpen(filename, setID)
 			// reader can be non-nil even when openError is not nil (in
 			// which case reader.Broken will have a reason). f can
 			// check and either ignore or return an error when
@@ -162,6 +202,36 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 func Filename(snapshot *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
+}
+
+// isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
+// if it starts with a numeric set id and ends with .zip extension;
+// filePath can be just a file name, or a full path.
+func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
+	fname := filepath.Base(filePath)
+	// XXX: we could use a regexp here to match very precisely all the elements
+	// of the filename following Filename() above, but perhaps it's better no to
+	// go overboard with it in case the format evolves in the future. Only check
+	// if the name starts with a set-id and ends with .zip.
+	//
+	// Filename is "<sid>_<snapName>_version_revision.zip", e.g. "16_snapcraft_4.2_5407.zip"
+	ext := filepath.Ext(fname)
+	if ext != ".zip" {
+		return false, 0
+	}
+	parts := strings.SplitN(fname, "_", 2)
+	if len(parts) != 2 {
+		return false, 0
+	}
+	// invalid: no parts following <sid>_
+	if parts[1] == ext {
+		return false, 0
+	}
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false, 0
+	}
+	return true, uint64(id)
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
