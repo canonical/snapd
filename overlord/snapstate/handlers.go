@@ -834,7 +834,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if experimentalRefreshAppAwareness {
+	if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
