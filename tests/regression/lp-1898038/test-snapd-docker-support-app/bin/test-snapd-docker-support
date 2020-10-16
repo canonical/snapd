@@ -1,2 +1,2 @@
-#!/usr/bin/env bash
+#!/bin/sh
 /sbin/apparmor_parser -r $SNAP/test-snapd-docker-support.profile
