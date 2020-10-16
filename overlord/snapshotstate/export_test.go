@@ -22,6 +22,7 @@ package snapshotstate
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"time"
 
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -139,6 +140,14 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	backendCleanup = f
 	return func() {
 		backendCleanup = old
+	}
+}
+
+func MockBackendImport(f func(context.Context, uint64, io.Reader) ([]string, error)) (restore func()) {
+	old := backendImport
+	backendImport = f
+	return func() {
+		backendImport = old
 	}
 }
 
