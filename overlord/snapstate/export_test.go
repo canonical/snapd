@@ -138,6 +138,9 @@ var (
 	NewCatalogRefresh            = newCatalogRefresh
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+
+	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
+	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -276,4 +279,10 @@ func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames [
 		busyAppNames:  busyAppNames,
 		busyHookNames: busyHookNames,
 	}
+}
+
+func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
+	old := genericRefreshCheck
+	genericRefreshCheck = fn
+	return func() { genericRefreshCheck = old }
 }
