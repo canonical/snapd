@@ -11,54 +11,54 @@ execute: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         "$TESTSTOOLS"/system-state is-core
         "$TESTSTOOLS"/system-state is-core-16
-        ! "$TESTSTOOLS"/system-state is-core-18
-        ! "$TESTSTOOLS"/system-state is-classic
+        "$TESTSTOOLS"/system-state is-core-18 && exit 1
+        "$TESTSTOOLS"/system-state is-classic && exit 1
 
     # check ubuntu core 18
     elif [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
         "$TESTSTOOLS"/system-state is-core
         "$TESTSTOOLS"/system-state is-core-18
-        ! "$TESTSTOOLS"/system-state is-core-20
-        ! "$TESTSTOOLS"/system-state is-classic
+        "$TESTSTOOLS"/system-state is-core-20 && exit 1
+        "$TESTSTOOLS"/system-state is-classic && exit 1
 
     # check ubuntu core 20
     elif [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]; then
         "$TESTSTOOLS"/system-state is-core
         "$TESTSTOOLS"/system-state is-core-20
-        ! "$TESTSTOOLS"/system-state is-core-18
-        ! "$TESTSTOOLS"/system-state is-classic
+        "$TESTSTOOLS"/system-state is-core-18 && exit 1
+        "$TESTSTOOLS"/system-state is-classic && exit 1
 
     # check ubuntu trusty
     elif [[ "$SPREAD_SYSTEM" == ubuntu-14-* ]]; then
         "$TESTSTOOLS"/system-state is-classic
         "$TESTSTOOLS"/system-state is-trusty
-        ! "$TESTSTOOLS"/system-state is-bionic
-        ! "$TESTSTOOLS"/system-state is-core
+        "$TESTSTOOLS"/system-state is-bionic && exit 1
+        "$TESTSTOOLS"/system-state is-core && exit 1
 
     # check ubuntu xenial
     elif [[ "$SPREAD_SYSTEM" == ubuntu-16-* ]]; then
         "$TESTSTOOLS"/system-state is-classic
         "$TESTSTOOLS"/system-state is-xenial
-        ! "$TESTSTOOLS"/system-state is-bionic
-        ! "$TESTSTOOLS"/system-state is-core
+        "$TESTSTOOLS"/system-state is-bionic && exit 1
+        "$TESTSTOOLS"/system-state is-core && exit 1
 
     # check ubuntu bionic
     elif [[ "$SPREAD_SYSTEM" == ubuntu-18-* ]]; then
         "$TESTSTOOLS"/system-state is-classic
         "$TESTSTOOLS"/system-state is-bionic
-        ! "$TESTSTOOLS"/system-state is-focal
-        ! "$TESTSTOOLS"/system-state is-core
+        "$TESTSTOOLS"/system-state is-focal && exit 1
+        "$TESTSTOOLS"/system-state is-core && exit 1
 
     # check ubuntu focal
     elif [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
         "$TESTSTOOLS"/system-state is-classic
         "$TESTSTOOLS"/system-state is-focal
-        ! "$TESTSTOOLS"/system-state is-xenial
-        ! "$TESTSTOOLS"/system-state is-core
+        "$TESTSTOOLS"/system-state is-xenial && exit 1
+        "$TESTSTOOLS"/system-state is-core && exit 1
 
     # check other distributions
     else
         "$TESTSTOOLS"/system-state is-classic
-        ! "$TESTSTOOLS"/system-state is-focal
-        ! "$TESTSTOOLS"/system-state is-core
+        "$TESTSTOOLS"/system-state is-focal && exit 1
+        "$TESTSTOOLS"/system-state is-core && exit 1
     fi 
