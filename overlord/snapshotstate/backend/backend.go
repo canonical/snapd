@@ -565,6 +565,10 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	defer tr.Cancel()
 
 	// Unpack and validate the streamed data
+	//
+	// XXX: this will leak snapshot IDs, i.e. we allocate a new
+	// snapshot ID before but then we error here because of e.g.
+	// duplicated import attempts
 	snapNames, err = unpackVerifySnapshotImport(ctx, r, id)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
