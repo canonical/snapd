@@ -12,3 +12,6 @@ execute: |
 
 restore: |
   umount /etc/dbus-1/session.d
+
+  # restore snapd installed originally
+  snap revert snapd
