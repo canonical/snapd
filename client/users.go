@@ -45,7 +45,8 @@ type CreateUserOptions struct {
 	Sudoer       bool   `json:"sudoer,omitempty"`
 	Known        bool   `json:"known,omitempty"`
 	ForceManaged bool   `json:"force-managed,omitempty"`
-	Automatic    bool   `json:"automatic,omitempty"`
+	// Automatic is for internal snapd use, behavior might evolve
+	Automatic bool `json:"automatic,omitempty"`
 }
 
 // RemoveUserOptions holds options for removing a local system user.
