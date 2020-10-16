@@ -668,15 +668,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-		},
-		{
-			op:    "remove-snap-files",
-			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-			stype: "app",
-		},
-		{
-			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/3"),
 		},
 		{
@@ -689,8 +680,17 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 		},
 		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
 			op:   "remove-snap-common-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -699,7 +699,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:    "remove-snap-files",
-			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
 		},
 		{
@@ -722,7 +722,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	revnos := []snap.Revision{{N: 7}, {N: 3}, {N: 5}}
+	revnos := []snap.Revision{{N: 3}, {N: 5}, {N: 7}}
 	whichRevno := 0
 	for _, t := range tasks {
 		if t.Kind() == "run-hook" {

@@ -2124,9 +2124,16 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 	if removeAll {
 		seq := snapst.Sequence
+		currentIndex := snapst.LastIndex(snapst.Current)
 		for i := len(seq) - 1; i >= 0; i-- {
-			si := seq[i]
-			addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+			if i != currentIndex {
+				si := seq[i]
+				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+			}
+		}
+		// tasks for removing current revision of the snap are last
+		if currentIndex >= 0 {
+			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
 		}
 	} else {
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
