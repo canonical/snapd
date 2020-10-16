@@ -10,14 +10,24 @@ prepare: |
     snap install --dangerous ./test-multipass-support-app_1_all.snap
     tests.cleanup defer snap remove --purge test-multipass-support-app
 execute: |
-    # wait a bit to ensure the mount namespace exists
-    sleep 5
+    ! aa-status | grep -q 'test-docker-support-test-profile'
+    snap connect test-docker-support-app:docker-support
+    # check we can load a simple profile
+    test-docker-support-app.test-docker-support
     # check that within the snap mount namespace /etc/apparmor is mounted
     # and comes from a snap
     test "$(nsenter -m/run/snapd/ns/test-docker-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
+    # check the profile got loaded
+    aa-status | grep -q 'test-docker-support-test-profile'
+
+    # and do the same for multipass-support
+    ! aa-status | grep -q 'test-multipass-support-test-profile'
+    snap connect test-multipass-support-app:multipass-support
+    test-multipass-support-app.test-multipass-support
     test "$(nsenter -m/run/snapd/ns/test-multipass-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
-    # also check the snaps loaded their apparmor profiles
-    test "$(aa-status | grep -c 'snap.test-\(docker\|multipass\)-support.app.test-\(docker\|multipass\)-support')" -eq 2
+    aa-status | grep -q 'test-multipass-support-test-profile'
 restore: |
+    apparmor_parser -R /snap/test-docker-support-app/current/test-docker-support.profile || true
+    apparmor_parser -R /snap/test-docker-support-app/current/test-multipass-support.profile || true
     tests.cleanup restore
 

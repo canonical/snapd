@@ -3,7 +3,6 @@ version: 1
 
 apps:
     test-docker-support:
-        daemon: simple
         command: bin/test-docker-support
         plugs:
             - docker-support
