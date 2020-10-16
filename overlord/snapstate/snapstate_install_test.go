@@ -344,6 +344,63 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	c.Check(snapst.RefreshInhibitedTime, NotNil)
 }
 
+func (s *snapmgrTestSuite) TestInstallWithIgnoreValidationProceedsOnBusySnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With the refresh-app-awareness feature enabled.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap state indicating a snap is already installed.
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "pkg", snapst)
+
+	// With a snap info indicating it has an application called "app"
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		if name != "pkg" {
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+
+	// With an app belonging to the snap that is apparently running.
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "pkg")
+		return map[string][]int{
+			"snap.pkg.app": {1234},
+		}, nil
+	})
+	defer restore()
+
+	// Attempt to install revision 2 of the snap, with the IgnoreRunning flag set.
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(2)},
+		Flags:    snapstate.Flags{IgnoreRunning: true},
+	}
+
+	// And observe that we do so despite the running app.
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	c.Assert(err, IsNil)
+
+	// The state confirms that the refresh operation was not postponed.
+	err = snapstate.Get(s.state, "pkg", snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

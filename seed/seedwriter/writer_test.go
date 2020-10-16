@@ -146,6 +146,11 @@ type: app
 base: core16
 version: 1.0
 `,
+	"my-devmode": `name: my-devmode
+type: app
+version: 1
+confinement: devmode
+`,
 })
 
 const pcGadgetYaml = `
@@ -2092,7 +2097,10 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 	}
 }
 
-func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
+func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
+
+	s.makeSnap(c, "my-devmode", "canonical")
+
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -2111,14 +2119,40 @@ func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
 				"type":            "gadget",
 				"default-channel": "20",
 			},
+			map[string]interface{}{
+				"name": "my-devmode",
+				"id":   s.AssertedSnapID("my-devmode"),
+				"type": "app",
+			},
 		},
 	})
 
-	s.opts.DefaultChannel = "stable"
 	s.opts.Label = "20191107"
+
+	const expectedErr = `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`
+
 	w, err := seedwriter.New(model, s.opts)
-	c.Assert(w, IsNil)
-	c.Check(err, ErrorMatches, `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	snaps, err := w.SnapsToDownload()
+	c.Check(err, IsNil)
+	c.Assert(snaps, HasLen, 5)
+
+	c.Assert(snaps[4].SnapName(), Equals, "my-devmode")
+	sn := snaps[4]
+
+	info := s.AssertedSnapInfo(sn.SnapName())
+	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
+	err = w.SetInfo(sn, info)
+	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous")
+	c.Check(sn.Info, Not(Equals), info)
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
@@ -2155,7 +2189,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 		{&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"}},
 	}
 
-	const expectedErr = `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`
+	const expectedErr = `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`
 
 	for _, t := range tests {
 		w, err := seedwriter.New(model, s.opts)
@@ -2196,6 +2230,35 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 		_, err = w.SnapsToDownload()
 		c.Check(err, ErrorMatches, expectedErr)
 	}
+}
+
+func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	s.opts.DefaultChannel = "stable"
+	s.opts.Label = "20191107"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(w, IsNil)
+	c.Check(err, ErrorMatches, `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`)
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
