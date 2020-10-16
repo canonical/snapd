@@ -137,6 +137,8 @@ func (iface *multipassSupportInterface) AppArmorPermanentPlug(spec *apparmor.Spe
 		if base == "" {
 			base = "core"
 		}
+		// unlike below, within the snap mount namespace /snap is
+		// always used
 		source := fmt.Sprintf("/snap/%s/*", base) + target
 		emit("  # access to %s\n", target)
 		emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
@@ -152,7 +154,9 @@ func (iface *multipassSupportInterface) MountPermanentPlug(spec *mount.Specifica
 		if base == "" {
 			base = "core"
 		}
-		basePath, _ := filepath.EvalSymlinks(fmt.Sprintf("/snap/%s/current", base))
+		// use SnapMountDir since /snap is not always used on the
+		// host mount namespace
+		basePath, _ := filepath.EvalSymlinks(fmt.Sprintf("%s/%s/current", dirs.SnapMountDir, base))
 		spec.AddMountEntry(osutil.MountEntry{
 			Name:    basePath + dir,
 			Dir:     dirs.StripRootDir(dir),
