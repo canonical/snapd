@@ -168,11 +168,8 @@ type ExtractedRunKernelImageBootloader interface {
 type TrustedAssetsBootloader interface {
 	Bootloader
 
-	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
-	// TODO:UC20: remove once no longer used
-	IsCurrentlyManaged() (bool, error)
 	// ManagedAssets returns a list of boot assets managed by the bootloader
-	// in the boot filesystem.
+	// in the boot filesystem. Does not require rootdir to be set.
 	ManagedAssets() []string
 	// UpdateBootConfig updates the boot config assets used by the bootloader.
 	UpdateBootConfig(*Options) error
@@ -186,9 +183,9 @@ type TrustedAssetsBootloader interface {
 	// edition of managed built-in boot assets as reference.
 	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
 
-	// TrustedAssets returns the list of relative paths to assets inside
-	// the bootloader's rootdir that are measured in the boot process in the
-	// order of loading during the boot.
+	// TrustedAssets returns the list of relative paths to assets inside the
+	// bootloader's rootdir that are measured in the boot process in the
+	// order of loading during the boot. Does not require rootdir to be set.
 	TrustedAssets() ([]string, error)
 
 	// RecoveryBootChain returns the load chain for recovery modes.

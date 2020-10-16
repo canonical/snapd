@@ -5,13 +5,11 @@ environment:
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     snap install --devmode jq
 
     echo "Install test hooks snaps"
-    install_local basic-iface-hooks-consumer
-    install_local basic-iface-hooks-producer
+    "$TESTSTOOLS"/snaps-state install-local basic-iface-hooks-consumer
+    "$TESTSTOOLS"/snaps-state install-local basic-iface-hooks-producer
 
 restore: |
     rm -f "$CONSUMER_DATA/prepare-plug-consumer-done"

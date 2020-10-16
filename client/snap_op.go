@@ -40,6 +40,7 @@ type SnapOptions struct {
 	Classic          bool   `json:"classic,omitempty"`
 	Dangerous        bool   `json:"dangerous,omitempty"`
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
+	IgnoreRunning    bool   `json:"ignore-running,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
 	Purge            bool   `json:"purge,omitempty"`
 	Amend            bool   `json:"amend,omitempty"`
@@ -74,6 +75,9 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 }
 
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
+	if err := writeFieldBool(mw, "ignore-running", opts.IgnoreRunning); err != nil {
+		return err
+	}
 	return writeFieldBool(mw, "unaliased", opts.Unaliased)
 }
 
@@ -204,7 +208,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), doFlags{})
+	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), nil)
 }
 
 // InstallPath sideloads the snap with the given path under optional provided name,
@@ -230,7 +234,8 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	return client.doAsyncNoTimeout("POST", "/v2/snaps", nil, headers, pr)
+	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	return changeID, err
 }
 
 // Try

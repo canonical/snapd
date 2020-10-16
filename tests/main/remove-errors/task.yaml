@@ -1,8 +1,6 @@
 summary: Check remove command errors
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
     #shellcheck source=tests/lib/names.sh
@@ -16,7 +14,7 @@ execute: |
     fi
 
     echo "Given a base snap, $BASE_SNAP, is installed"
-    install_local "$TARGET_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$TARGET_SNAP"
 
     echo "Ensure the important snaps can not be removed"
     for sn in $BASE_SNAP $kernel_name $gadget_name; do
