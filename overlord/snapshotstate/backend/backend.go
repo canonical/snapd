@@ -404,6 +404,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	tarArgs := []string{
 		"--create",
 		"--sparse", "--gzip",
+		"--format", "gnu",
 		"--directory", parent,
 	}
 
