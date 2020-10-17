@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -516,15 +517,40 @@ func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[stri
 	return sessionContent, systemContent, nil
 }
 
+func isReadOnlyFsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*os.PathError); ok {
+		err = e.Err
+	}
+	if e, ok := err.(syscall.Errno); ok {
+		return e == syscall.EROFS
+	}
+	return false
+}
+
+var ensureDirState = osutil.EnsureDirState
+
 func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	sessionContent, systemContent, err := DeriveSnapdDBusConfig(s)
 	if err != nil {
 		return err
 	}
 
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
+	_, _, err = ensureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
 	if err != nil {
-		return err
+		if isReadOnlyFsError(err) {
+			// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
+			// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
+			// so log the error but carry on. This fixes LP: 1899664.
+			// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
+			// this will only happen on future snapd refresh), but realistically this
+			// is not relevant on core18 devices.
+			logger.Noticef("%s appears to be read-only, could not write snapd dbus config files", dirs.SnapDBusSessionPolicyDir)
+		} else {
+			return err
+		}
 	}
 
 	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", systemContent)
