@@ -620,6 +620,8 @@ prepare: |
     # context.
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     unset MATCH
+    type NOMATCH | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
+    unset NOMATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
 
