@@ -12,7 +12,7 @@ execute: |
 
     if os.query is-core18; then
         base=core18
-    elif is_core20_system; then
+    elif os.query is-core20; then
         base=core20
     fi
     echo "Ensure $base cannot be removed"
