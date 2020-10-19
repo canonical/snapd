@@ -226,6 +226,8 @@
 
     # /etc/alternatives (core/legacy mode)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+
+    # making all those directories slave shared.
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
