@@ -38,7 +38,5 @@ execute: |
     nsenter -m/run/snapd/ns/test-snapd-multipass-support-app.mnt /usr/sbin/aa-status | grep -q 'test-snapd-multipass-support-test-profile'
 
 restore: |
-    apparmor_parser -R /snap/test-snapd-docker-support-app/current/test-snapd-docker-support.profile || true
-    apparmor_parser -R /snap/test-snapd-multipass-support-app/current/test-snapd-multipass-support.profile || true
     tests.cleanup restore
 
