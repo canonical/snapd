@@ -1,4 +1,6 @@
 summary: docker-support and multipass-support should mount base /etc/apparmor.d
+# no nsenter on ubuntu-14.04
+systems: [-ubuntu-14.04-*]
 prepare: |
     tests.cleanup prepare
     snap pack test-snapd-docker-support-app
