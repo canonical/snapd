@@ -23,29 +23,18 @@ prepare: |
         mkdir /etc/apparmor.d
         tests.cleanup defer rmdir /etc/apparmor.d
     fi
+    snap connect test-snapd-docker-support-app:docker-support
+    snap connect test-snapd-multipass-support-app:multipass-support
 
 execute: |
-    # try running without the interface connected but should fail (this
-    # also has the effect of immediately creating the mount namespace too
-    # so the nsenter below should always work)
-    not test-snapd-docker-support-app.test-snapd-docker-support
-    # use aa-status from the core snap since the host may not have it
-    nsenter -m/run/snapd/ns/test-snapd-docker-support-app.mnt /usr/sbin/aa-status | not grep -q 'test-snapd-docker-support-test-profile'
-    # now connect it and verify profile can be loaded
-    snap connect test-snapd-docker-support-app:docker-support
+    # now connect it and verify profile can be compiled
     test-snapd-docker-support-app.test-snapd-docker-support
-    # check that within the snap mount namespace /etc/apparmor is mounted
-    # and comes from a snap
+    # check that within the snap mount namespace /etc/apparmor is mounted and comes from a snap
     test "$(nsenter -m/run/snapd/ns/test-snapd-docker-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
-    nsenter -m/run/snapd/ns/test-snapd-docker-support-app.mnt /usr/sbin/aa-status | grep -q 'test-snapd-docker-support-test-profile'
 
     # and do the same for multipass-support
-    not test-snapd-multipass-support-app.test-snapd-multipass-support
-    nsenter -m/run/snapd/ns/test-snapd-multipass-support-app.mnt /usr/sbin/aa-status | not grep -q 'test-snapd-multipass-support-test-profile'
-    snap connect test-snapd-multipass-support-app:multipass-support
     test-snapd-multipass-support-app.test-snapd-multipass-support
     test "$(nsenter -m/run/snapd/ns/test-snapd-multipass-support-app.mnt mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
-    nsenter -m/run/snapd/ns/test-snapd-multipass-support-app.mnt /usr/sbin/aa-status | grep -q 'test-snapd-multipass-support-test-profile'
 
 restore: |
     tests.cleanup restore
