@@ -14,8 +14,6 @@ SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 delete_snapd_state() {
     rm -rf "$SNAPD_STATE_PATH"
@@ -26,9 +24,9 @@ prepare_state() {
 }
 
 is_snapd_state_saved() {
-    if is_core_system && [ -d "$SNAPD_STATE_PATH"/snapd-lib ]; then
+    if os.query is-core && [ -d "$SNAPD_STATE_PATH"/snapd-lib ]; then
         return 0
-    elif is_classic_system && [ -f "$SNAPD_STATE_FILE" ]; then
+    elif os.query is-classic && [ -f "$SNAPD_STATE_FILE" ]; then
         return 0
     else
         return 1
@@ -36,7 +34,7 @@ is_snapd_state_saved() {
 }
 
 save_snapd_state() {
-    if is_core_system; then
+    if os.query is-core; then
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
 
@@ -75,7 +73,7 @@ save_snapd_state() {
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
-        if is_ubuntu_14_system && mount | grep -q "$core"; then
+        if os.query is-trusty && mount | grep -q "$core"; then
             umount "$core" || true
         fi
         for unit in $units; do
@@ -88,7 +86,7 @@ save_snapd_state() {
 }
 
 restore_snapd_state() {
-    if is_core_system; then
+    if os.query is-core; then
         # we need to ensure that we also restore the boot environment
         # fully for tests that break it
         boot_path="$(get_boot_path)"
@@ -128,7 +126,7 @@ restore_snapd_lib() {
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    if is_core20_system ; then
+    if os.query is-core20 ; then
         # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
         # mount or later mount seed as needed
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/
