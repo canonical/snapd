@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -210,6 +211,12 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
+	// get the disk that we mounted the ubuntu-seed partition from
+	disk, err := disks.DiskFromMountPoint(InitramfsUbuntuSeedDir, nil)
+	if err != nil {
+		return err
+	}
+
 	// get model parameters from bootchains
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -218,8 +225,9 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	resealKeyParams := &secboot.ResealKeyParams{
 		ModelParams: modelParams,
 		KeyFile:     filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		DeviceName:  "ubuntu-data",
 	}
-	if err := secbootResealKey(resealKeyParams); err != nil {
+	if err := secbootResealKey(disk, resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 	logger.Debugf("resealing (%d) succeeded", nextCount)

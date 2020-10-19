@@ -69,4 +69,6 @@ type ResealKeyParams struct {
 	ModelParams []*SealKeyModelParams
 	// The path to the sealed key file
 	KeyFile string
+	// The source device name
+	DeviceName string
 }

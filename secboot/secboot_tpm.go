@@ -44,13 +44,15 @@ import (
 const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
 	policyCounterHandle = 0x01880001
+
+	keyringPrefix = "snapd"
 )
 
 var (
 	sbConnectToDefaultTPM            = sb.ConnectToDefaultTPM
 	sbMeasureSnapSystemEpochToTPM    = sb.MeasureSnapSystemEpochToTPM
 	sbMeasureSnapModelToTPM          = sb.MeasureSnapModelToTPM
-	sbLockAccessToSealedKeys         = sb.LockAccessToSealedKeys
+	sbBlockPCRProtectionPolicies     = sb.BlockPCRProtectionPolicies
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
@@ -58,6 +60,7 @@ var (
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
+	sbGetActivationDataFromKernel    = sb.GetActivationDataFromKernel
 	sbReadSealedKeyObject            = sb.ReadSealedKeyObject
 	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
 
@@ -221,7 +224,11 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 				// volumes to unlock we should lock access to the sealed keys only after
 				// the last encrypted volume is unlocked, in which case lockKeysOnFinish
 				// should be set to true.
-				lockErr = sbLockAccessToSealedKeys(tpm)
+				//
+				// We should only touch the PCR that we've currently reserved for the kernel
+				// EFI image. Touching others will break the ability to perform any kind of
+				// attestation using the TPM because it will make the log inconsistent.
+				lockErr = sbBlockPCRProtectionPolicies(tpm, []int{tpmPCR})
 			}
 		}()
 
@@ -248,7 +255,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 		}
 
 		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish), true
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, ""), true
 	}()
 	if err != nil {
 		return "", false, err
@@ -276,6 +283,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
 	options := sb.ActivateVolumeOptions{
 		RecoveryKeyTries: 3,
+		KeyringPrefix:    keyringPrefix,
 	}
 
 	if err := sbActivateVolumeWithRecoveryKey(name, device, nil, &options); err != nil {
@@ -288,11 +296,11 @@ func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string) error {
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries:  1,
 		RecoveryKeyTries: 3,
-		LockSealedKeys:   lock,
+		KeyringPrefix:    keyringPrefix,
 	}
 
 	// XXX: pinfile is currently not used
@@ -343,6 +351,8 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		PCRProfile:             pcrProfile,
 		PCRPolicyCounterHandle: policyCounterHandle,
 	}
+	// TODO:UC20: also capture the auth key so we can store it in a file to be
+	//            able to reseal after unlocking with the recovery key.
 	_, err = sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
 
 	return err
@@ -350,7 +360,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 
 // ResealKey updates the PCR protection policy for the sealed encryption key according to
 // the specified parameters.
-func ResealKey(params *ResealKeyParams) error {
+func ResealKey(disk disks.Disk, params *ResealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -370,13 +380,20 @@ func ResealKey(params *ResealKeyParams) error {
 		return err
 	}
 
-	k, err := sbReadSealedKeyObject(params.KeyFile)
+	partUUID, err := disk.FindMatchingPartitionUUID(params.DeviceName + "-enc")
 	if err != nil {
-		return fmt.Errorf("cannot read the sealed key: %v", err)
+		return err
 	}
-	authKey, err := unsealAuthKey(tpm, k)
+	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+
+	keep := true
+	k, err := sbGetActivationDataFromKernel(keyringPrefix, encdev, keep)
 	if err != nil {
-		return fmt.Errorf("cannot unseal the authorization policy update key: %v", err)
+		return err
+	}
+	authKey, ok := k.(sb.TPMPolicyAuthKey)
+	if !ok {
+		return fmt.Errorf("internal error: wrong type for auth key")
 	}
 
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
