@@ -71,7 +71,7 @@
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    /usr/lib/snapd/snap-device-helper ixr, # drop
+    @LIBEXECDIR@/snap-device-helper ixr, # drop
     /{,usr/}lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
