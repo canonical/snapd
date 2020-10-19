@@ -323,12 +323,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
 		const char *dirs_from_core[] = {
 			"/etc/alternatives", "/etc/ssl", "/etc/nsswitch.conf",
-                        // Some specifc and privileged interfaces (e.g docker-support) give
-                        // access to apparmor_parser from the base snap which at a mimimum
-                        // needs to use matching configuration from the base snap instead
-                        // of from the users host system.
+			// Some specifc and privileged interfaces (e.g docker-support) give
+			// access to apparmor_parser from the base snap which at a minimum
+			// needs to use matching configuration from the base snap instead
+			// of from the users host system.
 			"/etc/apparmor", "/etc/apparmor.d",
-                        NULL
+			NULL
 		};
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
