@@ -1,5 +1,4 @@
 summary: the boot base provides essential fsck programs
-# TODO:UC20: this test fails on core20
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
@@ -29,7 +28,14 @@ execute: |
         # filesystem. Could ubuntu-seed be re-mounted read-only at some point
         # during the start-up process?  Power loss on read-only vfat is
         # harmless in comparison.
-        umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+
+        # the snapd snap from the recovery system will only be mounted if we are
+        # on the first boot - subsequent boots do not mount it, because we will
+        # unset RecoverySystem in the modeenv, and it's not necessary for 
+        # seeding anymore
+        if mountpoint /run/mnt/snapd >/dev/null; then
+          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+        fi
         umount /var/lib/snapd/seed
         umount /run/mnt/ubuntu-seed
         ;;
