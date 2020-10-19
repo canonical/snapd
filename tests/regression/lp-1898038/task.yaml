@@ -13,6 +13,16 @@ prepare: |
     tests.cleanup defer rm -f test-snapd-multipass-support-app_1_all.snap
     snap install --dangerous ./test-snapd-multipass-support-app_1_all.snap
     tests.cleanup defer snap remove --purge test-snapd-multipass-support-app
+    # XXX: Not a super-realistic test but it lets us see what we are after.
+    # Real snaps in real environment must cope with lack of apparmor anyway.
+    if [ ! -d /etc/apparmor ]; then
+        mkdir /etc/apparmor
+        tests.cleanup defer rmdir /etc/apparmor
+    fi
+    if [ ! -d /etc/apparmor.d ]; then
+        mkdir /etc/apparmor.d
+        tests.cleanup defer rmdir /etc/apparmor.d
+    fi
 
 execute: |
     # try running without the interface connected but should fail (this
