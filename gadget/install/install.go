@@ -52,7 +52,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemState, error) {
+func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -161,7 +161,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		}
 	}
 
-	return &InstalledSystemState{
+	return &InstalledSystemSideData{
 		KeysForRoles: keysForRoles,
 	}, nil
 }
