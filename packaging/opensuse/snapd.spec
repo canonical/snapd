@@ -317,7 +317,7 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
-%apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
+%apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}

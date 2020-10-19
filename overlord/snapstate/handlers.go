@@ -1283,9 +1283,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
 
-	// Do at the end so we only preserve the new state if it worked.
-	Set(st, snapsup.InstanceName(), snapst)
-
 	if cand.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{
@@ -1335,6 +1332,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			InjectAutoConnect(t, snapsup)
 		}
 	}
+
+	// Do at the end so we only preserve the new state if it worked.
+	Set(st, snapsup.InstanceName(), snapst)
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
@@ -1652,12 +1652,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
-	// mark as inactive
-	Set(st, snapsup.InstanceName(), snapst)
 	// write sequence file for failover helpers
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
 	}
+	// mark as inactive
+	Set(st, snapsup.InstanceName(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
