@@ -75,6 +75,7 @@ execute: |
       # less sensitive to kernel log messages being preserved in the early boot
       # chain.
       unmount_vfat
+      cat /proc/self/mountinfo >boot1-after-umount.log
       dd if=/dev/sda2 of=dirty skip=65 bs=1 count=1 conv=notrunc
       test "$(od -t x1 -A n dirty)" = " 00"  # NOTE: the leading space is relevant
 
