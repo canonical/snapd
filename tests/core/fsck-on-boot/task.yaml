@@ -69,7 +69,7 @@ execute: |
       dmesg -c > dmesg-on-boot.log
       not MATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck." < dmesg-on-boot.log
 
-      # Unmount vfat again and read the dirty flag manually. The kerenl doesn't
+      # Unmount vfat again and read the dirty flag manually. The kernel doesn't
       # clean the dirty flag on unmount, if it was present on mount. This method is
       # less sensitive to kernel log messages being preserved in the early boot
       # chain.
