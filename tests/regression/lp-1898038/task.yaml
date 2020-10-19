@@ -1,7 +1,9 @@
 summary: docker-support and multipass-support should mount base /etc/apparmor.d
 
 # no nsenter on ubuntu-14.04
-systems: [-ubuntu-14.04-*]
+# core16 uses "legacy" mount layout and does not mount /etc/apparmor{,d} as it's
+# not pivoting to a base snap to begin with.
+systems: [-ubuntu-14.04-*, -ubuntu-core-16-*]
 
 prepare: |
     tests.cleanup prepare
