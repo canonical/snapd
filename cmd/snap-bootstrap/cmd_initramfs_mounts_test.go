@@ -202,6 +202,16 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// by default mock that we don't have UEFI vars, etc. to get the booted
 	// kernel partition partition uuid
 	s.AddCleanup(main.MockPartitionUUIDForBootedKernelDisk(""))
+	s.AddCleanup(main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		return nil
+	}))
+	s.AddCleanup(main.MockSecbootMeasureSnapModelWhenPossible(func(f func() (*asserts.Model, error)) error {
+		c.Check(f, NotNil)
+		return nil
+	}))
+	s.AddCleanup(main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+		return filepath.Join("/dev/disk/by-partuuid", name+"-partuuid"), false, nil
+	}))
 }
 
 // makeSnapFilesOnEarlyBootUbuntuData creates the snap files on ubuntu-data as

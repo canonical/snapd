@@ -471,6 +471,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernel(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	s.makeFakeGrubEnv(c)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
@@ -745,6 +749,10 @@ this is updated grub.cfg
 }
 
 func (s *grubTestSuite) TestBootUpdateBootConfigTrivialErr(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	oldConfig := `# Snapd-Boot-Config-Edition: 2
 boot script
 `
