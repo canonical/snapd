@@ -447,10 +447,14 @@ debug-each: |
                 ) | grep -v snappy_home_t || true
                 find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
                 ;;
+            opensuse-*)
+                echo '# apparmor denials logged by auditd'
+                ausearch -m AVC | grep DENIED || true
+                ;;
             *)
-               echo '# apparmor denials '
-               dmesg --ctime | grep DENIED || true
-               ;;
+                echo '# apparmor denials '
+                dmesg --ctime | grep DENIED || true
+                ;;
         esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
