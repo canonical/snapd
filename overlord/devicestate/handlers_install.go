@@ -173,6 +173,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
 		}
+		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+			return err
+		}
+
 	}
 
 	// keep track of the model we installed
@@ -207,12 +211,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
-	}
-
-	if useEncryption {
-		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
-			return err
-		}
 	}
 
 	// request a restart as the last action after a successful install
