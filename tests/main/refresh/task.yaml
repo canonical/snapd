@@ -20,11 +20,9 @@ environment:
 
 prepare: |
     tests.cleanup prepare
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -63,11 +61,9 @@ prepare: |
 
 restore: |
     tests.cleanup restore
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -84,11 +80,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -119,7 +112,7 @@ execute: |
     tests.cleanup defer snap unset system experimental.refresh-app-awareness
 
     #shellcheck source=tests/lib/pkgdb.sh
-    if ! is_core_system && [ "$(. /etc/os-release && echo "$ID-$VERSION_ID")" != ubuntu-14.04 ] && [ "$(. /etc/os-release && echo "$ID")" != amzn ]; then
+    if os.query is-classic && ! os.query is-trusty && [ "$(. /etc/os-release && echo "$ID")" != amzn ]; then
       . "$TESTSLIB/pkgdb.sh"
       distro_install_package inotify-tools
       # XXX: probably a bug in defer, this fails without ' ' quotes around the rest.
