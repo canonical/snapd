@@ -195,7 +195,9 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	// install that are inhibited
 	if linkCtx.FirstInstall {
 		for _, app := range s.Apps {
-			if app.DaemonStartup == snap.DaemonStartupInhibit {
+			// XXX: strawman
+			// XXX2: make this a proper type instead of a string
+			if app.InstallMode == "daemon-inhibit" {
 				disabledSvcs = append(disabledSvcs, app.Name)
 			}
 		}

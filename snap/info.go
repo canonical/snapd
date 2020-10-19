@@ -854,7 +854,6 @@ type AppInfo struct {
 
 	Daemon          string
 	DaemonScope     DaemonScope
-	DaemonStartup   DaemonStartup
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -866,6 +865,7 @@ type AppInfo struct {
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
+	InstallMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

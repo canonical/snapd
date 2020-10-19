@@ -72,9 +72,8 @@ type appYaml struct {
 	Command      string   `yaml:"command"`
 	CommandChain []string `yaml:"command-chain,omitempty"`
 
-	Daemon        string        `yaml:"daemon"`
-	DaemonScope   DaemonScope   `yaml:"daemon-scope"`
-	DaemonStartup DaemonStartup `yaml:"daemon-startup"`
+	Daemon      string      `yaml:"daemon"`
+	DaemonScope DaemonScope `yaml:"daemon-scope"`
 
 	StopCommand     string          `yaml:"stop-command,omitempty"`
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
@@ -85,6 +84,7 @@ type appYaml struct {
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
+	InstallMode     string          `yaml:"install-mode,omitempty"`
 
 	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
 	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
@@ -353,7 +353,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			StartTimeout:    yApp.StartTimeout,
 			Daemon:          yApp.Daemon,
 			DaemonScope:     yApp.DaemonScope,
-			DaemonStartup:   yApp.DaemonStartup,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
 			ReloadCommand:   yApp.ReloadCommand,
@@ -366,6 +365,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
 			RefreshMode:     yApp.RefreshMode,
+			InstallMode:     yApp.InstallMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
 			Autostart:       yApp.Autostart,
@@ -386,10 +386,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		// Daemons default to being system daemons
 		if app.Daemon != "" && app.DaemonScope == "" {
 			app.DaemonScope = SystemDaemon
-		}
-		// DaemonStartup is default if empty
-		if app.Daemon != "" && app.DaemonStartup == "" {
-			app.DaemonStartup = DaemonStartupDefault
 		}
 
 		snap.Apps[appName] = app

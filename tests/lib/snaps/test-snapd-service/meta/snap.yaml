@@ -61,4 +61,4 @@ apps:
         command: bin/start
         stop-command: bin/stop
         daemon: simple
-        daemon-startup: inhibit
+        install-mode: daemon-inhibit
