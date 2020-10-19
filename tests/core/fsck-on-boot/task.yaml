@@ -4,7 +4,7 @@ summary: the boot base provides essential fsck programs
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
-  the boot process is capable of detecting unclean fvat and fixing it before
+  the boot process is capable of detecting unclean vfat and fixing it before
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
 prepare: |
