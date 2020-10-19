@@ -16,6 +16,7 @@ execute: |
         # Refer to the core 16 PC gadget for details:
         # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
         umount /boot/efi
+        umount /boot/grub
         ;;
       ubuntu-core-18-*)
         # Refer to the core 18 PC gadget for details:
