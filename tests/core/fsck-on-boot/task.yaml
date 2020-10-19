@@ -1,6 +1,5 @@
 summary: the boot base provides essential fsck programs
-# TODO:UC20: this test fails on core16, core18 and core20 and may require
-# separate fixes on each platform. really fails on core20, fsck is not invoked!
+# TODO:UC20: this test fails on core20
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
