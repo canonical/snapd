@@ -1,4 +1,4 @@
-summary: Ensure refreshing lxd snap atfer service commands works.
+summary: Ensure refreshing lxd snap after service commands works.
 
 systems: [ubuntu-18.04*, ubuntu-20.04*]
 
