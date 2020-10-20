@@ -612,6 +612,17 @@ func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChange(c *ch
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	expectSudoer := false
+	s.testPostCreateUserFromAssertion(c, `{"known":true}`, expectSudoer)
+}
+
+func (s *userSuite) TestPostCreateUserFromAssertionAllAutomatic(c *check.C) {
+	// automatic implies "sudoder"
+	expectSudoer := true
+	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, expectSudoer)
+}
+
+func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string, expectSudoer bool) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
 	created := map[string]bool{}
 	// mock the calls that create the user
@@ -627,7 +638,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 			c.Logf("unexpected username %q", username)
 			c.Fail()
 		}
-		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Sudoer, check.Equals, expectSudoer)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		created[username] = true
 		return nil
@@ -642,7 +653,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	}
 
 	// do it!
-	buf := bytes.NewBufferString(`{"known":true}`)
+	buf := bytes.NewBufferString(postData)
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
@@ -707,6 +718,29 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
+}
+
+func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check.C) {
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	// do it!
+	buf := bytes.NewBufferString(`{"automatic":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// expecting an empty reply
+	expected := []userResponseData{}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check.C) {
@@ -842,6 +876,7 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+// XXX: wrong suite
 func (s *userSuite) TestSysInfoIsManaged(c *check.C) {
 	st := s.d.overlord.State()
 	st.Lock()
@@ -858,6 +893,7 @@ func (s *userSuite) TestSysInfoIsManaged(c *check.C) {
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
 
+// XXX: wrong suite
 func (s *userSuite) TestSysInfoWorksDegraded(c *check.C) {
 	s.d.SetDegradedMode(fmt.Errorf("some error"))
 

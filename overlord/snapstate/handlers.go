@@ -834,7 +834,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if experimentalRefreshAppAwareness {
+	if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
@@ -922,12 +922,12 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as active again
 	Set(st, snapsup.InstanceName(), snapst)
 
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
 	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
-
-	// Notify link snap participants about link changes.
-	notifyLinkParticipants(t, snapsup.InstanceName())
 	return nil
 }
 
@@ -1330,9 +1330,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
 
-	// Do at the end so we only preserve the new state if it worked.
-	Set(st, snapsup.InstanceName(), snapst)
-
 	if cand.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{
@@ -1382,6 +1379,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			InjectAutoConnect(t, snapsup)
 		}
 	}
+
+	// Do at the end so we only preserve the new state if it worked.
+	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup.InstanceName())
@@ -1702,12 +1702,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
-	// mark as inactive
-	Set(st, snapsup.InstanceName(), snapst)
 	// write sequence file for failover helpers
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
 	}
+	// mark as inactive
+	Set(st, snapsup.InstanceName(), snapst)
 
 	// Notify link snap participants about link changes.
 	notifyLinkParticipants(t, snapsup.InstanceName())

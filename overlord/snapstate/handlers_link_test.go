@@ -408,6 +408,68 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(lp.instanceNames, DeepEquals, []string{"foo", "foo"})
 }
 
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With refresh-app-awareness enabled
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap "pkg" at revision 42
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
+	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	// With an app belonging to the snap that is apparently running.
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "pkg")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "pkg")
+		return map[string][]int{"snap.pkg.app": {1234}}, nil
+	})
+	defer restore()
+
+	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Flags:    snapstate.Flags{IgnoreRunning: true},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "pkg", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(42))
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	expected := fakeOps{{
+		op:   "unlink-snap",
+		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
