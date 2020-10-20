@@ -35,7 +35,7 @@ is_classic() {
 }
 
 is_trusty() {
-    grep -qFx 'UBUNTU_CODENAME=trusty' /etc/os-release
+    grep -qFx 'ID=ubuntu' /etc/os-release && grep -qFx 'VERSION_ID="14.04"' /etc/os-release
 }
 
 is_xenial() {

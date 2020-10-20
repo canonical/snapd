@@ -8,12 +8,10 @@ details: |
 systems: [ubuntu-core-*]
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     TARGET_SNAP_NAME=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP_NAME=core18
-    elif is_core20_system; then
+    elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
     fi
 
@@ -23,13 +21,10 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     TARGET_SNAP_NAME=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP_NAME=core18
-    elif is_core20_system; then
+    elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
     fi    
 
