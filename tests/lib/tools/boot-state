@@ -1,0 +1,156 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: bootenv [var]"
+    echo "       bootenv-set <var> <value>"
+    echo "       bootenv-unset <var>"
+    echo "       get-boot-path"
+    echo "       wait-core-post-boot"
+    echo ""
+    echo "Get information and manages the boot loader for the current system"
+    echo ""
+    echo "COMMANDS:"
+    echo "  bootenv:              prints the whole bootenv or just the variable passed as parameter"
+    echo "  bootenv-set:          sets the given var and value on boot configuration"
+    echo "  bootenv-unset:        unsets the given var from boot configuration"
+    echo "  get-boot-path:        prints the boot path"
+    echo "  wait-core-post-boot:  waits until the snap_mode bootenv var is empty"
+    bootenv_unset
+}
+
+get_grub_editenv() {
+    case "$SPREAD_SYSTEM" in
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            command -v grub2-editenv
+            ;;
+        *)
+            command -v grub-editenv
+            ;;
+    esac
+}
+
+get_grub_envfile() {
+    case "$SPREAD_SYSTEM" in
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            echo '/boot/grub2/grubenv'
+            ;;
+        *)
+            echo '/boot/grub/grubenv'
+            ;;
+    esac    
+}
+
+bootenv() {
+    local GRUB_EDITENV GRUBENV_FILE
+    GRUB_EDITENV="$(get_grub_editenv)"
+    GRUBENV_FILE="$(get_grub_envfile)"
+
+    if [ $# -eq 0 ]; then
+        if command -v "$GRUB_EDITENV" >/dev/null; then
+            "$GRUB_EDITENV" list
+        elif [ -s "$GRUBENV_FILE" ]; then
+            cat "$GRUBENV_FILE"
+        else
+            fw_printenv
+        fi
+    else
+        if command -v "$GRUB_EDITENV" >/dev/null; then
+            "$GRUB_EDITENV" list | grep "^$1"
+        elif [ -s "$GRUBENV_FILE" ]; then
+            grep "^$1" "$GRUBENV_FILE"
+        else
+            fw_printenv "$1"
+        fi | sed "s/^${1}=//"
+    fi
+}
+
+bootenv_set() {
+    local var="$1"
+    local value="$2" 
+    local GRUB_EDITENV GRUBENV_FILE
+    GRUB_EDITENV="$(get_grub_editenv)"
+    GRUBENV_FILE="$(get_grub_envfile)"
+
+    if command -v "$GRUB_EDITENV" >/dev/null; then
+        "$GRUB_EDITENV" "$GRUBENV_FILE" set "$var=$value"
+    elif [ -s "$GRUBENV_FILE" ]; then
+        sed -i "/^$var=/d" "$GRUBENV_FILE"
+        #The grubenv file could not hace a new line at the end
+        if [ -n "$(tail -n 1 "$GRUBENV_FILE")" ]; then
+            echo "" >> "$GRUBENV_FILE"
+        fi
+        echo "$var=$value" >> "$GRUBENV_FILE"
+    else
+        fw_setenv "$var" "$value"
+    fi
+}
+
+bootenv_unset() {
+    local var="$1"
+    local GRUB_EDITENV GRUBENV_FILE
+    GRUB_EDITENV="$(get_grub_editenv)"
+    GRUBENV_FILE="$(get_grub_envfile)"
+
+    if command -v "$GRUB_EDITENV" >/dev/null; then
+        "$GRUB_EDITENV" "$GRUBENV_FILE" unset "$var"
+    elif [ -s "$GRUBENV_FILE" ]; then
+        sed -i "/^$var=/d" "$GRUBENV_FILE"
+    else
+        fw_setenv "$var"
+    fi
+}
+
+get_boot_path() {
+    if [ -f /boot/uboot/uboot.env ] || [ -f /boot/uboot/boot.sel ]; then
+        # uc16/uc18 have /boot/uboot/uboot.env
+        # uc20 has /boot/uboot/boot.sel
+        echo "/boot/uboot/"
+    elif [ -f /boot/grub/grubenv ]; then
+        echo "/boot/grub/"
+    elif [ -f /boot/grub2/grubenv ]; then
+        echo "/boot/grub2/"
+    else
+        echo "Cannot determine boot path"
+        ls -alR /boot
+        exit 1
+    fi
+}
+
+wait_core_post_boot() {
+    while [ "$(bootenv snap_mode)" != "" ]; do
+        sleep 1
+    done
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "boot-state: no such command: $subcommand" >&2
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"
