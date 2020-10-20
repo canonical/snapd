@@ -65,4 +65,3 @@ execute: |
   tests.cleanup pop # unmount
 restore: |
   tests.cleanup restore
-  rm -f ./*.img ./*.log

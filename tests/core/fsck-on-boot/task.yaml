@@ -79,4 +79,3 @@ execute: |
   esac
 restore: |
   tests.cleanup restore
-  rm -f ./*.log
