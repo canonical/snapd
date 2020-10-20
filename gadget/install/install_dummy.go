@@ -22,8 +22,10 @@ package install
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/gadget"
 )
 
-func Run(gadgetRoot, device string, options Options, _ SystemInstallObserver) (*InstalledSystemState, error) {
+func Run(gadgetRoot, device string, options Options, _ gadget.ContentObserver) (*InstalledSystemSideData, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }
