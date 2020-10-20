@@ -89,6 +89,7 @@ var (
 			"ubuntu-boot": "ubuntu-boot-partuuid",
 			"ubuntu-seed": "ubuntu-seed-partuuid",
 			"ubuntu-data": "ubuntu-data-partuuid",
+			"ubuntu-save": "ubuntu-save-partuuid",
 		},
 		DiskHasPartitions: true,
 		DevNum:            "default",
@@ -103,6 +104,7 @@ var (
 			"ubuntu-boot":     "ubuntu-boot-partuuid",
 			"ubuntu-seed":     "ubuntu-seed-partuuid",
 			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDev",
@@ -295,6 +297,8 @@ func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
 		mnt.where = boot.InitramfsUbuntuSeedDir
 	case strings.Contains(partuuid, "ubuntu-data"):
 		mnt.where = boot.InitramfsDataDir
+	case strings.Contains(partuuid, "ubuntu-save"):
+		mnt.where = boot.InitramfsUbuntuSaveDir
 	}
 
 	return mnt
@@ -677,32 +681,28 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
 			snapdMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -827,32 +827,28 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
 			snapdMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -860,11 +856,148 @@ After=%[1]s
 			"--no-ask-password",
 			"--type=tmpfs",
 			"--fsck=no",
-		},
-		{
+		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootDisk,
+		},
+	)
+	defer restore()
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	isMountedChecks := []string{}
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		isMountedChecks = append(isMountedChecks, where)
+		return true, nil
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// pretend ubuntu-save is present
+	ubuntuSaveDev := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/ubuntu-save")
+	c.Assert(os.MkdirAll(filepath.Dir(ubuntuSaveDev), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(ubuntuSaveDev, nil, 0644), IsNil)
+
+	s.testRecoverModeHappy(c)
+
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+
+		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
+		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+	}
+
+	c.Check(isMountedChecks, DeepEquals, []string{
+		boot.InitramfsUbuntuSeedDir,
+		snapdMnt,
+		kernelMnt,
+		baseMnt,
+		boot.InitramfsDataDir,
+		boot.InitramfsHostUbuntuDataDir,
+		boot.InitramfsUbuntuSaveDir,
+	})
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-seed",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
+			snapdMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			"tmpfs",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--type=tmpfs",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsHostUbuntuDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			boot.InitramfsUbuntuSaveDir,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -980,32 +1113,156 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-		},
-		{
+		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-		},
-		{
+		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsDataDir,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-		},
-		{
+		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+		}, {
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
 		},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootDisk,
+		},
+	)
+	defer restore()
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	isMountedChecks := []string{}
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		isMountedChecks = append(isMountedChecks, where)
+		return true, nil
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// pretend ubuntu-save is present
+	ubuntuSaveDev := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/ubuntu-save")
+	c.Assert(os.MkdirAll(filepath.Dir(ubuntuSaveDev), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(ubuntuSaveDev, nil, 0644), IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+
+		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
+		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+	}
+
+	c.Check(isMountedChecks, DeepEquals, []string{
+		boot.InitramfsUbuntuBootDir,
+		boot.InitramfsUbuntuSeedDir,
+		boot.InitramfsDataDir,
+		boot.InitramfsUbuntuSaveDir,
+		baseMnt,
+		kernelMnt,
+	})
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-boot",
+			boot.InitramfsUbuntuBootDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			boot.InitramfsUbuntuSaveDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
 			kernelMnt,

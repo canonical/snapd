@@ -292,11 +292,18 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 3.1 verify that the host ubuntu-data comes from where we expect it to
+	// 3.1. mount ubuntu-save (if present)
+	haveSave, err := maybeMountSave(disk, isDecryptDev, nil)
+	if err != nil {
+		return err
+	}
+
+	// 3.2 verify that the host ubuntu-data comes from where we expect it to
+	// right device
 	diskOpts := &disks.Options{}
 	if isDecryptDev {
 		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device
+		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true
 	}
 
@@ -306,6 +313,16 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	}
 	if !matches {
 		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+	if haveSave {
+		// 3.2a we have ubuntu-save, verify it as well
+		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
 	}
 
 	// 4. final step: copy the auth data and network config from
@@ -454,6 +471,40 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
+func isSavePresent() (bool, error) {
+	devPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/ubuntu-save")
+	_, err := os.Stat(devPath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	return err == nil, nil
+}
+
+func maybeMountSave(disk disks.Disk, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
+	haveSave, err = isSavePresent()
+	if err != nil {
+		return false, err
+	}
+	if !haveSave {
+		return false, nil
+	}
+
+	// we have ubuntu-save, try to mount it
+	const lockKeysOnFinish = true
+	saveDevice, saveIsDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-save",
+		boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	if err != nil {
+		return true, err
+	}
+	if saveIsDecryptDev != encrypted {
+		return true, fmt.Errorf("ubuntu-data and ubuntu-save should be both encrypted or plain")
+	}
+	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
@@ -510,11 +561,17 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	// 3.3. mount ubuntu-save (if present)
+	haveSave, err := maybeMountSave(disk, isDecryptDev, fsckSystemdOpts)
+	if err != nil {
+		return err
+	}
+
 	// 4.1 verify that ubuntu-data comes from where we expect it to
 	diskOpts := &disks.Options{}
 	if isDecryptDev {
 		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device
+		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true
 	}
 
@@ -526,6 +583,16 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// failed to verify that ubuntu-data mountpoint comes from the same disk
 		// as ubuntu-boot
 		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+	if haveSave {
+		// 4.1a we have ubuntu-save, verify it as well
+		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
 	}
 
 	// 4.2. read modeenv

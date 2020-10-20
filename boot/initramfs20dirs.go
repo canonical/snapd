@@ -46,6 +46,10 @@ var (
 	// initramfs.
 	InitramfsUbuntuSeedDir string
 
+	// InitramfsUbuntuSaveDir is the location of ubuntu-save during the
+	// initramfs.
+	InitramfsUbuntuSaveDir string
+
 	// InitramfsWritableDir is the location of the writable partition during the
 	// initramfs. Note that this may refer to a temporary filesystem or a
 	// physical partition depending on what system mode the system is in.
@@ -70,6 +74,7 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
+	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
 	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
 	InstallHostFDEDataDir = dirs.SnapFDEDirUnder(InstallHostWritableDir)
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
