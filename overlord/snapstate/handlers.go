@@ -1894,13 +1894,17 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if err = m.backend.RemoveSnapData(info); err != nil {
-		return err
+		st.Lock()
+		t.Logf("Cannot remove snap data: %v", err)
+		st.Unlock()
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info); err != nil {
-			return err
+			st.Lock()
+			t.Logf("Cannot remove common snap data: %v", err)
+			st.Unlock()
 		}
 
 		st.Lock()
@@ -1912,7 +1916,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 		// Snap data directory can be removed now too
 		if err := m.backend.RemoveSnapDataDir(info, otherInstances); err != nil {
-			return err
+			t.Logf("Cannot remove common snap data directory: %v", err)
 		}
 	}
 

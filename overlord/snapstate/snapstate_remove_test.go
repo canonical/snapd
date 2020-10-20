@@ -20,7 +20,9 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1330,4 +1333,103 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	freeSpaceCheckFail := false
 	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 	c.Check(err, IsNil)
+}
+
+type failingBackend struct {
+	fakeSnappyBackend
+
+	removeSnapDataErr       error
+	removeSnapCommonDataErr error
+	removeSnapDataDirErr    error
+}
+
+func (f *failingBackend) RemoveSnapData(info *snap.Info) error {
+	return f.removeSnapDataErr
+}
+
+func (f *failingBackend) RemoveSnapCommonData(info *snap.Info) error {
+	return f.removeSnapCommonDataErr
+}
+
+func (f *failingBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+	return f.removeSnapDataDirErr
+}
+
+func (s *snapmgrTestSuite) TestClearSnapDataIgnoresErrors(c *C) {
+	b := &failingBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+
+	snapsup := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+	}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	snapYaml := `
+name: foo
+`
+	snaptest.MockSnap(c, snapYaml, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+
+	for _, tc := range []struct {
+		removeSnapDataErr       string
+		removeSnapCommonDataErr string
+		removeSnapDataDirErr    string
+		expectedMessage         string
+	}{
+		{
+			removeSnapDataErr: "boom1",
+			expectedMessage:   "Cannot remove snap data: boom1",
+		},
+		{
+			removeSnapCommonDataErr: "boom2",
+			expectedMessage:         "Cannot remove common snap data: boom2",
+		},
+		{
+			removeSnapDataDirErr: "boom3",
+			expectedMessage:      "Cannot remove common snap data directory: boom3",
+		},
+	} {
+		chg := st.NewChange("remove", "remove a snap")
+		t := st.NewTask("clear-snap", "")
+		t.Set("snap-setup", snapsup)
+		chg.AddTask(t)
+
+		b.removeSnapDataErr = nil
+		b.removeSnapCommonDataErr = nil
+		b.removeSnapDataDirErr = nil
+
+		if tc.removeSnapDataErr != "" {
+			b.removeSnapDataErr = fmt.Errorf(tc.removeSnapDataErr)
+		}
+		if tc.removeSnapCommonDataErr != "" {
+			b.removeSnapCommonDataErr = fmt.Errorf(tc.removeSnapCommonDataErr)
+		}
+		if tc.removeSnapDataDirErr != "" {
+			b.removeSnapDataDirErr = fmt.Errorf(tc.removeSnapDataDirErr)
+		}
+
+		st.Unlock()
+		s.settle(c)
+		st.Lock()
+
+		c.Check(chg.Status(), Equals, state.DoneStatus)
+		c.Check(strings.Join(t.Log(), ""), testutil.Contains, tc.expectedMessage)
+	}
 }
