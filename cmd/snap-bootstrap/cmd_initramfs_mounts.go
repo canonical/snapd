@@ -475,10 +475,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// don't run fsck on ubuntu-seed in run mode so we minimize chance of
-	// corruption
-
-	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, nil); err != nil {
+	// fsck is safe to run on ubuntu-seed as per the manpage, it should not
+	// meaningfully contribute to corruption if we fsck it every time we boot,
+	// and it is important to fsck it because it is vfat and mounted writable
+	// TODO:UC20: mount it as read-only here and remount as writable when we
+	//            need it to be writable for i.e. transitioning to recover mode
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
@@ -499,12 +504,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	opts := &systemdMountOptions{
-		// TODO: do we actually need fsck if we are mounting a mapper device?
-		// probably not?
-		NeedsFsck: true,
-	}
-	if err := doSystemdMount(device, boot.InitramfsDataDir, opts); err != nil {
+	// TODO: do we actually need fsck if we are mounting a mapper device?
+	// probably not?
+	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
