@@ -1,5 +1,4 @@
 summary: the boot base provides essential fsck programs
-# TODO:UC20: this test fails on core20
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
@@ -10,6 +9,7 @@ prepare: |
   tests.cleanup prepare
 execute: |
   unmount_vfat() {
+<<<<<<< HEAD
     if os.query is-core16; then
       # Refer to the core 16 PC gadget for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
@@ -26,13 +26,57 @@ execute: |
       # filesystem. Could ubuntu-seed be re-mounted read-only at some point
       # during the start-up process?  Power loss on read-only vfat is
       # harmless in comparison.
-      umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+
+      # The snapd snap from the recovery system will only be mounted if we are
+      # on the first boot - subsequent boots do not mount it, because we will
+      # unset RecoverySystem in the modeenv, and it's not necessary for
+      # seeding anymore
+      if mountpoint /run/mnt/snapd >/dev/null; then
+        umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+      fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed
     else
       echo "Please adjust the test to support this core system"
       false
     fi
+=======
+    case "$SPREAD_SYSTEM" in
+      ubuntu-core-16-*)
+        # Refer to the core 16 PC gadget for details:
+        # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
+        umount /boot/efi
+        umount /boot/grub
+        ;;
+      ubuntu-core-18-*)
+        # Refer to the core 18 PC gadget for details:
+        # https://github.com/snapcore/pc-amd64-gadget/blob/18/gadget.yaml
+        umount /boot/efi
+        umount /boot/grub
+        ;;
+      ubuntu-core-20-*)
+        # TODO:UC20 The property of having to keep a mounted vfat at all time
+        # is not the most fortunate. Any power loss will result in a dirty
+        # filesystem. Could ubuntu-seed be re-mounted read-only at some point
+        # during the start-up process?  Power loss on read-only vfat is
+        # harmless in comparison.
+
+        # the snapd snap from the recovery system will only be mounted if we are
+        # on the first boot - subsequent boots do not mount it, because we will
+        # unset RecoverySystem in the modeenv, and it's not necessary for
+        # seeding anymore
+        if mountpoint /run/mnt/snapd >/dev/null; then
+          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+        fi
+        umount /var/lib/snapd/seed
+        umount /run/mnt/ubuntu-seed
+        ;;
+      *)
+        echo "Please adjust the test to support this core system"
+        false
+        ;;
+    esac
+>>>>>>> zyga/feature/fsck-tests
   }
 
   case "$SPREAD_REBOOT" in

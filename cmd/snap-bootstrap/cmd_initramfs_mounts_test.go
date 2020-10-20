@@ -283,6 +283,7 @@ func ubuntuLabelMount(label string, mode string) systemdMount {
 // ubuntuPartUUIDMount returns a systemdMount for the partuuid disk, expecting
 // that the partuuid contains in it the expected label for easier coding
 func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
+	// all partitions are expected to be mounted with fsck on
 	mnt := systemdMount{
 		opts: needsFsckDiskMountOpts,
 	}
@@ -292,10 +293,6 @@ func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
 		mnt.where = boot.InitramfsUbuntuBootDir
 	case strings.Contains(partuuid, "ubuntu-seed"):
 		mnt.where = boot.InitramfsUbuntuSeedDir
-		// don't fsck in run mode
-		if mode == "run" {
-			mnt.opts = nil
-		}
 	case strings.Contains(partuuid, "ubuntu-data"):
 		mnt.where = boot.InitramfsDataDir
 	}
@@ -990,7 +987,7 @@ After=%[1]s
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
-			"--fsck=no",
+			"--fsck=yes",
 		},
 		{
 			"systemd-mount",
