@@ -78,12 +78,14 @@ const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
 const mockStoreReturnNoNonce = `{}`
 
 func (s *authTestSuite) SetUpTest(c *C) {
-	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 1 * time.Millisecond,
-			Factor:  1.1,
-		},
-	)))
+	store.MockDefaultRetryStrategy(&s.BaseTest, func() retry.Strategy {
+		return retry.LimitCount(5, retry.LimitTime(1*time.Second,
+			retry.Exponential{
+				Initial: 1 * time.Millisecond,
+				Factor:  1.1,
+			},
+		))
+	})
 }
 
 func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {

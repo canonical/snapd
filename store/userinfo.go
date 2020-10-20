@@ -56,7 +56,7 @@ func (s *Store) UserInfo(email string) (userinfo *User, err error) {
 			return fmt.Errorf("cannot unmarshal: %v", err)
 		}
 		return nil
-	}, defaultRetryStrategy)
+	}, defaultRetryStrategy())
 
 	if err != nil {
 		return nil, err

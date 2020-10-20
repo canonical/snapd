@@ -65,21 +65,29 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+// Retry strategies use internal state, in particular LimitTime uses time.Now()
+// as a starting point, therefore they need to be factory functions and not
+// plain variables.
+
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
-	retry.Exponential{
-		Initial: 350 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
+var defaultRetryStrategy = func() retry.Strategy {
+	return retry.LimitCount(6, retry.LimitTime(38*time.Second,
+		retry.Exponential{
+			Initial: 350 * time.Millisecond,
+			Factor:  2.5,
+		},
+	))
+}
 
-var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
-	retry.Exponential{
-		Initial: 900 * time.Millisecond,
-		Factor:  1.3,
-	},
-))
+var connCheckStrategy = func() retry.Strategy {
+	return retry.LimitCount(3, retry.LimitTime(38*time.Second,
+		retry.Exponential{
+			Initial: 900 * time.Millisecond,
+			Factor:  1.3,
+		},
+	))
+}
 
 // Config represents the configuration to access the snap store
 type Config struct {
@@ -821,7 +829,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 		return s.doRequest(ctx, s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, success, failure)
-	}, defaultRetryStrategy)
+	}, defaultRetryStrategy())
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -1213,7 +1221,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		}
 		return json.NewDecoder(resp.Body).Decode(&searchData)
 	}
-	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy())
 	if err != nil {
 		return nil, err
 	}
@@ -1394,7 +1402,7 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 		return decodeCatalog(resp, names, adder)
 	}
 
-	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy())
 	if err != nil {
 		return err
 	}
@@ -1613,7 +1621,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		}, nil)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, &result, nil)
-	}, connCheckStrategy)
+	}, connCheckStrategy())
 
 	if err != nil {
 		return hosts, err
@@ -1645,7 +1653,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		// account for redirect
 		hosts[len(hosts)-1] = resp.Request.URL.Host
 		return nil
-	}, connCheckStrategy)
+	}, connCheckStrategy())
 	if err != nil {
 		return hosts, err
 	}

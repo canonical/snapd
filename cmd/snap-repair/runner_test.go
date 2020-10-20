@@ -295,12 +295,14 @@ func (s *runnerSuite) TestFetchScriptTooBig(c *C) {
 }
 
 var (
-	testRetryStrategy = retry.LimitCount(5, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 1 * time.Millisecond,
-			Factor:  1,
-		},
-	))
+	testRetryStrategy = func() retry.Strategy {
+		return retry.LimitCount(5, retry.LimitTime(1*time.Second,
+			retry.Exponential{
+				Initial: 1 * time.Millisecond,
+				Factor:  1,
+			},
+		))
+	}
 )
 
 func (s *runnerSuite) TestFetch500(c *C) {

@@ -48,12 +48,20 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
-	retry.Exponential{
-		Initial: 500 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
+// Retry strategies use internal state, in particular LimitTime uses time.Now()
+// as a starting point, therefore this needs to be a factory function and not
+// a plain variable.
+var downloadRetryStrategy = func() retry.Strategy {
+	// XXX: LimitTime doesn't make much sense with downloads, since
+	// download time counts towards time limit, making it give up on retries
+	// too early with slow downloads.
+	return retry.LimitCount(7, retry.LimitTime(90*time.Second,
+		retry.Exponential{
+			Initial: 500 * time.Millisecond,
+			Factor:  2.5,
+		},
+	))
+}
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
@@ -276,7 +284,8 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	var finalErr error
 	var dlSize float64
 	startTime := time.Now()
-	for attempt := retry.Start(downloadRetryStrategy, nil); attempt.Next(); {
+	retryStrategy := downloadRetryStrategy()
+	for attempt := retry.Start(retryStrategy, nil); attempt.Next(); {
 		reqOptions := downloadReqOpts(storeURL, cdnHeader, dlOpts)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)

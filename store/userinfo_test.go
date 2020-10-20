@@ -66,12 +66,14 @@ func (t *userInfoSuite) SetUpTest(c *check.C) {
 	_, t.restoreLogger = logger.MockLogger()
 	t.store = store.New(nil, nil)
 
-	store.MockDefaultRetryStrategy(&t.BaseTest, retry.LimitCount(6, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 1 * time.Millisecond,
-			Factor:  1.1,
-		},
-	)))
+	store.MockDefaultRetryStrategy(&t.BaseTest, func() retry.Strategy {
+		return retry.LimitCount(6, retry.LimitTime(1*time.Second,
+			retry.Exponential{
+				Initial: 1 * time.Millisecond,
+				Factor:  1.1,
+			},
+		))
+	})
 }
 
 func (t *userInfoSuite) TearDownTest(c *check.C) {

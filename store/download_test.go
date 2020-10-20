@@ -56,10 +56,12 @@ var _ = Suite(&downloadSuite{})
 func (s *downloadSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.Exponential{
-		Initial: time.Millisecond,
-		Factor:  2.5,
-	}))
+	store.MockDownloadRetryStrategy(&s.BaseTest, func() retry.Strategy {
+		return retry.LimitCount(5, retry.Exponential{
+			Initial: time.Millisecond,
+			Factor:  2.5,
+		})
+	})
 
 	mockXdelta := testutil.MockCommand(c, "xdelta3", "")
 	s.AddCleanup(mockXdelta.Restore)

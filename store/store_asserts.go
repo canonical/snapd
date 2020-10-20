@@ -138,7 +138,7 @@ func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error,
 			}
 		}
 		return e
-	}, defaultRetryStrategy)
+	}, defaultRetryStrategy())
 
 	if err != nil {
 		return err

@@ -61,7 +61,7 @@ var (
 )
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
-func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy func() retry.Strategy) {
 	originalDefaultRetryStrategy := defaultRetryStrategy
 	defaultRetryStrategy = strategy
 	t.AddCleanup(func() {
@@ -69,7 +69,7 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
-func MockDownloadRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+func MockDownloadRetryStrategy(t *testutil.BaseTest, strategy func() retry.Strategy) {
 	originalDownloadRetryStrategy := downloadRetryStrategy
 	downloadRetryStrategy = strategy
 	t.AddCleanup(func() {
@@ -77,7 +77,7 @@ func MockDownloadRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	})
 }
 
-func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+func MockConnCheckStrategy(t *testutil.BaseTest, strategy func() retry.Strategy) {
 	originalConnCheckStrategy := connCheckStrategy
 	connCheckStrategy = strategy
 	t.AddCleanup(func() {

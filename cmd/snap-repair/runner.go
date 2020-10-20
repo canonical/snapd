@@ -298,19 +298,27 @@ func NewRunner() *Runner {
 }
 
 var (
-	fetchRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
-		retry.Exponential{
-			Initial: 500 * time.Millisecond,
-			Factor:  2.5,
-		},
-	))
+	// Retry strategies use internal state, in particular LimitTime uses time.Now()
+	// as a starting point, therefore they need to be factory functions and not
+	// plain variables.
 
-	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
-		retry.Exponential{
-			Initial: 300 * time.Millisecond,
-			Factor:  2.5,
-		},
-	))
+	fetchRetryStrategy = func() retry.Strategy {
+		return retry.LimitCount(7, retry.LimitTime(90*time.Second,
+			retry.Exponential{
+				Initial: 500 * time.Millisecond,
+				Factor:  2.5,
+			},
+		))
+	}
+
+	peekRetryStrategy = func() retry.Strategy {
+		return retry.LimitCount(5, retry.LimitTime(44*time.Second,
+			retry.Exponential{
+				Initial: 300 * time.Millisecond,
+				Factor:  2.5,
+			},
+		))
+	}
 )
 
 var (
@@ -366,7 +374,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 			}
 		}
 		return nil
-	}, fetchRetryStrategy)
+	}, fetchRetryStrategy())
 
 	if err != nil {
 		return nil, nil, err
@@ -453,7 +461,7 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 			return dec.Decode(&rsp)
 		}
 		return nil
-	}, peekRetryStrategy)
+	}, peekRetryStrategy())
 
 	if err != nil {
 		return nil, err

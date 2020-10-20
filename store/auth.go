@@ -119,7 +119,7 @@ func retryPostRequest(httpClient *http.Client, endpoint string, headers map[stri
 		}
 
 		return httpClient.Do(req)
-	}, readResponseBody, defaultRetryStrategy)
+	}, readResponseBody, defaultRetryStrategy())
 }
 
 // requestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.

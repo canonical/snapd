@@ -46,7 +46,7 @@ func MockBaseURL(baseurl string) (restore func()) {
 	}
 }
 
-func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
+func MockFetchRetryStrategy(strategy func() retry.Strategy) (restore func()) {
 	originalFetchRetryStrategy := fetchRetryStrategy
 	fetchRetryStrategy = strategy
 	return func() {
@@ -54,7 +54,7 @@ func MockFetchRetryStrategy(strategy retry.Strategy) (restore func()) {
 	}
 }
 
-func MockPeekRetryStrategy(strategy retry.Strategy) (restore func()) {
+func MockPeekRetryStrategy(strategy func() retry.Strategy) (restore func()) {
 	originalPeekRetryStrategy := peekRetryStrategy
 	peekRetryStrategy = strategy
 	return func() {

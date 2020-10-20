@@ -400,12 +400,14 @@ func (s *baseStoreSuite) SetUpTest(c *C) {
 	s.user, err = createTestUser(1, root, discharge)
 	c.Assert(err, IsNil)
 
-	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
-		retry.Exponential{
-			Initial: 1 * time.Millisecond,
-			Factor:  1,
-		},
-	)))
+	store.MockDefaultRetryStrategy(&s.BaseTest, func() retry.Strategy {
+		return retry.LimitCount(5, retry.LimitTime(1*time.Second,
+			retry.Exponential{
+				Initial: 1 * time.Millisecond,
+				Factor:  1,
+			},
+		))
+	})
 }
 
 type storeTestSuite struct {
@@ -4024,10 +4026,12 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
-	store.MockConnCheckStrategy(&s.BaseTest, retry.LimitCount(3, retry.Exponential{
-		Initial: time.Millisecond,
-		Factor:  1.3,
-	}))
+	store.MockConnCheckStrategy(&s.BaseTest, func() retry.Strategy {
+		return retry.LimitCount(3, retry.Exponential{
+			Initial: time.Millisecond,
+			Factor:  1.3,
+		})
+	})
 
 	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
