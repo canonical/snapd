@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -74,9 +73,9 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
-	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
-	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
+	secbootMeasureSnapSystemEpochWhenPossible func() error
+	secbootMeasureSnapModelWhenPossible       func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeIfEncrypted            func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )

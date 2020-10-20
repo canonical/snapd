@@ -136,6 +136,11 @@ const gadgetContent = `volumes:
         content:
           - source: grubx64.efi
             target: EFI/boot/grubx64.efi
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
       - name: Writable
         role: system-data
         filesystem: ext4
@@ -143,8 +148,25 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-var mockOnDiskStructureWritable = gadget.OnDiskStructure{
+var mockOnDiskStructureSave = gadget.OnDiskStructure{
 	Node:                 "/dev/node3",
+	CreatedDuringInstall: true,
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Save",
+			Size:       134217728,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-save",
+			Label:      "ubuntu-save",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1260388352,
+		Index:       3,
+	},
+}
+
+var mockOnDiskStructureWritable = gadget.OnDiskStructure{
+	Node:                 "/dev/node4",
 	CreatedDuringInstall: true,
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -155,8 +177,8 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 			Label:      "ubuntu-data",
 			Filesystem: "ext4",
 		},
-		StartOffset: 1260388352,
-		Index:       3,
+		StartOffset: 1394606080,
+		Index:       4,
 	},
 }
 
@@ -227,7 +249,8 @@ echo '{
       "partitions": [
          {"node": "/dev/node1", "start": 4096, "size": 2457600, "type": "c"},
          {"node": "/dev/node2", "start": 2461696, "size": 1048576, "type": "d"},
-         {"node": "/dev/node3", "start": 3510272, "size": 1048576, "type": "d"}
+         {"node": "/dev/node3", "start": 3510272, "size": 1048576, "type": "d"},
+         {"node": "/dev/node4", "start": 4558848, "size": 1048576, "type": "d"}
       ]
    }
 }'`
@@ -239,6 +262,9 @@ echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
 }'
 [ "$3" == "/dev/node3" ] && echo '{
+    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-save", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node4" ] && echo '{
     "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
 }'
 exit 0`
@@ -261,6 +287,7 @@ exit 0`
 		{"lsblk", "--fs", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node3"},
+		{"lsblk", "--fs", "--json", "/dev/node4"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getsz", "/dev/node"},
@@ -271,7 +298,7 @@ exit 0`
 	c.Assert(dl.Device, Equals, "/dev/node")
 	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
 	c.Assert(dl.Size, Equals, gadget.Size(12345670*512))
-	c.Assert(len(dl.Structure), Equals, 3)
+	c.Assert(len(dl.Structure), Equals, 4)
 
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
@@ -306,7 +333,7 @@ exit 0`
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Size:       0x20000000,
-					Label:      "ubuntu-data",
+					Label:      "ubuntu-save",
 					Type:       "0D",
 					Filesystem: "ext4",
 				},
@@ -314,6 +341,20 @@ exit 0`
 				Index:       3,
 			},
 			Node:                 "/dev/node3",
+			CreatedDuringInstall: true,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Size:       0x20000000,
+					Label:      "ubuntu-data",
+					Type:       "0D",
+					Filesystem: "ext4",
+				},
+				StartOffset: 0x8b200000,
+				Index:       4,
+			},
+			Node:                 "/dev/node4",
 			CreatedDuringInstall: true,
 		},
 	})
@@ -423,9 +464,11 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
 	sfdiskInput, create := gadget.BuildPartitionList(dl, pv)
-	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     5926879, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
+	c.Assert(sfdiskInput.String(), Equals,
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save", attrs="GUID:59"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
+	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritable})
 }
 
 func (s *ondiskTestSuite) TestUpdatePartitionList(c *C) {
@@ -561,7 +604,7 @@ case "$1" in
       what='{"name": "node2", "fstype":"vfat", "label":"ubuntu-boot"}'
       ;;
    /dev/node3)
-      what='{"name": "node3", "fstype":null, "label":null}'
+      what='{"name": "node3", "fstype":"ext4", "label":"ubuntu-save"}'
       ;;
    /dev/node4)
       what='{"name": "node4", "fstype":"ext4", "label":"ubuntu-data"}'
@@ -602,7 +645,7 @@ EOF`)
 				Type:  "b",
 			},
 			{
-				// unlabeled
+				// ubuntu-save
 				Node:  "/dev/node3",
 				Start: 8192,
 				Size:  8192,
@@ -620,7 +663,7 @@ EOF`)
 	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
-	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})
+	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
 }
 
 func (s *ondiskTestSuite) TestFilesystemInfo(c *C) {
