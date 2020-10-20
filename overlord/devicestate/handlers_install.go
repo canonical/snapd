@@ -176,7 +176,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
 			return err
 		}
-
 	}
 
 	// keep track of the model we installed

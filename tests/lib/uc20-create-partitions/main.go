@@ -91,16 +91,16 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installState, err := installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}
 
 	if args.Encrypt {
-		if installState == nil || installState.KeysForRoles == nil {
+		if installSideData == nil || installSideData.KeysForRoles == nil {
 			panic("expected encryption keys")
 		}
-		dataKey := installState.KeysForRoles[gadget.SystemData]
+		dataKey := installSideData.KeysForRoles[gadget.SystemData]
 		if dataKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}

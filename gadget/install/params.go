@@ -36,8 +36,9 @@ type EncryptionKeySet struct {
 	RecoveryKey secboot.RecoveryKey
 }
 
-// InstalledSystemSideData carries the side data of an installed system.
+// InstalledSystemSideData carries side data of an installed system, eg. secrets
+// to access its partitions.
 type InstalledSystemSideData struct {
-	// KeysForRoles contains a key sets for the relevant structure roles.
+	// KeysForRoles contains key sets for the relevant structure roles.
 	KeysForRoles map[string]*EncryptionKeySet
 }
