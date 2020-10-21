@@ -2007,6 +2007,9 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
 	m.maybeRestart(t, info, reboot, deviceCtx)
