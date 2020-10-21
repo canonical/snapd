@@ -15,7 +15,6 @@ show_help() {
     echo "  bootenv unset:        unsets the given var from boot configuration"
     echo "  boot-path:            prints the boot path"
     echo "  wait-core-post-boot:  waits until the snap_mode bootenv var is empty"
-    bootenv_unset
 }
 
 get_grub_editenv() {
