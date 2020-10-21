@@ -1,16 +1,16 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: bootenv [var]"
-    echo "       bootenv-set <var> <value>"
-    echo "       bootenv-unset <var>"
-    echo "       get-boot-path"
+    echo "usage: bootenv show [var]"
+    echo "       bootenv set <var> <value>"
+    echo "       bootenv unset <var>"
+    echo "       boot-path"
     echo "       wait-core-post-boot"
     echo ""
     echo "Get information and manages the boot loader for the current system"
     echo ""
     echo "COMMANDS:"
-    echo "  bootenv:              prints the whole bootenv or just the variable passed as parameter"
+    echo "  bootenv show:         prints the whole bootenv or just the variable passed as parameter"
     echo "  bootenv-set:          sets the given var and value on boot configuration"
     echo "  bootenv-unset:        unsets the given var from boot configuration"
     echo "  get-boot-path:        prints the boot path"
@@ -41,11 +41,38 @@ get_grub_envfile() {
 }
 
 bootenv() {
+    case "$1" in
+        show)
+            shift
+            bootenv_show "$@"
+            exit
+            ;;
+        set)
+            shift
+            bootenv_set "$@"
+            exit
+            ;;
+        unset)
+            shift
+            bootenv_unset "$@"
+            exit
+            ;;
+        *)
+            echo "boot-state: unsupported bootenv subcommand $1" >&2
+            show_help
+            exit 1
+            ;;
+    esac
+
+}
+
+bootenv_show() {
+    local var="${1:-}"
     local GRUB_EDITENV GRUBENV_FILE
     GRUB_EDITENV="$(get_grub_editenv)"
     GRUBENV_FILE="$(get_grub_envfile)"
 
-    if [ $# -eq 0 ]; then
+    if [ -z "$var" ]; then
         if command -v "$GRUB_EDITENV" >/dev/null; then
             "$GRUB_EDITENV" list
         elif [ -s "$GRUBENV_FILE" ]; then
@@ -55,19 +82,25 @@ bootenv() {
         fi
     else
         if command -v "$GRUB_EDITENV" >/dev/null; then
-            "$GRUB_EDITENV" list | grep "^$1"
+            "$GRUB_EDITENV" list | grep "^$var"
         elif [ -s "$GRUBENV_FILE" ]; then
-            grep "^$1" "$GRUBENV_FILE"
+            grep "^$var" "$GRUBENV_FILE"
         else
             fw_printenv "$1"
-        fi | sed "s/^${1}=//"
+        fi | sed "s/^${var}=//"
     fi
 }
 
 bootenv_set() {
     local var="$1"
-    local value="$2" 
+    local value="$2"
     local GRUB_EDITENV GRUBENV_FILE
+
+    if [ -z "$var" ] || [ -z "$value" ]; then
+        echo "boot-state: variable and value required to set in bootenv" >&2
+        show_help
+        exit 1
+    fi
     GRUB_EDITENV="$(get_grub_editenv)"
     GRUBENV_FILE="$(get_grub_envfile)"
 
@@ -88,6 +121,12 @@ bootenv_set() {
 bootenv_unset() {
     local var="$1"
     local GRUB_EDITENV GRUBENV_FILE
+
+    if [ -z "$var" ]; then
+        echo "boot-state: variable required to unset from bootenv" >&2
+        show_help
+        exit 1
+    fi
     GRUB_EDITENV="$(get_grub_editenv)"
     GRUBENV_FILE="$(get_grub_envfile)"
 
@@ -100,7 +139,7 @@ bootenv_unset() {
     fi
 }
 
-get_boot_path() {
+boot_path() {
     if [ -f /boot/uboot/uboot.env ] || [ -f /boot/uboot/boot.sel ]; then
         # uc16/uc18 have /boot/uboot/uboot.env
         # uc20 has /boot/uboot/boot.sel
@@ -128,29 +167,36 @@ main() {
         exit 0
     fi
 
-    local subcommand="$1"
-    local action=
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
                 show_help
-                exit 0
+                exit
                 ;;
-            *)
-                action=$(echo "$subcommand" | tr '-' '_')
+            --)
                 shift
                 break
                 ;;
+            bootenv)
+                shift
+                bootenv "$@"
+                exit
+                ;;
+            boot-path)
+                boot_path
+                exit
+                ;;
+            wait-core-post-boot)
+                wait_core_post_boot
+                exit
+                ;;
+            *)
+                echo "boot-state: unsupported parameter $1" >&2
+                show_help
+                exit 1
+                ;;
         esac
     done
-
-    if [ -z "$(declare -f "$action")" ]; then
-        echo "boot-state: no such command: $subcommand" >&2
-        show_help
-        exit 1
-    fi
-
-    "$action" "$@"
 }
 
 main "$@"
