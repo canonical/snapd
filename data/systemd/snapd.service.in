@@ -18,6 +18,7 @@ Type=notify
 SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process
+KeyringMode=shared
 
 [Install]
 WantedBy=multi-user.target

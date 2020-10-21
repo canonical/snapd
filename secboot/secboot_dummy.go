@@ -24,6 +24,10 @@ import (
 	"fmt"
 )
 
+func AuthKeyFromKernelKeyring() ([]byte, error) {
+	return nil, nil
+}
+
 func CheckKeySealingSupported() error {
 	return fmt.Errorf("build without secboot support")
 }

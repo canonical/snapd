@@ -29,6 +29,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
@@ -45,6 +46,10 @@ const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
 	pinHandle           = 0x01880000
 	policyCounterHandle = 0x01880001
+
+	// keyctl(2) key identifiers
+	sessionKeyring = -3
+	userKeyring    = -4
 
 	keyringPrefix = "snapd"
 )
@@ -67,9 +72,8 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled  = isTPMEnabledImpl
-	unsealAuthKey = unsealAuthKeyImpl
-	provisionTPM  = provisionTPMImpl
+	isTPMEnabled = isTPMEnabledImpl
+	provisionTPM = provisionTPMImpl
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
@@ -315,6 +319,33 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 	return nil
 }
 
+// AuthKeyFromKernelKeyring obtains the TPM policy update authorization key
+// for the specified disk and device name from the kernel keyring and unlinks
+// the user keyring.
+func AuthKeyFromKernelKeyring(disk disks.Disk, deviceName string) ([]byte, error) {
+	partUUID, err := disk.FindMatchingPartitionUUID(deviceName + "-enc")
+	if err != nil {
+		return nil, err
+	}
+	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+
+	keep := false
+	k, err := sbGetActivationDataFromKernel(keyringPrefix, encdev, keep)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get activation data: %v", err)
+	}
+	if err := unlinkUserKeyring(); err != nil {
+		return nil, fmt.Errorf("cannot unlink user keyring: %v", err)
+	}
+
+	authKey, ok := k.(sb.TPMPolicyAuthKey)
+	if !ok {
+		return nil, fmt.Errorf("internal error: wrong TPM policy auth key format")
+	}
+
+	return authKey, nil
+}
+
 // SealKey provisions the TPM and seals a partition encryption key according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
 // exists, SealKey will fail and return an error.
@@ -355,7 +386,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 
 // ResealKey updates the PCR protection policy for the sealed encryption key according to
 // the specified parameters.
-func ResealKey(disk disks.Disk, params *ResealKeyParams) error {
+func ResealKey(params *ResealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -375,29 +406,12 @@ func ResealKey(disk disks.Disk, params *ResealKeyParams) error {
 		return err
 	}
 
-	partUUID, err := disk.FindMatchingPartitionUUID(params.DeviceName + "-enc")
-	if err != nil {
-		return err
-	}
-	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-
-	keep := true
-	k, err := sbGetActivationDataFromKernel(keyringPrefix, encdev, keep)
-	if err != nil {
-		return err
-	}
-	authKey, ok := k.(sb.TPMPolicyAuthKey)
-	if !ok {
-		return fmt.Errorf("internal error: wrong type for auth key")
-	}
-
-	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
+	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.AuthKey, pcrProfile)
 }
 
-func unsealAuthKeyImpl(tpm *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
-	pin := ""
-	_, authKey, err := k.UnsealFromTPM(tpm, pin)
-	return authKey, err
+func unlinkUserKeyring() error {
+	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, userKeyring, sessionKeyring, 0, 0)
+	return err
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {

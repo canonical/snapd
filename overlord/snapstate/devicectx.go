@@ -40,7 +40,7 @@ type DeviceContext interface {
 	// ForRemodeling returns whether this context is for use over a remodeling.
 	ForRemodeling() bool
 
-	// SystemMode returns the system  mode (run,install,recover,...).
+	// SystemMode returns the system mode (run,install,recover,...).
 	SystemMode() string
 
 	// DeviceContext should be usable as boot.Device

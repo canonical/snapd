@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -139,6 +141,40 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	if m.SystemMode() == "install" {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	// get the disk that we mounted the ubuntu-seed partition from
+	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	if err != nil {
+		return err
+	}
+
+	k, err := secboot.AuthKeyFromKernelKeyring(disk, "ubuntu-data")
+	if err != nil {
+		return fmt.Errorf("cannot read activation data: %v", err)
+	}
+
+	boot.SetTPMPolicyAuthKey(k)
+
+	return nil
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
