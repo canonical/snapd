@@ -37,3 +37,11 @@ execute: |
     echo "And after a refresh the service stays enabled"
     install_local test-snapd-service
     snap services | MATCH 'test-snapd-service.test-snapd-service-inhibit-startup\s+enabled\s+active'
+    # XXX: add test with a refresh vom v1 to v2
+    # v1 has one services (srv1).
+    # v2 has two services (srv1,srv2):
+    #   srv1 is now disabled
+    #   srv2 is new and disabled
+    # The behavior should be that:
+    #   srv1 stays enabled
+    #   srv2 is disabled 

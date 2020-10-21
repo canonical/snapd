@@ -191,13 +191,13 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
-	// check DaemonStartup settings and do not start services on first
-	// install that are inhibited
+	// XXX: the below code is wrong, instead of first-time we need
+	// to check if the service was there before so that the behavior
+	// is correct for refreshes too
 	if linkCtx.FirstInstall {
 		for _, app := range s.Apps {
-			// XXX: strawman
-			// XXX2: make this a proper type instead of a string
-			if app.InstallMode == "daemon-inhibit" {
+			// XXX: make this a proper type instead of a string
+			if app.InstallMode == "disable" {
 				disabledSvcs = append(disabledSvcs, app.Name)
 			}
 		}
