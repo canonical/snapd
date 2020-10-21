@@ -1,0 +1,63 @@
+summary: smoke test for the systemd-state tool
+
+execute: |
+
+    # Check help
+    "$TESTSTOOLS"/systemd-state | MATCH "usage: create-and-start-unit"
+    "$TESTSTOOLS"/systemd-state -h | MATCH "usage: create-and-start-unit"
+    "$TESTSTOOLS"/systemd-state --help | MATCH "usage: create-and-start-unit"
+
+    # Create a non persistent service unit
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 5"
+    systemctl is-active testunit
+    test -f /run/systemd/system/testunit.service
+    test ! -f /etc/systemd/system/testunit.service
+    sleep 5
+    not systemctl is-active testunit
+    systemctl is-enabled testunit
+
+    # Delete the created service unit
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
+    not systemctl is-enabled testunit
+    test ! -f /run/systemd/system/testunit.service
+
+    # Create a persistent service unit
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 5" --persistent
+    systemctl is-active testunit
+    test -f /etc/systemd/system/testunit.service
+    test ! -f /run/systemd/system/testunit.service
+    sleep 5
+    not systemctl is-active testunit
+    systemctl is-enabled testunit
+
+    # Delete the created service unit
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
+    not systemctl is-enabled testunit
+    test ! -f /etc/systemd/system/testunit.service
+
+    # Check the snapd service is listed
+    "$TESTSTOOLS"/systemd-state active-snapd-units | MATCH 'snapd.service'
+
+    # Check the services can be stopped
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "sleep 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit2 "sleep 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit3 "sleep 100" --persistent
+    systemctl is-active testunit1
+    systemctl is-active testunit2
+    systemctl is-active testunit3
+    "$TESTSTOOLS"/systemd-state stop-units testunit1 testunit2
+    not systemctl is-active testunit1
+    not systemctl is-active testunit2
+    systemctl is-active testunit3
+    "$TESTSTOOLS"/systemd-state stop-units testunit3
+    not systemctl is-active testunit3
+
+    # Clean the created service units
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit1
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit2
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit3
+
+    # wait for unit until it is active
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --persistent
+    "$TESTSTOOLS"/systemd-state wait-for-unit testunit
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit

@@ -1,0 +1,197 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: create-and-start-unit <unit-name> <unit-args> [--overrides <conf>] [--persistent]"
+    echo "       stop-and-remove-unit <unit-name>"
+    echo "       wait-for-unit <unit-name>"
+    echo "       stop-units <unit-names>"
+    echo "       active-snapd-units"
+    echo ""
+    echo "Manage systemd service units and retrieve information about existing units."
+    echo ""
+    echo "COMMANDS:"
+    echo "  create-and-start-unit:   creates and starts systemd unit. In case it is set as persistent the unit survive reboots. Also it allows to overrides the configuration."
+    echo "  stop-and-remove-unit:    stops and removes a service unit"
+    echo "  wait-for-unit:           waits until a service unit is active"
+    echo "  stop-units:              stops a list of service units"
+    echo "  active-snapd-units:      retrieve a list ov active snapd units"
+}
+
+# Use like systemd_create_and_start_unit "fakestore" "$(which fakestore) -start -dir $top_dir -addr localhost:11028 $@"
+systemd_create_and_start_unit() {
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n' "${SPREAD_JOB:-unknown}" "$2" > "/run/systemd/system/$1.service"
+    if [ -n "${3:-}" ]; then
+        echo "Environment=$3" >> "/run/systemd/system/$1.service"
+    fi
+    systemctl daemon-reload
+    systemctl start "$1"
+}
+
+# Use like systemd_create_and_start_persistent_unit "name" "start" "[Unit]\nAfter=foo"
+systemd_create_and_start_persistent_unit() {
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "${SPREAD_JOB:-unknown}" "$2" > "/etc/systemd/system/$1.service"
+    if [ -n "${3:-}" ]; then
+        mkdir -p "/etc/systemd/system/$1.service.d"
+        # shellcheck disable=SC2059
+        printf "$3" >> "/etc/systemd/system/$1.service.d/override.conf"
+    fi
+    systemctl daemon-reload
+    systemctl enable "$1"
+    systemctl start "$1"
+    wait_for_unit "$1"
+}
+
+create_and_start_unit() {
+    local unit_name="$1"
+    local unit_args="$2"
+    if [ -z "$unit_name" ] || [ -z "$unit_args" ]; then
+        echo "systemd-state: unit name and args are required to create the service unit" >&2
+        show_help
+        exit 1
+    fi
+
+    shift 2
+    local overrides=''
+    local persistent=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --overrides)
+                overrides="${2:-}"
+                if [ -z "$overrides" ]; then
+                    echo "systemd-state: overrrides configuration missing to create service unit" >&2
+                    show_help
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --persistent)
+                persistent=true
+                shift
+                ;;
+            *)
+                echo "systemd-state: parameter used to create and start service unit not supported $1" >&2
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$persistent" ]; then
+        systemd_create_and_start_unit "$unit_name" "$unit_args" "$overrides"
+    else
+        systemd_create_and_start_persistent_unit "$unit_name" "$unit_args" "$overrides"
+    fi
+}
+
+stop_and_remove_unit() {
+    local unit_name="$1"
+
+    if [ -z "$unit_name" ]; then
+        echo "boot-state: unit name required to stop and remove service unit" >&2
+        show_help
+        exit 1
+    fi
+
+    if systemctl is-active "$unit_name" >/dev/null; then
+        systemctl stop "$unit_name"
+    fi
+    if systemctl is-enabled "$unit_name" >/dev/null; then
+        systemctl disable "$unit_name"
+    fi
+
+    local unit_path="/run/systemd/system"
+    if [ -f "/etc/systemd/system/$unit_name.service" ]; then
+        unit_path="/etc/systemd/system"
+    fi
+
+    rm -f "$unit_path/$unit_name.service"
+    rm -rf "$unit_path/$unit_name.service.d"
+    systemctl daemon-reload
+}
+
+wait_for_unit() {
+    local service_name="$1"
+    local state="${2:-active}"
+    for i in $(seq 300); do
+        if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
+            return
+        fi
+        # show debug output every 1min
+        if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
+            systemctl status "$service_name" || true;
+        fi
+        sleep 1;
+    done
+
+    echo "service $service_name did not start"
+    exit 1
+}
+
+stop_units() {
+    for unit in "$@"; do
+        if systemctl is-active "$unit" >/dev/null; then
+            echo "Ensure the service is active before stopping it"
+            retries=20
+            while systemctl status "$unit" | grep -q "Active: activating"; do
+                if [ $retries -eq 0 ]; then
+                    echo "$unit unit not active"
+                    systemctl status "$unit" || true
+                    exit 1
+                fi
+                retries=$(( retries - 1 ))
+                sleep 1
+            done
+
+            systemctl stop "$unit"
+        fi
+    done
+}
+
+active_snapd_units() {
+    systemctl list-units --plain --state=active | grep -Eo 'snapd\..*(socket|service|timer)' || true
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        create-and-start-unit)
+            shift
+            create_and_start_unit "$@"
+            exit
+            ;;
+        stop-and-remove-unit)
+            shift
+            stop_and_remove_unit "$@"
+            exit
+            ;;
+        wait-for-unit)
+            shift
+            wait_for_unit "$@"
+            exit
+            ;;
+        stop-units)
+            shift
+            stop_units "$@"
+            exit
+            ;;
+        active-snapd-units)
+            active_snapd_units
+            exit
+            ;;
+        *)
+            echo "systemd-state: unsupported parameter $1" >&2
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
