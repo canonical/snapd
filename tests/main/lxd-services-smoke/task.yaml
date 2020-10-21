@@ -1,0 +1,34 @@
+summary: Ensure refreshing lxd snap after service commands works.
+
+details: |
+  Execute a set of operations on lxd snap that were known to render it unusable
+  due to a combination of three problems: remove hook of lxd snap didn't clean
+  its mountpoints properly in namespace of the host, causing error when removing
+  snap data; snapd wouldn't ignore errors on snap data removal, triggering undo
+  on remove; remove would fail completely on undo, leaving lxd snap in an
+  undefined state. With fixed lxd remove hook and snapd fixes related to
+  https://bugs.launchpad.net/snapd/+bug/1899614, this test should never fail on
+  any of the above.
+
+systems: [ubuntu-18.04*, ubuntu-20.04*]
+
+execute: |
+  echo "Installing lxd snap"
+  snap install lxd
+  snap stop lxd
+  snap start lxd
+
+  # This may fail if revision is same as stable
+  snap refresh --edge lxd || true
+
+  # Critical operation: depends on correct lxd remove hook that
+  # unmounts its mountpoints properly in the namespace of the host.
+  # If the hook is not doing the right thing, then remove should still
+  # succeed but we will fail with leftovers in /var/snap/lxd/common.
+  snap remove lxd --purge
+
+  # We would fail on restore of test suite anyway, but make it more explicit. 
+  if test -d /var/snap/lxd/common; then
+    echo "lxd snap wasn't fully removed"
+    exit 1
+  fi

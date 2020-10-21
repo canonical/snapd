@@ -137,6 +137,9 @@ var (
 	NewCatalogRefresh            = newCatalogRefresh
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+
+	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
+	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -254,8 +257,18 @@ func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (ui
 	}
 }
 
+var (
+	NotifyLinkParticipants = notifyLinkParticipants
+)
+
 // autorefresh
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
+	old := genericRefreshCheck
+	genericRefreshCheck = fn
+	return func() { genericRefreshCheck = old }
+}
