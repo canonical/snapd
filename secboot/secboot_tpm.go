@@ -438,6 +438,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		pcrProfile = modelPCRProfiles[0]
 	}
 
+	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
+
 	return pcrProfile, nil
 }
 

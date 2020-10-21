@@ -661,6 +661,10 @@ func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	diskPath := filepath.Join(r.dir, "disk.img")
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
@@ -707,6 +711,10 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	diskPath := filepath.Join(r.dir, "disk.img")
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 2048, nil)

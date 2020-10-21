@@ -45,7 +45,7 @@ execute: |
     tests.cleanup prepare
     tests.cleanup restore
     not tests.cleanup restore
-    tests.cleanup restore 2>&1 | MATCH "tests.cleanup: cannot restore, must call tests.prepare first"
+    tests.cleanup restore 2>&1 | MATCH "tests.cleanup: cannot restore, must call tests.cleanup prepare first"
 
     # Deferred commands are appended to defer.sh
     tests.cleanup prepare

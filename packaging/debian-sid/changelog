@@ -1,3 +1,17 @@
+snapd (2.47.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1895929
+    - o/configstate: create /etc/sysctl.d when applying early config
+      defaults
+    - cmd/snap-bootstrap/initramfs-mounts: also copy /etc/machine-id for
+      same IP addr
+    - packaging/{ubuntu,debian}: add liblzo2-dev as a dependency for
+      building snapd
+    - cmd/snap: allow snap help vs --all to diverge purposefully
+    - snap: snap help output refresh
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 08 Oct 2020 09:30:44 +0200
+
 snapd (2.47-1) unstable; urgency=medium
 
   * New upstream release, LP: #1895929
