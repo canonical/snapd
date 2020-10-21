@@ -39,22 +39,23 @@ execute: |
 
     # check a new var can be set in bootenv
     "$TESTSTOOLS"/boot-state bootenv show | NOMATCH 'snap_test_1='
-    "$TESTSTOOLS"/boot-state bootenv set snap_test_1 test
-    "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_test_1=test$'
+    "$TESTSTOOLS"/boot-state bootenv set snap_test_1 test_1
+    "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_test_1=test_1$'
 
     # check a var can be showed in bootenv
-    "$TESTSTOOLS"/boot-state bootenv set snap_test_2 test
-    "$TESTSTOOLS"/boot-state bootenv show snap_test_1 | MATCH 'snap_test_1=test$'
-    "$TESTSTOOLS"/boot-state bootenv show snap_test_1 | NOMATCH 'snap_test_2'
+    "$TESTSTOOLS"/boot-state bootenv set snap_test_2 test_2
+    "$TESTSTOOLS"/boot-state bootenv show snap_test_1 | MATCH 'test_1'
+    "$TESTSTOOLS"/boot-state bootenv show snap_test_1 | NOMATCH 'test_2'
 
     # check a var can be set even if it is already defined in bootenv
-    "$TESTSTOOLS"/boot-state bootenv set snap_test_1 test
+    "$TESTSTOOLS"/boot-state bootenv set snap_test_1 test_3
+    "$TESTSTOOLS"/boot-state bootenv show snap_test_1 | MATCH 'test_3'
     test "$("$TESTSTOOLS"/boot-state bootenv show | grep -c snap_test_1)" -eq 1
 
     # check an existing var can be unset in bootenv
     "$TESTSTOOLS"/boot-state bootenv unset snap_test_1
     "$TESTSTOOLS"/boot-state bootenv show | NOMATCH 'snap_test_1='
-    "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_test_2=test$'
+    "$TESTSTOOLS"/boot-state bootenv show | MATCH 'snap_test_2=test_2$'
     "$TESTSTOOLS"/boot-state bootenv unset snap_test_2
     "$TESTSTOOLS"/boot-state bootenv show | NOMATCH 'snap_test_2='
 

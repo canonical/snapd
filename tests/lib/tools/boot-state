@@ -11,9 +11,9 @@ show_help() {
     echo ""
     echo "COMMANDS:"
     echo "  bootenv show:         prints the whole bootenv or just the variable passed as parameter"
-    echo "  bootenv-set:          sets the given var and value on boot configuration"
-    echo "  bootenv-unset:        unsets the given var from boot configuration"
-    echo "  get-boot-path:        prints the boot path"
+    echo "  bootenv set:          sets the given var and value on boot configuration"
+    echo "  bootenv unset:        unsets the given var from boot configuration"
+    echo "  boot-path:            prints the boot path"
     echo "  wait-core-post-boot:  waits until the snap_mode bootenv var is empty"
     bootenv_unset
 }
@@ -41,7 +41,7 @@ get_grub_envfile() {
 }
 
 bootenv() {
-    case "$1" in
+    case "${1:-}" in
         show)
             shift
             bootenv_show "$@"
@@ -156,7 +156,7 @@ boot_path() {
 }
 
 wait_core_post_boot() {
-    while [ "$(bootenv snap_mode)" != "" ]; do
+    while [ "$(bootenv_show snap_mode)" != "" ]; do
         sleep 1
     done
 }
@@ -167,36 +167,30 @@ main() {
         exit 0
     fi
 
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -h|--help)
-                show_help
-                exit
-                ;;
-            --)
-                shift
-                break
-                ;;
-            bootenv)
-                shift
-                bootenv "$@"
-                exit
-                ;;
-            boot-path)
-                boot_path
-                exit
-                ;;
-            wait-core-post-boot)
-                wait_core_post_boot
-                exit
-                ;;
-            *)
-                echo "boot-state: unsupported parameter $1" >&2
-                show_help
-                exit 1
-                ;;
-        esac
-    done
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        bootenv)
+            shift
+            bootenv "$@"
+            exit
+            ;;
+        boot-path)
+            boot_path
+            exit
+            ;;
+        wait-core-post-boot)
+            wait_core_post_boot
+            exit
+            ;;
+        *)
+            echo "boot-state: unsupported parameter $1" >&2
+            show_help
+            exit 1
+            ;;
+    esac
 }
 
 main "$@"
