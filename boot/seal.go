@@ -100,6 +100,12 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
+	// make sure relevant locations exist
+	for _, p := range []string{InitramfsEncryptionKeyDir, InstallHostFDEDataDir} {
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:             modelParams,
 		KeyFile:                 filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),

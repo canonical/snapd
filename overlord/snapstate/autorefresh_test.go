@@ -817,7 +817,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 14 days to wait for the snap to no longer be in use.`)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
@@ -841,5 +841,5 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 7 days since its refresh was postponed. It will now be refreshed.`)
+	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 14 days since its refresh was postponed. It will now be refreshed.`)
 }

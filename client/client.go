@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -221,6 +222,16 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 
 	for key, value := range headers {
 		req.Header.Set(key, value)
+	}
+	// Content-length headers are special and need to be set
+	// directly to the request. Just setting it to the header
+	// will be ignored by go http.
+	if clStr := req.Header.Get("Content-Length"); clStr != "" {
+		cl, err := strconv.ParseInt(clStr, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		req.ContentLength = cl
 	}
 
 	if !client.disableAuth {
