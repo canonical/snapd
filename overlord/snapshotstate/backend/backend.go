@@ -778,7 +778,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 
 	h, err := snapshotSet.ContentHash()
 	if err != nil {
-		return nil, fmt.Errorf("cannot calcualte content hash for snapshot export %v: %v", setID, err)
+		return nil, fmt.Errorf("cannot calculate content hash for snapshot export %v: %v", setID, err)
 	}
 	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h}
 
