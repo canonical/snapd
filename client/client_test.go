@@ -181,6 +181,29 @@ func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
 	c.Assert(returnedMaintErr, DeepEquals, maintErr)
 }
 
+func (cs *clientSuite) TestClientIgnoresGarbageMaintenanceJSON(c *C) {
+	// write a garbage maintenance.json that can't be unmarshalled
+	maintGarbage := []byte("blah blah blah not json")
+
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, maintGarbage, 0644), IsNil)
+	var v []int
+	cs.rsp = `[1,2]`
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	c.Check(err, IsNil)
+	c.Check(statusCode, Equals, 200)
+	c.Check(v, DeepEquals, []int{1, 2})
+	c.Assert(cs.req, NotNil)
+	c.Assert(cs.req.URL, NotNil)
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.Body, Equals, reqBody)
+	c.Check(cs.req.URL.Path, Equals, "/this")
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, IsNil)
+}
+
 func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`

@@ -417,33 +417,41 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	return client.doSyncWithOpts(method, path, query, headers, body, v, nil)
 }
 
+// checkMaintenanceJSON checks if there is a maintenance.json file written by
+// snapd the daemon that positively identifies snapd as being unavailable due to
+// maintenance, either for snapd restarting itself to update, or rebooting the
+// system to update the kernel or base snap, etc. If there is ongoing
+// maintenance, then the maintenance object on the client is set appropriately.
+// note that currently checkMaintenanceJSON does not return non-nil errors, so
+// if the file is missing or corrupt or empty, nothing will happen
 func (client *Client) checkMaintenanceJSON() error {
 	f, err := os.Open(dirs.SnapdMaintenanceFile)
-	// just continue if we can't read the maintenance file and
-	// it does exist (i.e. perm error)
-	if err == nil {
-		// we have a maintenance file, try to read it
-		maintenance := &Error{}
+	// just continue if we can't read the maintenance file
+	if err != nil {
+		return nil
+	}
 
-		if err := json.NewDecoder(f).Decode(&maintenance); err != nil {
-			// TODO: should we just let the request go through even if the
-			// maintenance.json is unintelligible?
-			return err
+	// we have a maintenance file, try to read it
+	maintenance := &Error{}
+
+	if err := json.NewDecoder(f).Decode(&maintenance); err != nil {
+		// if the json is malformed, just ignore it for now, we only use it for
+		// positive identification of snapd down for maintenance
+		return nil
+	}
+
+	if maintenance != nil {
+		switch maintenance.Kind {
+		case ErrorKindDaemonRestart:
+			client.maintenance = maintenance
+		case ErrorKindSystemRestart:
+			client.maintenance = maintenance
 		}
+		// don't set maintenance for other kinds, as we don't know what it
+		// is yet
 
-		if maintenance != nil {
-			switch maintenance.Kind {
-			case ErrorKindDaemonRestart:
-				client.maintenance = maintenance
-			case ErrorKindSystemRestart:
-				client.maintenance = maintenance
-			}
-			// don't set maintenance for other kinds, as we don't know what it
-			// is yet
-
-			// this also means an empty json object in maintenance.json doesn't get
-			// treated as a real maintenance downtime for example
-		}
+		// this also means an empty json object in maintenance.json doesn't get
+		// treated as a real maintenance downtime for example
 	}
 
 	return nil
