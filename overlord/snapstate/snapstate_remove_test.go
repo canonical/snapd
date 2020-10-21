@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -1332,6 +1334,26 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	c.Check(err, IsNil)
 }
 
+type snapdBackend struct {
+	fakeSnappyBackend
+}
+
+func (f *snapdBackend) RemoveSnapData(info *snap.Info) error {
+	dir := snap.DataDir(info.SnapName(), info.Revision)
+	if err := os.Remove(dir); err != nil {
+		return fmt.Errorf("unexpected error: %v", err)
+	}
+	return f.fakeSnappyBackend.RemoveSnapData(info)
+}
+
+func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info) error {
+	dir := snap.CommonDataDir(info.SnapName())
+	if err := os.Remove(dir); err != nil {
+		return fmt.Errorf("unexpected error: %v", err)
+	}
+	return f.fakeSnappyBackend.RemoveSnapCommonData(info)
+}
+
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
 	var count int
 	for _, t := range tasks {
@@ -1365,7 +1387,7 @@ func injectError(c *C, chg *state.Change, beforeTaskKind string, snapRev snap.Re
 	c.Assert(found, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
+func makeTestSnaps(c *C, st *state.State) {
 	si1 := snap.SideInfo{
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
@@ -1378,15 +1400,26 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 		Revision: snap.R(2),
 	}
 
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si1, &si2},
 		Current:  si1.Revision,
 		SnapType: "app",
 	})
+
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
+	b := &snapdBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+	AddForeignTaskHandlers(s.o.TaskRunner(), b)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	makeTestSnaps(c, s.state)
 
 	chg := s.state.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
@@ -1396,7 +1429,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	// inject an error before clear-snap of revision 1 (current), after
 	// discard-snap for revision 2, that means data and snap rev 1
 	// are still present.
-	injectError(c, chg, "clear-snap", si1.Revision)
+	injectError(c, chg, "clear-snap", snap.Revision{N: 1})
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -1410,7 +1443,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence, HasLen, 1)
-	c.Check(snapst.Sequence[0].Revision, Equals, si1.Revision)
+	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
 
 	expected := fakeOps{
 		{
@@ -1454,33 +1487,19 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 		},
 	}
 	// start with an easier-to-read error if this fails:
-	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+	c.Check(len(b.ops), Equals, len(expected))
+	c.Assert(b.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(b.ops, DeepEquals, expected)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c *C) {
-	si1 := snap.SideInfo{
-		SnapID:   "some-snap-id",
-		RealName: "some-snap",
-		Revision: snap.R(1),
-	}
-
-	si2 := snap.SideInfo{
-		SnapID:   "some-snap-id",
-		RealName: "some-snap",
-		Revision: snap.R(2),
-	}
+	b := &snapdBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+	AddForeignTaskHandlers(s.o.TaskRunner(), b)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{&si1, &si2},
-		Current:  si1.Revision,
-		SnapType: "app",
-	})
+	makeTestSnaps(c, s.state)
 
 	chg := s.state.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
@@ -1489,7 +1508,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 
 	// inject an error after removing data of both revisions (which includes
 	// current rev 1), before discarding the snap completely.
-	injectError(c, chg, "discard-snap", si1.Revision)
+	injectError(c, chg, "discard-snap", snap.Revision{N: 1})
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -1506,7 +1525,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	// after its data was removed.
 	c.Check(snapst.Active, Equals, false)
 	c.Assert(snapst.Sequence, HasLen, 1)
-	c.Check(snapst.Sequence[0].Revision, Equals, si1.Revision)
+	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
 
 	expected := fakeOps{
 		{
@@ -1558,8 +1577,9 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 			op: "update-aliases",
 		},
 	}
+
 	// start with an easier-to-read error if this fails:
-	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+	c.Check(len(b.ops), Equals, len(expected))
+	c.Assert(b.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(b.ops, DeepEquals, expected)
 }

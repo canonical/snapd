@@ -1963,32 +1963,17 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var broken bool
 	// undo here may be part of failed snap remove change, in which case a later
 	// "clear-snap" task could have been executed and some or all of the
 	// data of this snap could be lost. If that's the case, then we should not
 	// enable the snap back.
 	// XXX: should make an exception for snapd/core?
-	chg := t.Change()
-	if chg != nil {
-		for _, task := range chg.Tasks() {
-			status := task.Status()
-			if task.Kind() == "clear-snap" && status != state.DoStatus && status != state.HoldStatus {
-				clearSnapSup, err := TaskSnapSetup(task)
-				if err != nil {
-					return err
-				}
-				if clearSnapSup.InstanceName() == snapsup.InstanceName() && clearSnapSup.Revision() == snapsup.Revision() {
-					broken = true
-					break
-				}
-			}
+	place := snapsup.placeInfo()
+	for _, dir := range []string{place.DataDir(), place.CommonDataDir()} {
+		if exists, _, _ := osutil.DirExists(dir); !exists {
+			t.Logf("cannot link snap %q back, some of its data has already been removed", snapsup.InstanceName())
+			return nil
 		}
-	}
-
-	if broken {
-		t.Logf("cannot link snap %q back, some of its data has already been removed", snapsup.InstanceName())
-		return nil
 	}
 
 	snapst.Active = true
