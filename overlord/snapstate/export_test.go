@@ -257,6 +257,10 @@ func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (ui
 	}
 }
 
+var (
+	NotifyLinkParticipants = notifyLinkParticipants
+)
+
 // autorefresh
 var (
 	InhibitRefresh = inhibitRefresh
