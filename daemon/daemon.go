@@ -77,7 +77,7 @@ type Daemon struct {
 	standbyOpinions *standby.StandbyOpinions
 
 	// set to remember we need to restart the system
-	restartSystem state.RestartType
+	activeRestartState state.RestartType
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -448,7 +448,7 @@ func (d *Daemon) Start() error {
 	// to state.RestartUnset
 	// TODO: should this state (not down for maintenance) have it's own
 	// RestartType?
-	err = d.writeMaintenanceFile(state.RestartUnset)
+	err = d.updateMaintenanceFile(state.RestartUnset)
 	if err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.restartSystem = t
+		d.activeRestartState = t
 	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
@@ -507,12 +507,12 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.restartSystem = t
+		d.activeRestartState = t
 	case state.RestartSocket:
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.restartSystem = t
+		d.activeRestartState = t
 		d.restartSocket = true
 	case state.StopDaemon:
 		logger.Noticef("stopping snapd as requested")
@@ -530,7 +530,19 @@ var (
 	rebootMaxTentatives    = 3
 )
 
-func (d *Daemon) writeMaintenanceFile(rst state.RestartType) error {
+func (d *Daemon) updateMaintenanceFile(rst state.RestartType) error {
+	// for unset restart, just remove the maintenance.json file
+	if rst == state.RestartUnset {
+		err := os.Remove(dirs.SnapdMaintenanceFile)
+		// only return err if the error was something other than the file not
+		// existing
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+
+	// otherwise marshal and write it out appropriately
 	b, err := json.Marshal(maintenanceForRestartType(rst))
 	if err != nil {
 		return err
@@ -558,16 +570,23 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	d.tomb.Kill(nil)
 
+	// check the state associated with a potential restart with the lock to
+	// prevent races
 	d.mu.Lock()
-	restartSystem := (d.restartSystem == state.RestartSystemNow || d.restartSystem == state.RestartSystem)
-	immediateReboot := d.restartSystem == state.RestartSystemNow
+	// restarting is whether we are going to restart or whether we are just
+	// stopping ourselves without expectation of being restarted
+	restarting := (d.activeRestartState != state.RestartUnset)
+	// needsFullReboot is whether the entire system will be rebooted or not as
+	// a consequence of this restart
+	needsFullReboot := (d.activeRestartState == state.RestartSystemNow || d.activeRestartState == state.RestartSystem)
+	immediateReboot := d.activeRestartState == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	err := d.writeMaintenanceFile(d.restartSystem)
+	err := d.updateMaintenanceFile(d.activeRestartState)
 	if err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
@@ -588,7 +607,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		d.snapListener.Close()
 	}
 
-	if restartSystem {
+	if restarting {
 		// give time to polling clients to notice restart
 		time.Sleep(rebootNoticeWait)
 	}
@@ -600,7 +619,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(d.serve.Shutdown(ctx))
 	cancel()
 
-	if !restartSystem {
+	if !restarting {
 		// tell systemd that we are stopping
 		systemdSdNotify("STOPPING=1")
 	}
@@ -632,7 +651,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
 			// which will lead to confusing results.
-			if restartSystem {
+			if restarting {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
 				return err
@@ -640,7 +659,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 	}
 
-	if restartSystem {
+	if needsFullReboot {
 		return d.doReboot(sigCh, immediateReboot, rebootWaitTimeout)
 	}
 

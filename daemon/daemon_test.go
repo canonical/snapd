@@ -209,7 +209,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
-func (s *daemonSuite) TestMaintenanceJsonEmptiedOnStart(c *check.C) {
+func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	// write a maintenance.json file that has that the system is restarting
 	maintErr := &errorResult{
 		Kind:    client.ErrorKindDaemonRestart,
@@ -277,14 +277,8 @@ func (s *daemonSuite) TestMaintenanceJsonEmptiedOnStart(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
-	b2, err := ioutil.ReadFile(dirs.SnapdMaintenanceFile)
-	c.Assert(err, check.IsNil)
-
-	// now re-read the maintenance.json, it should not say anything now
-	maintErrAfter := &errorResult{}
-	c.Assert(json.Unmarshal(b2, maintErrAfter), check.IsNil)
-
-	c.Assert(maintErrAfter, check.DeepEquals, &errorResult{})
+	// maintenance.json should be removed
+	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
 
 	d.Stop(nil)
 }
@@ -957,7 +951,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 
 	defer func() {
 		d.mu.Lock()
-		d.restartSystem = state.RestartUnset
+		d.activeRestartState = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -968,7 +962,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	}
 
 	d.mu.Lock()
-	rs := d.restartSystem
+	rs := d.activeRestartState
 	d.mu.Unlock()
 
 	c.Check(rs, check.Equals, restartKind)
