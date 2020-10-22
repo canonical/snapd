@@ -61,9 +61,9 @@ func printfFunc(msg string, format ...interface{}) func() {
 }
 
 var (
-	snapdReloadMsgDoer  = sync.Once{}
-	systemReloadMsgDoer = sync.Once{}
-	snapRefreshMsgDoer  = sync.Once{}
+	snapdReloadMsgOnce  = sync.Once{}
+	systemReloadMsgOnce = sync.Once{}
+	snapRefreshMsgOnce  = sync.Once{}
 )
 
 func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
@@ -89,7 +89,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 			if maintErr.Kind == client.ErrorKindDaemonRestart {
 				// then we need to wait for snapd to restart, so keep trying
 				// the console-conf-start endpoint until it works
-				snapdReloadMsgDoer.Do(printfFunc("Snapd is reloading, please wait...\n"))
+				snapdReloadMsgOnce.Do(printfFunc("Snapd is reloading, please wait...\n"))
 
 				// we know that snapd isn't available because it is in
 				// maintenance so we don't gain anything by hitting it
@@ -101,7 +101,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 				continue
 			} else if maintErr.Kind == client.ErrorKindSystemRestart {
 				// system is rebooting, just wait for the reboot
-				systemReloadMsgDoer.Do(printfFunc("System is rebooting, please wait for reboot...\n"))
+				systemReloadMsgOnce.Do(printfFunc("System is rebooting, please wait for reboot...\n"))
 				time.Sleep(10 * time.Minute)
 				// if we didn't reboot after 10 minutes something's probably broken
 				return fmt.Errorf("system didn't reboot after 10 minutes even though snapd daemon is in maintenance")
@@ -117,7 +117,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 			return fmt.Errorf("internal error: returned changes (%v) but no snap names", chgs)
 		}
 
-		snapRefreshMsgDoer.Do(func() {
+		snapRefreshMsgOnce.Do(func() {
 			sort.Strings(snaps)
 
 			var snapNameList string
