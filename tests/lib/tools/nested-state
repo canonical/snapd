@@ -4,7 +4,7 @@ show_help() {
     echo "usage: prepare"
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
-    echo "       create-vm IMAGE-TYPE [--param-cd PARAM] [--param-mem PARAM]"
+    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
     echo "       start-vm"
     echo "       stop-vm"
     echo "       remove-vm"
@@ -51,7 +51,7 @@ build_image() {
                 exit
                 ;;
             *)
-                echo "nested-state: unsupported parameter $1" >&2
+                echo "nested-state: expected either classic or core as argument" >&2
                 exit 1
                 ;;
         esac
@@ -81,7 +81,7 @@ create_vm() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            --param-cd)
+            --param-cdrom)
                 export NESTED_PARAM_CD="$2"
                 shift 2
                 ;;
