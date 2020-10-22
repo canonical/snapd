@@ -52,6 +52,9 @@ execute: |
     "$TESTSTOOLS"/systemd-state stop-units testunit3
     not systemctl is-active testunit3
 
+    # Check that can be call to stop unexistent units
+    "$TESTSTOOLS"/systemd-state stop-units noexist1 noexist2
+
     # Clean the created service units
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit1
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit2
@@ -61,3 +64,15 @@ execute: |
     "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --persistent
     "$TESTSTOOLS"/systemd-state wait-for-unit testunit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
+
+    # Check generic errors
+    "$TESTSTOOLS"/systemd-state noexist 2>&1 | MATCH "systemd-state: unsupported parameter noexist"
+
+    # Check errors for create-and-start-unit
+    "$TESTSTOOLS"/systemd-state create-and-start-unit 2>&1 | MATCH "systemd-state: unit name and args are required to create the service unit"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit 2>&1 | MATCH "systemd-state: unit name and args are required to create the service unit"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --noexist 2>&1 | MATCH "systemd-state: parameter used to create and start service unit not supported --noexist"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --overrides 2>&1 | MATCH "systemd-state: overrrides configuration missing to create service unit"
+
+    # Check errors for stop-and-remove-unit
+    "$TESTSTOOLS"/systemd-state stop-and-remove-unit 2>&1 | MATCH "systemd-state: unit name required to stop and remove service unit"

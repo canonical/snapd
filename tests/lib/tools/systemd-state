@@ -87,7 +87,7 @@ stop_and_remove_unit() {
     local unit_name="$1"
 
     if [ -z "$unit_name" ]; then
-        echo "boot-state: unit name required to stop and remove service unit" >&2
+        echo "systemd-state: unit name required to stop and remove service unit" >&2
         show_help
         exit 1
     fi
