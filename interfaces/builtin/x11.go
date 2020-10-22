@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -149,8 +150,24 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 bind
 `
 
+var x11ConnectedPlugMount = []osutil.MountEntry{{
+	Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
+	Dir:     "/tmp/.X11-unix/",
+	Options: []string{"bind"},
+}}
+
 type x11Interface struct {
 	commonInterface
+}
+
+func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddUpdateNS(`
+	/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
+	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+	mount options=(rw, rslave) -> /tmp/.X11-unix/,
+	umount /tmp/.X11-unix/,
+`)
+	return iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot)
 }
 
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -197,5 +214,6 @@ func init() {
 		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
+		connectedPlugMount:    x11ConnectedPlugMount,
 	}})
 }
