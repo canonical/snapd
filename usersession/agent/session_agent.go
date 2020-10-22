@@ -274,6 +274,7 @@ func (s *SessionAgent) runServer() error {
 
 func (s *SessionAgent) shutdownServerOnKill() error {
 	<-s.tomb.Dying()
+	systemd.SdNotify("STOPPING=1")
 	// closing the listener (but then it needs wrapping in
 	// closeOnceListener) before actually calling Shutdown, to
 	// workaround https://github.com/golang/go/issues/20239, we
@@ -283,7 +284,6 @@ func (s *SessionAgent) shutdownServerOnKill() error {
 	// Historically We do something similar in the main daemon
 	// logic as well.
 	s.listener.Close()
-	systemd.SdNotify("STOPPING=1")
 	s.bus.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
