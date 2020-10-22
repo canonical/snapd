@@ -6306,5 +6306,11 @@ func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
 	// now we get our change ID returned when calling EnsureAutoRefreshesAreDelayed
 	chgs, err = s.snapmgr.EnsureAutoRefreshesAreDelayed(time.Minute)
 	c.Assert(err, IsNil)
+	// more helpful error message if we first compare the change ID's
+	expids := []string{chg0.ID(), chg1.ID()}
+	c.Assert(chgs, HasLen, len(expids))
+	gotids := []string{chgs[0].ID(), chgs[1].ID()}
+	c.Assert(expids, DeepEquals, gotids)
+
 	c.Assert(chgs, DeepEquals, []*state.Change{chg0, chg1})
 }
