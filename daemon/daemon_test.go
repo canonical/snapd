@@ -664,7 +664,12 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	c.Assert(d.Start(), check.IsNil)
-	defer d.Stop(nil)
+	stoppedYet := false
+	defer func() {
+		if !stoppedYet {
+			d.Stop(nil)
+		}
+	}()
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -696,6 +701,11 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
 	}
+
+	d.Stop(nil)
+	stoppedYet = true
+
+	c.Assert(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1", "STOPPING=1"})
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {

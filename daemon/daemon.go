@@ -573,9 +573,6 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// check the state associated with a potential restart with the lock to
 	// prevent races
 	d.mu.Lock()
-	// restarting is whether we are going to restart or whether we are just
-	// stopping ourselves without expectation of being restarted
-	restarting := (d.activeRestartState != state.RestartUnset)
 	// needsFullReboot is whether the entire system will be rebooted or not as
 	// a consequence of this restart
 	needsFullReboot := (d.activeRestartState == state.RestartSystemNow || d.activeRestartState == state.RestartSystem)
@@ -607,7 +604,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		d.snapListener.Close()
 	}
 
-	if restarting {
+	if needsFullReboot {
 		// give time to polling clients to notice restart
 		time.Sleep(rebootNoticeWait)
 	}
@@ -619,7 +616,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(d.serve.Shutdown(ctx))
 	cancel()
 
-	if !restarting {
+	if !needsFullReboot {
 		// tell systemd that we are stopping
 		systemdSdNotify("STOPPING=1")
 	}
@@ -651,7 +648,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
 			// which will lead to confusing results.
-			if restarting {
+			if needsFullReboot {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
 				return err
