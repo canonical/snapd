@@ -77,7 +77,7 @@ type Daemon struct {
 	standbyOpinions *standby.StandbyOpinions
 
 	// set to remember we need to restart the system
-	activeRestartState state.RestartType
+	requestedRestart state.RestartType
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -496,7 +496,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.activeRestartState = t
+		d.requestedRestart = t
 	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
@@ -507,12 +507,12 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.activeRestartState = t
+		d.requestedRestart = t
 	case state.RestartSocket:
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
-		d.activeRestartState = t
+		d.requestedRestart = t
 		d.restartSocket = true
 	case state.StopDaemon:
 		logger.Noticef("stopping snapd as requested")
@@ -575,15 +575,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.mu.Lock()
 	// needsFullReboot is whether the entire system will be rebooted or not as
 	// a consequence of this restart
-	needsFullReboot := (d.activeRestartState == state.RestartSystemNow || d.activeRestartState == state.RestartSystem)
-	immediateReboot := d.activeRestartState == state.RestartSystemNow
+	needsFullReboot := (d.requestedRestart == state.RestartSystemNow || d.requestedRestart == state.RestartSystem)
+	immediateReboot := d.requestedRestart == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	err := d.updateMaintenanceFile(d.activeRestartState)
+	err := d.updateMaintenanceFile(d.requestedRestart)
 	if err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}

@@ -961,7 +961,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 
 	defer func() {
 		d.mu.Lock()
-		d.activeRestartState = state.RestartUnset
+		d.requestedRestart = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -972,7 +972,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	}
 
 	d.mu.Lock()
-	rs := d.activeRestartState
+	rs := d.requestedRestart
 	d.mu.Unlock()
 
 	c.Check(rs, check.Equals, restartKind)
