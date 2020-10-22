@@ -20,10 +20,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -76,7 +76,7 @@ type Daemon struct {
 	router          *mux.Router
 	standbyOpinions *standby.StandbyOpinions
 
-	// set to remember we need to restart the system
+	// set to what kind of restart was requested if any
 	requestedRestart state.RestartType
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
@@ -548,7 +548,7 @@ func (d *Daemon) updateMaintenanceFile(rst state.RestartType) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	err = osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
 	if err != nil {
 		return err
 	}
