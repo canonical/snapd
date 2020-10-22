@@ -188,19 +188,8 @@ func (l *closeOnceListener) Close() error {
 
 func (s *SessionAgent) Init() error {
 	// Set up D-Bus connection
-	var err error
-	s.bus, err = dbusSessionBus()
-	if err == nil {
-		reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
-		if err != nil {
-			return err
-		}
-		if reply != dbus.RequestNameReplyPrimaryOwner {
-			return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
-		}
-	} else {
-		logger.Noticef("Could not connect to session bus: %v", err)
-
+	if err := s.tryConnectSessionBus(); err != nil {
+		return err
 	}
 
 	// Set up REST API server
@@ -224,6 +213,35 @@ func (s *SessionAgent) Init() error {
 		Handler:   s.router,
 		ConnState: s.idle.trackConn,
 	}
+	return nil
+}
+
+func (s *SessionAgent) tryConnectSessionBus() error {
+	bus, err := dbusSessionBus()
+	if err != nil {
+		// ssh sessions on Ubuntu 16.04 may have a user
+		// instance of systemd but no D-Bus session bus.  So
+		// don't treat this as an error.
+		logger.Noticef("Could not connect to session bus: %v", err)
+		return nil
+	}
+
+	defer func() {
+		if bus != nil {
+			bus.Close()
+		}
+	}()
+
+	reply, err := bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
+	if err != nil {
+		return err
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
+	}
+
+	s.bus = bus
+	bus = nil
 	return nil
 }
 
