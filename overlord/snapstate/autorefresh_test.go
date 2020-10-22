@@ -838,12 +838,14 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		// XXX: This test measures real time, with second granularity.
+		// It takes non-zero (hence the subtracted second) to execute the test.
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
 	})
 	defer restore()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition / 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibition / 2) // In the middle of the allowed window
 
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
