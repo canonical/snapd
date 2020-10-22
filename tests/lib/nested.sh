@@ -3,9 +3,6 @@
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
-
 # shellcheck source=tests/lib/store.sh
 . "$TESTSLIB"/store.sh
 
@@ -253,15 +250,15 @@ nested_is_classic_system() {
 }
 
 nested_is_core_20_system() {
-    is_focal_system
+    os.query is-focal
 }
 
 nested_is_core_18_system() {
-    is_bionic_system
+    os.query is-bionic
 }
 
 nested_is_core_16_system() {
-    is_xenial_system
+    os.query is-xenial
 }
 
 nested_refresh_to_new_core() {
