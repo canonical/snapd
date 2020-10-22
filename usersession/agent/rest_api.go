@@ -261,8 +261,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
-	var body string
-	var icon string
+	var body, icon string
 	var hints []notification.Hint
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
