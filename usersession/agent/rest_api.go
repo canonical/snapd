@@ -286,7 +286,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
 	if refreshInfo.BusyAppDesktopEntry != "" {
 		hints = append(hints, notification.WithDesktopEntry(refreshInfo.BusyAppDesktopEntry))
-		// Extract the icon manually
+		// Extract the icon manually, as providing the desktop file hint seems not to work.
 		parser := goconfigparser.New()
 		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
 		if err := parser.ReadFile(desktopFilePath); err == nil {
