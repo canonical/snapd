@@ -278,9 +278,9 @@ type PendingSnapRefreshInfo struct {
 }
 
 // PendingRefreshNotification broadcasts information about a refresh.
-func (client *Client) PendingRefreshNotification(ctx context.Context, info *PendingSnapRefreshInfo) error {
+func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInfo *PendingSnapRefreshInfo) error {
 	headers := map[string]string{"Content-Type": "application/json"}
-	reqBody, err := json.Marshal(info)
+	reqBody, err := json.Marshal(refreshInfo)
 	if err != nil {
 		return err
 	}
