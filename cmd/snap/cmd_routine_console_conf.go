@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -133,7 +132,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 				snapNameList = fmt.Sprintf("%s, and %s", strings.Join(snaps[:len(snaps)-1], ", "), snaps[len(snaps)-1])
 			}
 
-			fmt.Fprintf(os.Stderr, "Snaps (%s) are refreshing, please wait...\n", snapNameList)
+			fmt.Fprintf(Stderr, "Snaps (%s) are refreshing, please wait...\n", snapNameList)
 		})
 
 		// don't DDOS snapd by hitting it's API too often
