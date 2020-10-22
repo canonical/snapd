@@ -81,11 +81,8 @@ func maintenanceForRestartType(rst state.RestartType) *errorResult {
 		e.Kind = client.ErrorKindDaemonRestart
 		e.Message = socketRestartMsg
 	case state.RestartUnset:
-		// don't set anything as unset means it's not really an errorResult here
-		// so leave it empty
-		//, but don't return nil so it still formats as valid
-		// json
-		return nil
+		// shouldn't happen, maintenance for unset type should just be nil
+		panic("internal error: cannot marshal maintenance for RestartUnset")
 	}
 	return e
 }

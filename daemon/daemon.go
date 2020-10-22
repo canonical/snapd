@@ -267,7 +267,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()
-		rsp.Maintenance = maintenanceForRestartType(rst)
+		if rst != state.RestartUnset {
+			rsp.Maintenance = maintenanceForRestartType(rst)
+		}
 
 		if rsp.Type != ResponseTypeError {
 			st.Lock()
