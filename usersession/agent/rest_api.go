@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -286,7 +288,8 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		hints = append(hints, notification.WithDesktopEntry(refreshInfo.BusyAppDesktopEntry))
 		// Extract the icon manually
 		parser := goconfigparser.New()
-		if err := parser.ReadFile(fmt.Sprintf("/var/lib/snapd/desktop/applications/%s.desktop", refreshInfo.BusyAppDesktopEntry)); err == nil {
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
