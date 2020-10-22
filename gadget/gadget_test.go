@@ -894,6 +894,10 @@ role: system-boot
 	validSystemSeed := uuidType + `
 role: system-seed
 `
+	validSystemSave := uuidType + `
+role: system-save
+size: 5M
+`
 	emptyRole := uuidType + `
 role: system-boot
 size: 123M
@@ -930,8 +934,8 @@ size: 447`
 		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// the system-seed role
 		{mustParseStructure(c, validSystemSeed), vol, ""},
-		{mustParseStructure(c, validSystemSeed), vol, ""},
-		{mustParseStructure(c, validSystemSeed), vol, ""},
+		// system-save role
+		{mustParseStructure(c, validSystemSave), vol, ""},
 		// mbr
 		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
 		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
@@ -1314,6 +1318,37 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestValidateStructureReservedLabels(c *C) {
+
+	gv := &gadget.Volume{}
+
+	for _, tc := range []struct {
+		role, label, err string
+	}{
+		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
+		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},
+		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
+		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`},
+		// these are ok
+		{role: "system-boot", label: "ubuntu-boot"},
+		{label: "random-ubuntu-label"},
+	} {
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+			Type:       "21686148-6449-6E6F-744E-656564454649",
+			Role:       tc.role,
+			Filesystem: "ext4",
+			Label:      tc.label,
+			Size:       10 * 1024,
+		}, gv)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+
+}
+
 func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapPreceding(c *C) {
 	overlappingGadgetYaml := `
 volumes:
@@ -1532,6 +1567,26 @@ func (s *gadgetYamlTestSuite) TestEnsureVolumeConsistency(c *C) {
 	vs.SystemSeed = &gadget.VolumeStructure{}
 	err = gadget.EnsureVolumeConsistency(vs, nil)
 	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
+
+	// Check system-save
+	vsWithSave := &gadget.ValidationState{
+		SystemData: &gadget.VolumeStructure{},
+		SystemSeed: &gadget.VolumeStructure{},
+		SystemSave: &gadget.VolumeStructure{},
+	}
+	err = gadget.EnsureVolumeConsistency(vsWithSave, nil)
+	c.Assert(err, IsNil)
+	// use illegal label on system-save
+	vsWithSave.SystemSave.Label = "foo"
+	err = gadget.EnsureVolumeConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save structure must not have a label")
+	// complains when either system-seed or system-data is missing
+	vsWithSave.SystemSeed = nil
+	err = gadget.EnsureVolumeConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+	vsWithSave.SystemData = nil
+	err = gadget.EnsureVolumeConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
@@ -1596,29 +1651,40 @@ volumes:
     structure:`
 
 	for i, tc := range []struct {
-		role       string
-		label      string
-		systemSeed bool
-		err        string
+		addSeed     bool
+		dataLabel   string
+		requireSeed bool
+		addSave     bool
+		saveLabel   string
+		err         string
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "", true, ""},
-		{"system-seed", "", false, `.* model does not support the system-seed role`},
-		{"system-seed", "writable", true, ".* system-data structure must not have a label"},
-		{"system-seed", "writable", false, `.* model does not support the system-seed role`},
-		{"system-seed", "ubuntu-data", true, ".* system-data structure must not have a label"},
-		{"system-seed", "ubuntu-data", false, `.* model does not support the system-seed role`},
-		{"", "writable", true, `.* model requires system-seed structure, but none was found`},
-		{"", "writable", false, ""},
-		{"", "ubuntu-data", true, `.* model requires system-seed structure, but none was found`},
-		{"", "ubuntu-data", false, `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{addSeed: true, requireSeed: true},
+		{addSeed: true, err: `.* model does not support the system-seed role`},
+		{addSeed: true, dataLabel: "writable", requireSeed: true,
+			err: ".* system-data structure must not have a label"},
+		{addSeed: true, dataLabel: "writable",
+			err: `.* model does not support the system-seed role`},
+		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true,
+			err: ".* system-data structure must not have a label"},
+		{addSeed: true, dataLabel: "ubuntu-data",
+			err: `.* model does not support the system-seed role`},
+		{dataLabel: "writable", requireSeed: true,
+			err: `.* model requires system-seed structure, but none was found`},
+		{dataLabel: "writable"},
+		{dataLabel: "ubuntu-data", requireSeed: true,
+			err: `.* model requires system-seed structure, but none was found`},
+		{dataLabel: "ubuntu-data", err: `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{addSave: true, err: `.* system-save requires system-seed and system-data structures`},
+		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
+			err: `.* system-save structure must not have a label`},
 	} {
-		c.Logf("tc: %v %v %v %v", i, tc.role, tc.label, tc.systemSeed)
+		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.requireSeed)
 		b := &bytes.Buffer{}
 
 		fmt.Fprintf(b, bloader)
-		if tc.role == "system-seed" {
+		if tc.addSeed {
 			fmt.Fprintf(b, `
       - name: Recovery
         size: 10M
@@ -1631,14 +1697,26 @@ volumes:
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, tc.label)
+        filesystem-label: %s`, tc.dataLabel)
+		if tc.addSave {
+			fmt.Fprintf(b, `
+      - name: Save
+        size: 10M
+        type: 83
+        role: system-save`)
+			if tc.saveLabel != "" {
+				fmt.Fprintf(b, `
+        filesystem-label: %s`, tc.saveLabel)
+
+			}
+		}
 
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		constraints := &modelConstraints{
 			classic:    false,
-			systemSeed: tc.systemSeed,
+			systemSeed: tc.requireSeed,
 		}
 
 		_, err = gadget.ReadInfo(s.dir, constraints)

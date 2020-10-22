@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/internal"
+	"github.com/snapcore/snapd/logger"
 )
 
 var contentMountpoint string
@@ -40,6 +41,7 @@ func init() {
 // to the filesystem type defined in the gadget.
 func makeFilesystem(ds *gadget.OnDiskStructure) error {
 	if ds.HasFilesystem() {
+		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
 		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label); err != nil {
 			return err
 		}

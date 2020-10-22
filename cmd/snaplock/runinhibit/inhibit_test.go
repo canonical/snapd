@@ -144,3 +144,13 @@ func (s *runInhibitSuite) TestIsLockedUnlocked(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
+
+func (s *runInhibitSuite) TestRemoveLockFile(c *C) {
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh), IsNil)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FilePresent)
+
+	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileAbsent)
+	// Removing an absent lock file is not an error.
+	c.Assert(runinhibit.RemoveLockFile("pkg"), IsNil)
+}

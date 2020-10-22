@@ -44,7 +44,7 @@ const defaultRefreshSchedule = "00:00~24:00/4"
 const maxPostponement = 60 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
-const maxInhibition = 7 * 24 * time.Hour
+const maxInhibition = 14 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (

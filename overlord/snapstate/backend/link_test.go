@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
@@ -240,6 +241,8 @@ apps:
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Equals, dataDir)
+
+	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkUndoIdempotent(c *C) {
@@ -278,6 +281,9 @@ apps:
 	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+
+	// no inhibition lock
+	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)
 }
 
 func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
@@ -578,6 +584,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), checker)
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), checker)
 	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), checker)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C) {
@@ -638,9 +645,12 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}
+	// linked snaps do not have a run inhibition lock
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
 
 	linkCtx := backend.LinkContext{
-		FirstInstall: true,
+		FirstInstall:   true,
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
@@ -649,10 +659,13 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FileAbsent)
 	}
+	// unlinked snaps have a run inhibition lock
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 }
 
 func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) {
@@ -676,9 +689,17 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	}
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", units)
-	err = s.be.UnlinkSnap(info, backend.LinkContext{FirstInstall: false}, nil)
+	linkCtx := backend.LinkContext{
+		FirstInstall:   false,
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+	}
+	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileEquals, "precious")
 	}
+
+	// unlinked snaps have a run inhibition lock. XXX: the specific inhibition hint can change.
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileEquals, "refresh")
 }

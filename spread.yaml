@@ -447,10 +447,14 @@ debug-each: |
                 ) | grep -v snappy_home_t || true
                 find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
                 ;;
+            opensuse-*)
+                echo '# apparmor denials logged by auditd'
+                ausearch -m AVC | grep DENIED || true
+                ;;
             *)
-               echo '# apparmor denials '
-               dmesg --ctime | grep DENIED || true
-               ;;
+                echo '# apparmor denials '
+                dmesg --ctime | grep DENIED || true
+                ;;
         esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
@@ -620,6 +624,8 @@ prepare: |
     # context.
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     unset MATCH
+    type NOMATCH | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
+    unset NOMATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
 
@@ -856,6 +862,8 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_prepare_env
@@ -864,6 +872,8 @@ suites:
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
             nested_cleanup_env
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -905,6 +915,8 @@ suites:
             nested_prepare_env
             nested_create_classic_vm
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_start_classic_vm
@@ -912,6 +924,8 @@ suites:
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -953,6 +967,8 @@ suites:
             nested_prepare_env
             nested_create_core_vm
         prepare-each: |
+            tests.backup prepare
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_start_core_vm
@@ -961,6 +977,8 @@ suites:
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -1003,8 +1021,19 @@ suites:
             . "$TESTSLIB/nested.sh"
             nested_prepare_env
             nested_create_core_vm
+        prepare-each: |
+            tests.backup prepare
+
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
             nested_start_core_vm
             nested_wait_for_snap_command
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_destroy_vm
+
+            tests.backup restore
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
