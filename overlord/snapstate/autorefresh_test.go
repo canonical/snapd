@@ -805,9 +805,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationSent := false
+	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationSent = true
+		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24)
 	})
@@ -827,16 +827,16 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
 	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 14 days to wait for the snap to no longer be in use.`)
-	c.Check(notificationSent, Equals, true)
+	c.Check(notificationCount, Equals, 1)
 }
 
 func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationSent := false
+	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationSent = true
+		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
 	})
@@ -860,16 +860,16 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 0) // This case does not warn
-	c.Check(notificationSent, Equals, true)
+	c.Check(notificationCount, Equals, 1)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationSent := false
+	notificationCount := 0
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationSent = true
+		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
 	})
@@ -893,5 +893,5 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 	pending, _ := s.state.PendingWarnings()
 	c.Assert(pending, HasLen, 1)
 	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 14 days since its refresh was postponed. It will now be refreshed.`)
-	c.Check(notificationSent, Equals, true)
+	c.Check(notificationCount, Equals, 1)
 }
