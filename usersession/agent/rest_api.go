@@ -301,11 +301,6 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		Hints:   hints,
 	}
 
-	// TODO: if snap store is installed and actions are supported, add an action
-	// to open the snap store page for the given snap.
-	//
-	// XXX: how are instances supported in the snap store, are they?
-
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
 	if _, err := notifySrv.SendNotification(msg); err != nil {
