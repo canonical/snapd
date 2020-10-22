@@ -202,6 +202,16 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// by default mock that we don't have UEFI vars, etc. to get the booted
 	// kernel partition partition uuid
 	s.AddCleanup(main.MockPartitionUUIDForBootedKernelDisk(""))
+	s.AddCleanup(main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		return nil
+	}))
+	s.AddCleanup(main.MockSecbootMeasureSnapModelWhenPossible(func(f func() (*asserts.Model, error)) error {
+		c.Check(f, NotNil)
+		return nil
+	}))
+	s.AddCleanup(main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+		return filepath.Join("/dev/disk/by-partuuid", name+"-partuuid"), false, nil
+	}))
 }
 
 // makeSnapFilesOnEarlyBootUbuntuData creates the snap files on ubuntu-data as
@@ -273,6 +283,7 @@ func ubuntuLabelMount(label string, mode string) systemdMount {
 // ubuntuPartUUIDMount returns a systemdMount for the partuuid disk, expecting
 // that the partuuid contains in it the expected label for easier coding
 func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
+	// all partitions are expected to be mounted with fsck on
 	mnt := systemdMount{
 		opts: needsFsckDiskMountOpts,
 	}
@@ -282,10 +293,6 @@ func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
 		mnt.where = boot.InitramfsUbuntuBootDir
 	case strings.Contains(partuuid, "ubuntu-seed"):
 		mnt.where = boot.InitramfsUbuntuSeedDir
-		// don't fsck in run mode
-		if mode == "run" {
-			mnt.opts = nil
-		}
 	case strings.Contains(partuuid, "ubuntu-data"):
 		mnt.where = boot.InitramfsDataDir
 	}
@@ -980,7 +987,7 @@ After=%[1]s
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
-			"--fsck=no",
+			"--fsck=yes",
 		},
 		{
 			"systemd-mount",
@@ -1632,6 +1639,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 		"system-data/etc/netplan/50-cloud-init.yaml",   // example cloud-init filename
 		// systemd clock file
 		"system-data/var/lib/systemd/timesync/clock",
+		"system-data/etc/machine-id", // machine-id for systemd-networkd
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
@@ -1641,6 +1649,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 		"user-data/user2/.snap/sneaky-not-auth.json",
 		"system-data/etc/not-networking/netplan",
 		"system-data/var/lib/systemd/timesync/clock-not-the-clock",
+		"system-data/etc/machine-id-except-not",
 	}
 	for _, mockFile := range append(mockCopiedFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockFile)

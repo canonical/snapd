@@ -315,12 +315,21 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	}
 
 	if !createData.ForceManaged {
+		if len(users) > 0 && createData.Automatic {
+			// no users created but no error with the automatic flag
+			return SyncResponse([]userResponseData{}, nil)
+		}
 		if len(users) > 0 {
 			return BadRequest("cannot create user: device already managed")
 		}
 		if release.OnClassic {
 			return BadRequest("cannot create user: device is a classic system")
 		}
+	}
+	if createData.Automatic {
+		// Automatic implies known/sudoers
+		createData.Known = true
+		createData.Sudoer = true
 	}
 
 	var model *asserts.Model
@@ -521,6 +530,7 @@ type postUserCreateData struct {
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
+	Automatic    bool   `json:"automatic"`
 
 	// singleUserResultCompat indicates whether to preserve
 	// backwards compatibility, which results in more clunky

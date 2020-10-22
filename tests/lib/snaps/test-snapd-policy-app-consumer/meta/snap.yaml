@@ -326,6 +326,9 @@ apps:
   process-control:
     command: bin/run
     plugs: [ process-control ]
+  ptp:
+    command: bin/run
+    plugs: [ ptp ]
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]

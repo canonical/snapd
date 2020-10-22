@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.47
+Version:        2.47.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -915,6 +915,17 @@ fi
 
 
 %changelog
+* Thu Oct 08 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.47.1
+ - o/configstate: create /etc/sysctl.d when applying early config
+   defaults
+ - cmd/snap-bootstrap/initramfs-mounts: also copy /etc/machine-id for
+   same IP addr
+ - packaging/{ubuntu,debian}: add liblzo2-dev as a dependency for
+   building snapd
+ - cmd/snap: allow snap help vs --all to diverge purposefully
+ - snap: snap help output refresh
+
 * Tue Sep 29 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.47
  - tests: fix nested core20 shellcheck bug

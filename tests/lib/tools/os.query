@@ -1,0 +1,84 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: is-core"
+    echo "       is-core16"
+    echo "       is-core18"
+    echo "       is-core20"
+    echo "       is-classic"
+    echo "       is-trusty"
+    echo "       is-xenial"
+    echo "       is-bionic"
+    echo "       is-focal"
+    echo ""
+    echo "Get general information about the current system"
+}
+
+is_core() {
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
+}
+
+is_core16() {
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
+}
+
+is_core18() {
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
+}
+
+is_core20() {
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
+}
+
+is_classic() {
+    ! is_core
+}
+
+is_trusty() {
+    grep -qFx 'ID=ubuntu' /etc/os-release && grep -qFx 'VERSION_ID="14.04"' /etc/os-release
+}
+
+is_xenial() {
+    grep -qFx 'UBUNTU_CODENAME=xenial' /etc/os-release
+}
+
+is_bionic() {
+    grep -qFx 'UBUNTU_CODENAME=bionic' /etc/os-release
+}
+
+is_focal() {
+    grep -qFx 'UBUNTU_CODENAME=focal' /etc/os-release
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "os.query: no such command: $subcommand" >&2
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

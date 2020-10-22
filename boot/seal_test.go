@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -126,6 +127,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			sealKeyCalls++
 			c.Check(key, DeepEquals, myKey)
 			c.Assert(params.ModelParams, HasLen, 1)
+			for _, d := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+				ex, isdir, _ := osutil.DirExists(d)
+				c.Check(ex && isdir, Equals, true, Commentf("location %q does not exist or is not a directory", d))
+			}
 
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
 			grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
@@ -718,6 +723,10 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 }
 
 func (s *sealSuite) TestIsResealNeeded(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	chains := []boot.BootChain{
 		{
 			BrandID:        "mybrand",
