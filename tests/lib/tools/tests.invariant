@@ -90,7 +90,7 @@ check_stray_dbus_daemon() {
 			# Ignore dbus-daemon running the session of the "external" user.
 			# This may happen when testing a core device using the ad-hoc
 			# backend. This user is never used by tests explicitly.
-                        user="$(stat -c %U "/proc/$pid")"
+			user="$(stat -c %U "/proc/$pid")"
 			if [ "$user" = "external" ]; then
 				continue
 			fi
