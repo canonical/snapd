@@ -63,8 +63,6 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	st.Lock()
 	defer st.Unlock()
 
-	// TODO: would be nice to be able to display what snaps are involved in the
-	// specified changes
 	snapAutoRefreshChanges, err := c.d.overlord.SnapManager().EnsureAutoRefreshesAreDelayed(delayTime)
 	if err != nil {
 		return InternalError(err.Error())
