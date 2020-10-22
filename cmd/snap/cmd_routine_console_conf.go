@@ -47,6 +47,11 @@ are ongoing refreshes which console-conf should wait for before prompting the
 user to begin configuring the device.
 `)
 
+// TODO: move these to their own package for unified time constants for how 
+// often or long we do things like waiting for a reboot, etc. ?
+var snapdAPIInterval = 2 * time.Second
+var snapdWaitForFullSystemReboot = 10 * time.Minute
+
 func init() {
 	c := addRoutineCommand("console-conf-start", shortRoutineConsoleConfStartHelp, longRoutineConsoleConfStartHelp, func() flags.Commander {
 		return &cmdRoutineConsoleConfStart{}
@@ -94,12 +99,12 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 				// for the user when it comes back, but it will be busy
 				// doing things when it starts up anyways so it won't be
 				// able to respond immediately
-				time.Sleep(2 * time.Second)
+				time.Sleep(snapdAPIInterval)
 				continue
 			} else if maintErr.Kind == client.ErrorKindSystemRestart {
 				// system is rebooting, just wait for the reboot
 				systemReloadMsgOnce.Do(printfFunc("System is rebooting, please wait for reboot...\n"))
-				time.Sleep(10 * time.Minute)
+				time.Sleep(snapdWaitForFullSystemReboot)
 				// if we didn't reboot after 10 minutes something's probably broken
 				return fmt.Errorf("system didn't reboot after 10 minutes even though snapd daemon is in maintenance")
 			}
@@ -131,8 +136,8 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 			fmt.Fprintf(os.Stderr, "Snaps (%s) are refreshing, please wait...\n", snapNameList)
 		})
 
-		// let's not DDOS snapd, 0.5 Hz should be fast enough
-		time.Sleep(2 * time.Second)
+		// don't DDOS snapd by hitting it's API too often
+		time.Sleep(snapdAPIInterval)
 	}
 
 	return nil
