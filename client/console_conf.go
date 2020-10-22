@@ -35,8 +35,6 @@ func (client *Client) ConsoleConfStart() ([]string, []string, error) {
 	// maintenance we will return very quickly so the caller can handle that
 	opts := &doOptions{
 		Timeout: 2 * time.Second,
-		// XXX: it should be valid to set Retry to something to mean don't do
-		//      retries
 		Retry: 1 * time.Hour,
 	}
 	_, err := client.doSyncWithOpts("POST", "/v2/internal/console-conf-start", nil, nil, nil, resp, opts)
