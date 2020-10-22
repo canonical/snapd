@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -145,7 +144,7 @@ func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefres
 	for _, appName := range err.busyAppNames {
 		if app, ok := err.SnapInfo.Apps[appName]; ok {
 			path := app.DesktopFile()
-			if _, err := os.Stat(path); err == nil {
+			if osutil.FileExists(path) {
 				refreshInfo.BusyAppName = appName
 				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
 				break
