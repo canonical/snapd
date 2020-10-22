@@ -4329,6 +4329,105 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "snapd"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 4)
+	c.Assert(updates, HasLen, 3)
+
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	// refresh of some-snap fails on link-snap
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, ".*cannot perform the following tasks:\n- Make snap \"some-snap\" \\(11\\) available to the system.*")
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+
+	// failed snap remains at the old revision, snapd and some-base are refreshed.
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	var undoneDownloads, doneDownloads int
+	for _, ts := range tts {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "download-snap" {
+				sup, err := snapstate.TaskSnapSetup(t)
+				c.Assert(err, IsNil)
+				switch sup.SnapName() {
+				case "some-snap":
+					undoneDownloads++
+					c.Check(t.Status(), Equals, state.UndoneStatus)
+				case "snapd", "some-base":
+					doneDownloads++
+					c.Check(t.Status(), Equals, state.DoneStatus)
+				default:
+					c.Errorf("unexpected snap %s", sup.SnapName())
+				}
+			}
+		}
+	}
+	c.Assert(undoneDownloads, Equals, 1)
+	c.Assert(doneDownloads, Equals, 2)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
