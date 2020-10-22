@@ -6314,5 +6314,9 @@ func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
 	sort.Strings(gotids)
 	c.Assert(expids, DeepEquals, gotids)
 
+	sort.SliceStable(chgs, func(i, j int) bool {
+		return chgs[i].ID() < chgs[j].ID()
+	})
+
 	c.Assert(chgs, DeepEquals, []*state.Change{chg0, chg1})
 }
