@@ -4343,6 +4343,7 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
+		TrackingChannel: "channel-for-base/stable",
 	})
 
 	snapstate.Set(s.state, "core18", &snapstate.SnapState{
