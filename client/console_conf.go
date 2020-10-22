@@ -35,7 +35,7 @@ func (client *Client) InternalConsoleConfStart() ([]string, []string, error) {
 	// maintenance we will return very quickly so the caller can handle that
 	opts := &doOptions{
 		Timeout: 2 * time.Second,
-		Retry: 1 * time.Hour,
+		Retry:   1 * time.Hour,
 	}
 	_, err := client.doSyncWithOpts("POST", "/v2/internal/console-conf-start", nil, nil, nil, resp, opts)
 	return resp.ActiveAutoRefreshChanges, resp.ActiveAutoRefreshSnaps, err
