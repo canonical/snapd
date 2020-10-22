@@ -147,7 +147,6 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 }
 
 func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
-
 	// write a maintenance.json that says snapd is down for a restart
 	maintErr := &client.Error{
 		Kind:    client.ErrorKindSystemRestart,
