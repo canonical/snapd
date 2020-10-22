@@ -67,9 +67,8 @@ var (
 )
 
 func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
-
 	for {
-		chgs, snaps, err := x.client.ConsoleConfStart()
+		chgs, snaps, err := x.client.InternalConsoleConfStart()
 		if err != nil {
 			// snapd may be under maintenance right now, either for base/kernel
 			// snap refreshes which result in a reboot, or for snapd itself
