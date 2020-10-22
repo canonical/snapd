@@ -72,6 +72,8 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
+	unixKeyctlInt = unix.KeyctlInt
+
 	isTPMEnabled = isTPMEnabledImpl
 	provisionTPM = provisionTPMImpl
 )
@@ -321,7 +323,7 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 
 // AuthKeyFromKernelKeyring obtains the TPM policy update authorization key
 // for the specified disk and device name from the kernel keyring and unlinks
-// the user keyring.
+// the user keyring from the session keyring.
 func AuthKeyFromKernelKeyring(disk disks.Disk, deviceName string) ([]byte, error) {
 	partUUID, err := disk.FindMatchingPartitionUUID(deviceName + "-enc")
 	if err != nil {
@@ -410,7 +412,7 @@ func ResealKey(params *ResealKeyParams) error {
 }
 
 func unlinkUserKeyring() error {
-	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, userKeyring, sessionKeyring, 0, 0)
+	_, err := unixKeyctlInt(unix.KEYCTL_UNLINK, userKeyring, sessionKeyring, 0, 0)
 	return err
 }
 

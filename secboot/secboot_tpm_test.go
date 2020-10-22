@@ -31,6 +31,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
+	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -394,9 +395,10 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		defer restore()
 
 		n := 0
-		restore = secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
+		restore = secboot.MockSbBlockPCRProtectionPolicies(func(tpm *sb.TPMConnection, pcrs []int) error {
 			n++
 			c.Assert(tpm, Equals, mockSbTPM)
+			c.Assert(pcrs, DeepEquals, []int{12})
 			if tc.lockOk {
 				return nil
 			}
@@ -419,7 +421,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 				PassphraseTries:  1,
 				RecoveryKeyTries: 3,
-				LockSealedKeys:   tc.lockRequest,
+				KeyringPrefix:    "snapd",
 			})
 			if !tc.activated {
 				return false, errors.New("activation error")
@@ -504,6 +506,65 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(o, DeepEquals, tc.efiImage)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
+func (s *secbootSuite) TestAuthKeyFromKernelKeyring(c *C) {
+	for _, tc := range []struct {
+		keyringErr error
+		unlinkErr  error
+		err        string
+	}{
+		// happy case
+		{},
+		// kernel keyring access error
+		{
+			keyringErr: errors.New("keyring error"),
+			err:        "cannot get activation data: keyring error",
+		},
+		// keyring unlink error
+		{
+			unlinkErr: errors.New("keyring unlink error"),
+			err:       "cannot unlink user keyring: keyring unlink error",
+		},
+	} {
+		mockAuthKey := []byte{1, 3, 3, 7}
+		sbGetActivationDataFromKernelCalls := 0
+		restore := secboot.MockSbGetActivationDataFromKernel(func(prefix, sourceDevicePath string, remove bool) (sb.ActivationData, error) {
+			sbGetActivationDataFromKernelCalls++
+			c.Assert(prefix, Equals, "snapd")
+			c.Assert(sourceDevicePath, Equals, "/dev/disk/by-partuuid/partition-uuid")
+			c.Assert(remove, Equals, false) // don't remove the key from the user keyring
+			return sb.TPMPolicyAuthKey(mockAuthKey), tc.keyringErr
+		})
+		defer restore()
+
+		unixKeyctlIntCalls := 0
+		restore = secboot.MockUnixKeyctlInt(func(cmd, arg2, arg3, arg4, arg5 int) (int, error) {
+			unixKeyctlIntCalls++
+			c.Assert(cmd, Equals, unix.KEYCTL_UNLINK)
+			c.Assert(arg2, Equals, -4)
+			c.Assert(arg3, Equals, -3)
+			c.Assert(arg4, Equals, 0)
+			c.Assert(arg5, Equals, 0)
+			return 0, tc.unlinkErr
+		})
+		defer restore()
+
+		disk := &disks.MockDiskMapping{
+			FilesystemLabelToPartUUID: map[string]string{
+				"device-name-enc": "partition-uuid",
+			},
+		}
+		authKey, err := secboot.AuthKeyFromKernelKeyring(disk, "device-name")
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Assert(authKey, DeepEquals, mockAuthKey)
+			c.Assert(sbGetActivationDataFromKernelCalls, Equals, 1)
+			c.Assert(unixKeyctlIntCalls, Equals, 1)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
@@ -824,6 +885,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			err := ioutil.WriteFile(mockEFI.Path, nil, 0644)
 			c.Assert(err, IsNil)
 		}
+		mockAuthKey := sb.TPMPolicyAuthKey{1, 3, 3, 7}
 
 		myParams := &secboot.ResealKeyParams{
 			ModelParams: []*secboot.SealKeyModelParams{
@@ -834,6 +896,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 				},
 			},
 			KeyFile: "keyfile",
+			AuthKey: mockAuthKey,
 		}
 
 		sequences := []*sb.EFIImageLoadEvent{
@@ -897,24 +960,6 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(params.PCRIndex, Equals, 12)
 			c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
 			return tc.addSnapModelErr
-		})
-		defer restore()
-
-		// mock unsealing authKey
-		mockSealedKeyObject := &sb.SealedKeyObject{}
-		restore = secboot.MockReadSealedKeyObject(func(path string) (*sb.SealedKeyObject, error) {
-			c.Assert(path, Equals, myParams.KeyFile)
-			// XXX
-			return mockSealedKeyObject, nil
-		})
-		defer restore()
-
-		mockAuthKey := sb.TPMPolicyAuthKey{1, 3, 3, 7}
-		restore = secboot.MockUnsealAuthKey(func(t *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
-			c.Assert(t, Equals, tpm)
-			c.Assert(k, Equals, mockSealedKeyObject)
-			// XXX
-			return mockAuthKey, nil
 		})
 		defer restore()
 

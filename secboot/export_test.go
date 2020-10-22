@@ -86,22 +86,6 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath string
 	}
 }
 
-func MockReadSealedKeyObject(f func(path string) (*sb.SealedKeyObject, error)) (restore func()) {
-	old := sbReadSealedKeyObject
-	sbReadSealedKeyObject = f
-	return func() {
-		sbReadSealedKeyObject = old
-	}
-}
-
-func MockUnsealAuthKey(f func(tpm *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error)) (restore func()) {
-	old := unsealAuthKey
-	unsealAuthKey = f
-	return func() {
-		unsealAuthKey = old
-	}
-}
-
 func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicy
 	sbUpdateKeyPCRProtectionPolicy = f
@@ -110,11 +94,11 @@ func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath st
 	}
 }
 
-func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
-	old := sbLockAccessToSealedKeys
-	sbLockAccessToSealedKeys = f
+func MockSbBlockPCRProtectionPolicies(f func(tpm *sb.TPMConnection, pcrs []int) error) (restore func()) {
+	old := sbBlockPCRProtectionPolicies
+	sbBlockPCRProtectionPolicies = f
 	return func() {
-		sbLockAccessToSealedKeys = old
+		sbBlockPCRProtectionPolicies = old
 	}
 }
 
@@ -176,10 +160,26 @@ func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, 
 	}
 }
 
+func MockSbGetActivationDataFromKernel(f func(prefix, sourceDevicePath string, remove bool) (sb.ActivationData, error)) (restore func()) {
+	old := sbGetActivationDataFromKernel
+	sbGetActivationDataFromKernel = f
+	return func() {
+		sbGetActivationDataFromKernel = old
+	}
+}
+
 func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
 	old := isTPMEnabled
 	isTPMEnabled = f
 	return func() {
 		isTPMEnabled = old
+	}
+}
+
+func MockUnixKeyctlInt(f func(cmd, arg2, arg3, arg4, arg5 int) (int, error)) (restore func()) {
+	old := unixKeyctlInt
+	unixKeyctlInt = f
+	return func() {
+		unixKeyctlInt = old
 	}
 }
