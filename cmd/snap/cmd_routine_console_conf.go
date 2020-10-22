@@ -60,13 +60,10 @@ func printfFunc(msg string, format ...interface{}) func() {
 	}
 }
 
-var (
-	snapdReloadMsgOnce  = sync.Once{}
-	systemReloadMsgOnce = sync.Once{}
-	snapRefreshMsgOnce  = sync.Once{}
-)
-
 func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
+	snapdReloadMsgOnce := sync.Once{}
+	systemReloadMsgOnce := sync.Once{}
+	snapRefreshMsgOnce := sync.Once{}
 	for {
 		chgs, snaps, err := x.client.InternalConsoleConfStart()
 		if err != nil {
