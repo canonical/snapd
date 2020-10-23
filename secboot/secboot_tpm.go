@@ -516,7 +516,7 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 }
 
 func provisionTPMImpl(tpm *sb.TPMConnection, mode sb.ProvisionMode, lockoutAuth []byte) error {
-	return tpm.EnsureProvisioned(sb.ProvisionModeFull, lockoutAuth)
+	return tpm.EnsureProvisioned(mode, lockoutAuth)
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
