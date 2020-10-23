@@ -44,7 +44,6 @@ import (
 
 const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
-	pinHandle           = 0x01880000
 	policyCounterHandle = 0x01880001
 
 	keyringPrefix = "snapd"
