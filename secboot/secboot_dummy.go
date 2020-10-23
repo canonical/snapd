@@ -24,7 +24,7 @@ import (
 	"fmt"
 )
 
-func AuthKeyFromKernelKeyring() ([]byte, error) {
+func AuthKeyFromKernelKeyring(sourceDevice string) ([]byte, error) {
 	return nil, nil
 }
 
