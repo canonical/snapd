@@ -263,21 +263,20 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var urgencyLevel notification.Urgency
 	var body, icon string
 	var hints []notification.Hint
+
+	plzClose := i18n.G("Close the app to avoid disruptions")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
-		body = fmt.Sprintf(i18n.NG(
-			"Close the app to avoid disruptions (%d day left)",
-			"Close the app to avoid disruptions (%d days left)", daysLeft), daysLeft)
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d day left", "%d days left", daysLeft), daysLeft))
 	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
 		urgencyLevel = notification.NormalUrgency
-		body = fmt.Sprintf(i18n.NG(
-			"Close the app to avoid disruptions (%d hour left)",
-			"Close the app to avoid disruptions (%d hours left)", hoursLeft), hoursLeft)
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d hour left", "%d hours left", hoursLeft), hoursLeft))
 	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
 		urgencyLevel = notification.CriticalUrgency
-		body = fmt.Sprintf(i18n.NG(
-			"Close the app to avoid disruptions (%d minute left)",
-			"Close the app to avoid disruptions (%d minutes left)", minutesLeft), minutesLeft)
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
 	} else {
 		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
