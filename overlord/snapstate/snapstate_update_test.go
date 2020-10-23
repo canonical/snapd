@@ -4341,8 +4341,8 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
 		},
-		Current:  snap.R(1),
-		SnapType: "app",
+		Current:         snap.R(1),
+		SnapType:        "app",
 		TrackingChannel: "channel-for-base/stable",
 	})
 
