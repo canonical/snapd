@@ -323,7 +323,7 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // AuthKeyFromKernelKeyring obtains the TPM policy update authorization key
 // for the specified disk and device name from the kernel keyring and unlinks
 // the user keyring from the session keyring.
-func AuthKeyFromKernelKeyring(sourceDevice string) ([]byte, error) {
+func AuthKeyFromKernelKeyring(sourceDevice string) (authKey []byte, err error) {
 	keep := false
 	k, err := sbGetActivationDataFromKernel(keyringPrefix, sourceDevice, keep)
 	if err != nil {
@@ -333,8 +333,13 @@ func AuthKeyFromKernelKeyring(sourceDevice string) ([]byte, error) {
 		return nil, fmt.Errorf("cannot unlink user keyring: %v", err)
 	}
 
-	authKey, ok := k.(sb.TPMPolicyAuthKey)
-	if !ok {
+	switch v := k.(type) {
+	case sb.TPMPolicyAuthKey:
+		authKey = v
+	case *sb.RecoveryActivationData:
+		// TODO:UC20: decide what to do when we unlocked using the recovery key
+		logger.Noticef("volume was unlocked using the recovery key (reason: %v)", v.Reason)
+	default:
 		return nil, fmt.Errorf("internal error: wrong TPM policy auth key format")
 	}
 
