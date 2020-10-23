@@ -21,16 +21,18 @@ package client
 
 import "time"
 
-// ConsoleConfStartResponse is the response for starting the console-conf
-// routine.
-type ConsoleConfStartResponse struct {
+// InternalConsoleConfStartResponse is the response from console-conf start
+// support
+type InternalConsoleConfStartResponse struct {
 	ActiveAutoRefreshChanges []string `json:"active-auto-refreshes,omitempty"`
 	ActiveAutoRefreshSnaps   []string `json:"active-auto-refresh-snaps,omitempty"`
 }
 
-// InternalConsoleConfStart starts the console-conf start routine.
+// InternalConsoleConfStart invokes the dedicated console-conf start support
+// to handle intervening auto-refreshes.
+// Not for general use.
 func (client *Client) InternalConsoleConfStart() ([]string, []string, error) {
-	resp := &ConsoleConfStartResponse{}
+	resp := &InternalConsoleConfStartResponse{}
 	// do the post with a short timeout so that if snapd is not available due to
 	// maintenance we will return very quickly so the caller can handle that
 	opts := &doOptions{
