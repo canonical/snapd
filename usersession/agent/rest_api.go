@@ -242,6 +242,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
 
+	// TODO: use c.a.bus once https://github.com/snapcore/snapd/pull/9497 is merged.
 	conn, err := dbusutil.SessionBus()
 	// Note that since the connection is shared, we are not closing it.
 	if err != nil {
