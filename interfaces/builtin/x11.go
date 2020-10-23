@@ -20,10 +20,12 @@
 package builtin
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
@@ -150,23 +152,57 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 bind
 `
 
-var x11ConnectedPlugMount = []osutil.MountEntry{{
-	Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
-	Dir:     "/tmp/.X11-unix/",
-	Options: []string{"bind"},
-}}
-
 type x11Interface struct {
 	commonInterface
 }
 
+func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	switch slotSnapName := slot.Snap().InstanceName(); slotSnapName {
+	case "ubuntu-core", "core", "snapd":
+		// X11 slot is provided by the host system. Bring the host's
+		// /tmp/.X11-unix/ directory over to the snap mount namespace.
+		return spec.AddMountEntry(osutil.MountEntry{
+			Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
+			Dir:     "/tmp/.X11-unix/",
+			Options: []string{"bind", "ro"},
+		})
+	case plug.Snap().InstanceName():
+		// X11 slot is provided by the same snap that is consuming it. Nothing
+		// to do.
+		return nil
+	default:
+		// X11 slot is provided by another snap on the system. Bring that snap's
+		// /tmp/.X11-unix/ directory over to the snap mount namespace. Here we
+		// rely on the predictable naming of the private /tmp directory of the
+		// slot-side snap which is currently provided by snap-confine.
+		return spec.AddMountEntry(osutil.MountEntry{
+			Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/", slotSnapName),
+			Dir:     "/tmp/.X11-unix/",
+			Options: []string{"bind", "ro"},
+		})
+	}
+}
+
 func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddUpdateNS(`
-	/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
-	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
-	mount options=(rw, rslave) -> /tmp/.X11-unix/,
-	umount /tmp/.X11-unix/,
-`)
+	switch slotSnapName := slot.Snap().InstanceName(); slotSnapName {
+	case "ubuntu-core", "core", "snapd":
+		spec.AddUpdateNS(`
+		/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
+		mount options=(ro, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+		mount options=(ro, rslave) -> /tmp/.X11-unix/,
+		umount /tmp/.X11-unix/,
+	`)
+	case plug.Snap().InstanceName():
+		// Nothing to do.
+	default:
+		spec.AddUpdateNS(fmt.Sprintf(`
+		/tmp/.X11-unix/ rw,
+		/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ rw,
+		mount options=(ro, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+		mount options=(ro, rslave) -> /tmp/.X11-unix/,
+		umount /tmp/.X11-unix/,
+	`, slotSnapName, slotSnapName))
+	}
 	return iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot)
 }
 
@@ -214,6 +250,5 @@ func init() {
 		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
-		connectedPlugMount:    x11ConnectedPlugMount,
 	}})
 }
