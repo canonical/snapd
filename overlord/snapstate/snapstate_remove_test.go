@@ -1442,6 +1442,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
 	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
 
@@ -1524,6 +1525,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	// revision 1 is still present but not active, since the error happened
 	// after its data was removed.
 	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
 
