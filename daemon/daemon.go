@@ -445,16 +445,6 @@ func (d *Daemon) Start() error {
 		return err
 	}
 
-	// before serving actual connections empty the maintenance.json file as we
-	// are no longer down for maintenance, this state most closely corresponds
-	// to state.RestartUnset
-	// TODO: should this state (not down for maintenance) have it's own
-	// RestartType?
-	err = d.updateMaintenanceFile(state.RestartUnset)
-	if err != nil {
-		return err
-	}
-
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
 	d.serve = &http.Server{
 		Handler:   logit(d.router),
@@ -463,6 +453,14 @@ func (d *Daemon) Start() error {
 
 	// enable standby handling
 	d.initStandbyHandling()
+
+	// before serving actual connections remove the maintenance.json file as we
+	// are no longer down for maintenance, this state most closely corresponds
+	// to state.RestartUnset
+	err = d.updateMaintenanceFile(state.RestartUnset)
+	if err != nil {
+		return err
+	}
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
