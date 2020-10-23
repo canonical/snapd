@@ -227,6 +227,10 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 				// volumes to unlock we should lock access to the sealed keys only after
 				// the last encrypted volume is unlocked, in which case lockKeysOnFinish
 				// should be set to true.
+				//
+				// We should only touch the PCR that we've currently reserved for the kernel
+				// EFI image. Touching others will break the ability to perform any kind of
+				// attestation using the TPM because it will make the log inconsistent.
 				lockErr = sbBlockPCRProtectionPolicies(tpm, []int{tpmPCR})
 			}
 		}()
@@ -371,6 +375,8 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		PCRProfile:             pcrProfile,
 		PCRPolicyCounterHandle: policyCounterHandle,
 	}
+	// TODO:UC20: also capture the auth key so we can store it in a file to be
+	//            able to reseal after unlocking with the recovery key.
 	_, err = sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
 
 	return err
