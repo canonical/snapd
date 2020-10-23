@@ -1947,10 +1947,9 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: is it safe (can panic)?
 	isInstalled := snapst.IsInstalled()
 	if !isInstalled {
-		return fmt.Errorf("internal error: snap %q not installed", snapsup.InstanceName())
+		return fmt.Errorf("internal error: snap %q not installed anymore", snapsup.InstanceName())
 	}
 
 	info, err := snapst.CurrentInfo()
@@ -1972,6 +1971,8 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	for _, dir := range []string{place.DataDir(), place.CommonDataDir()} {
 		if exists, _, _ := osutil.DirExists(dir); !exists {
 			t.Logf("cannot link snap %q back, some of its data has already been removed", snapsup.InstanceName())
+			// TODO: mark the snap broken at the SnapState level when we have
+			// such concept.
 			return nil
 		}
 	}
