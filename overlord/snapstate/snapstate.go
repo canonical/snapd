@@ -457,6 +457,8 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
+var generateSnapdWrappers = backend.GenerateSnapdWrappers
+
 // WaitRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts)
@@ -469,6 +471,19 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 
 	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
 		return fmt.Errorf("there was a snapd rollback across the restart")
+	}
+
+	// if we have restarted and snapd was refreshed, then we need to generate
+	// snapd wrappers again with current snapd, as the logic of generating
+	// wrappers may have changed between previous and new snapd code.
+	if snapsup.Type == snap.TypeSnapd && !release.OnClassic {
+		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
+		if err != nil {
+			return fmt.Errorf("cannot get current snapd snap info: %v", err)
+		}
+		if err := generateSnapdWrappers(snapdInfo); err != nil {
+			return err
+		}
 	}
 
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)

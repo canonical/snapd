@@ -3252,6 +3252,68 @@ func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 
+func (s *snapmgrTestSuite) TestWaitRestartGeneratesSnapdWrappersOnCore(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	var generateWrappersCalled bool
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info) error {
+		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		generateWrappersCalled = true
+		return nil
+	})
+	defer restore()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	for i, tc := range []struct {
+		onClassic            bool
+		expectedWrappersCall bool
+		snapName             string
+		snapYaml             string
+	}{
+		{
+			onClassic: false,
+			snapName:  "snapd",
+			snapYaml: `name: snapd
+type: snapd
+`,
+			expectedWrappersCall: true,
+		},
+		{
+			onClassic: true,
+			snapName:  "snapd",
+			snapYaml: `name: snapd
+type: snapd
+`,
+			expectedWrappersCall: false,
+		},
+		{
+			onClassic:            false,
+			snapName:             "some-snap",
+			snapYaml:             `name: some-snap`,
+			expectedWrappersCall: false,
+		},
+	} {
+		generateWrappersCalled = false
+		release.MockOnClassic(tc.onClassic)
+
+		task := st.NewTask("auto-connect", "...")
+		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
+		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
+		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
+
+		// restarting
+		state.MockRestarting(st, state.RestartUnset)
+		c.Assert(snapstate.WaitRestart(task, snapsup), IsNil)
+		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
+
+		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName()), "current")), IsNil)
+	}
+}
+
 type snapmgrQuerySuite struct {
 	st      *state.State
 	restore func()
