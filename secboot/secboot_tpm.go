@@ -47,10 +47,6 @@ const (
 	pinHandle           = 0x01880000
 	policyCounterHandle = 0x01880001
 
-	// keyctl(2) key identifiers
-	sessionKeyring = -3
-	userKeyring    = -4
-
 	keyringPrefix = "snapd"
 )
 
@@ -330,7 +326,7 @@ func AuthKeyFromKernelKeyring(sourceDevice string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot get activation data: %v", err)
 	}
-	if err := unlinkUserKeyring(); err != nil {
+	if err := unlinkUserKeyringFromSessionKeyring(); err != nil {
 		return nil, fmt.Errorf("cannot unlink user keyring: %v", err)
 	}
 
@@ -408,8 +404,8 @@ func ResealKey(params *ResealKeyParams) error {
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.AuthKey, pcrProfile)
 }
 
-func unlinkUserKeyring() error {
-	_, err := unixKeyctlInt(unix.KEYCTL_UNLINK, userKeyring, sessionKeyring, 0, 0)
+func unlinkUserKeyringFromSessionKeyring() error {
+	_, err := unixKeyctlInt(unix.KEYCTL_UNLINK, unix.KEY_SPEC_USER_KEYRING, unix.KEY_SPEC_SESSION_KEYRING, 0, 0)
 	return err
 }
 
