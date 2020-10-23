@@ -79,6 +79,8 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// the slot-side snap, as there is no mechanism to convey this information.
 	// As such, provide write access to all of /tmp.
 	as.AddUnrestrictedPaths("/var/lib/snapd/hostfs/tmp")
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*", 0700)
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp", 1777)
 	return as
 }
 

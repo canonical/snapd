@@ -53,6 +53,12 @@ func (s *systemSuite) TestAssumptions(c *C) {
 	upCtx := update.NewSystemProfileUpdateContext("foo", false)
 	as := upCtx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo", "/var/lib/snapd/hostfs/tmp"})
+	c.Check(as.ModeForPath("/stuff"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/tmp"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server"), Equals, os.FileMode(0700))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp"), Equals, os.FileMode(1777))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/foo"), Equals, os.FileMode(0755))
 
 	// Instances can, in addition, access /snap/$SNAP_INSTANCE_NAME
 	upCtx = update.NewSystemProfileUpdateContext("foo_instance", false)
