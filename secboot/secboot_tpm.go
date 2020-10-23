@@ -324,15 +324,9 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // AuthKeyFromKernelKeyring obtains the TPM policy update authorization key
 // for the specified disk and device name from the kernel keyring and unlinks
 // the user keyring from the session keyring.
-func AuthKeyFromKernelKeyring(disk disks.Disk, deviceName string) ([]byte, error) {
-	partUUID, err := disk.FindMatchingPartitionUUID(deviceName + "-enc")
-	if err != nil {
-		return nil, err
-	}
-	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-
+func AuthKeyFromKernelKeyring(sourceDevice string) ([]byte, error) {
 	keep := false
-	k, err := sbGetActivationDataFromKernel(keyringPrefix, encdev, keep)
+	k, err := sbGetActivationDataFromKernel(keyringPrefix, sourceDevice, keep)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get activation data: %v", err)
 	}
@@ -392,6 +386,9 @@ func ResealKey(params *ResealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+	if params.AuthKey == nil {
+		return fmt.Errorf("cannot update the PCR protection policy: missing auth key")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()

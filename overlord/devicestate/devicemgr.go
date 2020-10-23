@@ -145,12 +145,17 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	if m.SystemMode() == "install" {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
 		return nil
 	}
 
-	m.state.Lock()
-	defer m.state.Unlock()
+	mode := m.SystemMode()
+	if mode != "run" && mode != "recover" {
+		return nil
+	}
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -166,8 +171,15 @@ func (m *DeviceManager) StartUp() error {
 	if err != nil {
 		return err
 	}
+	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-data-enc")
+	if err != nil {
+		// no encrypted partitions, don't retrieve the auth key
+		logger.Noticef("no encrypted partitions found")
+		return nil
+	}
+	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 
-	k, err := secboot.AuthKeyFromKernelKeyring(disk, "ubuntu-data")
+	k, err := secboot.AuthKeyFromKernelKeyring(encdev)
 	if err != nil {
 		return fmt.Errorf("cannot read activation data: %v", err)
 	}

@@ -554,12 +554,7 @@ func (s *secbootSuite) TestAuthKeyFromKernelKeyring(c *C) {
 		})
 		defer restore()
 
-		disk := &disks.MockDiskMapping{
-			FilesystemLabelToPartUUID: map[string]string{
-				"device-name-enc": "partition-uuid",
-			},
-		}
-		authKey, err := secboot.AuthKeyFromKernelKeyring(disk, "device-name")
+		authKey, err := secboot.AuthKeyFromKernelKeyring("/dev/disk/by-partuuid/partition-uuid")
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(authKey, DeepEquals, mockAuthKey)
