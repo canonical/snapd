@@ -46,7 +46,7 @@ are ongoing refreshes which console-conf should wait for before prompting the
 user to begin configuring the device.
 `)
 
-// TODO: move these to their own package for unified time constants for how 
+// TODO: move these to their own package for unified time constants for how
 // often or long we do things like waiting for a reboot, etc. ?
 var snapdAPIInterval = 2 * time.Second
 var snapdWaitForFullSystemReboot = 10 * time.Minute
@@ -68,6 +68,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 	snapdReloadMsgOnce := sync.Once{}
 	systemReloadMsgOnce := sync.Once{}
 	snapRefreshMsgOnce := sync.Once{}
+
 	for {
 		chgs, snaps, err := x.client.InternalConsoleConfStart()
 		if err != nil {
