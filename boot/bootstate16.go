@@ -111,6 +111,16 @@ func newBootStateUpdate16(u bootStateUpdate, names ...string) (*bootStateUpdate1
 	if err != nil {
 		return nil, err
 	}
+	if val, ok := m["snap_bootloader_ping"]; ok {
+		switch val {
+		case "supported":
+			// The bootloader advertizes support for the ping/pong protocol.
+			m["snap_bootloader_ping"] = "ping"
+		case "pong":
+			// The bootloader replied at least once before. Nothing more to do.
+		}
+	}
+
 	return &bootStateUpdate16{bl: bl, env: m, toCommit: make(map[string]string)}, nil
 }
 
@@ -139,6 +149,14 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 
 	tryBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
 	bootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
+
+	if env["snap_bootloader_ping"] == "ping" {
+		// The bootloader advertised support for the ping/pong protocol but failed to
+		// provide the response. This most likely indicates that the bootloader was unable
+		// to write to the device. This was observed in some u-boot implementations, that
+		// were unable to write to some SD cards.
+		toCommit["snap_bootloader_ping"] = "broken"
+	}
 
 	// snap_mode goes from "" -> "try" -> "trying" -> ""
 	// so if we are not in "trying" mode, nothing to do here
