@@ -21,6 +21,9 @@ package secboot
 
 import (
 	"crypto/rand"
+	"encoding/binary"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -32,6 +35,8 @@ const (
 	// key.
 	encryptionKeySize = 64
 
+	// XXX: needs to be in sync with
+	//      github.com/snapcore/secboot/crypto.go:"type RecoveryKey"
 	// Size of the recovery key.
 	recoveryKeySize = 16
 )
@@ -73,4 +78,34 @@ func (key RecoveryKey) Save(filename string) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+}
+
+// XXX: copied from github.com/snapcore/secboot/crypto.go:RecoveryKey.String()
+func (k RecoveryKey) String() string {
+	var u16 [8]uint16
+	for i := 0; i < 8; i++ {
+		u16[i] = binary.LittleEndian.Uint16(k[i*2:])
+	}
+	return fmt.Sprintf("%05d-%05d-%05d-%05d-%05d-%05d-%05d-%05d", u16[0], u16[1], u16[2], u16[3], u16[4], u16[5], u16[6], u16[7])
+}
+
+func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
+	f, err := os.Open(recoveryKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open recovery key: %v", err)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("cannot stat recovery key: %v", err)
+	}
+	if st.Size() != int64(len(RecoveryKey{})) {
+		return nil, fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file", st.Size())
+	}
+
+	var rkey RecoveryKey
+	if _, err := io.ReadFull(f, rkey[:]); err != nil {
+		return nil, fmt.Errorf("cannot read recovery key: %v", err)
+	}
+	return &rkey, nil
 }

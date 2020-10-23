@@ -592,3 +592,12 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	_, err = cli.Do("POST", "/", nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 }
+
+func (cs *clientSuite) TestClientSystemRecoveryKey(c *C) {
+	cs.rsp = `{"type":"sync", "result":{"system-recovery-key":"42"}}`
+
+	var key client.SystemRecoveryKeyResponse
+	err := cs.cli.SystemRecoveryKey(&key)
+	c.Assert(err, IsNil)
+	c.Check(key.SystemRecoveryKey, Equals, "42")
+}
