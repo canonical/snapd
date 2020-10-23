@@ -85,6 +85,7 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// permission only matters if the plug-side app constructs its mount
 	// namespace before the slot-side app is launched.
 	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 1777)
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.ICE-unix", 1777)
 	return as
 }
 
