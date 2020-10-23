@@ -193,8 +193,9 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	if implicitSystemConnectedSlot(slot) {
 		spec.AddUpdateNS(`
 		/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
-		mount options=(ro, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
-		mount options=(ro, rslave) -> /tmp/.X11-unix/,
+		mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+		mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+		mount options=(rslave) -> /tmp/.X11-unix/,
 		umount /tmp/.X11-unix/,
 		`)
 		return nil
@@ -206,8 +207,9 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	spec.AddUpdateNS(fmt.Sprintf(`
 	/tmp/.X11-unix/ rw,
 	/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ rw,
-	mount options=(ro, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
-	mount options=(ro, rslave) -> /tmp/.X11-unix/,
+	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+	mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+	mount options=(rslave) -> /tmp/.X11-unix/,
 	umount /tmp/.X11-unix/,
 	`, slotSnapName, slotSnapName))
 	return nil
