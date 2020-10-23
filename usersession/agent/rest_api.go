@@ -243,6 +243,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	conn, err := dbusutil.SessionBus()
+	// Note that since the connection is shared, we are not closing it.
 	if err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -252,7 +253,6 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			},
 		})
 	}
-	defer conn.Close()
 
 	// TODO: support desktop-specific notification APIs if they provide a better
 	// experience. For example, the GNOME notification API.
