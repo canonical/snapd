@@ -283,15 +283,17 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
 	if refreshInfo.BusyAppDesktopEntry != "" {
-		hints = append(hints, notification.WithDesktopEntry(refreshInfo.BusyAppDesktopEntry))
-		// Extract the icon manually, as providing the desktop file hint seems not to work.
 		parser := goconfigparser.New()
 		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
 		if err := parser.ReadFile(desktopFilePath); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
+
 	msg := &notification.Message{
 		AppName: refreshInfo.BusyAppName,
 		Summary: summary,

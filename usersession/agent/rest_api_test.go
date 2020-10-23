@@ -531,7 +531,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationHappeningNow(c *C) {
 		c.Check(msg.Body[4], Equals, "")
 		c.Check(msg.Body[5], HasLen, 0)
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency": dbus.MakeVariant(byte(notification.CriticalUrgency)),
+			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 		})
 		c.Check(msg.Body[7], Equals, int32(0))
 	})
@@ -546,7 +547,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewDays(c *C) {
 		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
 		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (3 days left)")
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency": dbus.MakeVariant(byte(notification.LowUrgency)),
+			"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 		})
 		c.Check(msg.Body[7], Equals, int32(0))
 	})
@@ -562,7 +564,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewHours(c *C) {
 		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
 		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (7 hours left)")
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency": dbus.MakeVariant(byte(notification.NormalUrgency)),
+			"urgency":       dbus.MakeVariant(byte(notification.NormalUrgency)),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 		})
 	})
 }
@@ -577,7 +580,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewMinutes(c *C) {
 		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
 		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (15 minutes left)")
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency": dbus.MakeVariant(byte(notification.CriticalUrgency)),
+			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 		})
 	})
 }
@@ -601,8 +605,8 @@ Icon=app.png
 		// boring stuff is checked above
 		c.Check(msg.Body[2], Equals, "app.png")
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"desktop-entry": dbus.MakeVariant("pkg_app"),
 			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 		})
 	})
 }
@@ -623,7 +627,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 		// boring stuff is checked above
 		c.Check(msg.Body[2], Equals, "") // Icon is not provided
 		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"desktop-entry": dbus.MakeVariant("pkg_app"),
+			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
 		})
 	})
