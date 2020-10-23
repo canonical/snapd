@@ -33,10 +33,13 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (snapshotSuite) TestManager(c *check.C) {
@@ -743,4 +746,46 @@ func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
 		2: map[string]interface{}{
 			"expiry-time": "2037-02-12T12:50:00Z",
 		}})
+}
+
+func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartup(c *check.C) {
+	n := 0
+	restore := snapshotstate.MockBackenCleanupAbandondedImports(func() (int, error) {
+		n++
+		return 0, nil
+	})
+	defer restore()
+
+	o := overlord.Mock()
+	st := o.State()
+	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	c.Assert(mgr, check.NotNil)
+	o.AddManager(mgr)
+	err := o.Settle(100 * time.Millisecond)
+	c.Assert(err, check.IsNil)
+
+	c.Check(n, check.Equals, 1)
+}
+
+func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartupErrorLogged(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	n := 0
+	restore = snapshotstate.MockBackenCleanupAbandondedImports(func() (int, error) {
+		n++
+		return 0, errors.New("some error")
+	})
+	defer restore()
+
+	o := overlord.Mock()
+	st := o.State()
+	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	c.Assert(mgr, check.NotNil)
+	o.AddManager(mgr)
+	err := o.Settle(100 * time.Millisecond)
+	c.Assert(err, check.IsNil)
+
+	c.Check(n, check.Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, "cannot cleanup incomplete imports: some error\n")
 }

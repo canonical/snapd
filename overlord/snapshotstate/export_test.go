@@ -151,6 +151,14 @@ func MockBackendImport(f func(context.Context, uint64, io.Reader) ([]string, err
 	}
 }
 
+func MockBackenCleanupAbandondedImports(f func() (int, error)) (restore func()) {
+	old := backendCleanupAbandondedImports
+	backendCleanupAbandondedImports = f
+	return func() {
+		backendCleanupAbandondedImports = old
+	}
+}
+
 func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error)) (restore func()) {
 	old := backendEstimateSnapshotSize
 	backendEstimateSnapshotSize = f
