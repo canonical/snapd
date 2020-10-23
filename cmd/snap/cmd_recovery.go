@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,11 +28,14 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdRecovery struct {
 	clientMixin
 	colorMixin
+
+	ShowRecoveryKey bool `long:"show-recovery-key"`
 }
 
 var shortRecoveryHelp = i18n.G("List available recovery systems")
@@ -43,7 +47,11 @@ func init() {
 	addCommand("recovery", shortRecoveryHelp, longRecoveryHelp, func() flags.Commander {
 		// XXX: if we want more/nicer details we can add `snap recovery <system>` later
 		return &cmdRecovery{}
-	}, nil, nil)
+	}, colorDescs.also(
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"show-recovery-key": i18n.G("Show recovery key (if available) to unlock an encrypted partition"),
+		}), nil)
 }
 
 func notesForSystem(sys *client.System) string {
@@ -53,9 +61,26 @@ func notesForSystem(sys *client.System) string {
 	return "-"
 }
 
+func (x *cmdRecovery) showRecoveryKey() error {
+	if release.OnClassic {
+		return errors.New(`command "show-recovery-key" is not available on classic systems`)
+	}
+	var srk *client.SystemRecoveryKeyResponse
+	err := x.client.SystemRecoveryKey(&srk)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%s\n", srk.SystemRecoveryKey)
+	return nil
+}
+
 func (x *cmdRecovery) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.ShowRecoveryKey {
+		return x.showRecoveryKey()
 	}
 
 	systems, err := x.client.ListSystems()
