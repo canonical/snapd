@@ -81,6 +81,10 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	as.AddUnrestrictedPaths("/var/lib/snapd/hostfs/tmp")
 	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*", 0700)
 	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp", 1777)
+	// This is to ensure that unprivileged users can create the socket. This
+	// permission only matters if the plug-side app constructs its mount
+	// namespace before the slot-side app is launched.
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 1777)
 	return as
 }
 
