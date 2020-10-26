@@ -392,6 +392,9 @@ apps:
   timezone-control:
     command: bin/run
     plugs: [ timezone-control ]
+  tmpfs-mount:
+    command: bin/run
+    plugs: [ tmpfs-mount ]
   tpm:
     command: bin/run
     plugs: [ tpm ]
