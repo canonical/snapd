@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type ManagerBackend managerBackend
@@ -190,6 +191,14 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
+func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo)) (restore func()) {
+	old := asyncPendingRefreshNotification
+	asyncPendingRefreshNotification = fn
+	return func() {
+		asyncPendingRefreshNotification = old
+	}
+}
+
 // re-refresh related
 var (
 	RefreshedSnaps  = refreshedSnaps
@@ -266,6 +275,15 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
+	return &BusySnapError{
+		SnapInfo:      info,
+		pids:          pids,
+		busyAppNames:  busyAppNames,
+		busyHookNames: busyHookNames,
+	}
+}
 
 func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
 	old := genericRefreshCheck

@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	main "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/strutil/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -150,14 +151,21 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	// import calls
 	s.mockSnapshotsServer(c)
 
+	// time may be crossing DST change, so the age value should not be
+	// hardcoded, otherwise we'll see failures for 2 montsh during the year
+	expectedAge := time.Since(time.Now().AddDate(0, -1, 0))
+	ageStr := quantity.FormatDuration(expectedAge.Seconds())
+	// 30d0h (no DST change), 30d1h (summer to winter time), 29d23h (winter to summer time)
+	c.Check(ageStr, Matches, `(30d0h|30d1h|29d23h)`)
+
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
 	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
-	c.Check(s.Stdout(), testutil.MatchesWrapped, `Imported snapshot as #42
+	c.Check(s.Stdout(), testutil.MatchesWrapped, fmt.Sprintf(`Imported snapshot as #42
 Set  Snap  Age    Version  Rev   Size    Notes
-1    htop  30d0h  2        1168      1B  -
-`)
+1    htop  %-6s 2        1168      1B  -
+`, ageStr))
 }
