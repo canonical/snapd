@@ -59,7 +59,8 @@ const (
 	CheckDiskSpaceInstall
 	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
 	CheckDiskSpaceRefresh
-
+	// UseExportedSnapdTools controls if /var/lib/snapd/export/snapd/current/tools are used for /usr/lib/snapd
+	UseExportedSnapdTools
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -94,12 +95,15 @@ var featureNames = map[SnapdFeature]string{
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 	CheckDiskSpaceRemove:  "check-disk-space-remove",
+
+	UseExportedSnapdTools: "use-exported-snapd-tools",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                     true,
 	RobustMountNamespaceUpdates: true,
+	UseExportedSnapdTools:       true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
@@ -111,6 +115,8 @@ var featuresExported = map[SnapdFeature]bool{
 	ClassicPreservesXdgRuntimeDir: true,
 	RobustMountNamespaceUpdates:   true,
 	HiddenSnapFolder:              true,
+
+	UseExportedSnapdTools: true,
 }
 
 // String returns the name of a snapd feature.

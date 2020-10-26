@@ -276,6 +276,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupSecurity)
 	prev = setupSecurity
 
+	// export snap content
+	exportContent := st.NewTask("export-content", fmt.Sprintf(i18n.G("Export content from snap %q%s"), snapsup.InstanceName(), revisionStr))
+	addTask(exportContent)
+	prev = exportContent
+
 	// finalize (wrappers+current symlink)
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
@@ -1850,11 +1855,14 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	setupProfiles.Set("snap-setup-task", prepareSnap.ID())
 	setupProfiles.WaitFor(prepareSnap)
 
+	exportContent := st.NewTask("export-content", fmt.Sprintf(i18n.G("Export content from snap %q%s"), snapsup.InstanceName(), snapst.Current))
+	exportContent.Set("snap-setup-task", prepareSnap.ID())
+	exportContent.WaitFor(setupProfiles)
+
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.InstanceName(), snapst.Current))
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(setupProfiles)
+	linkSnap.WaitFor(exportContent)
 
-	// setup aliases
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	setupAliases.Set("snap-setup-task", prepareSnap.ID())
 	setupAliases.WaitFor(linkSnap)
@@ -1863,7 +1871,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	startSnapServices.Set("snap-setup-task", prepareSnap.ID())
 	startSnapServices.WaitFor(setupAliases)
 
-	return state.NewTaskSet(prepareSnap, setupProfiles, linkSnap, setupAliases, startSnapServices), nil
+	return state.NewTaskSet(prepareSnap, setupProfiles, exportContent, linkSnap, setupAliases, startSnapServices), nil
 }
 
 // Disable sets a snap to the inactive state
@@ -1914,11 +1922,15 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
 	unlinkSnap.WaitFor(removeAliases)
 
+	unexportContent := st.NewTask("unexport-content", fmt.Sprintf(i18n.G("Remove content exported from snap %q (%s)"), snapsup.InstanceName(), snapst.Current))
+	unexportContent.Set("snap-setup-task", stopSnapServices.ID())
+	unexportContent.WaitFor(unlinkSnap)
+
 	removeProfiles := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profiles of snap %q"), snapsup.InstanceName()))
 	removeProfiles.Set("snap-setup-task", stopSnapServices.ID())
-	removeProfiles.WaitFor(unlinkSnap)
+	removeProfiles.WaitFor(unexportContent)
 
-	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap, removeProfiles), nil
+	return state.NewTaskSet(stopSnapServices, removeAliases, unlinkSnap, unexportContent, removeProfiles), nil
 }
 
 // canDisable verifies that a snap can be deactivated.
@@ -2111,14 +2123,18 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
-		unlink.Set("snap-setup-task", stopSnapServices.ID())
 		unlink.WaitFor(removeAliases)
+		unlink.Set("snap-setup-task", stopSnapServices.ID())
+
+		unexportContent := st.NewTask("unexport-content", fmt.Sprintf(i18n.G("Remove content exposed by snap %q"), name))
+		unexportContent.WaitFor(unlink)
+		unexportContent.Set("snap-setup-task", stopSnapServices.ID())
 
 		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
-		removeSecurity.WaitFor(unlink)
+		removeSecurity.WaitFor(unexportContent)
 		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
-		tasks = append(tasks, removeAliases, unlink, removeSecurity)
+		tasks = append(tasks, removeAliases, unlink, unexportContent, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
 	}
 

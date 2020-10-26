@@ -167,15 +167,25 @@ var templateCommon = `
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
   # For snappy reexec on 4.8+ kernels
-  /usr/lib/snapd/snap-exec m,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-exec mr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-exec mr, # exported from snapd or core
+  /usr/lib/snapd/snap-exec mr, # legacy bind-mounted or provided by base: core
 
   # For gdb support
-  /usr/lib/snapd/snap-gdb-shim ixr,
-  /usr/lib/snapd/snap-gdbserver-shim ixr,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-gdb-shim ixr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-gdb-shim ixr, # exported from snapd or core
+  /usr/lib/snapd/snap-gdb-shim ixr, # legacy bind-mounted or provided by base: core
+
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-gdbserver-shim ixr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-gdbserver-shim ixr, # exported from snapd or core
+  /usr/lib/snapd/snap-gdbserver-shim ixr, # legacy bind-mounted or provided by base: core
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
-  /usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
+  # marshaller (see complete.sh for out-of-snap unmarshal)
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/etelpmoc.sh ixr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/etelpmoc.sh ixr, # exported by snapd or core
+  /usr/lib/snapd/etelpmoc.sh ixr, # legacy bind-mounted or provided by base: core
   /usr/share/bash-completion/bash_completion r, # user-provided completions (run in-snap) may use functions from here
 
   # uptime
@@ -195,8 +205,10 @@ var templateCommon = `
                                   # doesn't leak anything so allow
 
   # snapctl and its requirements
-  /usr/bin/snapctl ixr,
-  /usr/lib/snapd/snapctl ixr,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snapctl ixr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snapctl ixr, # exported by snapd or core
+  /usr/bin/snapctl ixr, # provided by old base: os
+  /usr/lib/snapd/snapctl ixr, # legacy bind-mounted, (access via symlink in other base) or provided by base: os
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
@@ -845,7 +857,9 @@ var classicJailmodeSnippet = `
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 
   # For snappy reexec on 4.8+ kernels
-  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-exec mr, # exported from host
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-exec mr, # exported from snapd or core
+  /usr/lib/snapd/snap-exec mr, # legacy bind-mounted or provided by base: core
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine
@@ -910,6 +924,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
   /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
   /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /snap/{core,snapd}/*/usr/lib/snapd/snap-update-ns mr,
 
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,

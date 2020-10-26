@@ -25,6 +25,7 @@ typedef enum sc_feature_flag {
 	SC_FEATURE_REFRESH_APP_AWARENESS = 1 << 1,
 	SC_FEATURE_PARALLEL_INSTANCES = 1 << 2,
 	SC_FEATURE_HIDDEN_SNAP_FOLDER = 1 << 3,
+	SC_FEATURE_USE_EXPORTED_SNAPD_TOOLS = 1 << 4,
 } sc_feature_flag;
 
 /**

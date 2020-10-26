@@ -9,6 +9,7 @@ show_help() {
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
+	echo "    broken-snapd-tools: exported snapd tools are broken"
 }
 
 if [ $# -eq 0 ]; then
@@ -116,6 +117,28 @@ check_leftover_defer_sh() {
 	fi
 }
 
+check_broken_snapd_tools() {
+	n="$1" # invariant name
+	(
+		test -d /var/lib/snapd || return # without snapd, we don't expect tools to be exported
+		test "$(command -v snap)" != "" || return # ditto
+		snap version | grep -q 1337 || return # upgrade tests run old snapd, no export is expected then
+		test -d /var/lib/snapd/export/ || echo "export directory is missing" && return
+		test -d /var/lib/snapd/export/snapd || echo "snapd export directory is missing" && return
+		test -h /var/lib/snapd/export/snapd/current || echo "current snapd export symlink is missing" && return
+		subkey="$(readlink /var/lib/snapd/export/snapd/current)" && return
+		test -n "$subkey" || echo "current snapd subkey is empty" && return
+		test -d "/var/lib/snapd/export/snapd/$subkey" || echo "current snapd export $subkey is missing" && return
+		test -d "/var/lib/snapd/export/snapd/$subkey/tools" || echo "snapd tools export set is missing" && return
+		test -h "/var/lib/snapd/export/snapd/$subkey/tools/snap-exec" || echo "snapd tool snap-exec is not exported" && return
+	) > "/tmp/tests.invariant.$n"
+	if [ -s "/tmp/tests.invariant.$n" ]; then
+		echo "tests.invariant: problems with snapd tools export set" >&2
+		cat "/tmp/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -133,6 +156,9 @@ check_invariant() {
 		leftover-defer-sh)
 			check_leftover_defer_sh "$1"
 			;;
+		broken-snapd-tools)
+			check_broken_snapd_tools "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -140,7 +166,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snapd-tools"
 
 case "$action" in
 	check)

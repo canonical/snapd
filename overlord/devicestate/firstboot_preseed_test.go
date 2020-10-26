@@ -73,6 +73,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
 		"prerequisites":    true,
 		"prepare-snap":     true,
+		"export-content":   true,
 		"link-snap":        true,
 		"mount-snap":       true,
 		"setup-profiles":   true,

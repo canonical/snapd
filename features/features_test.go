@@ -53,6 +53,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.String(), Equals, "check-disk-space-install")
 	c.Check(features.CheckDiskSpaceRefresh.String(), Equals, "check-disk-space-refresh")
 	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
+	c.Check(features.UseExportedSnapdTools.String(), Equals, "use-exported-snapd-tools")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -80,6 +81,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
+	c.Check(features.UseExportedSnapdTools.IsExported(), Equals, true)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -116,6 +118,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.UseExportedSnapdTools.IsEnabledWhenUnset(), Equals, true)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
@@ -124,6 +127,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.RobustMountNamespaceUpdates.ControlFile(), Equals, "/var/lib/snapd/features/robust-mount-namespace-updates")
 	c.Check(features.HiddenSnapFolder.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
+	c.Check(features.UseExportedSnapdTools.ControlFile(), Equals, "/var/lib/snapd/features/use-exported-snapd-tools")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

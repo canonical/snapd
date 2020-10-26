@@ -464,6 +464,11 @@ gen_require(`
 ')
 allow snappy_mount_t proc_t:filesystem { getattr unmount };
 
+fs_mounton_tmpfs(snappy_confine_t);
+fs_manage_tmpfs_symlinks(snappy_confine_t);
+fs_mount_tmpfs(snappy_confine_t);
+fs_remount_tmpfs(snappy_confine_t);
+
 allow snappy_mount_t self:capability { sys_chroot sys_admin setgid };
 
 manage_files_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)

@@ -214,6 +214,11 @@
     # allow making snapd snap tools available inside base snaps
     mount options=(ro bind) @SNAP_MOUNT_DIR@/snapd/*/usr/lib/snapd/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
 
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(slave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    /tmp/snap.rootfs_*/usr/lib/snapd/* w,
+
     mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
 

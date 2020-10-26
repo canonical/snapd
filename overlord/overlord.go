@@ -159,7 +159,11 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 	}
 	o.addManager(snapMgr)
 
-	// TODO: instantiate and add the export manager.
+	exportMgr, err := exportstate.Manager(s, o.runner)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(exportMgr)
 
 	assertMgr, err := assertstate.Manager(s, o.runner)
 	if err != nil {

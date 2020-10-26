@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/exportstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -643,6 +644,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	snapmgr, err := snapstate.Manager(st, o.TaskRunner())
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
+
+	exportMgr, err := exportstate.Manager(st, o.TaskRunner())
+	c.Assert(err, IsNil)
+	o.AddManager(exportMgr)
+	c.Assert(o.StartUp(), IsNil)
 
 	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)

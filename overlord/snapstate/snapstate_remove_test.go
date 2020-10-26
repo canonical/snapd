@@ -79,6 +79,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -107,6 +108,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) 
 		"auto-disconnect",
 		"remove-aliases",
 		"unlink-snap",
+		"unexport-content",
 		"remove-profiles",
 		"clear-snap",
 		"discard-snap",
@@ -267,6 +269,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -406,6 +413,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -555,6 +567,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
@@ -660,6 +677,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -1197,7 +1219,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
@@ -1205,6 +1227,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"auto-disconnect",
 			"remove-aliases",
 			"unlink-snap",
+			"unexport-content",
 			"remove-profiles",
 			"clear-snap",
 			"discard-snap",

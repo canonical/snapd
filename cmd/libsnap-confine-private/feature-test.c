@@ -103,6 +103,20 @@ static void test_feature_hidden_snap_folder(void)
 	g_assert(sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER));
 }
 
+static void test_feature_use_exported_snapd_tools(void)
+{
+	const char *d = sc_testdir();
+	sc_mock_feature_flag_dir(d);
+
+	g_assert(!sc_feature_enabled(SC_FEATURE_USE_EXPORTED_SNAPD_TOOLS));
+
+	char pname[PATH_MAX];
+	sc_must_snprintf(pname, sizeof pname, "%s/use-exported-snapd-tools", d);
+	g_file_set_contents(pname, "", -1, NULL);
+
+	g_assert(sc_feature_enabled(SC_FEATURE_USE_EXPORTED_SNAPD_TOOLS));
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/feature/missing_dir",
@@ -115,4 +129,6 @@ static void __attribute__((constructor)) init(void)
 			test_feature_parallel_instances);
 	g_test_add_func("/feature/hidden_snap_folder",
 			test_feature_hidden_snap_folder);
+	g_test_add_func("/feature/use_exported_snapd_tools",
+			test_feature_use_exported_snapd_tools);
 }
