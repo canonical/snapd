@@ -270,6 +270,28 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encrypt
 	return filepath.Join("/dev/disk/by-partuuid", partUUID), false, nil
 }
 
+// UnlockVolumeUsingSealedKeyIfEncrypted unlocks existing volume using the using
+// the provided key. The path to the device node is returned.
+func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (string, error) {
+	// find the encrypted device using the disk we were provided - note that
+	// we do not specify IsDecryptedDevice in opts because here we are
+	// looking for the encrypted device to unlock, later on in the boot
+	// process we will look for the decrypted device to ensure it matches
+	// what we expected
+	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+	if err != nil {
+		return "", err
+	}
+	// we have a device
+	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	// make up a new name for the mapped device
+	mapperName := name + "-" + randutilRandomKernelUUID()
+	if unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
+		return "", err
+	}
+	return filepath.Join("/dev/mapper", mapperName), nil
+}
+
 // unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use
 // it to open an encrypted device.
 func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
@@ -307,6 +329,15 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 	}
 
 	return nil
+}
+
+// unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
+// key.
+func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
+
+	// TODO:UC20: call secboot.ActivateVolumeWithKey(name, device, key, &options)
+
+	return errors.New("not implemented")
 }
 
 // SealKey provisions the TPM and seals a partition encryption key according to the
