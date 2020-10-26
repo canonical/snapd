@@ -823,10 +823,6 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
-
-	pending, _ := s.state.PendingWarnings()
-	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 14 days to wait for the snap to no longer be in use.`)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -859,13 +855,10 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
-
-	pending, _ := s.state.PendingWarnings()
-	c.Assert(pending, HasLen, 0) // This case does not warn
 	c.Check(notificationCount, Equals, 1)
 }
 
-func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
+func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -891,9 +884,5 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, IsNil)
-
-	pending, _ := s.state.PendingWarnings()
-	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 14 days since its refresh was postponed. It will now be refreshed.`)
 	c.Check(notificationCount, Equals, 1)
 }

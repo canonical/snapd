@@ -559,7 +559,6 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			refreshInfo = err.PendingSnapRefreshInfo()
 		}
 
-		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
 		client := userclient.New()
 		if snapst.RefreshInhibitedTime == nil {
@@ -571,11 +570,6 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 				// Send the notification asynchronously to avoid holding the state lock.
 				asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
-				// XXX: remove the warning or send it only if no notification was delivered?
-				st.Warnf(i18n.NG(
-					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
-					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
-					info.SnapName(), days)
 			}
 			return err
 		}
@@ -592,11 +586,6 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		}
 		if _, ok := err.(*BusySnapError); ok {
 			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
-			// XXX: remove the warning or send it only if no notification was delivered?
-			st.Warnf(i18n.NG(
-				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
-				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
-				info.SnapName(), days)
 		}
 	}
 	return nil
