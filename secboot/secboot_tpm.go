@@ -182,13 +182,14 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
-// UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
-// name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
+// UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
+// with the specified name exists and unlocks it using a sealed key in a file
+// with a corresponding name. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the device node
 // is returned as well as whether the device node is an decrypted device node (
 // in the encrypted case). If no encrypted volume was found, then the returned
 // device node is an unencrypted normal volume.
-func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download

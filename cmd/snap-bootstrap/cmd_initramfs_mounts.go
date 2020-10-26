@@ -73,9 +73,9 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootMeasureSnapSystemEpochWhenPossible func() error
-	secbootMeasureSnapModelWhenPossible       func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeIfEncrypted            func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
+	secbootMeasureSnapSystemEpochWhenPossible    func() error
+	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -282,7 +282,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// 3. mount ubuntu-data for recovery
 	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
@@ -491,7 +491,7 @@ func maybeMountSave(disk disks.Disk, encrypted bool, mountOpts *systemdMountOpti
 
 	// we have ubuntu-save, try to mount it
 	const lockKeysOnFinish = true
-	saveDevice, saveIsDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-save",
+	saveDevice, saveIsDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save",
 		boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return true, err
@@ -550,7 +550,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 3.2. mount Data
 	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
