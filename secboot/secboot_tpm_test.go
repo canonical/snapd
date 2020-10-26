@@ -235,7 +235,7 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 	}
 }
 
-func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
+func (s *secbootSuite) TestUnlockUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
 	// restore := disks.MockMountPointDisksToPartitionMapping()
@@ -436,7 +436,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
