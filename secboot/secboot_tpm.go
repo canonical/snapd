@@ -24,6 +24,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -60,15 +61,12 @@ var (
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
-	sbGetActivationDataFromKernel    = sb.GetActivationDataFromKernel
-	sbReadSealedKeyObject            = sb.ReadSealedKeyObject
 	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled  = isTPMEnabledImpl
-	unsealAuthKey = unsealAuthKeyImpl
-	provisionTPM  = provisionTPMImpl
+	isTPMEnabled = isTPMEnabledImpl
+	provisionTPM = provisionTPMImpl
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
@@ -351,16 +349,18 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		PCRProfile:             pcrProfile,
 		PCRPolicyCounterHandle: policyCounterHandle,
 	}
-	// TODO:UC20: also capture the auth key so we can store it in a file to be
-	//            able to reseal after unlocking with the recovery key.
-	_, err = sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
+
+	authKey, err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
+	if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
+		return fmt.Errorf("cannot write the policy auth key file: %v", err)
+	}
 
 	return err
 }
 
 // ResealKey updates the PCR protection policy for the sealed encryption key according to
 // the specified parameters.
-func ResealKey(disk disks.Disk, params *ResealKeyParams) error {
+func ResealKey(params *ResealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -380,29 +380,12 @@ func ResealKey(disk disks.Disk, params *ResealKeyParams) error {
 		return err
 	}
 
-	partUUID, err := disk.FindMatchingPartitionUUID(params.DeviceName + "-enc")
+	authKey, err := ioutil.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
 		return err
-	}
-	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-
-	keep := true
-	k, err := sbGetActivationDataFromKernel(keyringPrefix, encdev, keep)
-	if err != nil {
-		return err
-	}
-	authKey, ok := k.(sb.TPMPolicyAuthKey)
-	if !ok {
-		return fmt.Errorf("internal error: wrong type for auth key")
 	}
 
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
-}
-
-func unsealAuthKeyImpl(tpm *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
-	pin := ""
-	_, authKey, err := k.UnsealFromTPM(tpm, pin)
-	return authKey, err
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {

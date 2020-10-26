@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -108,9 +107,10 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		}
 	}
 	sealKeyParams := &secboot.SealKeyParams{
-		ModelParams:        modelParams,
-		KeyFile:            filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		TPMLockoutAuthFile: filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+		ModelParams:          modelParams,
+		KeyFile:              filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyAuthKeyFile: filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
+		TPMLockoutAuthFile:   filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
 	}
 	// finally, seal the key
 	if err := secbootSealKey(key, sealKeyParams); err != nil {
@@ -211,23 +211,17 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	// get the disk that we mounted the ubuntu-seed partition from
-	disk, err := disks.DiskFromMountPoint(InitramfsUbuntuSeedDir, nil)
-	if err != nil {
-		return err
-	}
-
 	// get model parameters from bootchains
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
 	resealKeyParams := &secboot.ResealKeyParams{
-		ModelParams: modelParams,
-		KeyFile:     filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		DeviceName:  "ubuntu-data",
+		ModelParams:          modelParams,
+		KeyFile:              filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		TPMPolicyAuthKeyFile: filepath.Join(dirs.SnapFDEDirUnder(rootdir), "tpm-policy-auth-key"),
 	}
-	if err := secbootResealKey(disk, resealKeyParams); err != nil {
+	if err := secbootResealKey(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 	logger.Debugf("resealing (%d) succeeded", nextCount)

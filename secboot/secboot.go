@@ -60,6 +60,8 @@ type SealKeyParams struct {
 	ModelParams []*SealKeyModelParams
 	// The path to store the sealed key file
 	KeyFile string
+	// The path to the authorization policy update key file (only relevant for TPM)
+	TPMPolicyAuthKeyFile string
 	// The path to the lockout authorization file (only relevant for TPM)
 	TPMLockoutAuthFile string
 }
@@ -69,6 +71,6 @@ type ResealKeyParams struct {
 	ModelParams []*SealKeyModelParams
 	// The path to the sealed key file
 	KeyFile string
-	// The source device name
-	DeviceName string
+	// The path to the authorization policy update key file (only relevant for TPM)
+	TPMPolicyAuthKeyFile string
 }

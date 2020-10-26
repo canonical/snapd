@@ -86,22 +86,6 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath string
 	}
 }
 
-func MockReadSealedKeyObject(f func(path string) (*sb.SealedKeyObject, error)) (restore func()) {
-	old := sbReadSealedKeyObject
-	sbReadSealedKeyObject = f
-	return func() {
-		sbReadSealedKeyObject = old
-	}
-}
-
-func MockUnsealAuthKey(f func(tpm *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error)) (restore func()) {
-	old := unsealAuthKey
-	unsealAuthKey = f
-	return func() {
-		unsealAuthKey = old
-	}
-}
-
 func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicy
 	sbUpdateKeyPCRProtectionPolicy = f
@@ -110,11 +94,11 @@ func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath st
 	}
 }
 
-func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
-	old := sbLockAccessToSealedKeys
-	sbLockAccessToSealedKeys = f
+func MockSbBlockPCRProtectionPolicies(f func(tpm *sb.TPMConnection, pcrs []int) error) (restore func()) {
+	old := sbBlockPCRProtectionPolicies
+	sbBlockPCRProtectionPolicies = f
 	return func() {
-		sbLockAccessToSealedKeys = old
+		sbBlockPCRProtectionPolicies = old
 	}
 }
 

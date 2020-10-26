@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
@@ -280,9 +281,9 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			device: "name",
 			disk:   mockDiskWithEncDev,
 		}, {
-			// activation works but lock fails (lock requested)
+			// activation works but PCR policy block fails (lock requested)
 			tpmEnabled: true, hasEncdev: true, lockRequest: true, activated: true,
-			err:    "cannot lock access to sealed keys: lock failed",
+			err:    "cannot lock access to sealed keys: block failed",
 			device: "name",
 			disk:   mockDiskWithEncDev,
 		}, {
@@ -308,7 +309,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		}, {
 			// activation works but lock fails, without encrypted device (lock requested)
 			tpmEnabled: true, lockRequest: true, activated: true,
-			err:  "cannot lock access to sealed keys: lock failed",
+			err:  "cannot lock access to sealed keys: block failed",
 			disk: mockDiskWithUnencDev,
 		}, {
 			// happy case without encrypted device
@@ -393,14 +394,15 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		n := 0
-		restore = secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
-			n++
+		sbBlockPCRProtectionPolicesCalls := 0
+		restore = secboot.MockSbBlockPCRProtectionPolicies(func(tpm *sb.TPMConnection, pcrs []int) error {
+			sbBlockPCRProtectionPolicesCalls++
 			c.Assert(tpm, Equals, mockSbTPM)
+			c.Assert(pcrs, DeepEquals, []int{12})
 			if tc.lockOk {
 				return nil
 			}
-			return errors.New("lock failed")
+			return errors.New("block failed")
 		})
 		defer restore()
 
@@ -419,7 +421,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 				PassphraseTries:  1,
 				RecoveryKeyTries: 3,
-				LockSealedKeys:   tc.lockRequest,
+				KeyringPrefix:    "snapd",
 			})
 			if !tc.activated {
 				return false, errors.New("activation error")
@@ -446,14 +448,14 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
-		// LockAccessToSealedKeys should be called whenever there is a TPM device
+		// BlockPCRProtectionPolicies should be called whenever there is a TPM device
 		// detected, regardless of whether secure boot is enabled or there is an
 		// encrypted volume to unlock. If we have multiple encrypted volumes, we
 		// should call it after the last one is unlocked.
 		if tc.tpmErr == nil && tc.lockRequest {
-			c.Assert(n, Equals, 1)
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
 		} else {
-			c.Assert(n, Equals, 0)
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
 		}
 	}
 }
@@ -593,8 +595,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile:            "keyfile",
-			TPMLockoutAuthFile: filepath.Join(tmpDir, "lockout-auth-file"),
+			KeyFile:              "keyfile",
+			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
+			TPMLockoutAuthFile:   filepath.Join(tmpDir, "lockout-auth-file"),
 		}
 
 		myKey := secboot.EncryptionKey{}
@@ -784,6 +787,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(addEFISbPolicyCalls, Equals, 2)
 			c.Assert(addSystemdEfiStubCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
+			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
@@ -819,6 +823,11 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
 	} {
+		mockAuthKey := []byte{1, 3, 3, 7}
+		mockAuthKeyFile := filepath.Join(c.MkDir(), "auth-key-file")
+		err := ioutil.WriteFile(mockAuthKeyFile, mockAuthKey, 0600)
+		c.Assert(err, IsNil)
+
 		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
 		if !tc.missingFile {
 			err := ioutil.WriteFile(mockEFI.Path, nil, 0644)
@@ -833,7 +842,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile: "keyfile",
+			KeyFile:              "keyfile",
+			TPMPolicyAuthKeyFile: mockAuthKeyFile,
 		}
 
 		sequences := []*sb.EFIImageLoadEvent{
@@ -900,37 +910,19 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		// mock unsealing authKey
-		mockSealedKeyObject := &sb.SealedKeyObject{}
-		restore = secboot.MockReadSealedKeyObject(func(path string) (*sb.SealedKeyObject, error) {
-			c.Assert(path, Equals, myParams.KeyFile)
-			// XXX
-			return mockSealedKeyObject, nil
-		})
-		defer restore()
-
-		mockAuthKey := sb.TPMPolicyAuthKey{1, 3, 3, 7}
-		restore = secboot.MockUnsealAuthKey(func(t *sb.TPMConnection, k *sb.SealedKeyObject) (sb.TPMPolicyAuthKey, error) {
-			c.Assert(t, Equals, tpm)
-			c.Assert(k, Equals, mockSealedKeyObject)
-			// XXX
-			return mockAuthKey, nil
-		})
-		defer restore()
-
 		// mock PCR protection policy update
 		resealCalls := 0
 		restore = secboot.MockSbUpdateKeyPCRProtectionPolicy(func(t *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, profile *sb.PCRProtectionProfile) error {
 			resealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(authKey, DeepEquals, mockAuthKey)
+			c.Assert(authKey, DeepEquals, sb.TPMPolicyAuthKey(mockAuthKey))
 			c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})
 		defer restore()
 
-		err := secboot.ResealKey(myParams)
+		err = secboot.ResealKey(myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addEFISbPolicyCalls, Equals, 1)
@@ -946,8 +938,9 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKey := secboot.EncryptionKey{}
 	myParams := secboot.SealKeyParams{
-		KeyFile:            "keyfile",
-		TPMLockoutAuthFile: "lockout-auth-file",
+		KeyFile:              "keyfile",
+		TPMPolicyAuthKeyFile: "policy-auth-key-file",
+		TPMLockoutAuthFile:   "lockout-auth-file",
 	}
 
 	err := secboot.SealKey(myKey, &myParams)
