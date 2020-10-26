@@ -270,7 +270,7 @@ func SnapFDEDirUnder(rootdir string) string {
 
 // SnapSaveDirUnder returns the path to device save directory under rootdir.
 func SnapSaveDirUnder(rootdir string) string {
-	return filepath.Join(SnapDeviceDirUnder(rootdir), "save")
+	return filepath.Join(rootdir, snappyDir, "save")
 }
 
 // AddRootDirCallback registers a callback for whenever the global root
