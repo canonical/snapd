@@ -29,14 +29,18 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -69,9 +73,9 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
-	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
-	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
+	secbootMeasureSnapSystemEpochWhenPossible func() error
+	secbootMeasureSnapModelWhenPossible       func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeIfEncrypted            func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -104,15 +108,16 @@ func generateInitramfsMounts() error {
 		return err
 	}
 
-	mst := newInitramfsMountsState(mode, recoverySystem)
+	mst := &initramfsMountsState{
+		mode:           mode,
+		recoverySystem: recoverySystem,
+	}
 
 	switch mode {
 	case "recover":
-		// XXX: don't pass both args
-		return generateMountsModeRecover(mst, recoverySystem)
+		return generateMountsModeRecover(mst)
 	case "install":
-		// XXX: don't pass both args
-		return generateMountsModeInstall(mst, recoverySystem)
+		return generateMountsModeInstall(mst)
 	case "run":
 		return generateMountsModeRun(mst)
 	}
@@ -122,9 +127,9 @@ func generateInitramfsMounts() error {
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
+	if err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -132,15 +137,9 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	//   install mode
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: recoverySystem,
+		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
-	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
@@ -163,6 +162,11 @@ func copyNetworkConfig(src, dst string) error {
 		//            network configuration for recover mode as well, but for
 		//            now this is fine
 		"system-data/etc/netplan/*",
+		// etc/machine-id is part of what systemd-networkd uses to generate a
+		// DHCP clientid (the other part being the interface name), so to have
+		// the same IP addresses across run mode and recover mode, we need to
+		// also copy the machine-id across
+		"system-data/etc/machine-id",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -171,7 +175,28 @@ func copyNetworkConfig(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authenication files like
+// copyUbuntuDataMisc copies miscellaneous other files from the run mode system
+// to the recover system such as:
+//  - timesync clock to keep the same time setting in recover as in run mode
+func copyUbuntuDataMisc(src, dst string) error {
+	for _, globEx := range []string{
+		// systemd's timesync clock file so that the time in recover mode moves
+		// forward to what it was in run mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyUbuntuDataAuth copies the authentication files like
 //  - extrausers passwd,shadow etc
 //  - sshd host configuration
 //  - user .ssh dir
@@ -190,13 +215,6 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
-		// so that the time in recover mode moves forward to what it was in run
-		// mode
-		// NOTE: we don't sync back the time movement from recover mode to run
-		// mode currently, unclear how/when we could do this, but recover mode
-		// isn't meant to be long lasting and as such it's probably not a big
-		// problem to "lose" the time spent in recover mode
-		"system-data/var/lib/systemd/timesync/clock",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -249,9 +267,9 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
-func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
+	if err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -300,18 +318,23 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
+	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
 
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
-		RecoverySystem: recoverySystem,
+		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// we need to put the file to disable cloud-init in the
-	// _writable_defaults dir for writable-paths(5) to install it properly
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
-	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
+
+	// finally we need to modify the bootenv to mark the system as successful,
+	// this ensures that when you reboot from recover mode without doing
+	// anything else, you are auto-transitioned back to run mode
+	// TODO:UC20: as discussed unclear we need to pass the recovery system here
+	if err := boot.EnsureNextBootToRunMode(mst.recoverySystem); err != nil {
 		return err
 	}
 
@@ -344,30 +367,38 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) error {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
 		return err
 	}
 
+	// load model and verified essential snaps metadata
+	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
+	model, essSnaps, err := mst.ReadEssential("", typs)
+	if err != nil {
+		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+	}
+
 	// 2.1. measure model
-	err := stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return secbootMeasureSnapModelWhenPossible(mst.Model)
+	err = stampedAction(fmt.Sprintf("%s-model-measured", mst.recoverySystem), func() error {
+		return secbootMeasureSnapModelWhenPossible(func() (*asserts.Model, error) {
+			return model, nil
+		})
 	})
 	if err != nil {
 		return err
 	}
 
 	// 2.2. (auto) select recovery system and mount seed snaps
-	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd}
-	essSnaps, err := mst.RecoverySystemEssentialSnaps("", typs)
-	if err != nil {
-		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
-	}
-
 	// TODO:UC20: do we need more cross checks here?
 	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			// don't need to mount the gadget anywhere, but we use the snap
+			// later hence it is loaded
+			continue
+		}
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
@@ -389,10 +420,38 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	//            writing it in Go instead of shellscript is desirable
 
 	// 2.3. mount "ubuntu-data" on a tmpfs
-	opts := &systemdMountOptions{
+	mntOpts := &systemdMountOptions{
 		Tmpfs: true,
 	}
-	return doSystemdMount("tmpfs", boot.InitramfsDataDir, opts)
+	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
+	if err != nil {
+		return err
+	}
+
+	// finally get the gadget snap from the essential snaps and use it to
+	// configure the ephemeral system
+	// should only be one seed snap
+	gadgetPath := ""
+	for _, essentialSnap := range essSnaps {
+		if essentialSnap.EssentialType == snap.TypeGadget {
+			gadgetPath = essentialSnap.Path
+		}
+	}
+	gadgetSnap := squashfs.New(gadgetPath)
+
+	// we need to configure the ephemeral system with defaults and such using
+	// from the seed gadget
+	configOpts := &sysconfig.Options{
+		// never allow cloud-init to run inside the ephemeral system, in the
+		// install case we don't want it to ever run, and in the recover case
+		// cloud-init will already have run in run mode, so things like network
+		// config and users should already be setup and we will copy those
+		// further down in the setup for recover mode
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InitramfsWritableDir,
+		GadgetSnap:     gadgetSnap,
+	}
+	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
@@ -416,10 +475,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// don't run fsck on ubuntu-seed in run mode so we minimize chance of
-	// corruption
-
-	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, nil); err != nil {
+	// fsck is safe to run on ubuntu-seed as per the manpage, it should not
+	// meaningfully contribute to corruption if we fsck it every time we boot,
+	// and it is important to fsck it because it is vfat and mounted writable
+	// TODO:UC20: mount it as read-only here and remount as writable when we
+	//            need it to be writable for i.e. transitioning to recover mode
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
@@ -440,12 +504,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	opts := &systemdMountOptions{
-		// TODO: do we actually need fsck if we are mounting a mapper device?
-		// probably not?
-		NeedsFsck: true,
-	}
-	if err := doSystemdMount(device, boot.InitramfsDataDir, opts); err != nil {
+	// TODO: do we actually need fsck if we are mounting a mapper device?
+	// probably not?
+	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
@@ -502,7 +563,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 4.4 mount snapd snap only on first boot
 	if modeEnv.RecoverySystem != "" {
 		// load the recovery system and generate mount for snapd
-		essSnaps, err := mst.RecoverySystemEssentialSnaps(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}

@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -204,7 +205,7 @@ func (e ConnectionError) Unwrap() error {
 const AllowInteractionHeader = "X-Allow-Interaction"
 
 // raw performs a request and returns the resulting http.Response and
-// error you usually only need to call this directly if you expect the
+// error. You usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
 func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
@@ -221,6 +222,16 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 
 	for key, value := range headers {
 		req.Header.Set(key, value)
+	}
+	// Content-length headers are special and need to be set
+	// directly to the request. Just setting it to the header
+	// will be ignored by go http.
+	if clStr := req.Header.Get("Content-Length"); clStr != "" {
+		cl, err := strconv.ParseInt(clStr, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		req.ContentLength = cl
 	}
 
 	if !client.disableAuth {
@@ -247,16 +258,19 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 	return rsp, nil
 }
 
-// rawWithTimeout is like raw(), but sets a timeout for the whole of request and
-// response (including rsp.Body() read) round trip. The caller is responsible
-// for canceling the internal context to release the resources associated with
-// the request by calling the returned cancel function.
-func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, context.CancelFunc, error) {
-	if timeout == 0 {
-		return nil, nil, fmt.Errorf("internal error: timeout not set for rawWithTimeout")
+// rawWithTimeout is like raw(), but sets a timeout based on opts for
+// the whole of request and response (including rsp.Body() read) round
+// trip. If opts is nil the default doTimeout is used.
+// The caller is responsible for canceling the internal context
+// to release the resources associated with the request by calling the
+// returned cancel function.
+func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (*http.Response, context.CancelFunc, error) {
+	opts = ensureDoOpts(opts)
+	if opts.Timeout <= 0 {
+		return nil, nil, fmt.Errorf("internal error: timeout not set in options for rawWithTimeout")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
 	if err != nil && ctx.Err() != nil {
 		cancel()
@@ -272,7 +286,7 @@ var (
 	// timeout for the whole of a single request to complete, requests are
 	// retried for up to 38s in total, make sure that the client timeout is
 	// not shorter than that
-	doTimeout = 50 * time.Second
+	doTimeout = 120 * time.Second
 )
 
 // MockDoTimings mocks the delay used by the do retry loop and request timeout.
@@ -300,43 +314,69 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
-type doFlags struct {
-	NoTimeout bool
+type doOptions struct {
+	// Timeout is the overall request timeout
+	Timeout time.Duration
+	// Retry interval
+	Retry time.Duration
+}
+
+func ensureDoOpts(opts *doOptions) *doOptions {
+	if opts == nil {
+		// defaults
+		opts = &doOptions{
+			Timeout: doTimeout,
+			Retry:   doRetry,
+		}
+	}
+	return opts
+}
+
+// doNoTimeoutAndRetry can be passed to the do family to not have timeout
+// nor retries.
+var doNoTimeoutAndRetry = &doOptions{
+	Timeout: time.Duration(-1),
 }
 
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, flags doFlags) (statusCode int, err error) {
-	retry := time.NewTicker(doRetry)
-	defer retry.Stop()
-	timeout := time.NewTimer(doTimeout)
-	defer timeout.Stop()
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
+	opts = ensureDoOpts(opts)
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
-	for {
-		if flags.NoTimeout {
-			rsp, err = client.raw(ctx, method, path, query, headers, body)
-		} else {
+	if opts.Timeout <= 0 {
+		// no timeout and retries
+		rsp, err = client.raw(ctx, method, path, query, headers, body)
+	} else {
+		if opts.Retry <= 0 {
+			return 0, fmt.Errorf("internal error: retry setting %s invalid", opts.Retry)
+		}
+		retry := time.NewTicker(opts.Retry)
+		defer retry.Stop()
+		timeout := time.NewTimer(opts.Timeout)
+		defer timeout.Stop()
+
+		for {
 			var cancel context.CancelFunc
 			// use the same timeout as for the whole of the retry
 			// loop to error out the whole do() call when a single
 			// request exceeds the deadline
-			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, doTimeout)
+			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, opts)
 			if err == nil {
 				defer cancel()
 			}
-		}
-		if err == nil || method != "GET" {
+			if err == nil || method != "GET" {
+				break
+			}
+			select {
+			case <-retry.C:
+				continue
+			case <-timeout.C:
+			}
 			break
 		}
-		select {
-		case <-retry.C:
-			continue
-		case <-timeout.C:
-		}
-		break
 	}
 	if err != nil {
 		return 0, err
@@ -370,8 +410,12 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // response payload into the given value using the "UseNumber" json decoding
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
+	return client.doSyncWithOpts(method, path, query, headers, body, v, nil)
+}
+
+func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, doFlags{})
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -395,18 +439,13 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{})
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, nil)
 	return
 }
 
-func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{NoTimeout: true})
-	return changeID, err
-}
-
-func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, flags doFlags) (result json.RawMessage, changeID string, err error) {
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (result json.RawMessage, changeID string, err error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, flags)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
 	if err != nil {
 		return nil, "", err
 	}

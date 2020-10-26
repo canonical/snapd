@@ -185,6 +185,37 @@ func (s *storeAssertsSuite) TestAssertionNotFound(c *C) {
 	})
 }
 
+func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// XXX: update to v2 request
+		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"error-list":[{"code":"not-found","message":"not found: no ..."}]}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		AssertionsBaseURL: mockServerURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.SnapDeclarationType,
+		Headers: map[string]string{
+			"series":  "16",
+			"snap-id": "snapidfoo",
+		},
+	})
+}
+
 func (s *storeAssertsSuite) TestAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

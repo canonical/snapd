@@ -106,6 +106,7 @@ var api = []*Command{
 	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
+	snapshotExportCmd,
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,
@@ -568,7 +569,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 				Status: 400,
 			}, nil)
 		}
-		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
+		if e, ok := err.(*httputil.PersistentNetworkError); ok {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
 				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
@@ -795,6 +796,7 @@ type snapInstruction struct {
 	JailMode         bool `json:"jailmode"`
 	Classic          bool `json:"classic"`
 	IgnoreValidation bool `json:"ignore-validation"`
+	IgnoreRunning    bool `json:"ignore-running"`
 	Unaliased        bool `json:"unaliased"`
 	Purge            bool `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
@@ -830,6 +832,10 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.Unaliased {
 		flags.Unaliased = true
 	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
+	}
+
 	return flags, nil
 }
 
@@ -882,6 +888,8 @@ var (
 	snapshotForget  = snapshotstate.Forget
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1022,6 +1030,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
 	}
 	if inst.Amend {
 		flags.Amend = true
@@ -1378,7 +1389,16 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
 
-	if contentType == "application/json" {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType == "application/json" {
+		charset := strings.ToUpper(params["charset"])
+		if charset != "" && charset != "UTF-8" {
+			return BadRequest("unknown charset in content type: %s", contentType)
+		}
 		return snapsOp(c, r, user)
 	}
 
@@ -1392,11 +1412,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse POST body: %v", err)
-	}
-
 	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
 	if err != nil {
 		return BadRequest("cannot read POST form: %v", err)
@@ -1417,6 +1432,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	flags.RemoveSnapPath = true
 
 	flags.Unaliased = isTrue(form, "unaliased")
+	flags.IgnoreRunning = isTrue(form, "ignore-running")
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -2393,7 +2409,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)

@@ -4,16 +4,13 @@ restore: |
     snap unset system experimental.parallel-instances
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap providing icons"
-    install_local test-snapd-icon-theme
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-icon-theme
 
     echo "Install additional instances of the snap"
     snap set system experimental.parallel-instances=true
-    install_local_as test-snapd-icon-theme test-snapd-icon-theme_longname
-    install_local_as test-snapd-icon-theme test-snapd-icon-theme_foo
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-icon-theme test-snapd-icon-theme_longname
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-icon-theme test-snapd-icon-theme_foo
 
     echo "Each instance provides its own icons"
     icondir=/var/lib/snapd/desktop/icons/hicolor/scalable/apps

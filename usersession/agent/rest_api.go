@@ -21,12 +21,20 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
+
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -35,6 +43,7 @@ var restApi = []*Command{
 	rootCmd,
 	sessionInfoCmd,
 	serviceControlCmd,
+	pendingRefreshNotificationCmd,
 }
 
 var (
@@ -51,6 +60,11 @@ var (
 	serviceControlCmd = &Command{
 		Path: "/v1/service-control",
 		POST: postServiceControl,
+	}
+
+	pendingRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/pending-refresh",
+		POST: postPendingRefreshNotification,
 	}
 )
 
@@ -167,8 +181,19 @@ type dummyReporter struct{}
 func (dummyReporter) Notify(string) {}
 
 func postServiceControl(c *Command, r *http.Request) Response {
-	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType != "application/json" {
 		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	charset := strings.ToUpper(params["charset"])
+	if charset != "" && charset != "UTF-8" {
+		return BadRequest("unknown charset in content type: %s", contentType)
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -183,6 +208,110 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
+	sysd := systemd.New(systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
+}
+
+func postPendingRefreshNotification(c *Command, r *http.Request) Response {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+
+	if mediaType != "application/json" {
+		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	charset := strings.ToUpper(params["charset"])
+	if charset != "" && charset != "UTF-8" {
+		return BadRequest("unknown charset in content type: %s", contentType)
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
+	type pendingSnapRefreshInfo struct {
+		InstanceName        string        `json:"instance-name"`
+		TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
+		BusyAppName         string        `json:"busy-app-name,omitempty"`
+		BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
+	}
+	var refreshInfo pendingSnapRefreshInfo
+	if err := decoder.Decode(&refreshInfo); err != nil {
+		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
+	}
+
+	// TODO: use c.a.bus once https://github.com/snapcore/snapd/pull/9497 is merged.
+	conn, err := dbusutil.SessionBus()
+	// Note that since the connection is shared, we are not closing it.
+	if err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot connect to the session bus: %v", err),
+			},
+		})
+	}
+
+	// TODO: support desktop-specific notification APIs if they provide a better
+	// experience. For example, the GNOME notification API.
+	notifySrv := notification.New(conn)
+
+	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
+	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	var urgencyLevel notification.Urgency
+	var body, icon string
+	var hints []notification.Hint
+
+	plzClose := i18n.G("Close the app to avoid disruptions")
+	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
+		urgencyLevel = notification.LowUrgency
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d day left", "%d days left", daysLeft), daysLeft))
+	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
+		urgencyLevel = notification.NormalUrgency
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d hour left", "%d hours left", hoursLeft), hoursLeft))
+	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
+		urgencyLevel = notification.CriticalUrgency
+		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
+			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
+	} else {
+		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
+		urgencyLevel = notification.CriticalUrgency
+	}
+	hints = append(hints, notification.WithUrgency(urgencyLevel))
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if refreshInfo.BusyAppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+
+	msg := &notification.Message{
+		AppName: refreshInfo.BusyAppName,
+		Summary: summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
+	}
+
+	// TODO: silently ignore error returned when the notification server does not exist.
+	// TODO: track returned notification ID and respond to actions, if supported.
+	if _, err := notifySrv.SendNotification(msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
 }

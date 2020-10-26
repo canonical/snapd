@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -250,6 +251,21 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
+type snapshotExportResponse struct {
+	*snapshotstate.SnapshotExport
+}
+
+// ServeHTTP from the Response interface
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	w.Header().Add("Content-Type", client.SnapshotExportMediaType)
+	if err := s.StreamTo(w); err != nil {
+		logger.Debugf("cannot export snapshot: %v", err)
+	}
+	s.Close()
+}
+
 // A fileResponse 's ServeHTTP method serves the file
 type fileResponse string
 
@@ -458,6 +474,27 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 	}
 }
 
+// InsufficientSpace is an error responder used when an operation cannot
+// be performed due to low disk space.
+func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
+	value := map[string]interface{}{}
+	if len(dserr.Snaps) > 0 {
+		value["snap-names"] = dserr.Snaps
+	}
+	if dserr.ChangeKind != "" {
+		value["change-kind"] = dserr.ChangeKind
+	}
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: dserr.Error(),
+			Kind:    client.ErrorKindInsufficientDiskSpace,
+			Value:   value,
+		},
+		Status: 507,
+	}
+}
+
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
 func AppNotFound(format string, v ...interface{}) Response {
@@ -554,6 +591,8 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 		case *snapstate.SnapNotClassicError:
 			kind = client.ErrorKindSnapNotClassic
 			snapName = err.Snap
+		case *snapstate.InsufficientSpaceError:
+			return InsufficientSpace(err)
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout

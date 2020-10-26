@@ -181,7 +181,7 @@ distro_install_local_package() {
             quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         opensuse-*)
-            quiet rpm -i --replacepkgs "$@"
+            quiet zypper in -y --no-recommends --allow-unsigned-rpm "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
@@ -518,6 +518,12 @@ distro_install_build_snapd(){
             if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
                 systemctl restart apparmor.service
             fi
+        fi
+
+        if [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]]; then
+            # Package installation applies vendor presets only, which leaves
+            # snapd.apparmor disabled.
+            systemctl enable --now snapd.apparmor.service
         fi
 
         # On some distributions the snapd.socket is not yet automatically

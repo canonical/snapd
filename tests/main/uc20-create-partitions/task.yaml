@@ -110,7 +110,6 @@ execute: |
     mount "${LOOP}p3" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
     ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
     # remove a file
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt

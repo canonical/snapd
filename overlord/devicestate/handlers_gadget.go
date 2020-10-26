@@ -139,16 +139,18 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	}
 
 	var updateObserver gadget.ContentUpdateObserver
-	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model)
+	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset update observer: %v", err)
 	}
 	if err == nil {
 		updateObserver = observeTrustedBootAssets
 	}
-	st.Unlock()
+	// do not release the state lock, the update observer may attempt to
+	// modify modeenv inside, which implicitly is guarded by the state lock;
+	// on top of that we do not expect the update to be moving large amounts
+	// of data
 	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
-	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed

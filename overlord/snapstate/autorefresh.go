@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 // the default refresh pattern
@@ -44,7 +46,7 @@ const defaultRefreshSchedule = "00:00~24:00/4"
 const maxPostponement = 60 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
-const maxInhibition = 7 * 24 * time.Hour
+const maxInhibition = 14 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
@@ -254,52 +256,72 @@ func (m *autoRefresh) Ensure() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	// should we hold back refreshes?
-	holdTime, err := m.EffectiveRefreshHold()
+	held, holdTime, err := m.isRefreshHeld(refreshSchedule)
 	if err != nil {
 		return err
 	}
-	if holdTime.After(now) {
-		return nil
-	}
-	if !holdTime.IsZero() {
-		// expired hold case
-		m.clearRefreshHold()
-		if m.nextRefresh.Before(holdTime) {
-			// next refresh is obsolete, compute the next one
-			delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
-			now = time.Now()
-			m.nextRefresh = now.Add(delta)
-		}
-	}
 
 	// do refresh attempt (if needed)
-	if !m.nextRefresh.After(now) {
-		var can bool
-		can, err = m.canRefreshRespectingMetered(now, lastRefresh)
-		if err != nil {
-			return err
-		}
-		if !can {
-			// clear nextRefresh so that another refresh time is calculated
-			m.nextRefresh = time.Time{}
-			return nil
-		}
-
-		// Check that we have reasonable delays between attempts.
-		// If the store is under stress we need to make sure we do not
-		// hammer it too often
-		if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
-			return nil
+	if !held {
+		if !holdTime.IsZero() {
+			// expired hold case
+			m.clearRefreshHold()
+			if m.nextRefresh.Before(holdTime) {
+				// next refresh is obsolete, compute the next one
+				delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
+				now = time.Now()
+				m.nextRefresh = now.Add(delta)
+			}
 		}
 
-		err = m.launchAutoRefresh()
-		if _, ok := err.(*httputil.PerstistentNetworkError); !ok {
-			m.nextRefresh = time.Time{}
-		} // else - refresh will be retried after refreshRetryDelay
+		// refresh is also "held" if the next time is in the future
+		// note that the two times here could be exactly equal, so we use
+		// !After() because that is true in the case that the next refresh is
+		// before now, and the next refresh is equal to now without requiring an
+		// or operation
+		if !m.nextRefresh.After(now) {
+			var can bool
+			can, err = m.canRefreshRespectingMetered(now, lastRefresh)
+			if err != nil {
+				return err
+			}
+			if !can {
+				// clear nextRefresh so that another refresh time is calculated
+				m.nextRefresh = time.Time{}
+				return nil
+			}
+
+			// Check that we have reasonable delays between attempts.
+			// If the store is under stress we need to make sure we do not
+			// hammer it too often
+			if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(refreshRetryDelay).After(time.Now()) {
+				return nil
+			}
+
+			err = m.launchAutoRefresh(refreshSchedule)
+			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
+				m.nextRefresh = time.Time{}
+			} // else - refresh will be retried after refreshRetryDelay
+		}
 	}
 
 	return err
+}
+
+// isRefreshHeld returns whether an auto-refresh is currently held back or not,
+// as indicated by m.EffectiveRefreshHold().
+func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+	now := time.Now()
+	// should we hold back refreshes?
+	holdTime, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return false, time.Time{}, err
+	}
+	if holdTime.After(now) {
+		return true, holdTime, nil
+	}
+
+	return false, holdTime, nil
 }
 
 func (m *autoRefresh) ensureLastRefreshAnchor() {
@@ -384,7 +406,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh() error {
+func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
@@ -393,8 +415,30 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}()
 
 	m.lastRefreshAttempt = time.Now()
+
+	// NOTE: this will unlock and re-lock state for network ops
 	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
-	if _, ok := err.(*httputil.PerstistentNetworkError); ok {
+
+	// TODO: we should have some way to lock just creating and starting changes,
+	//       as that would alleviate this race condition we are guarding against
+	//       with this check and probably would eliminate other similar race
+	//       conditions elsewhere
+
+	// re-check if the refresh is held because it could have been re-held and
+	// pushed back, in which case we need to abort the auto-refresh and wait
+	held, _, holdErr := m.isRefreshHeld(refreshSchedule)
+	if holdErr != nil {
+		return holdErr
+	}
+
+	if held {
+		// then a request came in that pushed the refresh out, so we will need
+		// to try again later
+		logger.Noticef("Auto-refresh was delayed mid-way through launching, aborting to try again later")
+		return nil
+	}
+
+	if _, ok := err.(*httputil.PersistentNetworkError); ok {
 		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
 	}
@@ -489,6 +533,18 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 	return t1, nil
 }
 
+// asyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
+//
+// This allows the, possibly slow, communication with each snapd session agent,
+// to be performed without holding the snap state lock.
+var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	go func() {
+		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
+			logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		}
+	}()
+}
+
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -496,18 +552,24 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
 	if err := checker(info); err != nil {
-		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
+		refreshInfo := &userclient.PendingSnapRefreshInfo{
+			InstanceName: info.InstanceName(),
+		}
+		if err, ok := err.(*BusySnapError); ok {
+			refreshInfo = err.PendingSnapRefreshInfo()
+		}
+
 		now := time.Now()
+		client := userclient.New()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
 			// This is reset to nil on successful refresh.
 			snapst.RefreshInhibitedTime = &now
 			Set(st, info.InstanceName(), snapst)
 			if _, ok := err.(*BusySnapError); ok {
-				st.Warnf(i18n.NG(
-					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
-					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
-					info.SnapName(), days)
+				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+				// Send the notification asynchronously to avoid holding the state lock.
+				asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 			}
 			return err
 		}
@@ -515,13 +577,15 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
+			refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
+			// TODO: as time left shrinks, send additional notifications with
+			// increasing frequency, allowing the user to understand the
+			// urgency.
 			return err
 		}
 		if _, ok := err.(*BusySnapError); ok {
-			st.Warnf(i18n.NG(
-				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
-				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
-				info.SnapName(), days)
+			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
 		}
 	}
 	return nil

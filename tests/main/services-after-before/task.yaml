@@ -2,12 +2,11 @@ summary: Check that snap after/before ordering works
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
+
     # we are using systemd-notify indicate the service is active, this is
     # currently not allowed by daemon-notify interface, so we may as well just
     # install in devmode
-    install_local test-snapd-after-before-service --devmode
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-after-before-service --devmode
 
     echo "We can see all services running"
     for service in before-middle middle after-middle; do

@@ -415,12 +415,12 @@ func (mod *Model) Classic() bool {
 	return mod.classic
 }
 
-// Architecture returns the archicteture the model is based on.
+// Architecture returns the architecture the model is based on.
 func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
-// Grade returns the stability grade of the model. Will be ModeGradeUnset
+// Grade returns the stability grade of the model. Will be ModelGradeUnset
 // for Core 16/18 models.
 func (mod *Model) Grade() ModelGrade {
 	return mod.grade

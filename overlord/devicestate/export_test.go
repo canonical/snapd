@@ -240,15 +240,15 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureRunSystem
-	sysconfigConfigureRunSystem = f
+func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
 	return func() {
-		sysconfigConfigureRunSystem = old
+		sysconfigConfigureTargetSystem = old
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

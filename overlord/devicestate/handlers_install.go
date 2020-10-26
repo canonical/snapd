@@ -40,25 +40,43 @@ import (
 )
 
 var (
-	bootMakeBootable            = boot.MakeBootable
-	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
-	installRun                  = install.Run
+	bootMakeBootable = boot.MakeBootable
+	installRun       = install.Run
+
+	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	// TODO: add support for a single cloud-init `cloud.conf` file
-	//       that is then passed to sysconfig
+	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
-	// check cloud.cfg.d on the ubuntu-seed partition
-	//
-	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
-	// during install when in grade "dangerous".
-	//
-	// XXX: maybe move policy decision into configureRunSystem later?
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
-		opts.CloudInitSrcDir = cloudCfg
-		return
+	switch {
+	// if the gadget has a cloud.conf file, always use that regardless of grade
+	case sysconfig.HasGadgetCloudConf(gadgetDir):
+		// this is implicitly handled by ConfigureTargetSystem when it configures
+		// cloud-init if none of the other options are set, so just break here
+		opts.AllowCloudInit = true
+
+	// next thing is if are in secured grade and didn't have gadget config, we
+	// disable cloud-init always, clouds should have their own config via
+	// gadgets for grade secured
+	case model.Grade() == asserts.ModelSecured:
+		opts.AllowCloudInit = false
+
+	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
+	//            filtering on the resultant cloud config
+
+	// next if we are grade dangerous, then we also install cloud configuration
+	// from ubuntu-seed if it exists
+	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
+		opts.AllowCloudInit = true
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+
+	// note that if none of the conditions were true, it means we are on grade
+	// dangerous or signed, and cloud-init is still allowed to run without
+	// additional configuration on first-boot, so that NoCloud CIDATA can be
+	// provided for example
+	default:
+		opts.AllowCloudInit = true
 	}
 }
 
@@ -112,46 +130,53 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	bopts.Encrypt = useEncryption
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
-	if useEncryption {
-		fdeDir := "var/lib/snapd/device/fde"
-		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
-			if err := os.MkdirAll(p, 0755); err != nil {
-				return err
-			}
-		}
-
-		bopts.Encrypt = true
-		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
-		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
-		bopts.Model = deviceCtx.Model()
-		bopts.SystemLabel = modeEnv.RecoverySystem
-
-		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
-		if err != nil && err != boot.ErrObserverNotApplicable {
-			return fmt.Errorf("cannot setup asset install observer: %v", err)
-		}
-		if err == nil {
-			installObserver = trustedInstallObserver
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		installObserver = trustedInstallObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedInstallObserver = nil
 		}
 	}
 
+	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, kernelDir, "", bopts, installObserver)
+		installedSystem, err = installRun(gadgetDir, kernelDir, "", bopts, installObserver)
 	}()
 	if err != nil {
-		return fmt.Errorf("cannot create partitions: %v", err)
+		return fmt.Errorf("cannot install system: %v", err)
+	}
+
+	if trustedInstallObserver != nil {
+		// sanity check
+		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil {
+			return fmt.Errorf("internal error: system encryption keys are unset")
+		}
+		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
+
+		// make note of the encryption key
+		trustedInstallObserver.ChosenEncryptionKey(dataKeySet.Key)
+
+		// keep track of recovery assets
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
+		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+			return err
+		}
 	}
 
 	// keep track of the model we installed
@@ -164,7 +189,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
-	if err := sysconfigConfigureRunSystem(opts); err != nil {
+	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}
 
@@ -192,6 +217,38 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystemNow)
 
+	return nil
+}
+
+func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
+	dataKeySet := keysForRoles[gadget.SystemData]
+
+	// ensure directory for keys exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
+	}
+
+	// Write the recovery key
+	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
+	if err := dataKeySet.RecoveryKey.Save(recoveryKeyFile); err != nil {
+		return fmt.Errorf("cannot store recovery key: %v", err)
+	}
+
+	saveKeySet := keysForRoles[gadget.SystemSave]
+	if saveKeySet == nil {
+		// no system-save support
+		return nil
+	}
+
+	saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
+	reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
+
+	if err := saveKeySet.Key.Save(saveKey); err != nil {
+		return fmt.Errorf("cannot store system save key: %v", err)
+	}
+	if err := saveKeySet.RecoveryKey.Save(reinstallSaveKey); err != nil {
+		return fmt.Errorf("cannot store reinstall key: %v", err)
+	}
 	return nil
 }
 
