@@ -105,6 +105,7 @@ unix (connect, receive, send, accept)
     type=stream
     addr="@/tmp/.X11-unix/X[0-9]*"
     peer=(label=###PLUG_SECURITY_TAGS###),
+# TODO: remove this as we don't want to share ICE sockets
 unix (connect, receive, send, accept)
     type=stream
     addr="@/tmp/.ICE-unix/[0-9]*"
@@ -118,6 +119,7 @@ const x11ConnectedPlugAppArmor = `
 # The X abstraction doesn't check the peer label, but in this case that's
 # ok because x11ConnectedSlotAppArmor will limit which clients can connect
 # to the slot implementation.
+# TODO: expand this and remove ICE sockets or add explicit denials for all ICE communications.
 #include <abstractions/X>
 #include <abstractions/fonts>
 owner @{HOME}/.local/share/fonts/{,**} r,
@@ -160,14 +162,9 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 	if implicitSystemConnectedSlot(slot) {
 		// X11 slot is provided by the host system. Bring the host's
 		// /tmp/.X11-unix/ directory over to the snap mount namespace.
-		spec.AddMountEntry(osutil.MountEntry{
+		return spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
 			Dir:     "/tmp/.X11-unix/",
-			Options: []string{"bind", "ro"},
-		})
-		return spec.AddMountEntry(osutil.MountEntry{
-			Name:    "/var/lib/snapd/hostfs/tmp/.ICE-unix/",
-			Dir:     "/tmp/.ICE-unix/",
 			Options: []string{"bind", "ro"},
 		})
 	}
@@ -183,14 +180,9 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 		return nil
 	}
 	slotSnapName := slot.Snap().InstanceName()
-	spec.AddMountEntry(osutil.MountEntry{
+	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/", slotSnapName),
 		Dir:     "/tmp/.X11-unix/",
-		Options: []string{"bind", "ro"},
-	})
-	return spec.AddMountEntry(osutil.MountEntry{
-		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.ICE-unix/", slotSnapName),
-		Dir:     "/tmp/.ICE-unix/",
 		Options: []string{"bind", "ro"},
 	})
 }
@@ -202,12 +194,11 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// Consult the comments in MountConnectedPlug for the rationale of the control flow.
 	if implicitSystemConnectedSlot(slot) {
 		spec.AddUpdateNS(`
-		/{,var/lib/snapd/hostfs/}tmp/.{X11,ICE}-unix/ rw,
+		/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
 		mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
-		mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.ICE-unix/ -> /tmp/.ICE-unix/,
-		mount options=(ro, remount, bind) -> /tmp/.{X11,ICE}-unix/,
-		mount options=(rslave) -> /tmp/.{X11,ICE}-unix/,
-		umount /tmp/.{X11,ICE}-unix/,
+		mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+		mount options=(rslave) -> /tmp/.X11-unix/,
+		umount /tmp/.X11-unix/,
 		`)
 		return nil
 	}
@@ -216,14 +207,13 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 	slotSnapName := slot.Snap().InstanceName()
 	spec.AddUpdateNS(fmt.Sprintf(`
-	/tmp/.{X11,ICE}-unix/ rw,
-	/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.{X11,ICE}-unix/ rw,
+	/tmp/.X11-unix/ rw,
+	/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ rw,
 	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
-	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.ICE-unix/ -> /tmp/.ICE-unix/,
-	mount options=(ro, remount, bind) -> /tmp/.{X11,ICE}-unix/,
-	mount options=(rslave) -> /tmp/.{X11,ICE}-unix/,
+	mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+	mount options=(rslave) -> /tmp/.X11-unix/,
 	umount /tmp/.X11-unix/,
-	`, slotSnapName, slotSnapName, slotSnapName))
+	`, slotSnapName, slotSnapName))
 	return nil
 }
 
