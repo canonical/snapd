@@ -76,6 +76,7 @@ var (
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
+	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -471,33 +472,39 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
-func isSavePresent() (bool, error) {
-	devPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/ubuntu-save")
-	_, err := os.Stat(devPath)
-	if err != nil && !os.IsNotExist(err) {
-		return false, err
-	}
-	return err == nil, nil
-}
-
 func maybeMountSave(disk disks.Disk, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
-	haveSave, err = isSavePresent()
-	if err != nil {
-		return false, err
-	}
-	if !haveSave {
-		return false, nil
-	}
+	var saveDevice string
+	saveKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-save.key")
+	// if ubuntu-save exists and is encrypted, the key has been created during install
+	haveSaveKey := osutil.FileExists(saveKey)
 
-	// we have ubuntu-save, try to mount it
-	const lockKeysOnFinish = true
-	saveDevice, saveIsDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save",
-		boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
-	if err != nil {
-		return true, err
+	if encrypted != haveSaveKey {
+		// ubuntu-data is encrypted, but we appear to be missing
+		// ubuntu-save (and thus ubuntu-save), otherwise both partitions
+		// should be unencrypted
+		return false, fmt.Errorf("ubuntu-data and ubuntu-save should be both encrypted or plain")
 	}
-	if saveIsDecryptDev != encrypted {
-		return true, fmt.Errorf("ubuntu-data and ubuntu-save should be both encrypted or plain")
+	if haveSaveKey {
+		// we have save.key, volume exists and is encrypted
+		key, err := ioutil.ReadFile(saveKey)
+		if err != nil {
+			return true, err
+		}
+		saveDevice, err = secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+		if err != nil {
+			return true, err
+		}
+	} else {
+		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		if err != nil {
+			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+				// this is ok, ubuntu-save may not exist for
+				// non-encrypted device
+				return false, nil
+			}
+			return false, err
+		}
+		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	}
 	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
 		return true, err

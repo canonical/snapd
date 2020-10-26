@@ -41,4 +41,7 @@ func init() {
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 		return "", false, errNotImplemented
 	}
+	secbootUnlockEncryptedVolumeUsingKey = func(disk disks.Disk, name string, key []byte) (string, error) {
+		return "", errNotImplemented
+	}
 }
