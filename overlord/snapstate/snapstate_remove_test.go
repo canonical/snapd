@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -1396,15 +1397,15 @@ name: foo
 	}{
 		{
 			removeSnapDataErr: "boom1",
-			expectedMessage:   "Cannot remove snap data: boom1",
+			expectedMessage:   `Cannot remove snap data for snap "some-snap": boom1`,
 		},
 		{
 			removeSnapCommonDataErr: "boom2",
-			expectedMessage:         "Cannot remove common snap data: boom2",
+			expectedMessage:         `Cannot remove common snap data for snap "some-snap": boom2`,
 		},
 		{
 			removeSnapDataDirErr: "boom3",
-			expectedMessage:      "Cannot remove common snap data directory: boom3",
+			expectedMessage:      `Cannot remove snap data directory for snap "some-snap": boom3`,
 		},
 	} {
 		chg := st.NewChange("remove", "remove a snap")
@@ -1426,12 +1427,18 @@ name: foo
 			b.removeSnapDataDirErr = fmt.Errorf(tc.removeSnapDataDirErr)
 		}
 
+		st.OkayWarnings(time.Now())
+
 		st.Unlock()
 		s.settle(c)
 		st.Lock()
 
 		c.Check(chg.Status(), Equals, state.DoneStatus)
 		c.Check(strings.Join(t.Log(), ""), testutil.Contains, tc.expectedMessage)
+
+		warnings, _ := st.PendingWarnings()
+		c.Assert(warnings, HasLen, 1)
+		c.Check(warnings[0].String(), Equals, tc.expectedMessage)
 	}
 }
 
