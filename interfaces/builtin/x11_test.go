@@ -57,7 +57,7 @@ apps:
 const x11CoreYaml = `name: x11
 version: 0
 apps:
- app1:
+ app:
   slots: [x11]
 `
 
@@ -103,14 +103,14 @@ func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
-	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
+	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
-	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, "capability sys_tty_config,")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
+	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, "capability sys_tty_config,")
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
@@ -163,8 +163,8 @@ func (s *X11InterfaceSuite) TestSecCompOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	// both app and x11 have secomp rules set
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.x11.app1"})
-	c.Assert(seccompSpec.SnippetForTag("snap.x11.app1"), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.x11.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.x11.app"), testutil.Contains, "listen\n")
 	c.Assert(seccompSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 
@@ -177,16 +177,16 @@ func (s *X11InterfaceSuite) TestUDev(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
-KERNEL=="event[0-9]*", TAG+="snap_x11_app1"`)
+KERNEL=="event[0-9]*", TAG+="snap_x11_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
-KERNEL=="mice", TAG+="snap_x11_app1"`)
+KERNEL=="mice", TAG+="snap_x11_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
-KERNEL=="mouse[0-9]*", TAG+="snap_x11_app1"`)
+KERNEL=="mouse[0-9]*", TAG+="snap_x11_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
-KERNEL=="ts[0-9]*", TAG+="snap_x11_app1"`)
+KERNEL=="ts[0-9]*", TAG+="snap_x11_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
-KERNEL=="tty[0-9]*", TAG+="snap_x11_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_x11_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_x11_app1 $devpath $major:$minor"`)
+KERNEL=="tty[0-9]*", TAG+="snap_x11_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_x11_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_x11_app $devpath $major:$minor"`)
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 
 	// on a classic system with x11 slot coming from the core snap.
