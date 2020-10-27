@@ -178,7 +178,7 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 
 	// But if the same snap is providing both the plug and the slot, this is
 	// not necessary.
-	if plug.Snap() == slot.Snap() {
+	if plug.Snap().InstanceName() == slot.Snap().InstanceName() {
 		return nil
 	}
 	slotSnapName := slot.Snap().InstanceName()
@@ -204,7 +204,7 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 		`)
 		return nil
 	}
-	if plug.Snap() == slot.Snap() {
+	if plug.Snap().InstanceName() == slot.Snap().InstanceName() {
 		return nil
 	}
 	slotSnapName := slot.Snap().InstanceName()
