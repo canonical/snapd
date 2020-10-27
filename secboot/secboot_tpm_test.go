@@ -823,9 +823,9 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
 	} {
-		mockAuthKey := []byte{1, 3, 3, 7}
-		mockAuthKeyFile := filepath.Join(c.MkDir(), "auth-key-file")
-		err := ioutil.WriteFile(mockAuthKeyFile, mockAuthKey, 0600)
+		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
+		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
+		err := ioutil.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
 		c.Assert(err, IsNil)
 
 		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
@@ -843,7 +843,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 				},
 			},
 			KeyFile:              "keyfile",
-			TPMPolicyAuthKeyFile: mockAuthKeyFile,
+			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
 		sequences := []*sb.EFIImageLoadEvent{
@@ -916,7 +916,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			resealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(authKey, DeepEquals, sb.TPMPolicyAuthKey(mockAuthKey))
+			c.Assert(authKey, DeepEquals, sb.TPMPolicyAuthKey(mockTPMPolicyAuthKey))
 			c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})

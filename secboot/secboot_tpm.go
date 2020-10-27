@@ -351,11 +351,14 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	}
 
 	authKey, err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
+	if err != nil {
+		return err
+	}
 	if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
 		return fmt.Errorf("cannot write the policy auth key file: %v", err)
 	}
 
-	return err
+	return nil
 }
 
 // ResealKey updates the PCR protection policy for the sealed encryption key according to
@@ -382,7 +385,7 @@ func ResealKey(params *ResealKeyParams) error {
 
 	authKey, err := ioutil.ReadFile(params.TPMPolicyAuthKeyFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read the policy auth key file: %v", err)
 	}
 
 	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
