@@ -120,6 +120,15 @@ func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeNa
 	}
 }
 
+func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
+	options *sb.ActivateVolumeOptions) error) (restore func()) {
+	old := sbActivateVolumeWithKey
+	sbActivateVolumeWithKey = f
+	return func() {
+		sbActivateVolumeWithKey = old
+	}
+}
+
 func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex int) error) (restore func()) {
 	old := sbMeasureSnapSystemEpochToTPM
 	sbMeasureSnapSystemEpochToTPM = f
