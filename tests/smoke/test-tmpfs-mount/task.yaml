@@ -1,0 +1,21 @@
+summary: Validate that `tmpfs-mount` interface allows tmpfs mount/umount
+restore: |
+    snap remove --purge snapd-hacker-toolbelt
+    rm -rf /var/snap/snapd-hacker-toolbelt
+    rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
+    echo "We can connect it to the tmpfs-mount slot from the core"
+    snap connect snapd-hacker-toolbelt:tmpfs-mount ubuntu-core:tmpfs-mount
+    mkdir -p /var/lib/snapd/mount
+    mkdir -p /var/snap/snapd-hacker-toolbelt/mnt-none
+    mkdir -p /var/snap/snapd-hacker-toolbelt/mnt-tmpfs
+    echo "none /var/snap/snapd-hacker-toolbelt/mnt-none tmpfs defaults 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    echo "tmpfs /var/snap/snapd-hacker-toolbelt/mnt-tmpfs tmpfs defaults 0 0" >> /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+execute: |
+    echo "We can mount tmpfs filesystems under /var/snap/SNAP using either 'none' or 'tmpfs' as source name"
+    /snap/bin/snapd-hacker-toolbelt.busybox mount | grep snapd-hacker-toolbelt
+    echo "And we can unmount them again"
+    /snap/bin/snapd-hacker-toolbelt.busybox umount /var/snap/snapd-hacker-toolbelt/mnt-none
+    /snap/bin/snapd-hacker-toolbelt.busybox umount /var/snap/snapd-hacker-toolbelt/mnt-tmpfs
