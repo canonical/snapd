@@ -969,3 +969,23 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {
 	})
 	return tpm, restore
 }
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
+	disk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{},
+	}
+	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
+	c.Check(dev, Equals, "")
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyNotImplemented(c *C) {
+	disk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"ubuntu-save-enc": "123-123-123",
+		},
+	}
+	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, "not implemented")
+	c.Check(dev, Equals, "")
+}
