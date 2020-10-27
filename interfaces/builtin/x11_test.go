@@ -130,27 +130,51 @@ func (s *X11InterfaceSuite) TestMountSpec(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
-	// on a core system with x11 slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
+	// case A: x11 slot is provided by the classic system
+	restore := release.MockOnClassic(true)
 	defer restore()
 
-	// connected plug to core slot
+	// Plug side connection permissions
 	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
+	c.Assert(spec.UpdateNS(), HasLen, 1)
+	c.Assert(spec.UpdateNS()[0], testutil.Contains, `mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,`)
+
+	// case B: x11 slot is provided by another snap on the system
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	// Plug side connection permissions
+	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
+	c.Assert(spec.UpdateNS(), HasLen, 1)
+	c.Assert(spec.UpdateNS()[0], testutil.Contains, `mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix/ -> /tmp/.X11-unix/,`)
 
-	// connected core slot to plug
+	// Slot side connection permissions
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
 	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
+	c.Assert(spec.UpdateNS(), HasLen, 0)
 
-	// permanent core slot
+	// Slot side permantent permissions
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
 	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, "capability sys_tty_config,")
+	c.Assert(spec.UpdateNS(), HasLen, 0)
+
+	// case C: x11 slot is both provided and consumed by a snap on the system.
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.corePlug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
+	c.Assert(spec.SnippetForTag("snap.x11.app"), testutil.Contains, "fontconfig")
+	// Self-connection does not need bind mounts, so no additional permissions are provided to snap-update-ns.
+	c.Assert(spec.UpdateNS(), HasLen, 0)
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
