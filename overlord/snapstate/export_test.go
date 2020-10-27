@@ -290,3 +290,7 @@ func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh fun
 	genericRefreshCheck = fn
 	return func() { genericRefreshCheck = old }
 }
+
+func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
+	return m.ensureRefreshHoldAtLeast(d)
+}
