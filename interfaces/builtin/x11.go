@@ -143,6 +143,7 @@ network netlink raw,
 # Deny access to ICE granted by abstractions/X
 # See: https://bugs.launchpad.net/snapd/+bug/1901489
 deny owner @{HOME}/.ICEauthority r,
+deny owner /run/user/*/ICEauthority r,
 deny unix (connect, receive, send)
     type=stream
     peer=(addr="@/tmp/.ICE-unix/[0-9]*"),
