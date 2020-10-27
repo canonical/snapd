@@ -6,8 +6,12 @@ prepare: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  snap download pc-kernel --channel=20/edge --basename=pc-kernel
-  unsquashfs -d pc-kernel pc-kernel.snap
+  # we cannot use the kernel from store as it may have a version of
+  # snap-bootstrap that will not be able to unseal the keys and unlock the
+  # encrypted volumes, instead use the kernel we repacked when building the UC20
+  # image
+  KERNEL_SNAP="$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)"
+  unsquashfs -d pc-kernel "$KERNEL_SNAP"
   # ensure we really have the header we expect
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
   # modify the kernel so that the hash changes
