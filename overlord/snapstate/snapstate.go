@@ -459,10 +459,12 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
-// WaitRestart will return a Retry error if there is a pending restart
+// FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
-// restarts)
-func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+// restarts).
+// For snapd snap updates this will also rerun wrappers generation to fully
+// catch up with any change.
+func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -481,6 +483,8 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return fmt.Errorf("cannot get current snapd snap info: %v", err)
 		}
+		// TODO: if future changes to wrappers need one more snapd restart,
+		// then it should be handled here as well.
 		if err := generateSnapdWrappers(snapdInfo); err != nil {
 			return err
 		}

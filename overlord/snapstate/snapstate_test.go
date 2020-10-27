@@ -3228,7 +3228,7 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	c.Assert(l, HasLen, 1)
 }
 
-func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
+func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	r := release.MockOnClassic(true)
 	defer r()
 
@@ -3243,16 +3243,16 @@ func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
-	err := snapstate.WaitRestart(task, snapsup)
+	err := snapstate.FinishRestart(task, snapsup)
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
 	state.MockRestarting(st, state.RestartDaemon)
-	err = snapstate.WaitRestart(task, snapsup)
+	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 
-func (s *snapmgrTestSuite) TestWaitRestartGeneratesSnapdWrappersOnCore(c *C) {
+func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
@@ -3307,7 +3307,7 @@ type: snapd
 
 		// restarting
 		state.MockRestarting(st, state.RestartUnset)
-		c.Assert(snapstate.WaitRestart(task, snapsup), IsNil)
+		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
 		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName()), "current")), IsNil)
