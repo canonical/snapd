@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -294,6 +296,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-snap-dir",
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
@@ -429,6 +435,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap_instance",
 		},
 		{
@@ -575,6 +585,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			name: "some-snap_instance",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "some-snap_instance",
+		},
+		{
 			op:             "remove-snap-dir",
 			name:           "some-snap_instance",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
@@ -656,15 +670,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-		},
-		{
-			op:    "remove-snap-files",
-			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-			stype: "app",
-		},
-		{
-			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/3"),
 		},
 		{
@@ -677,8 +682,17 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 		},
 		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
 			op:   "remove-snap-common-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -687,11 +701,15 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:    "remove-snap-files",
-			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
 		{
@@ -706,7 +724,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	revnos := []snap.Revision{{N: 7}, {N: 3}, {N: 5}}
+	revnos := []snap.Revision{{N: 3}, {N: 5}, {N: 7}}
 	whichRevno := 0
 	for _, t := range tasks {
 		if t.Kind() == "run-hook" {
@@ -865,7 +883,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 7)
+	c.Check(len(s.fakeBackend.ops), Equals, 8)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -892,6 +910,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
 		{
@@ -1310,4 +1332,256 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	freeSpaceCheckFail := false
 	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 	c.Check(err, IsNil)
+}
+
+type snapdBackend struct {
+	fakeSnappyBackend
+}
+
+func (f *snapdBackend) RemoveSnapData(info *snap.Info) error {
+	dir := snap.DataDir(info.SnapName(), info.Revision)
+	if err := os.Remove(dir); err != nil {
+		return fmt.Errorf("unexpected error: %v", err)
+	}
+	return f.fakeSnappyBackend.RemoveSnapData(info)
+}
+
+func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info) error {
+	dir := snap.CommonDataDir(info.SnapName())
+	if err := os.Remove(dir); err != nil {
+		return fmt.Errorf("unexpected error: %v", err)
+	}
+	return f.fakeSnappyBackend.RemoveSnapCommonData(info)
+}
+
+func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
+	var count int
+	for _, t := range tasks {
+		if t.Kind() == kind {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+			count++
+		}
+	}
+	c.Assert(count, Equals, numExpected)
+}
+
+func injectError(c *C, chg *state.Change, beforeTaskKind string, snapRev snap.Revision) {
+	var found bool
+	for _, t := range chg.Tasks() {
+		if t.Kind() != beforeTaskKind {
+			continue
+		}
+		sup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		if sup.Revision() != snapRev {
+			continue
+		}
+		prev := t.WaitTasks()[0]
+		terr := chg.State().NewTask("error-trigger", "provoking undo")
+		t.WaitFor(terr)
+		terr.WaitFor(prev)
+		chg.AddTask(terr)
+		found = true
+		break
+	}
+	c.Assert(found, Equals, true)
+}
+
+func makeTestSnaps(c *C, st *state.State) {
+	si1 := snap.SideInfo{
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+
+	si2 := snap.SideInfo{
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si1, &si2},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
+	b := &snapdBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+	AddForeignTaskHandlers(s.o.TaskRunner(), b)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	makeTestSnaps(c, s.state)
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// inject an error before clear-snap of revision 1 (current), after
+	// discard-snap for revision 2, that means data and snap rev 1
+	// are still present.
+	injectError(c, chg, "clear-snap", snap.Revision{N: 1})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	isUndone(c, chg.Tasks(), "unlink-snap", 1)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+	c.Assert(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
+
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			stype: "app",
+		},
+		{
+			op:    "remove-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Check(len(b.ops), Equals, len(expected))
+	c.Assert(b.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(b.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c *C) {
+	b := &snapdBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+	AddForeignTaskHandlers(s.o.TaskRunner(), b)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	makeTestSnaps(c, s.state)
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// inject an error after removing data of both revisions (which includes
+	// current rev 1), before discarding the snap completely.
+	injectError(c, chg, "discard-snap", snap.Revision{N: 1})
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	isUndone(c, chg.Tasks(), "unlink-snap", 1)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+
+	// revision 1 is still present but not active, since the error happened
+	// after its data was removed.
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+	c.Assert(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
+
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:   "remove-snap-data-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
+		},
+		{
+			op:    "remove-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(len(b.ops), Equals, len(expected))
+	c.Assert(b.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(b.ops, DeepEquals, expected)
 }

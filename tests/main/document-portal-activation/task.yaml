@@ -24,10 +24,8 @@ systems:
     - -ubuntu-core-*
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-desktop
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     tests.session -u test prepare
 

@@ -8,9 +8,7 @@ environment:
     ENVDUMP: /var/snap/basic-hooks/current/hooks-env
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local basic-hooks
+    "$TESTSTOOLS"/snaps-state install-local basic-hooks
 
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we

@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -74,9 +73,9 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
-	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
-	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
+	secbootMeasureSnapSystemEpochWhenPossible func() error
+	secbootMeasureSnapModelWhenPossible       func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeIfEncrypted            func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -163,6 +162,11 @@ func copyNetworkConfig(src, dst string) error {
 		//            network configuration for recover mode as well, but for
 		//            now this is fine
 		"system-data/etc/netplan/*",
+		// etc/machine-id is part of what systemd-networkd uses to generate a
+		// DHCP clientid (the other part being the interface name), so to have
+		// the same IP addresses across run mode and recover mode, we need to
+		// also copy the machine-id across
+		"system-data/etc/machine-id",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -171,7 +175,28 @@ func copyNetworkConfig(src, dst string) error {
 	return nil
 }
 
-// copyUbuntuDataAuth copies the authenication files like
+// copyUbuntuDataMisc copies miscellaneous other files from the run mode system
+// to the recover system such as:
+//  - timesync clock to keep the same time setting in recover as in run mode
+func copyUbuntuDataMisc(src, dst string) error {
+	for _, globEx := range []string{
+		// systemd's timesync clock file so that the time in recover mode moves
+		// forward to what it was in run mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyUbuntuDataAuth copies the authentication files like
 //  - extrausers passwd,shadow etc
 //  - sshd host configuration
 //  - user .ssh dir
@@ -190,13 +215,6 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
-		// so that the time in recover mode moves forward to what it was in run
-		// mode
-		// NOTE: we don't sync back the time movement from recover mode to run
-		// mode currently, unclear how/when we could do this, but recover mode
-		// isn't meant to be long lasting and as such it's probably not a big
-		// problem to "lose" the time spent in recover mode
-		"system-data/var/lib/systemd/timesync/clock",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
@@ -298,6 +316,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
+	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
 
@@ -454,10 +475,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// don't run fsck on ubuntu-seed in run mode so we minimize chance of
-	// corruption
-
-	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, nil); err != nil {
+	// fsck is safe to run on ubuntu-seed as per the manpage, it should not
+	// meaningfully contribute to corruption if we fsck it every time we boot,
+	// and it is important to fsck it because it is vfat and mounted writable
+	// TODO:UC20: mount it as read-only here and remount as writable when we
+	//            need it to be writable for i.e. transitioning to recover mode
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
@@ -478,12 +504,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	opts := &systemdMountOptions{
-		// TODO: do we actually need fsck if we are mounting a mapper device?
-		// probably not?
-		NeedsFsck: true,
-	}
-	if err := doSystemdMount(device, boot.InitramfsDataDir, opts); err != nil {
+	// TODO: do we actually need fsck if we are mounting a mapper device?
+	// probably not?
+	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 

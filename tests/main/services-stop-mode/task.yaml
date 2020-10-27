@@ -19,11 +19,8 @@ debug: |
     done
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "When the service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     # Because we cannot use daemon: notify easily yet just wait for a "ready"
     # file to show up.  The file is removed when the service is stopped. This
     # pattern repeats around the test without additional comments.
@@ -39,7 +36,7 @@ execute: |
     done
 
     echo "When it is re-installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
 
     # note that sigterm{,-all} is tested separately
