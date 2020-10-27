@@ -56,6 +56,7 @@ var (
 	sbBlockPCRProtectionPolicies     = sb.BlockPCRProtectionPolicies
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
+	sbActivateVolumeWithKey          = sb.ActivateVolumeWithKey
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
 	sbAddEFIBootManagerProfile       = sb.AddEFIBootManagerProfile
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
@@ -344,10 +345,14 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
 // key.
 func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
-
-	// TODO:UC20: call secboot.ActivateVolumeWithKey(name, device, key, &options)
-
-	return errors.New("not implemented")
+	options := sb.ActivateVolumeOptions{
+		// no special options set
+	}
+	err := sbActivateVolumeWithKey(name, device, key, &options)
+	if err == nil {
+		logger.Noticef("successfully activated encrypted device %v using a key", device)
+	}
+	return err
 }
 
 // SealKey provisions the TPM and seals a partition encryption key according to the
