@@ -471,24 +471,28 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return &state.Retry{}
 	}
 
-	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
-		return fmt.Errorf("there was a snapd rollback across the restart")
+	if snapsup.Type == snap.TypeSnapd {
+		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+			return fmt.Errorf("there was a snapd rollback across the restart")
+		}
+
+		// if we have restarted and snapd was refreshed, then we need to generate
+		// snapd wrappers again with current snapd, as the logic of generating
+		// wrappers may have changed between previous and new snapd code.
+		if !release.OnClassic {
+			snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
+			if err != nil {
+				return fmt.Errorf("cannot get current snapd snap info: %v", err)
+			}
+			// TODO: if future changes to wrappers need one more snapd restart,
+			// then it should be handled here as well.
+			if err := generateSnapdWrappers(snapdInfo); err != nil {
+				return err
+			}
+		}
 	}
 
-	// if we have restarted and snapd was refreshed, then we need to generate
-	// snapd wrappers again with current snapd, as the logic of generating
-	// wrappers may have changed between previous and new snapd code.
-	if snapsup.Type == snap.TypeSnapd && !release.OnClassic {
-		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
-		if err != nil {
-			return fmt.Errorf("cannot get current snapd snap info: %v", err)
-		}
-		// TODO: if future changes to wrappers need one more snapd restart,
-		// then it should be handled here as well.
-		if err := generateSnapdWrappers(snapdInfo); err != nil {
-			return err
-		}
-	}
+	// consider kernel and base
 
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)
 	if err != nil {
