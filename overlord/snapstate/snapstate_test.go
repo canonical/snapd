@@ -4683,6 +4683,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
@@ -4776,6 +4780,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "ubuntu-core",
 		},
 		{

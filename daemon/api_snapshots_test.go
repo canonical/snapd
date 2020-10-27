@@ -390,7 +390,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 
 	setID := uint64(3)
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
 		return setID, snapNames, nil
 	})()
 
@@ -406,7 +406,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
 		return uint64(0), nil, errors.New("no")
 	})()
 
@@ -437,7 +437,7 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	var dataRead int
 
-	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, error) {
 		data, err := ioutil.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		dataRead = len(data)

@@ -21,39 +21,13 @@
 package secboot
 
 import (
-	"crypto/rand"
-	"os"
-	"path/filepath"
-
 	sb "github.com/snapcore/secboot"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 var (
 	sbInitializeLUKS2Container       = sb.InitializeLUKS2Container
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
 )
-
-// RecoveryKey is a key used to unlock the encrypted partition when
-// the encryption key can't be used, for example when unseal fails.
-type RecoveryKey sb.RecoveryKey
-
-func NewRecoveryKey() (RecoveryKey, error) {
-	var key RecoveryKey
-	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
-	// On return, n == len(b) if and only if err == nil
-	return key, err
-}
-
-// Save writes the recovery key in the location specified by filename.
-func (key RecoveryKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
-	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
-}
 
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the

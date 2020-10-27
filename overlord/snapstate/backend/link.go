@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -42,6 +43,10 @@ type LinkContext struct {
 	// VitalityRank is used to hint how much the services should be
 	// protected from the OOM killer
 	VitalityRank int
+
+	// RunInhibitHint is used only in Unlink snap, and can be used to
+	// establish run inhibition lock for refresh operations.
+	RunInhibitHint runinhibit.Hint
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -142,6 +147,11 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}
 		})
+	}
+
+	// Stop inhibiting application startup by removing the inhibitor file.
+	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
+		return false, err
 	}
 
 	return reboot, nil
@@ -252,6 +262,12 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
 func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
+	var err0 error
+	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
+		// inhibit startup of new programs
+		err0 = runinhibit.LockWithHint(info.InstanceName(), hint)
+	}
+
 	// remove generated services, binaries etc
 	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
@@ -259,7 +275,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	err2 := removeCurrentSymlinks(info)
 
 	// FIXME: aggregate errors instead
-	return firstErr(err1, err2)
+	return firstErr(err0, err1, err2)
 }
 
 // ServicesEnableState returns the current enabled/disabled states of a snap's

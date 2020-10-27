@@ -24,12 +24,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -71,9 +75,22 @@ type fakeOp struct {
 	disabledServices []string
 
 	vitalityRank int
+
+	inhibitHint runinhibit.Hint
 }
 
 type fakeOps []fakeOp
+
+func (ops fakeOps) MustFindOp(c *C, opName string) *fakeOp {
+	for _, op := range ops {
+		if op.op == opName {
+			return &op
+		}
+	}
+	c.Errorf("cannot find operation with op: %q, all ops: %v", opName, ops.Ops())
+	c.FailNow()
+	return nil
+}
 
 func (ops fakeOps) Ops() []string {
 	opsOps := make([]string, len(ops))
@@ -660,6 +677,8 @@ type fakeSnappyBackend struct {
 	emptyContainer          snap.Container
 
 	servicesCurrentlyDisabled []string
+
+	lockDir string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -1046,6 +1065,14 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-inhibit-lock",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
@@ -1107,6 +1134,22 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 		name: snapName,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
+	f.appendOp(&fakeOp{
+		op:          "run-inhibit-snap-for-unlink",
+		name:        info.InstanceName(),
+		inhibitHint: hint,
+	})
+	if err := decision(); err != nil {
+		return nil, err
+	}
+	if f.lockDir == "" {
+		f.lockDir = os.TempDir()
+	}
+	// XXX: returning a real lock is somewhat annoying
+	return osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
 }
 
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {

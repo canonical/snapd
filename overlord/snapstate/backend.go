@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -86,6 +88,7 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
 	DiscardSnapNamespace(snapName string) error
+	RemoveSnapInhibitLock(snapName string) error
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error
@@ -94,4 +97,9 @@ type managerBackend interface {
 	// testing helpers
 	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
+
+	// refresh related
+	RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (*osutil.FileLock, error)
+	// (not a backend method because doInstall cannot access the backend)
+	// WithSnapLock(info *snap.Info, action func() error) error
 }
