@@ -38,11 +38,11 @@ func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore fun
 	}
 }
 
-func MockSbProvisionTPM(f func(tpm *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
-	old := sbProvisionTPM
-	sbProvisionTPM = f
+func MockProvisionTPM(f func(tpm *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
+	old := provisionTPM
+	provisionTPM = f
 	return func() {
-		sbProvisionTPM = old
+		provisionTPM = old
 	}
 }
 
@@ -78,7 +78,7 @@ func MockSbAddSnapModelProfile(f func(profile *sb.PCRProtectionProfile, params *
 	}
 }
 
-func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error) (restore func()) {
+func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath string, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error)) (restore func()) {
 	old := sbSealKeyToTPM
 	sbSealKeyToTPM = f
 	return func() {
@@ -86,7 +86,7 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	}
 }
 
-func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, policyUpdatePath string, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicy
 	sbUpdateKeyPCRProtectionPolicy = f
 	return func() {
@@ -94,16 +94,16 @@ func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath, p
 	}
 }
 
-func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
-	old := sbLockAccessToSealedKeys
-	sbLockAccessToSealedKeys = f
+func MockSbBlockPCRProtectionPolicies(f func(tpm *sb.TPMConnection, pcrs []int) error) (restore func()) {
+	old := sbBlockPCRProtectionPolicies
+	sbBlockPCRProtectionPolicies = f
 	return func() {
-		sbLockAccessToSealedKeys = old
+		sbBlockPCRProtectionPolicies = old
 	}
 }
 
 func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	keyReader io.Reader, options *sb.ActivateWithRecoveryKeyOptions) error) (restore func()) {
+	keyReader io.Reader, options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
@@ -112,7 +112,7 @@ func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath str
 }
 
 func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeName, sourceDevicePath, keyPath string,
-	pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
+	pinReader io.Reader, options *sb.ActivateVolumeOptions) (bool, error)) (restore func()) {
 	old := sbActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithTPMSealedKey = f
 	return func() {
