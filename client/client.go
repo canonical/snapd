@@ -317,7 +317,9 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 type doOptions struct {
 	// Timeout is the overall request timeout
 	Timeout time.Duration
-	// Retry interval
+	// Retry interval.
+	// Note for a request with a Timeout but without a retry, Retry should just
+	// be set to something larger than the Timeout.
 	Retry time.Duration
 }
 

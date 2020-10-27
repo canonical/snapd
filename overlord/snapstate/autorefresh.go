@@ -130,6 +130,31 @@ func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 	return holdTime, nil
 }
 
+func (m *autoRefresh) ensureRefreshHoldAtLeast(duration time.Duration) error {
+	now := time.Now()
+
+	// get the effective refresh hold and check if it is sooner than the
+	// specified duration in the future
+	effective, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return err
+	}
+
+	if effective.IsZero() || effective.Sub(now) < duration {
+		// the effective refresh hold is sooner than the desired delay, so
+		// move it out to the specified duration
+		holdTime := now.Add(duration)
+		tr := config.NewTransaction(m.state)
+		err := tr.Set("core", "refresh.hold", &holdTime)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		tr.Commit()
+	}
+
+	return nil
+}
+
 // clearRefreshHold clears refresh.hold configuration.
 func (m *autoRefresh) clearRefreshHold() {
 	tr := config.NewTransaction(m.state)
