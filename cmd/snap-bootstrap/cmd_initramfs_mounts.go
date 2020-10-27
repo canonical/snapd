@@ -294,7 +294,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	}
 
 	// 3.1. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, isDecryptDev, nil)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, isDecryptDev, nil)
 	if err != nil {
 		return err
 	}
@@ -472,19 +472,16 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
-func maybeMountSave(disk disks.Disk, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
+func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
 	var saveDevice string
-	saveKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-save.key")
-	// if ubuntu-save exists and is encrypted, the key has been created during install
-	haveSaveKey := osutil.FileExists(saveKey)
-
-	if encrypted != haveSaveKey {
-		// ubuntu-data is encrypted, but we appear to be missing
-		// ubuntu-save (and thus ubuntu-save), otherwise both partitions
-		// should be unencrypted
-		return false, fmt.Errorf("ubuntu-data and ubuntu-save should be both encrypted or plain")
-	}
-	if haveSaveKey {
+	if encrypted {
+		saveKey := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "ubuntu-save.key")
+		// if ubuntu-save exists and is encrypted, the key has been created during install
+		if !osutil.FileExists(saveKey) {
+			// ubuntu-data is encrypted, but we appear to be missing
+			// a key to open ubuntu-save
+			return false, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
+		}
 		// we have save.key, volume exists and is encrypted
 		key, err := ioutil.ReadFile(saveKey)
 		if err != nil {
@@ -492,7 +489,7 @@ func maybeMountSave(disk disks.Disk, encrypted bool, mountOpts *systemdMountOpti
 		}
 		saveDevice, err = secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
 		if err != nil {
-			return true, err
+			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
 	} else {
 		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
@@ -569,7 +566,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 3.3. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, isDecryptDev, fsckSystemdOpts)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, isDecryptDev, fsckSystemdOpts)
 	if err != nil {
 		return err
 	}
