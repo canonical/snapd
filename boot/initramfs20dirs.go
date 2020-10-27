@@ -38,6 +38,10 @@ var (
 	// during the initramfs, typically used in recover mode.
 	InitramfsHostUbuntuDataDir string
 
+	// InitramfsHostWritableDir is the location of the host writable
+	// partition during the initramfs, typically used in recover mode.
+	InitramfsHostWritableDir string
+
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
 	InitramfsUbuntuBootDir string
@@ -72,6 +76,7 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
+	InitramfsHostWritableDir = filepath.Join(InitramfsHostUbuntuDataDir, "system-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
