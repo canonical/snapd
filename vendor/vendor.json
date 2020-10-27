@@ -304,6 +304,7 @@
 		},
 		{
 			"checksumSHA1": "tZ9GNzrjTZEPDhoJEkouGPKRmZk=",
+			"origin": "github.com/pedronis/maze.io-x-crypto/afis",
 			"path": "maze.io/x/crypto/afis",
 			"revision": "9b94c9afe06676a7da39a608a48ed4e31f5d125f",
 			"revisionTime": "2019-01-31T09:06:03Z"
