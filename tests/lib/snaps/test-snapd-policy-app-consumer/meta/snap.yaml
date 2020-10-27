@@ -98,6 +98,12 @@ apps:
   device-buttons:
     command: bin/run
     plugs: [ device-buttons ]
+  device-mapper-control:
+    command: bin/run
+    plugs: [ device-mapper-control ]
+  device-mapper-devices:
+    command: bin/run
+    plugs: [ device-mapper-devices ]
   display-control:
     command: bin/run
     plugs: [ display-control ]
@@ -227,6 +233,9 @@ apps:
   login-session-observe:
     command: bin/run
     plugs: [ login-session-observe ]
+  lvm-control:
+    command: bin/run
+    plugs: [ lvm-control ]
   lxd:
     command: bin/run
     plugs: [ lxd ]
