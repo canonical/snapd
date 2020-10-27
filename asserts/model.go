@@ -339,6 +339,19 @@ const (
 	ModelDangerous ModelGrade = "dangerous"
 )
 
+// ModelStorageSafety characterizes the requested storage safety of
+// the model which then controls what encryption is used
+type ModelStorageSafety string
+
+const (
+	ModelStorageSafetyUnset ModelStorageSafety = "unset"
+	// ModelStorageSafetyOptional implies that the model can optionally
+	// be encrypted.
+	ModelStorageSafetyOptional ModelStorageSafety = "optional"
+	// ModelSigned implies mandatory encryption for the model.
+	ModelStorageSafetyEncrypted ModelStorageSafety = "encrypted"
+)
+
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
@@ -373,6 +386,8 @@ type Model struct {
 	kernelSnap *ModelSnap
 
 	grade ModelGrade
+
+	storageSafety ModelStorageSafety
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -424,6 +439,12 @@ func (mod *Model) Architecture() string {
 // for Core 16/18 models.
 func (mod *Model) Grade() ModelGrade {
 	return mod.grade
+}
+
+// StorageSafety returns the storage safety for the model. Will be
+// StorageSafetyUnset for Core 16/18 models.
+func (mod *Model) StorageSafety() ModelStorageSafety {
+	return mod.storageSafety
 }
 
 // GadgetSnap returns the details of the gadget snap the model uses.
@@ -643,6 +664,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, ok := assert.headers["grade"]; ok {
 			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
 		}
+		if _, ok := assert.headers["storage-safety"]; ok {
+			return nil, fmt.Errorf("cannot specify a storage-safety for model without the extended snaps header")
+		}
 	}
 
 	if classic {
@@ -694,6 +718,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	var modSnaps *modelSnaps
 	grade := ModelGradeUnset
+	storageSafety := ModelStorageSafetyUnset
 	if extended {
 		gradeStr, err := checkOptionalString(assert.headers, "grade")
 		if err != nil {
@@ -705,6 +730,20 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		grade = ModelSigned
 		if gradeStr != "" {
 			grade = ModelGrade(gradeStr)
+		}
+
+		storageSafetyStr, err := checkOptionalString(assert.headers, "storage-safety")
+		if err != nil {
+			return nil, err
+		}
+		if storageSafetyStr != "" && storageSafetyStr != "optional" && storageSafetyStr != "encrypted" {
+			return nil, fmt.Errorf("storage-safety for model must be optional|encrypted, not %q", storageSafetyStr)
+		}
+		if storageSafetyStr != "" {
+			storageSafety = ModelStorageSafety(storageSafetyStr)
+		}
+		if grade == ModelSecured && storageSafety == ModelStorageSafetyOptional {
+			return nil, fmt.Errorf(`"grade: secured" cannot have "storage-safety: optional"`)
 		}
 
 		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
@@ -794,6 +833,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
 		grade:                      grade,
+		storageSafety:              storageSafety,
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,
