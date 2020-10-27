@@ -119,7 +119,9 @@ func checkSecureBootEnabled() error {
 	return nil
 }
 
-const tpmPCR = 12
+// initramfsPCR is the TPM PCR that we reserve for the EFI image and use
+// for measurement from the initramfs.
+const initramfsPCR = 12
 
 func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
 	ekCertReader, err := os.Open(ekcfile)
@@ -157,7 +159,7 @@ func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
 // TPM device is available. If there's no TPM device success is returned.
 func MeasureSnapSystemEpochWhenPossible() error {
 	measure := func(tpm *sb.TPMConnection) error {
-		return sbMeasureSnapSystemEpochToTPM(tpm, tpmPCR)
+		return sbMeasureSnapSystemEpochToTPM(tpm, initramfsPCR)
 	}
 
 	if err := measureWhenPossible(measure); err != nil {
@@ -175,7 +177,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 		if err != nil {
 			return err
 		}
-		return sbMeasureSnapModelToTPM(tpm, tpmPCR, model)
+		return sbMeasureSnapModelToTPM(tpm, initramfsPCR, model)
 	}
 
 	if err := measureWhenPossible(measure); err != nil {
@@ -226,7 +228,7 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 				// We should only touch the PCR that we've currently reserved for the kernel
 				// EFI image. Touching others will break the ability to perform any kind of
 				// attestation using the TPM because it will make the log inconsistent.
-				lockErr = sbBlockPCRProtectionPolicies(tpm, []int{tpmPCR})
+				lockErr = sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 			}
 		}()
 
@@ -430,7 +432,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		if len(mp.KernelCmdlines) != 0 {
 			systemdStubParams := sb.SystemdEFIStubProfileParams{
 				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
-				PCRIndex:       tpmPCR,
+				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
 			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
@@ -442,7 +444,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		if mp.Model != nil {
 			snapModelParams := sb.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-				PCRIndex:     tpmPCR,
+				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
