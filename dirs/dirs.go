@@ -101,6 +101,7 @@ var (
 	SnapModeenvFile   string
 	SnapBootAssetsDir string
 	SnapFDEDir        string
+	SnapSaveDir       string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -267,6 +268,11 @@ func SnapFDEDirUnder(rootdir string) string {
 	return filepath.Join(SnapDeviceDirUnder(rootdir), "fde")
 }
 
+// SnapSaveDirUnder returns the path to device save directory under rootdir.
+func SnapSaveDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "save")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -346,6 +352,7 @@ func SetRootDir(rootdir string) {
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
+	SnapSaveDir = SnapSaveDirUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
