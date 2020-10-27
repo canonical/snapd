@@ -25,8 +25,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -36,6 +38,8 @@ type X11InterfaceSuite struct {
 	iface           interfaces.Interface
 	coreSlotInfo    *snap.SlotInfo
 	coreSlot        *interfaces.ConnectedSlot
+	corePlugInfo    *snap.PlugInfo
+	corePlug        *interfaces.ConnectedPlug
 	classicSlotInfo *snap.SlotInfo
 	classicSlot     *interfaces.ConnectedSlot
 	plugInfo        *snap.PlugInfo
@@ -58,7 +62,14 @@ const x11CoreYaml = `name: x11
 version: 0
 apps:
  app:
-  slots: [x11]
+  slots: [x11-provider]
+  plugs: [x11-consumer]
+plugs:
+  x11-consumer:
+    interface: x11
+slots:
+  x11-provider:
+    interface: x11
 `
 
 // an x11 slot on the core snap (as automatically added on classic)
@@ -72,7 +83,8 @@ slots:
 
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, x11MockPlugSnapInfoYaml, nil, "x11")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, x11CoreYaml, nil, "x11")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, x11CoreYaml, nil, "x11-provider")
+	s.corePlug, s.corePlugInfo = MockConnectedPlug(c, x11CoreYaml, nil, "x11-consumer")
 	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, x11ClassicYaml, nil, "x11")
 }
 
@@ -87,6 +99,34 @@ func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *X11InterfaceSuite) TestMountSpec(c *C) {
+	// case A: x11 slot is provided by the system
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
+		Dir:     "/tmp/.X11-unix/",
+		Options: []string{"bind", "ro"},
+	}})
+	c.Assert(spec.UserMountEntries(), HasLen, 0)
+
+	// case B: x11 slot is provided by another snap on the system
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix/",
+		Dir:     "/tmp/.X11-unix/",
+		Options: []string{"bind", "ro"},
+	}})
+	c.Assert(spec.UserMountEntries(), HasLen, 0)
+
+	// case C: x11 slot is both provided and consumed by a snap on the system.
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.corePlug, s.coreSlot), IsNil)
+	c.Assert(spec.MountEntries(), HasLen, 0)
+	c.Assert(spec.UserMountEntries(), HasLen, 0)
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
