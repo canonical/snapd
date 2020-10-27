@@ -33,7 +33,8 @@ var (
 // given by node, setting the specified label. The key used to unlock the
 // volume is provided using the key argument.
 func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
-	return sbInitializeLUKS2Container(node, label, key[:])
+	// TODO:UC20: pass options
+	return sbInitializeLUKS2Container(node, label, key[:], nil)
 }
 
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
