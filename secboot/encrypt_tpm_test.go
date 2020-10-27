@@ -44,11 +44,13 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		}
 
 		calls := 0
-		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte) error {
+		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte,
+			opts *sb.InitializeLUKS2ContainerOptions) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
 			c.Assert(key, DeepEquals, myKey[:])
+			c.Assert(opts, IsNil)
 			return tc.initErr
 		})
 		defer restore()

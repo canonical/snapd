@@ -144,7 +144,8 @@ func MockRandomKernelUUID(f func() string) (restore func()) {
 	}
 }
 
-func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte) error) (restore func()) {
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
+	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container
 	sbInitializeLUKS2Container = f
 	return func() {
