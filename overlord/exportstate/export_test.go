@@ -30,6 +30,7 @@ var (
 	EffectiveSnapNameAndExportedVersionForSnapdOrCore = effectiveSnapNameAndExportedVersionForSnapdOrCore
 	SelectExportedVersionForSnapdTools                = selectExportedVersionForSnapdTools
 	CurrentSnapdAndCoreInfo                           = currentSnapdAndCoreInfo
+	UpdateExportedVersion                             = updateExportedVersion
 )
 
 func MockSnapStateCurrentInfo(fn func(st *state.State, snapName string) (*snap.Info, error)) (restore func()) {
