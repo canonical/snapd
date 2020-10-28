@@ -45,6 +45,13 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 	}
 }
 
+type SealKeyRequest struct {
+	// The key to seal
+	Key EncryptionKey
+	// The path to store the sealed key file
+	KeyFile string
+}
+
 type SealKeyModelParams struct {
 	// The snap model
 	Model *asserts.Model
@@ -58,8 +65,6 @@ type SealKeyModelParams struct {
 type SealKeyParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
-	// The path to store the sealed key file
-	KeyFile string
 	// The path to the authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKeyFile string
 	// The path to the lockout authorization file (only relevant for TPM)
@@ -69,8 +74,8 @@ type SealKeyParams struct {
 type ResealKeyParams struct {
 	// The snap model parameters
 	ModelParams []*SealKeyModelParams
-	// The path to the sealed key file
-	KeyFile string
+	// The path to the sealed key files
+	KeyFiles []string
 	// The path to the authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKeyFile string
 }

@@ -50,19 +50,19 @@ const (
 )
 
 var (
-	sbConnectToDefaultTPM            = sb.ConnectToDefaultTPM
-	sbMeasureSnapSystemEpochToTPM    = sb.MeasureSnapSystemEpochToTPM
-	sbMeasureSnapModelToTPM          = sb.MeasureSnapModelToTPM
-	sbBlockPCRProtectionPolicies     = sb.BlockPCRProtectionPolicies
-	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
-	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
-	sbActivateVolumeWithKey          = sb.ActivateVolumeWithKey
-	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
-	sbAddEFIBootManagerProfile       = sb.AddEFIBootManagerProfile
-	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
-	sbAddSnapModelProfile            = sb.AddSnapModelProfile
-	sbSealKeyToTPM                   = sb.SealKeyToTPM
-	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
+	sbConnectToDefaultTPM                  = sb.ConnectToDefaultTPM
+	sbMeasureSnapSystemEpochToTPM          = sb.MeasureSnapSystemEpochToTPM
+	sbMeasureSnapModelToTPM                = sb.MeasureSnapModelToTPM
+	sbBlockPCRProtectionPolicies           = sb.BlockPCRProtectionPolicies
+	sbActivateVolumeWithTPMSealedKey       = sb.ActivateVolumeWithTPMSealedKey
+	sbActivateVolumeWithRecoveryKey        = sb.ActivateVolumeWithRecoveryKey
+	sbActivateVolumeWithKey                = sb.ActivateVolumeWithKey
+	sbAddEFISecureBootPolicyProfile        = sb.AddEFISecureBootPolicyProfile
+	sbAddEFIBootManagerProfile             = sb.AddEFIBootManagerProfile
+	sbAddSystemdEFIStubProfile             = sb.AddSystemdEFIStubProfile
+	sbAddSnapModelProfile                  = sb.AddSnapModelProfile
+	sbSealKeyToTPMMultiple                 = sb.SealKeyToTPMMultiple
+	sbUpdateKeyPCRProtectionPolicyMultiple = sb.UpdateKeyPCRProtectionPolicyMultiple
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -354,10 +354,10 @@ func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
 	return err
 }
 
-// SealKey provisions the TPM and seals a partition encryption key according to the
+// SealKey provisions the TPM and seals the encryption keys according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
 // exists, SealKey will fail and return an error.
-func SealKey(key EncryptionKey, params *SealKeyParams) error {
+func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -388,7 +388,15 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		PCRPolicyCounterHandle: policyCounterHandle,
 	}
 
-	authKey, err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, &creationParams)
+	sbKeys := make([]*sb.SealKeyRequest, 0, len(keys))
+	for _, k := range keys {
+		sbKeys = append(sbKeys, &sb.SealKeyRequest{
+			Key:  k.Key[:],
+			Path: k.KeyFile,
+		})
+	}
+
+	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
 	if err != nil {
 		return err
 	}
@@ -426,7 +434,7 @@ func ResealKey(params *ResealKeyParams) error {
 		return fmt.Errorf("cannot read the policy auth key file: %v", err)
 	}
 
-	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, authKey, pcrProfile)
+	return sbUpdateKeyPCRProtectionPolicyMultiple(tpm, params.KeyFiles, authKey, pcrProfile)
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {

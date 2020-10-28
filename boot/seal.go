@@ -106,14 +106,21 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 			return err
 		}
 	}
+
+	keys := []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		},
+	}
+
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:          modelParams,
-		KeyFile:              filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		TPMPolicyAuthKeyFile: filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
 		TPMLockoutAuthFile:   filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
 	}
 	// finally, seal the key
-	if err := secbootSealKey(key, sealKeyParams); err != nil {
+	if err := secbootSealKey(keys, sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
@@ -216,9 +223,15 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
+
+	// list all the key files to reseal
+	keyFiles := []string{
+		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+	}
+
 	resealKeyParams := &secboot.ResealKeyParams{
 		ModelParams:          modelParams,
-		KeyFile:              filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		KeyFiles:             keyFiles,
 		TPMPolicyAuthKeyFile: filepath.Join(dirs.SnapFDEDirUnder(rootdir), "tpm-policy-auth-key"),
 	}
 	if err := secbootResealKey(resealKeyParams); err != nil {
