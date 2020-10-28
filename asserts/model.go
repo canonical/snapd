@@ -736,7 +736,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
-		if storageSafetyStr != "" && storageSafetyStr != "optional" && storageSafetyStr != "encrypted" {
+		if storageSafetyStr != "" && storageSafetyStr != string(ModelStorageSafetyOptional) && storageSafetyStr != string(ModelStorageSafetyEncrypted) {
 			return nil, fmt.Errorf("storage-safety for model must be optional|encrypted, not %q", storageSafetyStr)
 		}
 		if storageSafetyStr != "" {
