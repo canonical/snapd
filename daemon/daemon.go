@@ -626,8 +626,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	d.overlord.Stop()
 
-	err := d.tomb.Wait()
-	if err != nil {
+	if err := d.tomb.Wait(); err != nil {
 		if err == context.DeadlineExceeded {
 			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
 			// the process is shutting down anyway, so we may just
