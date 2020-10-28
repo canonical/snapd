@@ -8,7 +8,7 @@ execute: |
     "$TESTSTOOLS"/systemd-state --help | MATCH "usage: create-and-start-unit"
 
     # Create a non persistent service unit
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 5"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 5"
     systemctl is-active testunit
     test -f /run/systemd/system/testunit.service
     test ! -f /etc/systemd/system/testunit.service
@@ -22,7 +22,7 @@ execute: |
     test ! -f /run/systemd/system/testunit.service
 
     # Create a persistent service unit
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 5" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 5" --persistent
     systemctl is-active testunit
     test -f /etc/systemd/system/testunit.service
     test ! -f /run/systemd/system/testunit.service
@@ -32,12 +32,12 @@ execute: |
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
 
     # Create a service unit with overrides
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --overrides "TESTVAR=TESTVAL"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 10" --overrides "TESTVAR=TESTVAL"
     systemctl cat testunit | MATCH "Environment=TESTVAR=TESTVAL"
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
 
     # Create a service unit with overrides for a persistent unit
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --overrides "[Unit]\nTESTVAR=TESTVAL" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 10" --overrides "[Unit]\nTESTVAR=TESTVAL" --persistent
     systemctl cat testunit | MATCH "TESTVAR=TESTVAL"
     test -f /etc/systemd/system/testunit.service.d/override.conf
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
@@ -52,9 +52,9 @@ execute: |
     "$TESTSTOOLS"/systemd-state active-snapd-units | MATCH 'snapd.service'
 
     # Check the services can be stopped
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "sleep 100" --persistent
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit2 "sleep 100" --persistent
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit3 "sleep 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "/usr/bin/sleep 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit2 "/usr/bin/sleep 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit3 "/usr/bin/sleep 100" --persistent
     systemctl is-active testunit1
     systemctl is-active testunit2
     systemctl is-active testunit3
@@ -74,7 +74,7 @@ execute: |
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit3
 
     # wait for unit until it is active
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 10" --persistent
     "$TESTSTOOLS"/systemd-state wait-for-unit testunit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
 
@@ -84,8 +84,8 @@ execute: |
     # Check errors for create-and-start-unit
     "$TESTSTOOLS"/systemd-state create-and-start-unit 2>&1 | MATCH "systemd-state: unit name and args are required to create the service unit"
     "$TESTSTOOLS"/systemd-state create-and-start-unit testunit 2>&1 | MATCH "systemd-state: unit name and args are required to create the service unit"
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --noexist 2>&1 | MATCH "systemd-state: parameter used to create and start service unit not supported --noexist"
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "sleep 10" --overrides 2>&1 | MATCH "systemd-state: overrrides configuration missing to create service unit"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 10" --noexist 2>&1 | MATCH "systemd-state: parameter used to create and start service unit not supported --noexist"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "/usr/bin/sleep 10" --overrides 2>&1 | MATCH "systemd-state: overrrides configuration missing to create service unit"
 
     # Check errors for stop-and-remove-unit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit 2>&1 | MATCH "systemd-state: unit name required to stop and remove service unit"
