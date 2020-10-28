@@ -160,10 +160,12 @@ func (s *handlersSuite) TestDoExportContentSnapd(c *C) {
 	var m exportstate.Manifest
 	c.Assert(exportstate.Get(st, "snapd", snap.R(1), &m), IsNil)
 	c.Check(m.IsEmpty(), Equals, false)
-
 	// Exported content is now on disk.
-	for _, symlink := range m.Symlinks {
-		c.Check(symlink.PathName(), testutil.SymlinkTargetEquals, symlink.Target)
+	for _, set := range m.Sets {
+		for _, exported := range set.Exports {
+			c.Check(exportstate.ExportedFilePath(&m, &set, &exported), testutil.SymlinkTargetEquals,
+				exportstate.ExportedFileSourcePath(&m, &set, &exported))
+		}
 	}
 }
 
@@ -212,17 +214,25 @@ func (s *handlersSuite) TestUndoExportContentSnapd(c *C) {
 func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {
 	st := s.st
 	st.Lock()
-	initialManifest := exportstate.Manifest{
-		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:        "snapd",
-			ExportedVersion: "1",
-			ExportSet:       "tools",
-			Name:            "snap-exec",
-			Target:          "/snap/snapd/1/usr/lib/snapd/snap-exec",
-		}},
+	initialManifest := &exportstate.Manifest{
+		SnapInstanceName: "snapd",
+		SnapRevision:     "1",
+		ExportedName:     "snapd",
+		ExportedVersion:  "1",
+		Sets: map[string]exportstate.ExportSet{
+			"tools": {
+				Name: "tools",
+				Exports: map[string]exportstate.ExportedFile{
+					"snap-exec": {
+						Name:       "snap-exec",
+						SourcePath: "usr/lib/snapd/snap-exec",
+					},
+				},
+			},
+		},
 	}
-	c.Assert(initialManifest.CreateExportedFiles(), IsNil)
-	exportstate.Set(st, "snapd", snap.R(1), &initialManifest)
+	c.Assert(exportstate.CreateExportedFiles(initialManifest), IsNil)
+	exportstate.Set(st, "snapd", snap.R(1), initialManifest)
 	task := st.NewTask("unexport-content", "...")
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)},
@@ -241,8 +251,10 @@ func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Exported content is no longer on disk.
-	for _, symlink := range initialManifest.Symlinks {
-		c.Check(symlink.PathName(), testutil.FileAbsent)
+	for _, set := range initialManifest.Sets {
+		for _, exported := range set.Exports {
+			c.Check(exportstate.ExportedFilePath(initialManifest, &set, &exported), testutil.FileAbsent)
+		}
 	}
 
 	// System state is updated to reflect that.
@@ -251,23 +263,32 @@ func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {
 
 	// Task state retains the old manifest.
 	c.Assert(task.Get("old-manifest", &m), IsNil)
-	c.Check(m, DeepEquals, initialManifest)
+	c.Check(m, DeepEquals, *initialManifest)
 }
 
 func (s *handlersSuite) TestUndoUnexportContentSnapd(c *C) {
 	st := s.st
 	st.Lock()
-	initialManifest := exportstate.Manifest{
-		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:        "snapd",
-			ExportedVersion: "1",
-			ExportSet:       "tools",
-			Name:            "snap-exec",
-			Target:          "/snap/snapd/1/usr/lib/snapd/snap-exec",
-		}},
+
+	initialManifest := &exportstate.Manifest{
+		SnapInstanceName: "snapd",
+		SnapRevision:     "1",
+		ExportedName:     "snapd",
+		ExportedVersion:  "1",
+		Sets: map[string]exportstate.ExportSet{
+			"tools": {
+				Name: "tools",
+				Exports: map[string]exportstate.ExportedFile{
+					"snap-exec": {
+						Name:       "snap-exec",
+						SourcePath: "usr/lib/snapd/snap-exec",
+					},
+				},
+			},
+		},
 	}
-	c.Assert(initialManifest.CreateExportedFiles(), IsNil)
-	exportstate.Set(st, "snapd", snap.R(1), &initialManifest)
+	c.Assert(exportstate.CreateExportedFiles(initialManifest), IsNil)
+	exportstate.Set(st, "snapd", snap.R(1), initialManifest)
 	unexportTask := st.NewTask("unexport-content", "...")
 	unexportTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)},
@@ -292,12 +313,14 @@ func (s *handlersSuite) TestUndoUnexportContentSnapd(c *C) {
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 
 	// Exported content is back on disk.
-	for _, symlink := range initialManifest.Symlinks {
-		c.Check(symlink.PathName(), testutil.SymlinkTargetEquals, symlink.Target)
+	for _, set := range initialManifest.Sets {
+		for _, exported := range set.Exports {
+			c.Check(exportstate.ExportedFilePath(initialManifest, &set, &exported), testutil.SymlinkTargetEquals,
+				exportstate.ExportedFileSourcePath(initialManifest, &set, &exported))
+		}
 	}
-
 	// System state is updated to reflect that.
 	var m exportstate.Manifest
 	c.Assert(exportstate.Get(st, "snapd", snap.R(1), &m), IsNil)
-	c.Check(m, DeepEquals, initialManifest)
+	c.Check(m, DeepEquals, *initialManifest)
 }

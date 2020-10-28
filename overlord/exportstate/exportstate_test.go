@@ -40,20 +40,27 @@ func Test(t *testing.T) { TestingT(t) }
 type exportstateSuite struct {
 	testutil.BaseTest
 	st *state.State
-	m  exportstate.Manifest
+	m  *exportstate.Manifest
 }
 
 var _ = Suite(&exportstateSuite{
-	m: exportstate.Manifest{
-		SnapName:        "snap-name",
-		ExportedVersion: "exported-version",
-		Symlinks: []exportstate.SymlinkExport{{
-			SnapName:        "snap-name",
-			ExportedVersion: "exported-version",
-			ExportSet:       "export-set",
-			Name:            "symlink-name",
-			Target:          "symlink-target",
-		},
+	m: &exportstate.Manifest{
+		SnapInstanceName: "snap-instance-name",
+		SnapRevision:     "snap-revision",
+		ExportedName:     "exported-name",
+		ExportedVersion:  "exported-version",
+		SourceIsHost:     true,
+		Sets: map[string]exportstate.ExportSet{
+			"set-name": {
+				Name:           "set-name",
+				ConsumerIsHost: true,
+				Exports: map[string]exportstate.ExportedFile{
+					"file-name": {
+						Name:       "file-name",
+						SourcePath: "source-path",
+					},
+				},
+			},
 		},
 	},
 })
@@ -70,21 +77,27 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	defer st.Unlock()
 
 	// Set associates snap revision with a manifest.
-	exportstate.Set(st, "snap-name", snap.R(42), &s.m)
+	exportstate.Set(st, "snap-instance-name", snap.R(42), s.m)
 
 	var exportsRaw map[string]interface{}
 	st.Get("exports", &exportsRaw)
 	expected := map[string]interface{}{
-		"snap-name/42": map[string]interface{}{
-			"snap-name":        "snap-name",
-			"exported-version": "exported-version",
-			"symlinks": []interface{}{
-				map[string]interface{}{
-					"snap-name":        "snap-name",
-					"exported-version": "exported-version",
-					"export-set":       "export-set",
-					"name":             "symlink-name",
-					"target":           "symlink-target",
+		"snap-instance-name/42": map[string]interface{}{
+			"snap-instance-name": "snap-instance-name",
+			"snap-revision":      "snap-revision",
+			"exported-name":      "exported-name",
+			"exported-version":   "exported-version",
+			"source-is-host":     true,
+			"sets": map[string]interface{}{
+				"set-name": map[string]interface{}{
+					"name":             "set-name",
+					"consumer-is-host": true,
+					"exports": map[string]interface{}{
+						"file-name": map[string]interface{}{
+							"name":        "file-name",
+							"source-path": "source-path",
+						},
+					},
 				},
 			},
 		},
@@ -92,7 +105,7 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	c.Check(exportsRaw, DeepEquals, expected)
 
 	// Set copes with "exports" key being present.
-	exportstate.Set(st, "snap-name", snap.R(42), &s.m)
+	exportstate.Set(st, "snap-instance-name", snap.R(42), s.m)
 	st.Get("exports", &exportsRaw)
 	c.Check(exportsRaw, DeepEquals, expected)
 }
@@ -112,21 +125,27 @@ func (s *exportstateSuite) TestSetRemovingState(c *C) {
 		"snap-name/41": map[string]interface{}{
 			"unrelated": "stuff",
 		},
-		"snap-name/42": map[string]interface{}{
-			"snap-name":        "snap-name",
-			"exported-version": "exported-version",
-			"symlinks": []interface{}{
-				map[string]interface{}{
-					"snap-name":        "snap-name",
-					"exported-version": "exported-version",
-					"export-set":       "export-set",
-					"name":             "symlink-name",
-					"target":           "symlink-target",
+		"snap-instance-name/42": map[string]interface{}{
+			"snap-instance-name": "snap-instance-name",
+			"snap-revision":      "snap-revision",
+			"exported-name":      "exported-name",
+			"exported-version":   "exported-version",
+			"source-is-host":     true,
+			"sets": map[string]interface{}{
+				"set-name": map[string]interface{}{
+					"name":             "set-name",
+					"consumer-is-host": true,
+					"exports": map[string]interface{}{
+						"file-name": map[string]interface{}{
+							"name":        "file-name",
+							"source-path": "source-path",
+						},
+					},
 				},
 			},
 		},
 	})
-	exportstate.Set(st, "snap-name", snap.R(42), nil)
+	exportstate.Set(st, "snap-instance-name", snap.R(42), nil)
 
 	var exportsRaw map[string]interface{}
 	st.Get("exports", &exportsRaw)
@@ -147,7 +166,7 @@ func (s *exportstateSuite) TestGetWithoutState(c *C) {
 
 	// Get fails with ErrNoState when "exports" are not in the state.
 	var m exportstate.Manifest
-	err := exportstate.Get(st, "snap-name", snap.R(42), &m)
+	err := exportstate.Get(st, "snap-instance-name", snap.R(42), &m)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -160,7 +179,7 @@ func (s *exportstateSuite) TestGetWithoutStateRevisionState(c *C) {
 	// for the given snap instance name and revision.
 	st.Set("exports", map[string]interface{}{})
 	var m exportstate.Manifest
-	err := exportstate.Get(st, "snap-name", snap.R(42), &m)
+	err := exportstate.Get(st, "snap-instance-name", snap.R(42), &m)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -172,15 +191,21 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	// Get returns the stored snap manifest for given snap revision.
 	st.Set("exports", map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
-			"snap-name":        "snap-name",
-			"exported-version": "exported-version",
-			"symlinks": []interface{}{
-				map[string]interface{}{
-					"snap-name":        "snap-name",
-					"exported-version": "exported-version",
-					"export-set":       "export-set",
-					"name":             "symlink-name",
-					"target":           "symlink-target",
+			"snap-instance-name": "snap-instance-name",
+			"snap-revision":      "snap-revision",
+			"exported-name":      "exported-name",
+			"exported-version":   "exported-version",
+			"source-is-host":     true,
+			"sets": map[string]interface{}{
+				"set-name": map[string]interface{}{
+					"name":             "set-name",
+					"consumer-is-host": true,
+					"exports": map[string]interface{}{
+						"file-name": map[string]interface{}{
+							"name":        "file-name",
+							"source-path": "source-path",
+						},
+					},
 				},
 			},
 		},
@@ -188,52 +213,52 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	var m exportstate.Manifest
 	err := exportstate.Get(st, "snap-name", snap.R(42), &m)
 	c.Assert(err, IsNil)
-	c.Check(m, DeepEquals, s.m)
+	c.Check(m, DeepEquals, *s.m)
 }
 
 func (s *exportstateSuite) TestCurrentExportedVersionSymlinkPath(c *C) {
-	path := exportstate.ExportedVersionSymlinkPath("snap-name")
-	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/snap-name/current")
+	path := exportstate.ExportedVersionSymlinkPath("export-name")
+	c.Check(path, Equals, dirs.GlobalRootDir+"/var/lib/snapd/export/export-name/current")
 }
 
 func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 	// It is not an error to remove the current version link
 	// if it does not exist.
-	err := exportstate.UpdateExportedVersion(s.m.SnapName, "")
+	err := exportstate.UpdateExportedVersion(s.m.ExportedName, "")
 	c.Assert(err, IsNil)
 
 	// Removing the current version symlink works correctly.
-	err = s.m.CreateExportedFiles()
+	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.ExportedName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.ExportedName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
-	err = exportstate.UpdateExportedVersion(s.m.SnapName, "")
+	err = exportstate.UpdateExportedVersion(s.m.ExportedName, "")
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.ExportedName, "current"),
 		testutil.FileAbsent)
 }
 
 func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
 	// Current version cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err := exportstate.UpdateExportedVersion(s.m.ExportedName, s.m.ExportedVersion)
 	c.Check(err, IsNil)
-	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, s.m.ExportedName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current version at will.
-	err = s.m.CreateExportedFiles()
+	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.ExportedName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.ExportedName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
 
 	// The current version can be replaced to point to another value.
-	err = exportstate.UpdateExportedVersion(s.m.SnapName, "other-"+s.m.ExportedVersion)
+	err = exportstate.UpdateExportedVersion(s.m.ExportedName, "other-"+s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.ExportedName, "current"),
 		testutil.SymlinkTargetEquals, "other-"+s.m.ExportedVersion)
 }
 
@@ -257,7 +282,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, exportedVersion, err := exportstate.SnapNameAndExportedVersion(s.st, "core")
+	snapName, exportedVersion, err := exportstate.ExportedNameVersion(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "2")
@@ -273,7 +298,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 			panic("unexpected")
 		}
 	}))
-	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "core")
+	snapName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "core")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "core_1")
@@ -283,7 +308,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 42}}), nil
 	}))
-	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
 	c.Check(exportedVersion, Equals, "42")
@@ -298,7 +323,7 @@ func (s *exportstateSuite) TestManifestKeys(c *C) {
 		info.InstanceKey = "instance"
 		return info, nil
 	}))
-	snapName, exportedVersion, err = exportstate.SnapNameAndExportedVersion(s.st, "foo")
+	snapName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapName, Equals, "foo")
 	c.Check(exportedVersion, Equals, "42_instance")

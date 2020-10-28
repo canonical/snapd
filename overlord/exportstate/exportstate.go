@@ -83,9 +83,9 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 }
 
 // exporetedVersionSymlinkPath returns the path of the current exported version symlink
-// for given snapName.
-func exportedVersionSymlinkPath(snapName string) string {
-	return filepath.Join(dirs.ExportDir, snapName, "current")
+// for given export name.
+func exportedVersionSymlinkPath(exportedName string) string {
+	return filepath.Join(dirs.ExportDir, exportedName, "current")
 }
 
 // updateExportedVersion updates or removes the exported version symlink.
@@ -99,29 +99,29 @@ func exportedVersionSymlinkPath(snapName string) string {
 // if exportedVersion is empty then then it indicates that no version is exported
 //
 // Appropriate version can be computed by exportedVersionForSnap.
-func updateExportedVersion(snapName, exportedVersion string) error {
-	pathName := exportedVersionSymlinkPath(snapName)
+func updateExportedVersion(exportedName, exportedVersion string) error {
+	pathName := exportedVersionSymlinkPath(exportedName)
 	if exportedVersion != "" {
 		if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot set exported version of %q to %q: %v", snapName, exportedVersion, err)
+			return fmt.Errorf("cannot set exported version of %q to %q: %v", exportedName, exportedVersion, err)
 		}
 	} else {
 		if err := os.Remove(pathName); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot unset exported version of %q: %v", snapName, err)
+			return fmt.Errorf("cannot unset exported version of %q: %v", exportedName, err)
 		}
 	}
 	return nil
 
 }
 
-// SnapNameAndExportedVersion returns the (snapName, exportedVersion) tuple to
+// ExportedNameVersion returns the (snapName, exportedVersion) tuple to
 // use as the current provider of all the export sets of a given snap. The
 // returned exportedVersion may be empty, indicating that given snap has no
 // current revision.
-func SnapNameAndExportedVersion(st *state.State, instanceName string) (snapName string, exportedVersion string, err error) {
+func ExportedNameVersion(st *state.State, instanceName string) (exportedName string, exportedVersion string, err error) {
 	switch instanceName {
 	case "core", "snapd":
-		snapName, exportedVersion, err = effectiveSnapNameAndExportedVersionForSnapdOrCore(st)
+		exportedName, exportedVersion, err = effectiveExportedNameVersionForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}
@@ -131,10 +131,10 @@ func SnapNameAndExportedVersion(st *state.State, instanceName string) (snapName 
 			return "", "", err
 		}
 		if info == nil || info.Broken != "" {
-			snapName, _ = snap.SplitInstanceName(instanceName)
-			return snapName, "", nil
+			exportedName, _ = snap.SplitInstanceName(instanceName)
+			return exportedName, "", nil
 		}
-		snapName, exportedVersion = snapNameAndExportedVersionForRegularSnap(info)
+		exportedName, exportedVersion = exportedNameVersionForRegularSnap(info)
 	}
-	return snapName, exportedVersion, nil
+	return exportedName, exportedVersion, nil
 }

@@ -31,105 +31,117 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// toolsToExport contains the list of snapd tools to export.
-var toolsToExport = []string{
-	"etelpmoc.sh",         // used by tab completion logic
-	"info",                // used by re-execution logic
-	"snap-confine",        // sometimes used in special cases
-	"snap-discard-ns",     // used by snap-confine inside the per-snap mount namespace
-	"snap-exec",           // used by snap-confine inside the per-snap mount namespace
-	"snap-gdb-shim",       // used by snap run --gdb
-	"snap-gdbserver-shim", // used by snap run --experimental-gdbserver
-	"snap-update-ns",      // used by snap-confine inside the per-snap mount namespace
-	"snapctl",             // used by snaps to talk to snapd
-}
-
-func manifestForClassicSystem() *Manifest {
-	snapName, exportedVersion := snapNameAndExportedVersionForHost()
-	return &Manifest{
-		SnapName:        snapName,
-		ExportedVersion: exportedVersion,
-		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapdToolsFromHost()),
+// snapdTools returns an export set describing snapd tools.
+//
+// basePath is the path of the "$libexecdir/snapd" directory. This directory
+// differs depending on who is providing the tools. Host with variable
+// $libexecdir or snaps with a fixed one.
+func snapdTools(basePath string) ExportSet {
+	// tools contains the list of snapd tools to export.
+	tools := []string{
+		"etelpmoc.sh",         // used by tab completion logic
+		"info",                // used by re-execution logic
+		"snap-confine",        // sometimes used in special cases
+		"snap-discard-ns",     // used by snap-confine inside the per-snap mount namespace
+		"snap-exec",           // used by snap-confine inside the per-snap mount namespace
+		"snap-gdb-shim",       // used by snap run --gdb
+		"snap-gdbserver-shim", // used by snap run --experimental-gdbserver
+		"snap-update-ns",      // used by snap-confine inside the per-snap mount namespace
+		"snapctl",             // used by snaps to talk to snapd
 	}
+	set := ExportSet{
+		Name:           "tools",
+		ConsumerIsHost: false, // Those tools are for other snaps to use.
+		Exports:        make(map[string]ExportedFile, len(tools)),
+	}
+	for _, tool := range tools {
+		set.Exports[tool] = ExportedFile{
+			Name:       tool,
+			SourcePath: filepath.Join(basePath, tool),
+		}
+	}
+	return set
 }
 
+// manifestForCoreSystem returns the manifest of the host as seen on ubuntu-core systems.
 func manifestForCoreSystem() *Manifest {
-	snapName, exportedVersion := snapNameAndExportedVersionForHost()
 	return &Manifest{
-		SnapName:        snapName,
-		ExportedVersion: exportedVersion,
+		ExportedName:    "snapd",
+		ExportedVersion: "host",
+		// There are no export sets here, snapd snap is going to provide the tools.
 	}
 }
 
-func snapNameAndExportedVersionForHost() (snapName string, exportedVersion string) {
-	return "snapd", "host"
-}
-
-func exportedSnapdToolsFromHost() []*exportEntry {
-	entries := make([]*exportEntry, 0, len(toolsToExport))
-	for _, tool := range toolsToExport {
-		entries = append(entries, newExportedHostFile(filepath.Join(dirs.DistroLibExecDir, tool), tool))
+// manifestForClassicSystem returns the manifest of the host as seen on classic systems.
+func manifestForClassicSystem() *Manifest {
+	tools := snapdTools(dirs.DistroLibExecDir)
+	return &Manifest{
+		ExportedName:    "snapd",
+		ExportedVersion: "host",
+		Sets:            map[string]ExportSet{tools.Name: tools},
 	}
-	return entries
 }
 
+// manifestForSnapdSnap returns the manifest of the snapd snap.
 func manifestForSnapdSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := snapNameAndExportedVersionForSnapd(info)
+	exportedName, exportedVersion := exportedNameVersionForSnapd(info)
+	tools := snapdTools("/usr/lib/snapd")
 	return &Manifest{
-		SnapName:        snapName,
-		ExportedVersion: exportedVersion,
-		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		ExportedName:     exportedName,
+		ExportedVersion:  exportedVersion,
+		SnapInstanceName: info.InstanceName(),
+		SnapRevision:     info.Revision.String(),
+		Sets:             map[string]ExportSet{tools.Name: tools},
 	}
 }
 
-func snapNameAndExportedVersionForSnapd(info *snap.Info) (snapName string, exportedVersion string) {
-	return "snapd", info.Revision.String()
-}
-
-func exportedSnapToolsFromSnapdOrCore(info *snap.Info) []*exportEntry {
-	entries := make([]*exportEntry, 0, len(toolsToExport))
-	for _, tool := range toolsToExport {
-		entries = append(entries, newExportedSnapFile(info, filepath.Join("usr/lib/snapd", tool), tool))
-	}
-	return entries
-}
-
+// manifestForCoreSnap returns the manifest of the core snap.
 func manifestForCoreSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := snapNameAndExportedVersionForCore(info)
+	exportedName, exportedVersion := exportedNameVersionForCore(info)
+	tools := snapdTools("/usr/lib/snapd")
 	return &Manifest{
-		SnapName:        snapName,
-		ExportedVersion: exportedVersion,
-		Symlinks:        exportSetSymlinks(snapName, exportedVersion, "tools", exportedSnapToolsFromSnapdOrCore(info)),
+		ExportedName:     exportedName,
+		ExportedVersion:  exportedVersion,
+		SnapInstanceName: info.InstanceName(),
+		SnapRevision:     info.Revision.String(),
+		Sets:             map[string]ExportSet{tools.Name: tools},
 	}
 }
 
-func snapNameAndExportedVersionForCore(info *snap.Info) (snapName string, exportedVersion string) {
-	return "snapd", fmt.Sprintf("core_%s", info.Revision)
-}
-
+// manifestForRegularSnap returns the manifest for a snap other than core or snapd.
 func manifestForRegularSnap(info *snap.Info) *Manifest {
-	snapName, exportedVersion := snapNameAndExportedVersionForRegularSnap(info)
+	exportedName, exportedVersion := exportedNameVersionForRegularSnap(info)
 	return &Manifest{
-		SnapName:        snapName,
-		ExportedVersion: exportedVersion,
+		ExportedName:     exportedName,
+		ExportedVersion:  exportedVersion,
+		SnapInstanceName: info.InstanceName(),
+		SnapRevision:     info.Revision.String(),
 		// TODO: eventually get this from the snap.yaml
 	}
 }
 
-func snapNameAndExportedVersionForRegularSnap(info *snap.Info) (snapName string, exportedVersion string) {
+func exportedNameVersionForSnapd(info *snap.Info) (exportedName string, exportedVersion string) {
+	return "snapd", info.Revision.String()
+}
+
+func exportedNameVersionForCore(info *snap.Info) (exportedName string, exportedVersion string) {
+	return "snapd", fmt.Sprintf("core_%s", info.Revision)
+}
+
+func exportedNameVersionForRegularSnap(info *snap.Info) (exportedName string, exportedVersion string) {
 	if info.SnapName() == "core" || info.SnapName() == "snapd" {
-		panic("internal error, cannot use snapNameAndExportedVersionForRegularSnap with core or snapd")
+		panic("internal error, cannot use exportedNameVersionForRegularSnap with core or snapd")
 	}
-	snapName = info.SnapName() // Instance key goes to exportedVersion
+	exportedName = info.SnapName() // Instance key goes to exportedVersion
 	if info.InstanceKey == "" {
 		exportedVersion = info.Revision.String()
 	} else {
 		exportedVersion = fmt.Sprintf("%s_%s", info.Revision.String(), info.InstanceKey)
 	}
-	return snapName, exportedVersion
+	return exportedName, exportedVersion
 }
 
-func effectiveSnapNameAndExportedVersionForSnapdOrCore(st *state.State) (snapName string, exportedVersion string, err error) {
+func effectiveExportedNameVersionForSnapdOrCore(st *state.State) (exportedName string, exportedVersion string, err error) {
 	snapdInfo, coreInfo, err := currentSnapdAndCoreInfo(st)
 	if err != nil {
 		return "", "", err
@@ -137,16 +149,16 @@ func effectiveSnapNameAndExportedVersionForSnapdOrCore(st *state.State) (snapNam
 	var activeSnapdExportedVersion string
 	var activeCoreExportedVersion string
 	if snapdInfo != nil && snapdInfo.Broken == "" {
-		snapName, activeSnapdExportedVersion = snapNameAndExportedVersionForSnapd(snapdInfo)
+		exportedName, activeSnapdExportedVersion = exportedNameVersionForSnapd(snapdInfo)
 	}
 	if coreInfo != nil && coreInfo.Broken == "" {
-		snapName, activeCoreExportedVersion = snapNameAndExportedVersionForCore(coreInfo)
+		exportedName, activeCoreExportedVersion = exportedNameVersionForCore(coreInfo)
 	}
 	exportedVersion = selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
-	if exportedVersion != "" && snapName == "" {
-		snapName = "snapd"
+	if exportedVersion != "" && exportedName == "" {
+		exportedName = "snapd"
 	}
-	return snapName, exportedVersion, nil
+	return exportedName, exportedVersion, nil
 }
 
 // selectExportedVersionForSnapdTools returns the version to use for snapd tools export set.

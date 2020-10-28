@@ -52,8 +52,8 @@ func (m *ExportManager) doExportContent(task *state.Task, tomb *tomb.Tomb) error
 	}
 
 	// Create exported files, removing partial state on failure.
-	if err := manifest.CreateExportedFiles(); err != nil {
-		manifest.RemoveExportedFiles()
+	if err := createExportedFiles(manifest); err != nil {
+		removeExportedFiles(manifest)
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (m *ExportManager) doUnexportContent(task *state.Task, tomb *tomb.Tomb) err
 	if err != nil {
 		return err
 	}
-	if err := manifest.RemoveExportedFiles(); err != nil {
+	if err := removeExportedFiles(&manifest); err != nil {
 		return err
 	}
 
@@ -125,7 +125,7 @@ func (m *ExportManager) undoUnexportContent(task *state.Task, tomb *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	if err := manifest.CreateExportedFiles(); err != nil {
+	if err := createExportedFiles(&manifest); err != nil {
 		return err
 	}
 	// Remember that undo worked.

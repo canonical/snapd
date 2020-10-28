@@ -66,7 +66,7 @@ func (m *ExportManager) StartUp() error {
 
 func (m *ExportManager) exportSnapdTools() error {
 	// If the host system has an export manifest, create those files.
-	if err := NewManifestForHost().CreateExportedFiles(); err != nil {
+	if err := createExportedFiles(NewManifestForHost()); err != nil {
 		return err
 	}
 	// If snapd or core snaps are installed but do not have manifests in the
@@ -88,16 +88,16 @@ func (m *ExportManager) exportSnapdTools() error {
 			continue
 		}
 		newManifest := NewManifestForSnap(info)
-		if err := newManifest.CreateExportedFiles(); err != nil {
+		if err := createExportedFiles(newManifest); err != nil {
 			return err
 		}
 		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
-	snapName, exportedVersion, err := effectiveSnapNameAndExportedVersionForSnapdOrCore(m.state)
+	exportedName, exportedVersion, err := effectiveExportedNameVersionForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
-	return updateExportedVersion(snapName, exportedVersion)
+	return updateExportedVersion(exportedName, exportedVersion)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -110,11 +110,11 @@ type LinkSnapParticipant struct{}
 
 // SnapLinkageChanged implements LinkParticipant.SnapLinkageChanged.
 func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
-	snapName, exportedVersion, err := SnapNameAndExportedVersion(st, instanceName)
+	exportedName, exportedVersion, err := ExportedNameVersion(st, instanceName)
 	if err != nil {
 		return err
 	}
-	return updateExportedVersion(snapName, exportedVersion)
+	return updateExportedVersion(exportedName, exportedVersion)
 }
 
 var once sync.Once

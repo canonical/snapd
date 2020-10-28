@@ -49,10 +49,13 @@ func (s *specialSuite) TestNewManifestForHostWithDefaultSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
-	c.Check(m.SnapName, Equals, "snapd")
+	c.Check(m.SnapInstanceName, Equals, "")
+	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.ExportedName, Equals, "snapd")
 	c.Check(m.ExportedVersion, Equals, "host")
-	c.Assert(m.Symlinks, HasLen, 9)
-	s.checkSnapExecFromHost(c, &m.Symlinks[4])
+	c.Assert(m.Sets, HasLen, 1)
+	c.Assert(m.Sets["tools"].Exports, HasLen, 9)
+	s.checkSnapExecFromHost(c, m.Sets["tools"].Exports["snap-exec"])
 }
 
 func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
@@ -60,40 +63,43 @@ func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
-	c.Check(m.SnapName, Equals, "snapd")
+	c.Check(m.SnapInstanceName, Equals, "")
+	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.ExportedName, Equals, "snapd")
 	c.Check(m.ExportedVersion, Equals, "host")
-	c.Assert(m.Symlinks, HasLen, 9)
-	s.checkSnapExecFromHost(c, &m.Symlinks[4])
+	c.Assert(m.Sets, HasLen, 1)
+	c.Assert(m.Sets["tools"].Exports, HasLen, 9)
+	s.checkSnapExecFromHost(c, m.Sets["tools"].Exports["snap-exec"])
 }
 
-func (s *specialSuite) checkSnapExecFromHost(c *C, slink *exportstate.SymlinkExport) {
-	c.Check(slink.SnapName, Equals, "snapd")
-	c.Check(slink.ExportedVersion, Equals, "host")
-	c.Check(slink.ExportSet, Equals, "tools")
-	c.Check(slink.Name, Equals, "snap-exec")
-	c.Check(slink.Target, Equals, filepath.Join("/var/lib/snapd/hostfs", dirs.DistroLibExecDir, "snap-exec"))
+func (s *specialSuite) checkSnapExecFromHost(c *C, exported exportstate.ExportedFile) {
+	c.Check(exported.Name, Equals, "snap-exec")
+	c.Check(exported.SourcePath, Equals, filepath.Join(dirs.DistroLibExecDir, "snap-exec"))
 }
 
 func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.Revision{N: 2}})
 	m := exportstate.NewManifestForSnap(snapdInfo)
-	c.Assert(m.Symlinks, HasLen, 9)
-	s.checkSnapExecFromSnap(c, &m.Symlinks[4], snapdInfo)
+	c.Check(m.SnapInstanceName, Equals, "snapd")
+	c.Check(m.SnapRevision, Equals, "2")
+	c.Check(m.ExportedName, Equals, "snapd")
+	c.Check(m.ExportedVersion, Equals, "2")
+	c.Assert(m.Sets["tools"].Exports, HasLen, 9)
+	s.checkSnapExecFromSnap(c, m.Sets["tools"].Exports["snap-exec"])
 }
 
 func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.Revision{N: 3}})
 	m := exportstate.NewManifestForSnap(coreInfo)
-	c.Assert(m.Symlinks, HasLen, 9)
-	s.checkSnapExecFromSnap(c, &m.Symlinks[4], coreInfo)
+	c.Check(m.SnapInstanceName, Equals, "core")
+	c.Check(m.SnapRevision, Equals, "3")
+	c.Check(m.ExportedName, Equals, "snapd")
+	c.Check(m.ExportedVersion, Equals, "core_3")
+	c.Assert(m.Sets["tools"].Exports, HasLen, 9)
+	s.checkSnapExecFromSnap(c, m.Sets["tools"].Exports["snap-exec"])
 }
 
-func (s *specialSuite) checkSnapExecFromSnap(c *C, slink *exportstate.SymlinkExport, info *snap.Info) {
-	c.Check(slink.SnapName, Equals, "snapd")
-	// ExportedVersion varies by provider
-	c.Check(slink.ExportSet, Equals, "tools")
-	c.Check(slink.Name, Equals, "snap-exec")
-	c.Check(slink.Target, Equals, filepath.Join(
-		"/snap", info.SnapName(), info.Revision.String(),
-		"usr/lib/snapd/snap-exec"))
+func (s *specialSuite) checkSnapExecFromSnap(c *C, exported exportstate.ExportedFile) {
+	c.Check(exported.Name, Equals, "snap-exec")
+	c.Check(exported.SourcePath, Equals, "/usr/lib/snapd/snap-exec")
 }
