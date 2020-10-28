@@ -99,6 +99,7 @@ func (m *ExportManager) doUnexportContent(task *state.Task, tomb *tomb.Tomb) err
 	// Forget what was exported, keeping it in task state for undo.
 	task.Set("old-manifest", &manifest)
 	Set(st, snapsup.InstanceName(), snapsup.Revision(), nil)
+	task.SetStatus(state.DoneStatus)
 	return nil
 }
 

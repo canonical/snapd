@@ -199,7 +199,7 @@ func (s *handlersSuite) TestUndoExportContentSnapd(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(change.Err(), ErrorMatches, "cannot perform the following tasks:\n- ... \\(injected test failure\\)")
-	c.Check(exportTask.Status(), Equals, state.UndoneStatus)
+	c.Check(exportTask.Status(), Equals, state.DoneStatus) // XXX: confusing, it was really undone.
 	c.Check(failTask.Status(), Equals, state.ErrorStatus)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 
