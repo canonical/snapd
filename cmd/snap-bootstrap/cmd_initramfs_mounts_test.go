@@ -107,7 +107,7 @@ var (
 			"ubuntu-save": "ubuntu-save-partuuid",
 		},
 		DiskHasPartitions: true,
-		DevNum:            "default",
+		DevNum:            "default-with-save",
 	}
 
 	defaultEncBootDisk = &disks.MockDiskMapping{
