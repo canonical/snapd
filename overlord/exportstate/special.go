@@ -68,6 +68,7 @@ func manifestForCoreSystem() *Manifest {
 	return &Manifest{
 		ExportedName:    "snapd",
 		ExportedVersion: "host",
+		SourceIsHost:    true,
 		// There are no export sets here, snapd snap is going to provide the tools.
 	}
 }
@@ -78,6 +79,7 @@ func manifestForClassicSystem() *Manifest {
 	return &Manifest{
 		ExportedName:    "snapd",
 		ExportedVersion: "host",
+		SourceIsHost:    true,
 		Sets:            map[string]ExportSet{tools.Name: tools},
 	}
 }

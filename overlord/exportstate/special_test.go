@@ -49,6 +49,7 @@ func (s *specialSuite) TestNewManifestForHostWithDefaultSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
+	c.Check(m.SourceIsHost, Equals, true)
 	c.Check(m.SnapInstanceName, Equals, "")
 	c.Check(m.SnapRevision, Equals, "")
 	c.Check(m.ExportedName, Equals, "snapd")
@@ -63,6 +64,7 @@ func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 
 	m := exportstate.NewManifestForHost()
+	c.Check(m.SourceIsHost, Equals, true)
 	c.Check(m.SnapInstanceName, Equals, "")
 	c.Check(m.SnapRevision, Equals, "")
 	c.Check(m.ExportedName, Equals, "snapd")
@@ -80,6 +82,7 @@ func (s *specialSuite) checkSnapExecFromHost(c *C, exported exportstate.Exported
 func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.Revision{N: 2}})
 	m := exportstate.NewManifestForSnap(snapdInfo)
+	c.Check(m.SourceIsHost, Equals, false)
 	c.Check(m.SnapInstanceName, Equals, "snapd")
 	c.Check(m.SnapRevision, Equals, "2")
 	c.Check(m.ExportedName, Equals, "snapd")
@@ -91,6 +94,7 @@ func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
 func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.Revision{N: 3}})
 	m := exportstate.NewManifestForSnap(coreInfo)
+	c.Check(m.SourceIsHost, Equals, false)
 	c.Check(m.SnapInstanceName, Equals, "core")
 	c.Check(m.SnapRevision, Equals, "3")
 	c.Check(m.ExportedName, Equals, "snapd")
