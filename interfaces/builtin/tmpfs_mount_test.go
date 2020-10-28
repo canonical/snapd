@@ -91,7 +91,7 @@ func (s *TmpfsMountInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows mounting and unmounting TMPFS filesystems`)
+	c.Assert(si.Summary, Equals, `allows mounting and unmounting tmpfs filesystems`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "tmpfs-mount")
 }
 

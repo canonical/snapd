@@ -19,7 +19,7 @@
 
 package builtin
 
-const tmpfsMountSummary = `allows mounting and unmounting TMPFS filesystems`
+const tmpfsMountSummary = `allows mounting and unmounting tmpfs filesystems`
 
 const tmpfsMountBaseDeclarationSlots = `
   tmpfs-mount:
@@ -29,6 +29,7 @@ const tmpfsMountBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// TODO: Extend to encompass the coming filesystem context mount syscalls
 const tmpfsMountConnectedPlugSecComp = `
 # Description: Allow mount and umount syscall access.
 mount
@@ -37,7 +38,7 @@ umount2
 `
 
 const tmpfsMountConnectedPlugAppArmor = `
-# Description: Allow mounting and unmounting TMPFS filesystems.
+# Description: Allow mounting and unmounting tmpfs filesystems.
 
 # Required for mounts and unmounts
 capability sys_admin,
@@ -45,8 +46,8 @@ capability sys_admin,
 # Allow mounts to our snap-specific writable directories
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
 # completeness allow SNAP_INSTANCE_NAME too
-mount fstype=tmpfs tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**},
-mount fstype=tmpfs tmpfs -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**},
+mount fstype=tmpfs {none,tmpfs} -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**},
+mount fstype=tmpfs {none,tmpfs} -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**},
 
 # NOTE: due to LP: #1613403, fstype is not mediated and as such, these rules
 # allow, for example, unmounting bind mounts from the content interface
