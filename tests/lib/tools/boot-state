@@ -18,25 +18,31 @@ show_help() {
 }
 
 get_grub_editenv() {
-    case "$SPREAD_SYSTEM" in
-        fedora-*|opensuse-*|amazon-*|centos-*)
-            command -v grub2-editenv
-            ;;
-        *)
-            command -v grub-editenv
-            ;;
-    esac
+    if [ -e /boot/grub2/grubenv ]; then
+        command -v grub2-editenv
+    elif [ -e /boot/grub/grubenv ]; then
+        command -v grub-editenv
+    fi
+}
+
+run_grub_editenv() {
+    local CMD=$(get_grub_editenv)
+
+    if [ -n "$CMD" ]; then
+        "$CMD" "$@"
+    else
+        return 1
+    fi
 }
 
 get_grub_envfile() {
-    case "$SPREAD_SYSTEM" in
-        fedora-*|opensuse-*|amazon-*|centos-*)
-            echo '/boot/grub2/grubenv'
-            ;;
-        *)
-            echo '/boot/grub/grubenv'
-            ;;
-    esac    
+    if [ -e /boot/grub2/grubenv ]; then
+        echo /boot/grub2/grubenv
+    elif [ -e /boot/grub/grubenv ]; then
+        echo /boot/grub/grubenv
+    else
+        echo ""
+    fi
 }
 
 bootenv() {
@@ -62,26 +68,24 @@ bootenv() {
             exit 1
             ;;
     esac
-
 }
 
 bootenv_show() {
     local var="${1:-}"
-    local GRUB_EDITENV GRUBENV_FILE
-    GRUB_EDITENV="$(get_grub_editenv)"
+    local GRUBENV_FILE
     GRUBENV_FILE="$(get_grub_envfile)"
 
     if [ -z "$var" ]; then
-        if command -v "$GRUB_EDITENV" >/dev/null; then
-            "$GRUB_EDITENV" list
+        if run_grub_editenv list; then
+            return
         elif [ -s "$GRUBENV_FILE" ]; then
             cat "$GRUBENV_FILE"
         else
             fw_printenv
         fi
     else
-        if command -v "$GRUB_EDITENV" >/dev/null; then
-            "$GRUB_EDITENV" list | grep "^$var"
+        if run_grub_editenv list | grep "^$var"; then
+            return
         elif [ -s "$GRUBENV_FILE" ]; then
             grep "^$var" "$GRUBENV_FILE"
         else
@@ -93,21 +97,20 @@ bootenv_show() {
 bootenv_set() {
     local var="$1"
     local value="$2"
-    local GRUB_EDITENV GRUBENV_FILE
 
     if [ -z "$var" ] || [ -z "$value" ]; then
         echo "boot-state: variable and value required to set in bootenv" >&2
         show_help
         exit 1
     fi
-    GRUB_EDITENV="$(get_grub_editenv)"
+    local GRUBENV_FILE
     GRUBENV_FILE="$(get_grub_envfile)"
 
-    if command -v "$GRUB_EDITENV" >/dev/null; then
-        "$GRUB_EDITENV" "$GRUBENV_FILE" set "$var=$value"
+    if run_grub_editenv set "$var=$value"; then
+        return
     elif [ -s "$GRUBENV_FILE" ]; then
         sed -i "/^$var=/d" "$GRUBENV_FILE"
-        #The grubenv file could not hace a new line at the end
+        #The grubenv file could not have a new line at the end
         if [ -n "$(tail -n 1 "$GRUBENV_FILE")" ]; then
             echo "" >> "$GRUBENV_FILE"
         fi
@@ -148,16 +151,21 @@ boot_path() {
     elif [ -f /boot/grub2/grubenv ]; then
         echo "/boot/grub2/"
     else
-        echo "Cannot determine boot path"
+        echo "boot-state: cannot determine boot path" >&2
         ls -alR /boot
         exit 1
     fi
 }
 
 wait_core_post_boot() {
-    while [ "$(bootenv_show snap_mode)" != "" ]; do
+    for _ in $(seq 120); do
+        if [ "$(bootenv_show snap_mode)" = "" ]; then
+            return
+        fi
         sleep 1
     done
+    echo "boot-state: timeout reached waiting for core after boot" >&2
+    exit 1
 }
 
 main() {
