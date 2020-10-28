@@ -30,59 +30,84 @@ import (
 )
 
 func (s *SnapSuite) TestRoutineConsoleConfStartTrivialCase(c *C) {
+	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
 
-		fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {}}`)
+			fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {}}`)
+		default:
+			c.Errorf("unexpected request %v", n)
+		}
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
+	c.Assert(n, Equals, 1)
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartInconsistentAPIResponseError(c *C) {
+	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
 
-		// return just refresh changes but no snap ids
-		fmt.Fprintf(w, `{
-			"type":"sync",
-			"status-code": 200,
-			"result": {
-				"active-auto-refreshes": ["1"]
-			}
-		}`)
+			// return just refresh changes but no snap ids
+			fmt.Fprintf(w, `{
+				"type":"sync",
+				"status-code": 200,
+				"result": {
+					"active-auto-refreshes": ["1"]
+				}
+			}`)
+		default:
+			c.Errorf("unexpected request %v", n)
+		}
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
 	c.Assert(err, ErrorMatches, `internal error: returned changes .* but no snap names`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
+	c.Assert(n, Equals, 1)
+
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartNonMaintenanceErrorReturned(c *C) {
+	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
 
-		// return internal server error
-		fmt.Fprintf(w, `{
+			// return internal server error
+			fmt.Fprintf(w, `{
 			"type":"error",
 			"status-code": 500,
 			"result": {
 				"message": "broken server"
 			}
 		}`)
+		default:
+			c.Errorf("unexpected request %v", n)
+		}
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
 	c.Assert(err, ErrorMatches, "broken server")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
+	c.Assert(n, Equals, 1)
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartSingleSnap(c *C) {
@@ -124,6 +149,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSingleSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (pc-kernel) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 5)
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartTwoSnaps(c *C) {
@@ -165,6 +191,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartTwoSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (core20 and pc-kernel) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 5)
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartMultipleSnaps(c *C) {
@@ -205,6 +232,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartMultipleSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "Snaps (core20, pc, pc-kernel, and snapd) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 5)
 }
 
 // TODO:UC20: when maintenance.json is a thing, then add a similar test as this
@@ -288,6 +316,7 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshRestart(c *C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), testutil.Contains, "Snapd is reloading, please wait...\n")
 	c.Check(s.Stderr(), testutil.Contains, "Snaps (snapd) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 5)
 }
 
 func (s *SnapSuite) TestRoutineConsoleConfStartKernelRefreshReboot(c *C) {
@@ -352,4 +381,5 @@ func (s *SnapSuite) TestRoutineConsoleConfStartKernelRefreshReboot(c *C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), testutil.Contains, "System is rebooting, please wait for reboot...\n")
 	c.Check(s.Stderr(), testutil.Contains, "Snaps (pc-kernel) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 3)
 }
