@@ -48,12 +48,11 @@ func NewManifestForSnap(info *snap.Info) *Manifest {
 	// XXX: should we use WellKnownSnapID here? Probably not as this must work for
 	// unsigned snaps as well. Alternatively, should we look at snap type, as we
 	// have unique values for both snapd and core.
-	switch info.SnapName() {
-	case "snapd":
+	switch info.Type() {
+	case snap.TypeSnapd:
 		return manifestForSnapdSnap(info)
-	case "core":
+	case snap.TypeOS: // we really mean "core" snap here.
 		return manifestForCoreSnap(info)
-		// XXX: do we need to handle ubuntu-core?
 	default:
 		return manifestForRegularSnap(info)
 	}
