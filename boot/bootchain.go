@@ -289,8 +289,9 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 // that we do not store the arrays directly as JSON and we can add
 // other information
 type predictableBootChainsWrapperForStorage struct {
-	ResealCount int                   `json:"reseal-count"`
-	BootChains  predictableBootChains `json:"boot-chains"`
+	ResealCount        int                   `json:"reseal-count"`
+	BootChains         predictableBootChains `json:"boot-chains"`
+	RecoveryBootChains predictableBootChains `json:"recovery-boot-chains"`
 }
 
 func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
@@ -309,7 +310,7 @@ func readBootChains(path string) (pbc predictableBootChains, resealCount int, er
 	return wrapped.BootChains, wrapped.ResealCount, nil
 }
 
-func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
+func writeBootChains(pbc, rpbc predictableBootChains, path string, resealCount int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
@@ -321,8 +322,9 @@ func writeBootChains(pbc predictableBootChains, path string, resealCount int) er
 	defer outf.Cancel()
 
 	wrapped := predictableBootChainsWrapperForStorage{
-		ResealCount: resealCount,
-		BootChains:  pbc,
+		ResealCount:        resealCount,
+		BootChains:         pbc,
+		RecoveryBootChains: rpbc,
 	}
 	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
 		return fmt.Errorf("cannot write boot chains data: %v", err)

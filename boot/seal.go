@@ -20,6 +20,9 @@
 package boot
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -48,10 +51,10 @@ func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
 
-// sealKeyToModeenv seals the supplied key to the parameters specified
+// sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -95,11 +98,6 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	// get model parameters from bootchains
-	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
-	if err != nil {
-		return fmt.Errorf("cannot prepare for key sealing: %v", err)
-	}
 	// make sure relevant locations exist
 	for _, p := range []string{InitramfsEncryptionKeyDir, InstallHostFDEDataDir} {
 		if err := os.MkdirAll(p, 0755); err != nil {
@@ -107,21 +105,20 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 		}
 	}
 
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		},
+	// the boot chains we seal the fallback object to
+	rpbc := toPredictableBootChains(recoveryBootChains)
+
+	authKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
 	}
 
-	sealKeyParams := &secboot.SealKeyParams{
-		ModelParams:          modelParams,
-		TPMPolicyAuthKeyFile: filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
-		TPMLockoutAuthFile:   filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+	if err := sealRunObjectKeys(key, pbc, authKey, roleToBlName); err != nil {
+		return err
 	}
-	// finally, seal the key
-	if err := secbootSealKey(keys, sealKeyParams); err != nil {
-		return fmt.Errorf("cannot seal the encryption key: %v", err)
+
+	if err := sealFallbackObjectKeys(key, saveKey, rpbc, authKey, roleToBlName); err != nil {
+		return err
 	}
 
 	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
@@ -129,8 +126,68 @@ func sealKeyToModeenv(key secboot.EncryptionKey, model *asserts.Model, modeenv *
 	}
 
 	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
-	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
+	if err := writeBootChains(pbc, rpbc, installBootChainsPath, 0); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+	if err != nil {
+		return fmt.Errorf("cannot prepare for key sealing: %v", err)
+	}
+	sealKeyParams := &secboot.SealKeyParams{
+		ModelParams:            modelParams,
+		TPMPolicyAuthKey:       authKey,
+		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
+		TPMLockoutAuthFile:     filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+		TPMProvision:           true,
+		PCRPolicyCounterHandle: secboot.RunObjectPCRPolicyCounterHandle,
+	}
+	// The run object contains only the ubuntu-data key and the ubuntu-save key
+	// is stored inside the encrypted data partition, so that the normal run
+	// path only unseals one object (unsealing is expensive).
+	keys := []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		},
+	}
+	if err := secbootSealKey(keys, sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the encryption keys: %v", err)
+	}
+
+	return nil
+}
+
+func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+	// also seal the keys to the recovery bootchains as a fallback
+	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
+	if err != nil {
+		return fmt.Errorf("cannot prepare for recovery path key sealing: %v", err)
+	}
+	sealKeyParams := &secboot.SealKeyParams{
+		ModelParams:            modelParams,
+		TPMPolicyAuthKey:       authKey,
+		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
+		TPMLockoutAuthFile:     filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
+	}
+	// The fallback object contains the ubuntu-data and ubuntu-save keys.
+	keys := []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		},
+		{
+			Key:     saveKey,
+			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		},
+	}
+	if err := secbootSealKey(keys, sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
 	return nil
@@ -201,6 +258,8 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
+	rpbc := toPredictableBootChains(recoveryBootChains)
+
 	needed, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
 	if err != nil {
 		return err
@@ -240,7 +299,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	logger.Debugf("resealing (%d) succeeded", nextCount)
 
 	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+	if err := writeBootChains(pbc, rpbc, bootChainsPath, nextCount); err != nil {
 		return err
 	}
 

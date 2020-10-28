@@ -25,8 +25,16 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
+	"crypto/ecdsa"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+)
+
+const (
+	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff)
+	RunObjectPCRPolicyCounterHandle      = 0x01880001
+	FallbackObjectPCRPolicyCounterHandle = 0x01880002
 )
 
 type LoadChain struct {
@@ -65,10 +73,16 @@ type SealKeyModelParams struct {
 type SealKeyParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
+	// The authorization policy update key file (only relevant for TPM)
+	TPMPolicyAuthKey *ecdsa.PrivateKey
 	// The path to the authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKeyFile string
 	// The path to the lockout authorization file (only relevant for TPM)
 	TPMLockoutAuthFile string
+	// Whether we should provision the TPM
+	TPMProvision bool
+	// The handle at which to create a NV index for dynamic authorization policy revocation support
+	PCRPolicyCounterHandle uint32
 }
 
 type ResealKeyParams struct {

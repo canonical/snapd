@@ -43,9 +43,6 @@ import (
 )
 
 const (
-	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
-	policyCounterHandle = 0x01880001
-
 	keyringPrefix = "snapd"
 )
 
@@ -377,15 +374,18 @@ func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
 		return err
 	}
 
-	// Provision the TPM as late as possible
-	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
-		return err
+	if params.TPMProvision {
+		// Provision the TPM as late as possible
+		if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
+			return err
+		}
 	}
 
-	// Seal key to the TPM
+	// Seal the provided keys to the TPM
 	creationParams := sb.KeyCreationParams{
 		PCRProfile:             pcrProfile,
-		PCRPolicyCounterHandle: policyCounterHandle,
+		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
+		AuthKey:                params.TPMPolicyAuthKey,
 	}
 
 	sbKeys := make([]*sb.SealKeyRequest, 0, len(keys))
