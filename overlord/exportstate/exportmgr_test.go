@@ -85,7 +85,7 @@ func (s *mgrSuite) TestStartUpOnCoreWithoutSnaps(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "current"), testutil.FileAbsent)
 }
 
 func (s *mgrSuite) TestStartUpOnClassicWithOnlyCore(c *C) {
@@ -110,9 +110,9 @@ func (s *mgrSuite) TestStartUpOnClassicWithOnlyCore(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "core_1")
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
 		testutil.SymlinkTargetContains, "snap-exec")
 
 	// The state keeps track of the manifest of the core snap.
@@ -146,9 +146,9 @@ func (s *mgrSuite) TestStartUpOnClassicWithOnlySnapd(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "2")
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "2", "tools", "snap-exec"),
 		testutil.SymlinkTargetContains, "snap-exec")
 
 	// The state keeps track of the manifest of the snapd snap.
@@ -184,11 +184,11 @@ func (s *mgrSuite) TestStartUpOnClassicWithBothSnapdAndCore(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "current"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "current"),
 		testutil.SymlinkTargetEquals, "2")
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
 		testutil.SymlinkTargetContains, "snap-exec")
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "2", "tools", "snap-exec"),
 		testutil.SymlinkTargetContains, "snap-exec")
 
 	// The state keeps track of the manifest of both snapd and the core snap.
@@ -228,9 +228,9 @@ func (s *mgrSuite) TestStartUpOnClassicWithExportedContentInState(c *C) {
 	mgr := s.manager(c)
 	err := mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "core_1", "tools", "snap-exec"),
 		testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "2", "tools", "snap-exec"),
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "2", "tools", "snap-exec"),
 		testutil.FileAbsent)
 }
 
@@ -241,13 +241,13 @@ func (s *mgrSuite) TestSnapLinkageChangedToLinked(c *C) {
 		return snaptest.MockInfo(c, "name: snap-name\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.Revision{N: 1}}), nil
 	}))
-	err := os.MkdirAll(filepath.Join(exportstate.ExportDir, "snap-name"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.ExportDir, "snap-name"), 0755)
 	c.Assert(err, IsNil)
 
 	p := &exportstate.LinkSnapParticipant{}
 	err = p.SnapLinkageChanged(s.st, "snap-name")
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "current"), testutil.SymlinkTargetEquals, "1")
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name", "current"), testutil.SymlinkTargetEquals, "1")
 }
 
 func (s *mgrSuite) TestSnapLinkageChangedToUnlinked(c *C) {
@@ -256,13 +256,13 @@ func (s *mgrSuite) TestSnapLinkageChangedToUnlinked(c *C) {
 		c.Assert(snapName, Equals, "snap-name")
 		return nil, &snap.NotInstalledError{Snap: snapName}
 	}))
-	err := os.MkdirAll(filepath.Join(exportstate.ExportDir, "snap-name"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.ExportDir, "snap-name"), 0755)
 	c.Assert(err, IsNil)
-	err = os.Symlink("1", filepath.Join(exportstate.ExportDir, "snap-name", "current"))
+	err = os.Symlink("1", filepath.Join(dirs.ExportDir, "snap-name", "current"))
 	c.Assert(err, IsNil)
 
 	p := &exportstate.LinkSnapParticipant{}
 	err = p.SnapLinkageChanged(s.st, "snap-name")
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name", "current"), testutil.FileAbsent)
 }

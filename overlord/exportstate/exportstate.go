@@ -33,24 +33,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// ExportDir is the root of the export directory tree.
-//
-// The directory contains a structure which exposes certain files, known as
-// export sets, from snaps to the classic system or to other snaps. The general
-// pattern is /var/lib/snapd/export/<snapName>/<exportedVersion>/<exportSet>, where
-// <snapName> is usually the snap name, <exportedVersion> is usually the revision and
-// instance key and <exportSet> is the name of a related set of files, usually
-// of a common type.
-var ExportDir = defaultExportDir
-
-const defaultExportDir = "/var/lib/snapd/export"
-
-func init() {
-	dirs.AddRootDirCallback(func(rootDir string) {
-		ExportDir = filepath.Join(rootDir, defaultExportDir)
-	})
-}
-
 // stateMapKey returns key used for indexing the map of exported snap content.
 func stateMapKey(instanceName string, rev snap.Revision) string {
 	return instanceName + "/" + rev.String()
@@ -103,7 +85,7 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 // exporetedVersionSymlinkPath returns the path of the current exported version symlink
 // for given snapName.
 func exportedVersionSymlinkPath(snapName string) string {
-	return filepath.Join(ExportDir, snapName, "current")
+	return filepath.Join(dirs.ExportDir, snapName, "current")
 }
 
 // UpdateExportedVersion updates or removes the exported version symlink.

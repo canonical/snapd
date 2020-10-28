@@ -123,6 +123,17 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	// ExportDir is the root of the export directory tree.
+	//
+	// The directory contains a structure which exposes certain files, known as
+	// export sets, from snaps to the classic system or to other snaps. The
+	// general pattern is
+	// /var/lib/snapd/export/<snapName>/<exportedVersion>/<exportSet>, where
+	// <snapName> is usually the snap name, <exportedVersion> is usually the
+	// revision and instance key and <exportSet> is the name of a related set of
+	// files, usually of a common type.
+	ExportDir string
 )
 
 const (
@@ -242,6 +253,11 @@ func SnapModeenvFileUnder(rootdir string) string {
 // FeaturesDirUnder returns the path to the features dir under rootdir.
 func FeaturesDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "features")
+}
+
+// ExportDirUnder returns the path to the export dir under rootdir.
+func ExportDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "export")
 }
 
 // SnapSystemdConfDirUnder returns the path to the systemd conf dir under
@@ -435,6 +451,7 @@ func SetRootDir(rootdir string) {
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
+	ExportDir = ExportDirUnder(rootdir)
 
 	// call the callbacks last so that the callbacks can just reference the
 	// global vars if they want, instead of using the new rootdir directly

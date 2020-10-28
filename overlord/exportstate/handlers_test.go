@@ -206,7 +206,7 @@ func (s *handlersSuite) TestUndoExportContentSnapd(c *C) {
 	c.Assert(exportstate.Get(st, "snapd", snap.R(1), &m), Equals, state.ErrNoState)
 
 	// Exported content is not on disk.
-	c.Check(filepath.Join(exportstate.ExportDir, "snapd", "tools", "1"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "tools", "1"), testutil.FileAbsent)
 }
 
 func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {

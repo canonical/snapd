@@ -207,11 +207,11 @@ func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 	c.Assert(err, IsNil)
 	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
 	err = exportstate.UpdateExportedVersion(s.m.SnapName, "")
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
 		testutil.FileAbsent)
 }
 
@@ -220,20 +220,20 @@ func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
 	// but the ENOENT error is silently ignored.
 	err := exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Check(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current version at will.
 	err = s.m.CreateExportedFiles()
 	c.Assert(err, IsNil)
 	err = exportstate.UpdateExportedVersion(s.m.SnapName, s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, s.m.ExportedVersion)
 
 	// The current version can be replaced to point to another value.
 	err = exportstate.UpdateExportedVersion(s.m.SnapName, "other-"+s.m.ExportedVersion)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir, s.m.SnapName, "current"),
+	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapName, "current"),
 		testutil.SymlinkTargetEquals, "other-"+s.m.ExportedVersion)
 }
 

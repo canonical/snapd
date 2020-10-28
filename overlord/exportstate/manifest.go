@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -117,7 +118,7 @@ type SymlinkExport struct {
 
 // PathName returns the full path of the symbolic link.
 func (s *SymlinkExport) PathName() string {
-	return filepath.Join(ExportDir, s.SnapName, s.ExportedVersion, s.ExportSet, s.Name)
+	return filepath.Join(dirs.ExportDir, s.SnapName, s.ExportedVersion, s.ExportSet, s.Name)
 }
 
 // Create creates a symbolic link and necessary directories.
@@ -143,9 +144,9 @@ func (s *SymlinkExport) Remove() error {
 		return err
 	}
 	// XXX: or iterate upwards until we reach ExportDir
-	os.Remove(filepath.Join(ExportDir, s.SnapName, s.ExportedVersion, s.ExportSet))
-	os.Remove(filepath.Join(ExportDir, s.SnapName, s.ExportedVersion))
-	os.Remove(filepath.Join(ExportDir, s.SnapName))
+	os.Remove(filepath.Join(dirs.ExportDir, s.SnapName, s.ExportedVersion, s.ExportSet))
+	os.Remove(filepath.Join(dirs.ExportDir, s.SnapName, s.ExportedVersion))
+	os.Remove(filepath.Join(dirs.ExportDir, s.SnapName))
 	return nil
 }
 

@@ -153,12 +153,12 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 		// The symbolic links point from export set name to a path that is valid in
 		// either the host or snap mount namespace.
 		c.Check(filepath.Join(
-			exportstate.ExportDir, "snap-name", "exported-version", "export-set-a", "symlink-name-1"),
+			dirs.ExportDir, "snap-name", "exported-version", "export-set-a", "symlink-name-1"),
 			testutil.SymlinkTargetEquals, "symlink-target-1")
 		c.Check(filepath.Join(
-			exportstate.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-2"),
+			dirs.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-2"),
 			testutil.SymlinkTargetEquals, "symlink-target-2")
-		c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-3"),
+		c.Check(filepath.Join(dirs.ExportDir, "snap-name", "exported-version", "export-set-b", "symlink-name-3"),
 			testutil.SymlinkTargetEquals, "symlink-target-3")
 	}
 	checkFiles()
@@ -172,7 +172,7 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 	// If the file system contains symlinks with different targets that clash
 	// with the exported content then the operation fails.
-	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
+	pathName := filepath.Join(dirs.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = os.Symlink("wrong-target", pathName)
@@ -196,7 +196,7 @@ func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
 	// If the file system contains non-symlinks that clash with the exported
 	// content then the operation fails.
-	pathName := filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
+	pathName := filepath.Join(dirs.ExportDir, "snap-name", "exported-version", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(pathName, nil, 0644)
@@ -250,21 +250,21 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	err = m.RemoveExportedFiles()
 	c.Assert(err, IsNil)
 	// The symbolic links are removed.
-	c.Check(filepath.Join(exportstate.ExportDir,
+	c.Check(filepath.Join(dirs.ExportDir,
 		"snap-name", "exported-version", "export-set-a", "symlink-name-1"),
 		testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir,
+	c.Check(filepath.Join(dirs.ExportDir,
 		"snap-name", "exported-version", "export-set-b", "symlink-name-2"),
 		testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir,
+	c.Check(filepath.Join(dirs.ExportDir,
 		"snap-name", "exported-version", "export-set-b", "symlink-name-3"),
 		testutil.FileAbsent)
 
 	// The empty directories are pruned.
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-a"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version", "export-set-b"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name", "exported-version"), testutil.FileAbsent)
-	c.Check(filepath.Join(exportstate.ExportDir, "snap-name"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name", "exported-version", "export-set-a"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name", "exported-version", "export-set-b"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name", "exported-version"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-name"), testutil.FileAbsent)
 
 	// Removing exported files doesn't fail if they are no longer present.
 	err = m.RemoveExportedFiles()
@@ -274,12 +274,12 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	// subsequent failures to remove non-empty directories.
 	err = m.CreateExportedFiles()
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(exportstate.ExportDir,
+	err = ioutil.WriteFile(filepath.Join(dirs.ExportDir,
 		"snap-name", "exported-version", "export-set-a", "unrelated"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = m.RemoveExportedFiles()
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(exportstate.ExportDir,
+	c.Check(filepath.Join(dirs.ExportDir,
 		"snap-name", "exported-version", "export-set-a", "unrelated"), testutil.FilePresent)
 }
