@@ -280,8 +280,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encrypt
 	return filepath.Join("/dev/disk/by-partuuid", partUUID), false, nil
 }
 
-// UnlockVolumeUsingSealedKeyIfEncrypted unlocks an existing volume using the
-// provided key. The path to the device node is returned.
+// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
+// path to the device node is returned.
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (string, error) {
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
