@@ -65,9 +65,7 @@ func printfFunc(msg string, format ...interface{}) func() {
 }
 
 func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
-	snapdReloadMsgOnce := sync.Once{}
-	systemReloadMsgOnce := sync.Once{}
-	snapRefreshMsgOnce := sync.Once{}
+	var snapdReloadMsgOnce, systemReloadMsgOnce, snapRefreshMsgOnce sync.Once
 
 	for {
 		chgs, snaps, err := x.client.InternalConsoleConfStart()
@@ -111,7 +109,7 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 		}
 
 		if len(chgs) == 0 {
-			break
+			return nil
 		}
 
 		if len(snaps) == 0 {
@@ -139,6 +137,4 @@ func (x *cmdRoutineConsoleConfStart) Execute(args []string) error {
 		// don't DDOS snapd by hitting it's API too often
 		time.Sleep(snapdAPIInterval)
 	}
-
-	return nil
 }
