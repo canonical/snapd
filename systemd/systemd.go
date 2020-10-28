@@ -244,6 +244,8 @@ type Systemd interface {
 	Mask(service string) error
 	// Unmask the given service.
 	Unmask(service string) error
+	// Mount requests a mount of what under where with options.
+	Mount(what, where string, options ...string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -909,4 +911,16 @@ func (s *systemd) ReloadOrRestart(serviceName string) error {
 	}
 	_, err := s.systemctl("reload-or-restart", serviceName)
 	return err
+}
+
+func (s *systemd) Mount(what, where string, options ...string) error {
+	args := make([]string, 0, 2+len(options))
+	if len(options) > 0 {
+		args = append(args, options...)
+	}
+	args = append(args, what, where)
+	if output, err := exec.Command("systemd-mount", args...).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }
