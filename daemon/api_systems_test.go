@@ -487,7 +487,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.restartSystem, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
+				c.Check(d.requestedRestart, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
