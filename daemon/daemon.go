@@ -457,8 +457,7 @@ func (d *Daemon) Start() error {
 	// before serving actual connections remove the maintenance.json file as we
 	// are no longer down for maintenance, this state most closely corresponds
 	// to state.RestartUnset
-	err = d.updateMaintenanceFile(state.RestartUnset)
-	if err != nil {
+	if err := d.updateMaintenanceFile(state.RestartUnset); err != nil {
 		return err
 	}
 
@@ -490,11 +489,12 @@ func (d *Daemon) Start() error {
 
 // HandleRestart implements overlord.RestartBehavior.
 func (d *Daemon) HandleRestart(t state.RestartType) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
-		d.mu.Lock()
-		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
 		d.requestedRestart = t
 	case state.RestartSystem, state.RestartSystemNow:
@@ -504,13 +504,9 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 			logger.Noticef("%s", err)
 		}
 
-		d.mu.Lock()
-		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
 		d.requestedRestart = t
 	case state.RestartSocket:
-		d.mu.Lock()
-		defer d.mu.Unlock()
 		// save the restart kind to write out a maintenance.json in a bit
 		d.requestedRestart = t
 		d.restartSocket = true
@@ -548,12 +544,7 @@ func (d *Daemon) updateMaintenanceFile(rst state.RestartType) error {
 		return err
 	}
 
-	err = osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
 }
 
 // Stop shuts down the Daemon
@@ -583,8 +574,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// before not accepting any new client connections we need to write the
 	// maintenance.json file for potential clients to see after the daemon stops
 	// responding so they can read it correctly and handle the maintenance
-	err := d.updateMaintenanceFile(d.requestedRestart)
-	if err != nil {
+	if err := d.updateMaintenanceFile(d.requestedRestart); err != nil {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
@@ -636,7 +626,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	d.overlord.Stop()
 
-	err = d.tomb.Wait()
+	err := d.tomb.Wait()
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
