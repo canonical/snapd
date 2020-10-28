@@ -20,12 +20,18 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -207,9 +213,114 @@ func (s *SnapSuite) TestRoutineConsoleConfStartMultipleSnaps(c *C) {
 	c.Check(s.Stderr(), Equals, "Snaps (core20, pc, pc-kernel, and snapd) are refreshing, please wait...\n")
 }
 
-// TODO:UC20: when maintenance.json is a thing, then add a similar test as this
-// one, but using the maintenance.json file instead of the maintenance response
-// as that is closer to the real desired behavior
+func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshMaintenanceJSON(c *C) {
+	// make the command hit the API as fast as possible for testing
+	r := snap.MockSnapdAPIInterval(0)
+	defer r()
+
+	// write a maintenance.json before any requests and then the first request
+	// should fail and see the maintenance.json and then subsequent operations
+	// succeed
+	maintErr := client.Error{
+		Kind:    client.ErrorKindDaemonRestart,
+		Message: "daemon is restarting",
+	}
+	b, err := json.Marshal(&maintErr)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	c.Assert(err, IsNil)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		// 1st time we don't respond at all to simulate what happens if the user
+		// triggers console-conf to start after snapd has shut down for a
+		// refresh
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+
+		// 2nd time we hit the API, return an in-progress refresh
+		case 2:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+
+			fmt.Fprintf(w, `{
+				"type":"sync",
+				"status-code": 200,
+				"result": {
+					"active-auto-refreshes": ["1"],
+					"active-auto-refresh-snaps": ["snapd"]
+				}
+			}`)
+		// 3rd time we are actually done
+		case 3:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+
+			fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {}}`)
+
+		default:
+			c.Errorf("unexpected request %v", n)
+		}
+	})
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), testutil.Contains, "Snapd is reloading, please wait...\n")
+	c.Check(s.Stderr(), testutil.Contains, "Snaps (snapd) are refreshing, please wait...\n")
+	c.Assert(n, Equals, 3)
+}
+
+func (s *SnapSuite) TestRoutineConsoleConfStartSystemRebootMaintenanceJSON(c *C) {
+	// make the command hit the API as fast as possible for testing
+	r := snap.MockSnapdAPIInterval(0)
+	defer r()
+
+	r = snap.MockSnapdWaitForFullSystemReboot(0)
+	defer r()
+
+	// write a maintenance.json before any requests and then the first request
+	// should fail and see the maintenance.json and then subsequent operations
+	// succeed
+	maintErr := client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	}
+	b, err := json.Marshal(&maintErr)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	c.Assert(err, IsNil)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		// 1st time we don't respond at all to simulate what happens if the user
+		// triggers console-conf to start after snapd has shut down for a
+		// refresh
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/internal/console-conf-start")
+
+		default:
+			c.Errorf("unexpected request %v", n)
+		}
+	})
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "console-conf-start"})
+	c.Assert(err, ErrorMatches, "system didn't reboot after 10 minutes even though snapd daemon is in maintenance")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), testutil.Contains, "System is rebooting, please wait for reboot...\n")
+	c.Assert(n, Equals, 1)
+}
+
 func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshRestart(c *C) {
 	// make the command hit the API as fast as possible for testing
 	r := snap.MockSnapdAPIInterval(0)
