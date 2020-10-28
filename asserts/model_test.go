@@ -848,7 +848,7 @@ func (mods *modelSuite) TestCore20ValidStorageSafety(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "grade: secured\n", "grade: signed\n", 1)
 
-	for _, sss := range []string{"optional", "encrypted"} {
+	for _, sss := range []string{"prefer-encrypted", "prefer-unencrypted", "encrypted"} {
 		ex := strings.Replace(encoded, "storage-safety: encrypted\n", fmt.Sprintf("storage-safety: %s\n", sss), 1)
 		a, err := asserts.Decode([]byte(ex))
 		c.Assert(err, IsNil)
@@ -896,8 +896,8 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
 		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
 		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
-		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be optional|encrypted`},
-		{"storage-safety: encrypted\n", "storage-safety: optional\n", `"grade: secured" cannot have "storage-safety: optional"`},
+		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be encrypted\|prefer-encrypted\|prefer-unencrypted, not "foo"`},
+		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `"grade: secured" cannot have "storage-safety: prefer-unencrypted"`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)

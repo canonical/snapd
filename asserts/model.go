@@ -345,12 +345,18 @@ type ModelStorageSafety string
 
 const (
 	ModelStorageSafetyUnset ModelStorageSafety = "unset"
-	// ModelStorageSafetyOptional implies that the model can optionally
-	// be encrypted.
-	ModelStorageSafetyOptional ModelStorageSafety = "optional"
-	// ModelSigned implies mandatory encryption for the model.
+	// ModelStorageSafetyEncrypted implies mandatory full disk encryption.
 	ModelStorageSafetyEncrypted ModelStorageSafety = "encrypted"
+	// ModelStorageSafetyPreferEncrypted implies full disk
+	// encryption when the system supports it.
+	ModelStorageSafetyPreferEncrypted ModelStorageSafety = "prefer-encrypted"
+	// ModelStorageSafetyPreferUnencrypted implies no full disk
+	// encryption by default even if the system supports
+	// encryption.
+	ModelStorageSafetyPreferUnencrypted ModelStorageSafety = "prefer-unencrypted"
 )
+
+var validStorageSafeties = []string{string(ModelStorageSafetyEncrypted), string(ModelStorageSafetyPreferEncrypted), string(ModelStorageSafetyPreferUnencrypted)}
 
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
@@ -736,14 +742,14 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
-		if storageSafetyStr != "" && storageSafetyStr != string(ModelStorageSafetyOptional) && storageSafetyStr != string(ModelStorageSafetyEncrypted) {
-			return nil, fmt.Errorf("storage-safety for model must be optional|encrypted, not %q", storageSafetyStr)
+		if storageSafetyStr != "" && !strutil.ListContains(validStorageSafeties, storageSafetyStr) {
+			return nil, fmt.Errorf("storage-safety for model must be %s, not %q", strings.Join(validStorageSafeties, "|"), storageSafetyStr)
 		}
 		if storageSafetyStr != "" {
 			storageSafety = ModelStorageSafety(storageSafetyStr)
 		}
-		if grade == ModelSecured && storageSafety == ModelStorageSafetyOptional {
-			return nil, fmt.Errorf(`"grade: secured" cannot have "storage-safety: optional"`)
+		if grade == ModelSecured && storageSafety == ModelStorageSafetyPreferUnencrypted {
+			return nil, fmt.Errorf(`"grade: secured" cannot have "storage-safety: prefer-unencrypted"`)
 		}
 
 		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
