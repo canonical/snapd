@@ -13,7 +13,6 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  nested_prepare_env
 
   #shellcheck source=tests/lib/snaps.sh
   . "$TESTSLIB"/snaps.sh
@@ -60,6 +59,6 @@ execute: |
   nested_exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"core18\""
 
   echo "Now refresh snapd with current tree"
-  nested_copy "$PWD/snapd-from-deb.snap"
+  nested_copy "snapd-from-deb.snap"
   nested_exec "sudo snap install snapd-from-deb.snap --dangerous" || true
   nested_exec "snap list snapd" | MATCH "snapd .* x1 "
