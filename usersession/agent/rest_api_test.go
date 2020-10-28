@@ -633,7 +633,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 	})
 }
 
-func (s *restSuite) TestPostPendingRefreshNotificationNoNotificatinServer(c *C) {
+func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		response := &dbus.Message{
 			Type: dbus.TypeError,

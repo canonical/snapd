@@ -130,6 +130,31 @@ func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 	return holdTime, nil
 }
 
+func (m *autoRefresh) ensureRefreshHoldAtLeast(duration time.Duration) error {
+	now := time.Now()
+
+	// get the effective refresh hold and check if it is sooner than the
+	// specified duration in the future
+	effective, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return err
+	}
+
+	if effective.IsZero() || effective.Sub(now) < duration {
+		// the effective refresh hold is sooner than the desired delay, so
+		// move it out to the specified duration
+		holdTime := now.Add(duration)
+		tr := config.NewTransaction(m.state)
+		err := tr.Set("core", "refresh.hold", &holdTime)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		tr.Commit()
+	}
+
+	return nil
+}
+
 // clearRefreshHold clears refresh.hold configuration.
 func (m *autoRefresh) clearRefreshHold() {
 	tr := config.NewTransaction(m.state)
@@ -551,53 +576,48 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
-	if err := checker(info); err != nil {
-		refreshInfo := &userclient.PendingSnapRefreshInfo{
+	checkerErr := checker(info)
+	if checkerErr == nil {
+		return nil
+	}
+
+	// Get pending refresh information from compatible errors or synthesize a new one.
+	var refreshInfo *userclient.PendingSnapRefreshInfo
+	if err, ok := checkerErr.(*BusySnapError); ok {
+		refreshInfo = err.PendingSnapRefreshInfo()
+	} else {
+		refreshInfo = &userclient.PendingSnapRefreshInfo{
 			InstanceName: info.InstanceName(),
 		}
-		if err, ok := err.(*BusySnapError); ok {
-			refreshInfo = err.PendingSnapRefreshInfo()
-		}
-
-		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
-		now := time.Now()
-		client := userclient.New()
-		if snapst.RefreshInhibitedTime == nil {
-			// Store the instant when the snap was first inhibited.
-			// This is reset to nil on successful refresh.
-			snapst.RefreshInhibitedTime = &now
-			Set(st, info.InstanceName(), snapst)
-			if _, ok := err.(*BusySnapError); ok {
-				refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
-				// Send the notification asynchronously to avoid holding the state lock.
-				asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
-				// XXX: remove the warning or send it only if no notification was delivered?
-				st.Warnf(i18n.NG(
-					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
-					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
-					info.SnapName(), days)
-			}
-			return err
-		}
-
-		if now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition {
-			// If we are still in the allowed window then just return
-			// the error but don't change the snap state again.
-			refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
-			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
-			// TODO: as time left shrinks, send additional notifications with
-			// increasing frequency, allowing the user to understand the
-			// urgency.
-			return err
-		}
-		if _, ok := err.(*BusySnapError); ok {
-			asyncPendingRefreshNotification(context.TODO(), client, refreshInfo)
-			// XXX: remove the warning or send it only if no notification was delivered?
-			st.Warnf(i18n.NG(
-				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
-				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
-				info.SnapName(), days)
-		}
 	}
-	return nil
+
+	// Decide on what to do depending on the state of the snap and the remaining
+	// inhibition time.
+	now := time.Now()
+	switch {
+	case snapst.RefreshInhibitedTime == nil:
+		// If the snap did not have inhibited refresh yet then commence a new
+		// window, during which refreshes are postponed, by storing the current
+		// time in the snap state's RefreshInhibitedTime field. This field is
+		// reset to nil on successful refresh.
+		snapst.RefreshInhibitedTime = &now
+		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		Set(st, info.InstanceName(), snapst)
+	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
+		// If we are still in the allowed window then just return the error but
+		// don't change the snap state again.
+		// TODO: as time left shrinks, send additional notifications with
+		// increasing frequency, allowing the user to understand the urgency.
+		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+	default:
+		// If we run out of time then consume the error that would normally
+		// inhibit refresh and notify the user that the snap is refreshing right
+		// now, by not setting the TimeRemaining field of the refresh
+		// notification message.
+		checkerErr = nil
+	}
+
+	// Send the notification asynchronously to avoid holding the state lock.
+	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+	return checkerErr
 }

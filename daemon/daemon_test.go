@@ -209,6 +209,80 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
+func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
+	// write a maintenance.json file that has that the system is restarting
+	maintErr := &errorResult{
+		Kind:    client.ErrorKindDaemonRestart,
+		Message: systemRestartMsg,
+	}
+
+	b, err := json.Marshal(maintErr)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
+
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
+
+	d := newTestDaemon(c)
+
+	// mark as already seeded
+	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
+	// 1 snap => extended timeout 30s + 5s
+	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
+
+	l1, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	l2, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
+
+	d.Start()
+
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
+	// maintenance.json should be removed
+	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
+
+	d.Stop(nil)
+}
+
 func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	d := newTestDaemon(c)
 
@@ -590,7 +664,12 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	c.Assert(d.Start(), check.IsNil)
-	defer d.Stop(nil)
+	stoppedYet := false
+	defer func() {
+		if !stoppedYet {
+			d.Stop(nil)
+		}
+	}()
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -622,6 +701,11 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
 	}
+
+	d.Stop(nil)
+	stoppedYet = true
+
+	c.Assert(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1", "STOPPING=1"})
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -877,7 +961,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 
 	defer func() {
 		d.mu.Lock()
-		d.restartSystem = state.RestartUnset
+		d.requestedRestart = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -888,7 +972,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	}
 
 	d.mu.Lock()
-	rs := d.restartSystem
+	rs := d.requestedRestart
 	d.mu.Unlock()
 
 	c.Check(rs, check.Equals, restartKind)
@@ -924,6 +1008,17 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 		// should be good enough
 		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
 	}
+
+	// finally check that maintenance.json was written appropriate for this
+	// restart reason
+	b, err := ioutil.ReadFile(dirs.SnapdMaintenanceFile)
+	c.Assert(err, check.IsNil)
+
+	maintErr := &errorResult{}
+	c.Assert(json.Unmarshal(b, maintErr), check.IsNil)
+
+	exp := maintenanceForRestartType(restartKind)
+	c.Assert(maintErr, check.DeepEquals, exp)
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {

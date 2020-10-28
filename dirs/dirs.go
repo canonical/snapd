@@ -58,6 +58,8 @@ var (
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
 
+	SnapdMaintenanceFile string
+
 	SnapdStoreSSLCertsDir string
 
 	SnapSeedDir   string
@@ -314,6 +316,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
