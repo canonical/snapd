@@ -39,8 +39,6 @@ const (
 	ubuntuSaveLabel = "ubuntu-save"
 
 	sectorSize Size = 512
-
-	createdPartitionAttr = "59"
 )
 
 var createdPartitionGUID = []string{
@@ -85,35 +83,13 @@ type sfdiskPartition struct {
 }
 
 func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
-	switch sfdiskLabel {
-	case "gpt":
-		// the created partitions use specific GPT GUID types and set a
-		// specific bit in partition attributes
-		if !creationSupported(p.Type) {
-			return false
-		}
-		for _, a := range strings.Fields(p.Attrs) {
-			if !strings.HasPrefix(a, "GUID:") {
-				continue
-			}
-			attrs := strings.Split(a[5:], ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) {
-				return true
-			}
-		}
-	case "dos":
-		// we have no similar type/bit attribute setting for MBR, on top
-		// of that MBR does not support partition names, fall back to
-		// reasonable assumption that only partitions carrying
-		// ubuntu-boot and ubuntu-data labels are created during
-		// install, everything else was part of factory image
-
-		// TODO:UC20 consider using gadget layout information to build a
-		// mapping of partition start offset to label/name
-		createdDuringInstall := []string{ubuntuBootLabel, ubuntuSaveLabel, ubuntuDataLabel}
-		return strutil.ListContains(createdDuringInstall, fs.Label)
-	}
-	return false
+	// we consider structures that have filesystem labels matching those that
+	// are created during install mode to be "created during install", but note
+	// that this is a guess - the caller should only rely on this to do
+	// destructive operations if these on disk structures match up with those in
+	// the gadget.yaml via ensureLayoutCompatibility.
+	createdDuringInstall := []string{ubuntuBootLabel, ubuntuSaveLabel, ubuntuDataLabel}
+	return strutil.ListContains(createdDuringInstall, fs.Label)
 }
 
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
@@ -124,8 +100,11 @@ type OnDiskStructure struct {
 
 	// Node identifies the device node of the block device.
 	Node string
-	// CreatedDuringInstall is true when the structure has properties indicating
-	// it was created based on the gadget description during installation.
+	// CreatedDuringInstall is true when the structure has a fs label that
+	// matches on the partitions that is created during install mode. It is
+	// expected that this flag is not used for any destructive operations until
+	// it is independently verified that the on disk structure actually matches
+	// the expected gadget structure via ensureLayoutCompatibility for example.
 	CreatedDuringInstall bool
 }
 
@@ -240,7 +219,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 				Index:           i + 1,
 			},
 			Node:                 p.Node,
-			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
+			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, bd.Label),
 		}
 	}
 
@@ -341,8 +320,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, pIndex)
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
+		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
+			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name)
 
 		// Set expected labels based on role
 		switch s.Role {

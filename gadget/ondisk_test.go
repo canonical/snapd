@@ -75,8 +75,7 @@ echo '{
         "size": 2457600,
         "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
         "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-        "name": "Recovery",
-        "attrs": "GUID:59"
+        "name": "Recovery"
       }
     ]
   }
@@ -465,8 +464,8 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
 	sfdiskInput, create := gadget.BuildPartitionList(dl, pv)
 	c.Assert(sfdiskInput.String(), Equals,
-		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save", attrs="GUID:59"
-/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritable})
 }
@@ -531,7 +530,26 @@ exit 0`
 }
 
 func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
-	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `
+case $3 in 
+	/dev/node1)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-data"} ] }'
+		;;
+	/dev/node2)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-boot"} ] }'
+		;;
+	/dev/node3)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'
+		;;
+	/dev/node4)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-seed"} ] }'
+		;;
+	*)
+		echo "unexpected args: $*"
+		exit 1
+		;;
+esac
+`)
 	defer cmdLsblk.Restore()
 
 	ptable := gadget.SFDiskPartitionTable{
@@ -579,17 +597,7 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
-	c.Assert(list, HasLen, 0)
-
-	// Set attribute bit for all partitions except the last one
-	for i := 0; i < len(ptable.Partitions)-1; i++ {
-		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
-	}
-
-	dl, err = gadget.OnDiskVolumeFromPartitionTable(ptable)
-	c.Assert(err, IsNil)
-	list = gadget.CreatedDuringInstall(dl)
-	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
+	c.Check(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
 }
 
 func (s *ondiskTestSuite) TestCreatedDuringInstallMBR(c *C) {

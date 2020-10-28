@@ -272,7 +272,6 @@ func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 	deviceLayout.Structure[len(deviceLayout.Structure)-1].CreatedDuringInstall = false
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
-
 }
 
 func (s *installSuite) TestSchemaCompatibility(c *C) {

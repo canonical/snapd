@@ -90,8 +90,7 @@ echo '{
         "size": 2457600,
         "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
         "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-        "name": "Recovery",
-        "attrs": "GUID:59"
+        "name": "Recovery"
       }`)
 	}
 
@@ -104,8 +103,7 @@ echo '{
         "size": 2457600,
         "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
         "uuid": "f940029d-bfbb-4887-9d44-321e85c63866",
-        "name": "Writable",
-        "attrs": "GUID:59"
+        "name": "Writable"
       }`)
 	}
 
@@ -240,7 +238,10 @@ elif [ -f %[1]s/1 ]; then
    touch %[1]s/2
    exit 0
 else
-   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
+   PART=',
+   {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"},
+   {"node": "/dev/node3", "start": 2461696, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"}
+   '
    touch %[1]s/1
 fi
 echo '{
@@ -261,7 +262,7 @@ echo '{
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptRemovablePartition, s.dir))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
@@ -273,6 +274,7 @@ echo '{
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
 		{"lsblk", "--fs", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--fs", "--json", "/dev/node3"},
 	})
 
 	err = install.RemoveCreatedPartitions(dl)
@@ -280,7 +282,7 @@ echo '{
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
-		{"sfdisk", "--no-reread", "--delete", "/dev/node", "2"},
+		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
 		{"sfdisk", "--json", "-d", "/dev/node"},
 	})
 }
