@@ -114,6 +114,7 @@ var api = []*Command{
 	systemsCmd,
 	systemsActionCmd,
 	themesCmd,
+	routineConsoleConfStartCmd,
 }
 
 var servicestateControl = servicestate.Control

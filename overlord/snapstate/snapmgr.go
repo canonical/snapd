@@ -448,7 +448,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
-	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
+	runner.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
@@ -554,6 +554,29 @@ func (m *SnapManager) LastRefresh() (time.Time, error) {
 // The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
+}
+
+// EnsureAutoRefreshesAreDelayed will delay refreshes for the specified amount
+// of time, as well as return any active auto-refresh changes that are currently
+// not ready so that the client can wait for those.
+func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*state.Change, error) {
+	// always delay for at least the specified time, this ensures that even if
+	// there are active refreshes right now, there won't be more auto-refreshes
+	// that happen after the current set finish
+	err := m.autoRefresh.ensureRefreshHoldAtLeast(delay)
+	if err != nil {
+		return nil, err
+	}
+
+	// look for auto refresh changes in progress
+	autoRefreshChgs := []*state.Change{}
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			autoRefreshChgs = append(autoRefreshChgs, chg)
+		}
+	}
+
+	return autoRefreshChgs, nil
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
