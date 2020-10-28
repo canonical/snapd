@@ -102,6 +102,7 @@ unix (connect, receive, send, accept)
     type=stream
     addr="@/tmp/.X11-unix/X[0-9]*"
     peer=(label=###PLUG_SECURITY_TAGS###),
+# TODO: deprecate and remove this if it doesn't break X11 server snaps.
 unix (connect, receive, send, accept)
     type=stream
     addr="@/tmp/.ICE-unix/[0-9]*"
@@ -138,6 +139,14 @@ owner /run/user/[0-9]*/mutter/Xauthority r,
 network netlink raw,
 /run/udev/data/c13:[0-9]* r,
 /run/udev/data/+input:* r,
+
+# Deny access to ICE granted by abstractions/X
+# See: https://bugs.launchpad.net/snapd/+bug/1901489
+deny owner @{HOME}/.ICEauthority r,
+deny owner /run/user/*/ICEauthority r,
+deny unix (connect, receive, send)
+    type=stream
+    peer=(addr="@/tmp/.ICE-unix/[0-9]*"),
 `
 
 const x11ConnectedPlugSecComp = `
