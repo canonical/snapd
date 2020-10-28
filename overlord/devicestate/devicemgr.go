@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -42,9 +43,11 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -141,12 +144,54 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	if !release.OnClassic && m.SystemMode() == "run" {
+		if err := maybeSetupUbuntuSave(); err != nil {
+			return fmt.Errorf("cannot set up ubuntu-save mount: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeEnv, nil
+}
+
+func maybeSetupUbuntuSave() error {
+	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
+	if err != nil {
+		return err
+	}
+	if saveMounted {
+		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		return nil
+	}
+
+	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return err
+	}
+	if !runMntSaveMounted {
+		// we don't have ubuntu-save
+		logger.Noticef("no ubuntu-save mount")
+		return nil
+	}
+
+	logger.Noticef("mounting ubuntu-save under %v", dirs.SnapSaveDir)
+
+	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
+		dirs.SnapSaveDir, "-o", "bind")
+	if err != nil {
+		logger.Noticef("mounting ubuntu-save failed %v", err)
+		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
+	}
+	return nil
 }
 
 type deviceMgrKey struct{}
