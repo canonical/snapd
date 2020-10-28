@@ -345,9 +345,8 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
 // key.
 func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
-	options := sb.ActivateVolumeOptions{
-		// no special options set
-	}
+	// no special options set
+	options := sb.ActivateVolumeOptions{}
 	err := sbActivateVolumeWithKey(name, device, key, &options)
 	if err == nil {
 		logger.Noticef("successfully activated encrypted device %v using a key", device)
