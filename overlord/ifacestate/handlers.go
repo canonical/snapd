@@ -1078,7 +1078,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
-	if err := snapstate.WaitRestart(task, snapsup); err != nil {
+	if err := snapstate.FinishRestart(task, snapsup); err != nil {
 		return err
 	}
 

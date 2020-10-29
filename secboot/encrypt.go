@@ -31,6 +31,9 @@ const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key.
 	encryptionKeySize = 64
+
+	// Size of the recovery key.
+	recoveryKeySize = 16
 )
 
 // EncryptionKey is the key used to encrypt the data partition.
@@ -46,6 +49,26 @@ func NewEncryptionKey() (EncryptionKey, error) {
 
 // Save writes the key in the location specified by filename.
 func (key EncryptionKey) Save(filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+}
+
+// RecoveryKey is a key used to unlock the encrypted partition when
+// the encryption key can't be used, for example when unseal fails.
+type RecoveryKey [recoveryKeySize]byte
+
+func NewRecoveryKey() (RecoveryKey, error) {
+	var key RecoveryKey
+	// rand.Read() is protected against short reads
+	_, err := rand.Read(key[:])
+	// On return, n == len(b) if and only if err == nil
+	return key, err
+}
+
+// Save writes the recovery key in the location specified by filename.
+func (key RecoveryKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}

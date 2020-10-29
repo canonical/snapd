@@ -27,11 +27,8 @@ restore: |
     snap remove core --revision=x3
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     TARGET_SNAP=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP=core18
     fi
 
@@ -41,11 +38,9 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     TARGET_SNAP=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP=core18
     fi
 

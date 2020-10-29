@@ -176,12 +176,14 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	err := os.Chmod(cacheDir, 0000)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
-	c.Assert(err, IsNil)
-	// cannot create bootloader subdirectory
-	ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/grub: permission denied")
-	c.Check(ta, IsNil)
+	if os.Geteuid() != 0 {
+		err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
+		c.Assert(err, IsNil)
+		// cannot create bootloader subdirectory
+		ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+		c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/grub: permission denied")
+		c.Check(ta, IsNil)
+	}
 
 	// fix it now
 	err = os.Chmod(cacheDir, 0755)
@@ -190,13 +192,15 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	_, err = cache.Add(filepath.Join(d, "no-file"), "grub", "grubx64.efi")
 	c.Assert(err, ErrorMatches, "cannot open asset file: open .*/no-file: no such file or directory")
 
-	blDir := filepath.Join(cacheDir, "grub")
-	defer os.Chmod(blDir, 0755)
-	err = os.Chmod(blDir, 0000)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		blDir := filepath.Join(cacheDir, "grub")
+		defer os.Chmod(blDir, 0755)
+		err = os.Chmod(blDir, 0000)
+		c.Assert(err, IsNil)
 
-	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, ErrorMatches, `cannot create temporary cache file: open .*/grub/grubx64\.efi\.temp\.[a-zA-Z0-9]+~: permission denied`)
+		_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+		c.Assert(err, ErrorMatches, `cannot create temporary cache file: open .*/grub/grubx64\.efi\.temp\.[a-zA-Z0-9]+~: permission denied`)
+	}
 }
 
 func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
@@ -1936,6 +1940,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	// make sure that trying to remove the file from cache will not break
 	// the cancellation
 
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
 	logBuf, restore := logger.MockLogger()
 	defer restore()
 
@@ -2268,6 +2276,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	// call to observe successful boot
 
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
 	s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
 	data := []byte("foobar")
@@ -2339,6 +2351,11 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	syscall.Mkfifo(p, 0644)
 	err := boot.CopyBootAssetsCacheToRoot(newRoot)
 	c.Assert(err, ErrorMatches, `unsupported non-file entry "fifo" mode prw-.*`)
+
+	if os.Geteuid() == 0 {
+		// the rest of the test cannot be executed by root user
+		return
+	}
 
 	// non-writable root
 	newRoot = c.MkDir()

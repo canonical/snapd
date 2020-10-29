@@ -399,7 +399,7 @@ func init() {
 			},
 		})
 
-	cmd := addCommand("export-snapshot",
+	addCommand("export-snapshot",
 		shortExportSnapshotHelp,
 		longExportSnapshotHelp,
 		func() flags.Commander {
@@ -417,10 +417,8 @@ func init() {
 				desc: i18n.G("The filename of the export"),
 			},
 		})
-	// XXX: this command is hidden because import/export is not complete
-	cmd.hidden = true
 
-	cmd = addCommand("import-snapshot",
+	addCommand("import-snapshot",
 		shortImportSnapshotHelp,
 		longImportSnapshotHelp,
 		func() flags.Commander {
@@ -432,8 +430,6 @@ func init() {
 				desc: i18n.G("Name of the snapshot export file to use"),
 			},
 		})
-	// XXX: this command is hidden because import/export is not complete
-	cmd.hidden = true
 }
 
 type exportSnapshotCmd struct {
@@ -486,7 +482,6 @@ func (x *exportSnapshotCmd) Execute([]string) (err error) {
 
 	// TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
 	fmt.Fprintf(Stdout, i18n.G("Exported snapshot #%s into %q\n"), x.Positional.ID, x.Positional.Filename)
-
 	return nil
 }
 
