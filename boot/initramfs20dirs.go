@@ -86,7 +86,7 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
 	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
 	InstallHostFDEDataDir = dirs.SnapFDEDirUnder(InstallHostWritableDir)
-	InstallHostFDESaveDir = filepath.Join(dirs.SnapSaveDirUnder(InstallHostWritableDir), "device", "fde")
+	InstallHostFDESaveDir = filepath.Join(InitramfsUbuntuSaveDir, "device/fde")
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 }
