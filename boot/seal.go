@@ -220,7 +220,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	resealKeyParams := &secboot.ResealKeyParams{
 		ModelParams:          modelParams,
 		KeyFile:              filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		TPMPolicyAuthKeyFile: filepath.Join(dirs.SnapSaveDirUnder(rootdir), "device/fde/tpm-policy-auth-key"),
+		TPMPolicyAuthKeyFile: filepath.Join(dirs.SnapSaveFDEDirUnder(rootdir), "tpm-policy-auth-key"),
 	}
 	if err := secbootResealKey(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
