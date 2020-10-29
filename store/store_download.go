@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/juju/ratelimit"
@@ -54,6 +55,11 @@ var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 		Factor:  2.5,
 	},
 ))
+
+var downloadSpeedMeasureWindow = 5 * time.Second
+
+// minimum average download speed (bytes/sec), measured over downloadSpeedMeasureWindow.
+var downloadSpeedMin = float64(256)
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
@@ -253,6 +259,53 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 	return &reqOptions
 }
 
+type downloadTimeoutError struct {
+	// for testing, to inspect speed
+	Speed float64
+}
+
+func (e *downloadTimeoutError) Error() string {
+	return fmt.Sprintf("download timed out")
+}
+
+// implements io.Writer interface
+type timeoutControl struct {
+	m       sync.Mutex
+	start   time.Time
+	written int
+	err     error
+}
+
+func (t *timeoutControl) reset() {
+	t.m.Lock()
+	defer t.m.Unlock()
+	t.written = 0
+	t.start = time.Now()
+}
+
+func (t *timeoutControl) checkSpeed(min float64) bool {
+	t.m.Lock()
+	defer t.m.Unlock()
+	d := time.Now().Sub(t.start)
+	s := float64(t.written) / d.Seconds()
+	ok := s >= min
+	if !ok {
+		t.err = &downloadTimeoutError{Speed: s}
+	}
+	return ok
+}
+
+func (t *timeoutControl) Write(p []byte) (n int, err error) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	t.written += len(p)
+	return len(p), nil
+}
+
+func (t *timeoutControl) Err() error {
+	return t.err
+}
+
 var ratelimitReader = ratelimit.Reader
 
 var download = downloadImpl
@@ -271,6 +324,36 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	cdnHeader, err := s.cdnHeader()
 	if err != nil {
 		return err
+	}
+
+	downloadCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tc := &timeoutControl{}
+	measure := func() (quit chan bool) {
+		quit = make(chan bool)
+		go func() {
+			for {
+				select {
+				case <-downloadCtx.Done():
+					return
+				case <-time.After(downloadSpeedMeasureWindow):
+					if !tc.checkSpeed(downloadSpeedMin) {
+						cancel()
+						return
+					}
+					// reset the measurement every downloadSpeedMeasureWindow,
+					// we want average speed per second over short period,
+					// otherwise a large download with initial good download
+					// speed could get stuck at the end of the download, and it
+					// would take long time for overall average to "catch up".
+					tc.reset()
+				case <-quit:
+					return
+				}
+			}
+		}()
+		return quit
 	}
 
 	var finalErr error
@@ -298,15 +381,17 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			}
 		}
 
-		if cancelled(ctx) {
-			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		if cancelled(downloadCtx) {
+			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
 		}
 		var resp *http.Response
 		cli := s.newHTTPClient(nil)
-		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
-
-		if cancelled(ctx) {
-			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
+		resp, finalErr = s.doRequest(downloadCtx, cli, reqOptions, user)
+		if cancelled(downloadCtx) {
+			if finalErr == nil {
+				resp.Body.Close()
+			}
+			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
 		}
 		if finalErr != nil {
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
@@ -343,14 +428,28 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 		dlSize = float64(resp.ContentLength)
 		pbar.Start(name, dlSize)
-		mw := io.MultiWriter(w, h, pbar)
+		mw := io.MultiWriter(w, h, pbar, tc)
 		var limiter io.Reader
 		limiter = resp.Body
 		if limit := dlOpts.RateLimit; limit > 0 {
 			bucket := ratelimit.NewBucketWithRate(float64(limit), 2*limit)
 			limiter = ratelimitReader(resp.Body, bucket)
 		}
+
+		tc.reset()
+		// measure runs in a go routine and may cancel the request if tc doesn't
+		// report required minimum throughput.
+		quit := measure()
 		_, finalErr = io.Copy(mw, limiter)
+		close(quit)
+
+		if cancelled(downloadCtx) {
+			if err := tc.Err(); err != nil {
+				return err
+			}
+			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
+		}
+
 		pbar.Finished()
 		if finalErr != nil {
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
@@ -363,10 +462,6 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 				// if seek failed, then don't retry end return the original error
 			}
 			break
-		}
-
-		if cancelled(ctx) {
-			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))

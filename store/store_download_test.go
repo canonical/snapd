@@ -943,3 +943,54 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
+
+func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
+	var mockServer *httptest.Server
+
+	restore := store.MockDownloadSpeedParams(1*time.Second, 32768)
+	defer restore()
+
+	// our mock download content
+	buf := make([]byte, 65535)
+
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBuffer(buf))
+
+	quit := make(chan bool)
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Length", fmt.Sprintf("%d", len(buf)))
+		w.WriteHeader(200)
+
+		// push enough data to fill in internal buffers, so that download code
+		// hits io.Copy over the body and gets stuck there, and not immediately
+		// on doRequest.
+		w.Write(buf[:20000])
+
+		// block the handler
+		select {
+		case <-quit:
+		case <-time.After(10 * time.Second):
+			c.Fatalf("unexpected server timeout")
+		}
+		mockServer.CloseClientConnections()
+	}))
+
+	c.Assert(mockServer, NotNil)
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = 50000
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	ok, speed := store.IsDownloadTimeoutError(err)
+	c.Assert(ok, Equals, true)
+	// in reality speed can be 0, but here it's an extra sanity check.
+	c.Check(speed > 1, Equals, true)
+	c.Check(speed < 32768, Equals, true)
+	close(quit)
+	defer mockServer.Close()
+}

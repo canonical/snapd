@@ -25,6 +25,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
@@ -83,6 +84,25 @@ func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	t.AddCleanup(func() {
 		connCheckStrategy = originalConnCheckStrategy
 	})
+}
+
+func MockDownloadSpeedParams(measureWindow time.Duration, minSpeed float64) (restore func()) {
+	oldSpeedMeasureWindow := downloadSpeedMeasureWindow
+	oldSpeedMin := downloadSpeedMin
+	downloadSpeedMeasureWindow = measureWindow
+	downloadSpeedMin = minSpeed
+	return func() {
+		downloadSpeedMeasureWindow = oldSpeedMeasureWindow
+		downloadSpeedMin = oldSpeedMin
+	}
+}
+
+func IsDownloadTimeoutError(err error) (ok bool, speed float64) {
+	de, ok := err.(*downloadTimeoutError)
+	if !ok {
+		return false, 0
+	}
+	return true, de.Speed
 }
 
 func (cm *CacheManager) CacheDir() string {
