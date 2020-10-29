@@ -147,9 +147,41 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
+// this is an mbr gadget like the pi, but doesn't have the amd64 mbr structure
+// so it's probably not representative, but still useful for unit tests here
+const mbrGadgetContent = `volumes:
+  pc:
+    schema: mbr
+    bootloader: grub
+    structure:
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        offset: 2M
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
 var mockOnDiskStructureSave = gadget.OnDiskStructure{
-	Node:                 "/dev/node3",
-	CreatedDuringInstall: true,
+	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Save",
@@ -165,8 +197,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 }
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node:                 "/dev/node4",
-	CreatedDuringInstall: true,
+	Node: "/dev/node4",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",
@@ -311,8 +342,7 @@ exit 0`
 				StartOffset: 0x200000,
 				Index:       1,
 			},
-			Node:                 "/dev/node1",
-			CreatedDuringInstall: false,
+			Node: "/dev/node1",
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -325,8 +355,7 @@ exit 0`
 				StartOffset: 0x4b200000,
 				Index:       2,
 			},
-			Node:                 "/dev/node2",
-			CreatedDuringInstall: true,
+			Node: "/dev/node2",
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -339,8 +368,7 @@ exit 0`
 				StartOffset: 0x6b200000,
 				Index:       3,
 			},
-			Node:                 "/dev/node3",
-			CreatedDuringInstall: true,
+			Node: "/dev/node3",
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -353,8 +381,7 @@ exit 0`
 				StartOffset: 0x8b200000,
 				Index:       4,
 			},
-			Node:                 "/dev/node4",
-			CreatedDuringInstall: true,
+			Node: "/dev/node4",
 		},
 	})
 }
@@ -533,16 +560,16 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `
 case $3 in 
 	/dev/node1)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-data"} ] }'
-		;;
-	/dev/node2)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-boot"} ] }'
-		;;
-	/dev/node3)
 		echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'
 		;;
-	/dev/node4)
+	/dev/node2)
 		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-seed"} ] }'
+		;;
+	/dev/node3)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-save"} ] }'
+		;;
+	/dev/node4)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-data"} ] }'
 		;;
 	*)
 		echo "unexpected args: $*"
@@ -560,44 +587,54 @@ esac
 		FirstLBA: 34,
 		LastLBA:  8388574,
 		Partitions: []gadget.SFDiskPartition{
+			// BIOS Boot
 			{
 				Node:  "/dev/node1",
-				Start: 1024,
-				Size:  1024,
-				Type:  "0fc63daf-8483-4772-8e79-3d69d8477de4",
-				UUID:  "641764aa-a680-4d36-a7ad-f7bd01fd8d12",
-				Name:  "Linux filesystem",
-			},
-			{
-				Node:  "/dev/node2",
 				Start: 2048,
 				Size:  2048,
-				Type:  "0657FD6D-A4AB-43C4-84E5-0933C84B4F4F",
-				UUID:  "7ea3a75a-3f6d-4647-8134-89ae61fe88d5",
-				Name:  "Linux swap",
-			},
-			{
-				Node:  "/dev/node3",
-				Start: 8192,
-				Size:  8192,
 				Type:  "21686148-6449-6E6F-744E-656564454649",
 				UUID:  "30a26851-4b08-4b8d-8aea-f686e723ed8c",
 				Name:  "BIOS boot partition",
 			},
+			// Recovery
+			{
+				Node:  "/dev/node2",
+				Start: 4096,
+				Size:  2457600,
+				Type:  "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+				UUID:  "7ea3a75a-3f6d-4647-8134-89ae61fe88d5",
+				Name:  "Linux filesystem",
+			},
+			// Save
+			{
+				Node:  "/dev/node3",
+				Start: 2461696,
+				Size:  262144,
+				Type:  "0fc63daf-8483-4772-8e79-3d69d8477de4",
+				UUID:  "641764aa-a680-4d36-a7ad-f7bd01fd8d12",
+				Name:  "Linux filesystem",
+			},
+			// Writable
 			{
 				Node:  "/dev/node4",
-				Start: 16384,
-				Size:  16384,
+				Start: 2723840,
+				Size:  2457600,
 				Type:  "0fc63daf-8483-4772-8e79-3d69d8477de4",
 				UUID:  "8ab3e8fd-d53d-4d72-9c5e-56146915fd07",
 				Name:  "Another Linux filesystem",
 			},
 		},
 	}
+
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	c.Assert(err, IsNil)
+
 	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := gadget.CreatedDuringInstall(dl)
-	c.Check(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
+
+	list := gadget.CreatedDuringInstall(pv, dl)
+	// only save and writable should show up
+	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
 }
 
 func (s *ondiskTestSuite) TestCreatedDuringInstallMBR(c *C) {
@@ -641,36 +678,45 @@ EOF`)
 			{
 				// ubuntu-seed
 				Node:  "/dev/node1",
-				Start: 1024,
-				Size:  1024,
+				Start: 0,
+				Size:  2460672,
 				Type:  "0a",
 			},
 			{
 				// ubuntu-boot
 				Node:  "/dev/node2",
-				Start: 2048,
-				Size:  2048,
+				Start: 2461696,
+				Size:  2460672,
 				Type:  "b",
 			},
 			{
 				// ubuntu-save
 				Node:  "/dev/node3",
-				Start: 8192,
-				Size:  8192,
+				Start: 4919296,
+				Size:  262144,
 				Type:  "c",
 			},
 			{
 				// ubuntu-data
 				Node:  "/dev/node4",
-				Start: 16384,
-				Size:  16384,
+				Start: 5181440,
+				Size:  2460672,
 				Type:  "0d",
 			},
 		},
 	}
+
+	// make our own gadget root
+	mbrGadgetRoot := c.MkDir()
+	err := makeMockGadget(mbrGadgetRoot, mbrGadgetContent)
+	c.Assert(err, IsNil)
+
+	pv, err := gadget.PositionedVolumeFromGadget(mbrGadgetRoot)
+	c.Assert(err, IsNil)
+
 	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := gadget.CreatedDuringInstall(dl)
+	list := gadget.CreatedDuringInstall(pv, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
 }
 

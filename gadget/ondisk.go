@@ -82,14 +82,34 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
-	// we consider structures that have filesystem labels matching those that
-	// are created during install mode to be "created during install", but note
-	// that this is a guess - the caller should only rely on this to do
-	// destructive operations if these on disk structures match up with those in
-	// the gadget.yaml via ensureLayoutCompatibility.
-	createdDuringInstall := []string{ubuntuBootLabel, ubuntuSaveLabel, ubuntuDataLabel}
-	return strutil.ListContains(createdDuringInstall, fs.Label)
+// WasCreatedDuringInstall returns if the OnDiskStructure was created during 
+// install by referencing the gadget volume. A structure is only considered to 
+// be created during install if it is a role that is created during install and
+// the start offsets match. We specifically don't look at anything on the 
+// structure such as filesystem information since this may be incomplete due to
+// a failed installation, or due to the partial layout that is created by some
+// ARM tools (i.e. ptool and fastboot) when flashing images to internal MMC.
+func WasCreatedDuringInstall(lv *LaidOutVolume, s OnDiskStructure) bool {
+	// for a structure to have been created during install, it must be one of
+	// the system-boot, system-data, or system-save roles from the gadget, and
+	// as such the on disk structure must exist in the exact same location as
+	// the role from the gadget, so only return true if the provided structure
+	// has the exact same StartOffset as one of those roles
+	for _, gs := range lv.LaidOutStructure {
+		// TODO: how to handle ubuntu-save here? maybe a higher level function
+		//       should decide whether to delete it or not?
+		switch gs.Role {
+		case SystemSave, SystemData, SystemBoot:
+			// then it was created during install or is to be created during
+			// install, see if the offset matches the provided on disk structure
+			// has
+			if s.StartOffset == gs.StartOffset {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
@@ -100,12 +120,6 @@ type OnDiskStructure struct {
 
 	// Node identifies the device node of the block device.
 	Node string
-	// CreatedDuringInstall is true when the structure has a fs label that
-	// matches on the partitions that is created during install mode. It is
-	// expected that this flag is not used for any destructive operations until
-	// it is independently verified that the on disk structure actually matches
-	// the expected gadget structure via ensureLayoutCompatibility for example.
-	CreatedDuringInstall bool
 }
 
 // OnDiskVolume holds information about the disk device including its partitioning
@@ -218,8 +232,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 				StartOffset:     Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node:                 p.Node,
-			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, bd.Label),
+			Node: p.Node,
 		}
 	}
 
@@ -336,9 +349,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		}
 
 		toBeCreated = append(toBeCreated, OnDiskStructure{
-			LaidOutStructure:     p,
-			Node:                 node,
-			CreatedDuringInstall: true,
+			LaidOutStructure: p,
+			Node:             node,
 		})
 	}
 
@@ -364,10 +376,10 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 
 // CreatedDuringInstall returns a list of partitions created during the
 // install process.
-func CreatedDuringInstall(layout *OnDiskVolume) (created []string) {
+func CreatedDuringInstall(lv *LaidOutVolume, layout *OnDiskVolume) (created []string) {
 	created = make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
-		if s.CreatedDuringInstall {
+		if WasCreatedDuringInstall(lv, s) {
 			created = append(created, s.Node)
 		}
 	}

@@ -148,8 +148,7 @@ exit 0`)
 }
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node:                 "/dev/node3",
-	CreatedDuringInstall: true,
+	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",
@@ -216,17 +215,24 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBios))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err := makeMockGadget(gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(dl)
+	err = install.RemoveCreatedPartitions(pv, dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
+	})
+
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
 	})
 }
 
@@ -277,7 +283,13 @@ echo '{
 		{"lsblk", "--fs", "--json", "/dev/node3"},
 	})
 
-	err = install.RemoveCreatedPartitions(dl)
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err = makeMockGadget(gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	c.Assert(err, IsNil)
+
+	err = install.RemoveCreatedPartitions(pv, dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -300,7 +312,13 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(dl)
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err = makeMockGadget(gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	c.Assert(err, IsNil)
+
+	err = install.RemoveCreatedPartitions(pv, dl)
 	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
 }
 
