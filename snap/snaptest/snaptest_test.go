@@ -153,6 +153,7 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 
 func (s *snapTestSuite) TestRenameSlot(c *C) {
 	snapInfo := snaptest.MockInfo(c, `name: core
+type: os
 version: 0
 slots:
   old:

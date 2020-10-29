@@ -182,7 +182,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	disabledSvcs := linkCtx.PrevDisabledServices
 	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
-		return generateSnapdWrappers(s)
+		return GenerateSnapdWrappers(s)
 	}
 
 	// add the CLI apps from the snap.yaml
@@ -246,7 +246,7 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 	return firstErr(err1, err2, err3, err4)
 }
 
-func generateSnapdWrappers(s *snap.Info) error {
+func GenerateSnapdWrappers(s *snap.Info) error {
 	// snapd services are handled separately via an explicit helper
 	return wrappers.AddSnapdSnapServices(s, progress.Null)
 }
