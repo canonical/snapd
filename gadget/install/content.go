@@ -42,7 +42,7 @@ func init() {
 func makeFilesystem(ds *gadget.OnDiskStructure) error {
 	if ds.HasFilesystem() {
 		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label); err != nil {
+		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, uint64(ds.Size)); err != nil {
 			return err
 		}
 		if err := udevTrigger(ds.Node); err != nil {
