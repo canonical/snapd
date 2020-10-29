@@ -1129,7 +1129,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=run"},
 	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	err := boot.WriteBootChains(bootChains, []boot.BootChain{}, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -1244,7 +1244,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 		KernelRevision: "",
 		KernelCmdlines: []string{"snapd_recovery_mode=run"},
 	}}
-	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	err := boot.WriteBootChains(bootChains, []boot.BootChain{}, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -2156,7 +2156,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-"+dataHash),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
@@ -2289,7 +2289,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
 	}}
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2446,7 +2449,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
 	}}
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
 	c.Assert(err, IsNil)
 
 	// mark successful

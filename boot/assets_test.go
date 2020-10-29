@@ -476,8 +476,9 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -496,8 +497,9 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -2528,7 +2530,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 
 	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
@@ -2658,7 +2660,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
 	})
 
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {

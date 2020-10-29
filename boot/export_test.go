@@ -88,11 +88,15 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() Boo
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentEncryptionKey() secboot.EncryptionKey {
-	return o.encryptionKey
+func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() secboot.EncryptionKey {
+	return o.dataEncryptionKey
 }
 
-func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
+func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() secboot.EncryptionKey {
+	return o.saveEncryptionKey
+}
+
+func MockSecbootSealKey(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeyParams) error) (restore func()) {
 	old := secbootSealKey
 	secbootSealKey = f
 	return func() {
@@ -148,7 +152,9 @@ var (
 	BootAssetLess                       = bootAssetLess
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
+	ReadRecoveryBootChains              = readRecoveryBootChains
 	IsResealNeeded                      = isResealNeeded
+	IsFallbackResealNeeded              = isFallbackResealNeeded
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
