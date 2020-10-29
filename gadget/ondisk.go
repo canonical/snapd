@@ -82,10 +82,10 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-// WasCreatedDuringInstall returns if the OnDiskStructure was created during 
-// install by referencing the gadget volume. A structure is only considered to 
+// WasCreatedDuringInstall returns if the OnDiskStructure was created during
+// install by referencing the gadget volume. A structure is only considered to
 // be created during install if it is a role that is created during install and
-// the start offsets match. We specifically don't look at anything on the 
+// the start offsets match. We specifically don't look at anything on the
 // structure such as filesystem information since this may be incomplete due to
 // a failed installation, or due to the partial layout that is created by some
 // ARM tools (i.e. ptool and fastboot) when flashing images to internal MMC.
