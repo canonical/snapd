@@ -389,10 +389,10 @@ func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
 	}
 
 	sbKeys := make([]*sb.SealKeyRequest, 0, len(keys))
-	for _, k := range keys {
+	for i := range keys {
 		sbKeys = append(sbKeys, &sb.SealKeyRequest{
-			Key:  k.Key[:],
-			Path: k.KeyFile,
+			Key:  keys[i].Key[:],
+			Path: keys[i].KeyFile,
 		})
 	}
 
