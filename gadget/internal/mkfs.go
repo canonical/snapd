@@ -61,11 +61,7 @@ func mkfsExt4(img, label, contentsRootDir string) error {
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
 	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
-	mkfsArgs := []string{
-		"mkfs.ext4",
-		// default usage type
-		"-T", "default",
-	}
+	mkfsArgs := []string{"mkfs.ext4"}
 	if contentsRootDir != "" {
 		// mkfs.ext4 can populate the filesystem with contents of given
 		// root directory

@@ -69,7 +69,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-T", "default",
 			"-d", "contents",
 			"-L", "my-label",
 			"foo.img",
@@ -85,7 +84,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-T", "default",
 			"-d", "contents",
 			"foo.img",
 		},
@@ -100,7 +98,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-T", "default",
 			"-L", "my-label",
 			"foo.img",
 		},
