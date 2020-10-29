@@ -180,3 +180,7 @@ func (s *emulation) Unmask(service string) error {
 func (s *emulation) Mount(what, where string, options ...string) error {
 	return errNotImplemented
 }
+
+func (s *emulation) Umount(where string) error {
+	return errNotImplemented
+}

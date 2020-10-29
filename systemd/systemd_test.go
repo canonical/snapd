@@ -1153,3 +1153,28 @@ func (s *SystemdTestSuite) TestMountErr(c *C) {
 		{"systemd-mount", "foo", "bar"},
 	})
 }
+
+func (s *SystemdTestSuite) TestUmountHappy(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	c.Assert(sysd.Umount("bar"), IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "--umount", "bar"},
+	})
+}
+
+func (s *SystemdTestSuite) TestUmountErr(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", `echo "failed"; exit 111`)
+	defer cmd.Restore()
+
+	err := sysd.Umount("bar")
+	c.Assert(err, ErrorMatches, "failed")
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "--umount", "bar"},
+	})
+}
