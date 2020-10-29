@@ -8378,7 +8378,7 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	chg.AddTask(markPreseeded)
 
 	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
+	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-snap"`)
 
 	// install hook of another snap
 	task1 := st.NewTask("run-hook", "")
@@ -8387,7 +8387,7 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	task1.WaitFor(markPreseeded)
 	chg.AddTask(task1)
 	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
+	c.Check(err, ErrorMatches, `internal error: cannot find install hook for snap "test-snap"`)
 
 	// add install hook for the correct snap
 	task2 := st.NewTask("run-hook", "")

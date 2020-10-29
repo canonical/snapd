@@ -1004,7 +1004,7 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasHooks bool, err error) {
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
@@ -1024,7 +1024,7 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 		}
 
 		if len(connectTs.Tasks()) > 1 {
-			hasHooks = true
+			hasInterfaceHooks = true
 		}
 
 		// setup-profiles needs to wait for the main "connect" task
@@ -1044,13 +1044,13 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 	if len(ts.Tasks()) > 0 {
 		ts.AddTask(setupProfiles)
 	}
-	return ts, hasHooks, nil
+	return ts, hasInterfaceHooks, nil
 }
 
 // firstTaskAfterBootWhenPreseeding finds the first task to be run for thisSnap
-// on first boot after mark-preseeded task, this is normally install hook.
+// on first boot after mark-preseeded task, this is always the install hook.
+// It is an internal error if install hook for thisSnap cannot be found.
 func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task) (*state.Task, error) {
-	var firstTaskAfterBoot *state.Task
 	if markPreseeded.Change() == nil {
 		return nil, fmt.Errorf("internal error: %s task not in change", markPreseeded.Kind())
 	}
@@ -1061,15 +1061,11 @@ func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task
 				return nil, fmt.Errorf("internal error: cannot get hook setup: %v", err)
 			}
 			if hs.Hook == "install" && hs.Snap == thisSnap {
-				firstTaskAfterBoot = ht
-				break
+				return ht, nil
 			}
 		}
 	}
-	if firstTaskAfterBoot == nil {
-		return nil, fmt.Errorf("internal error: cannot find start-setup-profiles or install hook for snap %q", thisSnap)
-	}
-	return firstTaskAfterBoot, nil
+	return nil, fmt.Errorf("internal error: cannot find install hook for snap %q", thisSnap)
 }
 
 func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap.SlotInfo {
@@ -1203,18 +1199,19 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autots, hasHooks, err := batchConnectTasks(st, snapsup, newconns, connOpts)
+	autots, hasInterfaceHooks, err := batchConnectTasks(st, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
 
-	// If hooks are not present then connects can be executed during preseeding.
+	// If interface hooks are not present then connects can be executed during
+	// preseeding.
 	// Otherwise we will run all connects, their hooks and setup-profiles after
 	// preseeding (on first boot). Note, we may be facing multiple connections
 	// here where only some have hooks; however there is no point in running
 	// those without hooks before mark-preseeded, because only setup-profiles is
 	// performance-critical and it still needs to run after those with hooks.
-	if m.preseed && hasHooks {
+	if m.preseed && hasInterfaceHooks {
 		for _, t := range st.Tasks() {
 			if t.Kind() == "mark-preseeded" {
 				markPreseeded := t
@@ -1232,7 +1229,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				firstTaskAfterBoot.WaitAll(autots)
 
 				// connect tasks and interface hooks need to wait for end of preseeding
-				// (they will run on first boot).
+				// (they need to run on first boot, not during preseeding).
 				autots.WaitFor(markPreseeded)
 				t.Change().AddAll(autots)
 				task.SetStatus(state.DoneStatus)
