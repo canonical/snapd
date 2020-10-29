@@ -144,17 +144,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
-// StartUp implements StateStarterUp.Startup.
-func (m *DeviceManager) StartUp() error {
-	if !release.OnClassic && m.SystemMode() == "run" {
-		if err := maybeSetupUbuntuSave(); err != nil {
-			return fmt.Errorf("cannot set up ubuntu-save mount: %v", err)
-		}
-	}
-
-	return nil
-}
-
 func maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
@@ -163,7 +152,22 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 	return modeEnv, nil
 }
 
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	// system mode is explicitly set on UC20
+	// TODO:UC20: ubuntu-save needs to be mounted for recover too
+	if !release.OnClassic && m.systemMode == "run" {
+		if err := maybeSetupUbuntuSave(); err != nil {
+			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func maybeSetupUbuntuSave() error {
+	// only called for UC20
+
 	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
 	if err != nil {
 		return err
