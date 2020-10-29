@@ -36,9 +36,7 @@ def main(opts):
         "name": "ubuntu-save",
         "role": "system-save",
         # TODO:UC20: update when pc-amd64-gadget changes
-        # TODO:UC20 reduce to 16M once we pass proper configuration when
-        #           creating LUKS2 volumes
-        "size": "32M",
+        "size": "16M",
         "filesystem": "ext4",
         "type": "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
     }
