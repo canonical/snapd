@@ -211,7 +211,7 @@ func (s *mgrSuite) TestStartUpOnClassicWithExportedContentInState(c *C) {
 			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: os\n",
 				&snap.SideInfo{Revision: snap.R(1)}), nil
 		case "snapd":
-			return snaptest.MockInfo(c, "name: core\nversion: 1\ntype: snapd\n",
+			return snaptest.MockInfo(c, "name: snapd\nversion: 1\ntype: snapd\n",
 				&snap.SideInfo{Revision: snap.R(2)}), nil
 		default:
 			panic("unexpected")
