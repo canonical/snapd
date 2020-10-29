@@ -235,7 +235,7 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 	}
 }
 
-func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
+func (s *secbootSuite) TestUnlockUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
 	// restore := disks.MockMountPointDisksToPartitionMapping()
@@ -436,7 +436,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, "name", "encrypt-key-dir", tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
@@ -975,4 +975,57 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {
 		return tpm, nil
 	})
 	return tpm, restore
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
+	disk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{},
+	}
+	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
+	c.Check(dev, Equals, "")
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
+	disk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"ubuntu-save-enc": "123-123-123",
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-123-123"
+	})
+	defer restore()
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+		options *sb.ActivateVolumeOptions) error {
+		c.Check(options, DeepEquals, &sb.ActivateVolumeOptions{})
+		c.Check(key, DeepEquals, []byte("fooo"))
+		c.Check(volumeName, Matches, "ubuntu-save-random-uuid-123-123")
+		c.Check(sourceDevicePath, Equals, "/dev/disk/by-partuuid/123-123-123")
+		return nil
+	})
+	defer restore()
+	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, IsNil)
+	c.Check(dev, Equals, "/dev/mapper/ubuntu-save-random-uuid-123-123")
+}
+
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
+	disk := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"ubuntu-save-enc": "123-123-123",
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-123-123"
+	})
+	defer restore()
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
+		options *sb.ActivateVolumeOptions) error {
+		return fmt.Errorf("failed")
+	})
+	defer restore()
+	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, "failed")
+	c.Check(dev, Equals, "")
 }
