@@ -10,7 +10,7 @@ show_help() {
     echo "Manage systemd service units and retrieve information about existing units."
     echo ""
     echo "COMMANDS:"
-    echo "  create-and-start-unit:   creates and starts systemd unit. In case it is set as persistent the unit survive reboots. Also it allows to overrides the configuration."
+    echo "  create-and-start-unit:   creates and starts systemd unit. In case it is set as persistent the unit survive reboots. Also it allows to override the configuration."
     echo "  stop-and-remove-unit:    stops and removes a service unit"
     echo "  wait-for-unit:           waits until a service unit is active"
     echo "  stop-units:              stops a list of service units"
