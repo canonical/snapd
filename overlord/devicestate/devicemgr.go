@@ -187,12 +187,12 @@ func maybeSetupUbuntuSave() error {
 		return nil
 	}
 
-	logger.Noticef("mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
 
 	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
 		dirs.SnapSaveDir, "-o", "bind")
 	if err != nil {
-		logger.Noticef("mounting ubuntu-save failed %v", err)
+		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
 		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
 	}
 	return nil
