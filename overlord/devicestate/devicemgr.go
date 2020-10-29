@@ -60,9 +60,15 @@ var (
 // policies.
 type DeviceManager struct {
 	systemMode string
+	// saveAvailable keeps track whether /var/lib/snapd/save
+	// is available, i.e. exists and is mounted from ubuntu-save
+	// if the latter exists.
+	// TODO: it must be set to false if ubuntu-save is unmounted.
+	saveAvailable bool
 
-	state      *state.State
-	keypairMgr asserts.KeypairManager
+	state *state.State
+
+	cachedKeypairMgr asserts.KeypairManager
 
 	// newStore can make new stores for remodeling
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -90,17 +96,11 @@ type DeviceManager struct {
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
-	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	if err != nil {
-		return nil, err
-	}
-
 	m := &DeviceManager{
-		state:      s,
-		keypairMgr: keypairMgr,
-		newStore:   newStore,
-		reg:        make(chan struct{}),
-		preseed:    snapdenv.Preseeding(),
+		state:    s,
+		newStore: newStore,
+		reg:      make(chan struct{}),
+		preseed:  snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := maybeReadModeenv()
@@ -157,7 +157,7 @@ func (m *DeviceManager) StartUp() error {
 	// system mode is explicitly set on UC20
 	// TODO:UC20: ubuntu-save needs to be mounted for recover too
 	if !release.OnClassic && m.systemMode == "run" {
-		if err := maybeSetupUbuntuSave(); err != nil {
+		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
 	}
@@ -165,7 +165,7 @@ func (m *DeviceManager) StartUp() error {
 	return nil
 }
 
-func maybeSetupUbuntuSave() error {
+func (m *DeviceManager) maybeSetupUbuntuSave() error {
 	// only called for UC20
 
 	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
@@ -174,16 +174,20 @@ func maybeSetupUbuntuSave() error {
 	}
 	if saveMounted {
 		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		m.saveAvailable = true
 		return nil
 	}
+
+	m.saveAvailable = osutil.IsDirectory(dirs.SnapSaveDir)
 
 	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
 	if err != nil {
 		return err
 	}
 	if !runMntSaveMounted {
-		// we don't have ubuntu-save
+		// we don't have ubuntu-save, save will be used directly
 		logger.Noticef("no ubuntu-save mount")
+		m.saveAvailable = true
 		return nil
 	}
 
@@ -195,6 +199,7 @@ func maybeSetupUbuntuSave() error {
 		logger.Noticef("mounting ubuntu-save failed %v", err)
 		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
 	}
+	m.saveAvailable = true
 	return nil
 }
 
@@ -954,6 +959,50 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
+// withKeypairMgr invokes a function making the device KeypairManager
+// available to it.
+// It uses the right location for the manager depending on UC16/18 vs 20,
+// the latter uses ubuntu-save.
+// For UC20 it also checks that ubuntu-save is mounted.
+func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) error {
+	// we use the model to check whether this is a UC20 device
+	// TODO: during a theoretical UC18->20 remodel the location of
+	// keypair manager keys would move, we will need dedicated code
+	// to deal with that, this code typically will return the old location
+	// until a restart
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	underSave := false
+	if model.Grade() != asserts.ModelGradeUnset {
+		// on UC20 the keys are kept under the save dir
+		underSave = true
+	}
+	where := dirs.SnapDeviceDir
+	if underSave {
+		// check for availability in case save gets mounted/unmounted,
+		// it's responsibility of the caller to have it mounted
+		if !m.saveAvailable {
+			return fmt.Errorf("internal error: cannot access device keypair manager if ubuntu-save is unavailable")
+		}
+		where = dirs.SnapDeviceSaveDir
+	}
+	keypairMgr := m.cachedKeypairMgr
+	if keypairMgr == nil {
+		var err error
+		keypairMgr, err = asserts.OpenFSKeypairManager(where)
+		if err != nil {
+			return err
+		}
+		m.cachedKeypairMgr = keypairMgr
+	}
+	return f(keypairMgr)
+}
+
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
 	if err != nil {
@@ -964,9 +1013,16 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 		return nil, state.ErrNoState
 	}
 
-	privKey, err := m.keypairMgr.Get(device.KeyID)
+	var privKey asserts.PrivateKey
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
+		privKey, err = keypairMgr.Get(device.KeyID)
+		if err != nil {
+			return fmt.Errorf("cannot read device key pair: %v", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot read device key pair: %v", err)
+		return nil, err
 	}
 	return privKey, nil
 }

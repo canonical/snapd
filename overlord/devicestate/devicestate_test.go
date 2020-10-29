@@ -132,7 +132,11 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	err := os.MkdirAll(dirs.SnapRunDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
+	c.Assert(err, IsNil)
 
 	s.AddCleanup(osutil.MockMountInfo(``))
 
@@ -1163,6 +1167,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c *C) {
@@ -1183,6 +1190,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
@@ -1199,6 +1209,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
@@ -1219,6 +1232,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
@@ -1234,6 +1250,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
 type startOfOperationTimeSuite struct {
