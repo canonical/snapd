@@ -41,7 +41,7 @@ import (
 
 var (
 	themesCmd = &Command{
-		Path:   "/v2/themes",
+		Path:   "/v2/accessories/themes",
 		UserOK: true,
 		GET:    checkThemes,
 		POST:   installThemes,
@@ -62,8 +62,8 @@ type themeStatusResponse struct {
 	SoundThemes map[string]themeStatus `json:"sound-themes"`
 }
 
-func getInstalledThemes(d *Daemon) (gtkThemes, iconThemes, soundThemes []string, err error) {
-	infos := d.overlord.InterfaceManager().Repository().Info(&interfaces.InfoOptions{
+func installedThemes(c *Command) (gtkThemes, iconThemes, soundThemes []string, err error) {
+	infos := c.d.overlord.InterfaceManager().Repository().Info(&interfaces.InfoOptions{
 		Names: []string{"content"},
 		Slots: true,
 	})
@@ -121,7 +121,7 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
-func getThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]bool) (status map[string]themeStatus, err error) {
+func themeStatusForPrefix(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, toInstall map[string]bool) (status map[string]themeStatus, err error) {
 	status = make(map[string]themeStatus, len(themes))
 
 	for _, theme := range themes {
@@ -153,36 +153,36 @@ func getThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreServic
 	return status, nil
 }
 
-func getThemeStatus(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, toInstall []string, err error) {
-	installedGtk, installedIcon, installedSound, err := getInstalledThemes(c.d)
+func themeStatusAndMissingSnaps(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, missing []string, err error) {
+	installedGtk, installedIcon, installedSound, err := installedThemes(c)
 	if err != nil {
 		return themeStatusResponse{}, nil, err
 	}
 
 	theStore := getStore(c)
 	candidates := make(map[string]bool)
-	if status.GtkThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, candidates); err != nil {
+	if status.GtkThemes, err = themeStatusForPrefix(ctx, theStore, user, "gtk-theme-", gtkThemes, installedGtk, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.IconThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, candidates); err != nil {
+	if status.IconThemes, err = themeStatusForPrefix(ctx, theStore, user, "icon-theme-", iconThemes, installedIcon, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	if status.SoundThemes, err = getThemeStatusForPrefix(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, candidates); err != nil {
+	if status.SoundThemes, err = themeStatusForPrefix(ctx, theStore, user, "sound-theme-", soundThemes, installedSound, candidates); err != nil {
 		return themeStatusResponse{}, nil, err
 	}
-	toInstall = make([]string, 0, len(candidates))
+	missing = make([]string, 0, len(candidates))
 	for pkg := range candidates {
-		toInstall = append(toInstall, pkg)
+		missing = append(missing, pkg)
 	}
-	sort.Strings(toInstall)
+	sort.Strings(missing)
 
-	return status, toInstall, nil
+	return status, missing, nil
 }
 
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	q := r.URL.Query()
-	status, _, err := getThemeStatus(ctx, c, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
+	status, _, err := themeStatusAndMissingSnaps(ctx, c, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
 	if err != nil {
 		return InternalError("cannot get theme status: %s", err)
 	}
@@ -204,12 +204,12 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	ctx := store.WithClientUserAgent(r.Context(), r)
-	_, toInstall, err := getThemeStatus(ctx, c, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
+	_, missing, err := themeStatusAndMissingSnaps(ctx, c, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
 	if err != nil {
 		return InternalError("cannot get theme status: %s", err)
 	}
 
-	if len(toInstall) == 0 {
+	if len(missing) == 0 {
 		return BadRequest("no snaps to install")
 	}
 
@@ -221,16 +221,16 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		userID = user.ID
 	}
-	installed, tasksets, err := snapstateInstallMany(st, toInstall, userID)
+	installed, tasksets, err := snapstateInstallMany(st, missing, userID)
 	if err != nil {
 		return InternalError("cannot install themes: %s", err)
 	}
 	var summary string
-	switch len(toInstall) {
+	switch len(missing) {
 	case 1:
-		summary = fmt.Sprintf(i18n.G("Install snap %q"), toInstall[0])
+		summary = fmt.Sprintf(i18n.G("Install snap %q"), missing[0])
 	default:
-		quoted := strutil.Quoted(toInstall)
+		quoted := strutil.Quoted(missing)
 		summary = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
 

@@ -71,7 +71,7 @@ func (s *themesSuite) daemon(c *C) *Daemon {
 	return d
 }
 
-func (s *themesSuite) TestGetInstalledThemes(c *C) {
+func (s *themesSuite) TestInstalledThemes(c *C) {
 	s.daemon(c)
 	s.mockSnap(c, `name: snap1
 version: 42
@@ -124,7 +124,7 @@ slots:
     content: foo
     read: $SNAP/foo`)
 
-	gtkThemes, iconThemes, soundThemes, err := getInstalledThemes(s.d)
+	gtkThemes, iconThemes, soundThemes, err := installedThemes(themesCmd)
 	c.Check(err, IsNil)
 	c.Check(gtkThemes, DeepEquals, []string{"Bar-gtk", "Foo-gtk", "Foo-gtk-dark"})
 	c.Check(iconThemes, DeepEquals, []string{"Bar-icons", "Foo-icons"})
@@ -155,7 +155,7 @@ func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	c.Check(themePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []string{"gtk-theme-foo-bar", "gtk-theme-foo"})
 }
 
-func (s *themesSuite) TestGetThemeStatusForPrefix(c *C) {
+func (s *themesSuite) TestThemeStatusForPrefix(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -176,7 +176,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefix(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
+	status, err := themeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Installed":   themeInstalled,
@@ -187,7 +187,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefix(c *C) {
 	c.Check(toInstall["gtk-theme-available"], NotNil)
 }
 
-func (s *themesSuite) TestGetThemeStatusForPrefixStripsSuffixes(c *C) {
+func (s *themesSuite) TestThemeStatusForPrefixStripsSuffixes(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -202,7 +202,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefixStripsSuffixes(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
+	status, err := themeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Yaru-dark": themeAvailable,
@@ -211,7 +211,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefixStripsSuffixes(c *C) {
 	c.Check(toInstall["gtk-theme-yaru"], NotNil)
 }
 
-func (s *themesSuite) TestGetThemeStatusForPrefixIgnoresUnstable(c *C) {
+func (s *themesSuite) TestThemeStatusForPrefixIgnoresUnstable(c *C) {
 	s.daemon(c)
 
 	s.available = map[string]*snap.Info{
@@ -226,7 +226,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefixIgnoresUnstable(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
+	status, err := themeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, toInstall)
 	c.Check(err, IsNil)
 	c.Check(status, DeepEquals, map[string]themeStatus{
 		"Yaru": themeUnavailable,
@@ -234,7 +234,7 @@ func (s *themesSuite) TestGetThemeStatusForPrefixIgnoresUnstable(c *C) {
 	c.Check(toInstall, HasLen, 0)
 }
 
-func (s *themesSuite) TestGetThemeStatusForPrefixReturnsErrors(c *C) {
+func (s *themesSuite) TestThemeStatusForPrefixReturnsErrors(c *C) {
 	s.daemon(c)
 
 	s.err = errors.New("store error")
@@ -242,13 +242,13 @@ func (s *themesSuite) TestGetThemeStatusForPrefixReturnsErrors(c *C) {
 	ctx := context.Background()
 	toInstall := make(map[string]bool)
 
-	status, err := getThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
+	status, err := themeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, toInstall)
 	c.Check(err, Equals, s.err)
 	c.Check(status, IsNil)
 	c.Check(toInstall, HasLen, 0)
 }
 
-func (s *themesSuite) TestGetThemeStatus(c *C) {
+func (s *themesSuite) TestThemeStatusAndMissingSnaps(c *C) {
 	s.daemon(c)
 	s.mockSnap(c, `name: snap1
 version: 42
@@ -293,7 +293,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, toInstall, err := getThemeStatus(ctx, themesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, missing, err := themeStatusAndMissingSnaps(ctx, themesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]themeStatus{
 		"Foo-gtk": themeInstalled,
@@ -310,7 +310,7 @@ slots:
 		"Bar-sounds": themeAvailable,
 		"Baz-sounds": themeUnavailable,
 	})
-	c.Check(toInstall, DeepEquals, []string{"gtk-theme-bar", "icon-theme-bar", "sound-theme-bar"})
+	c.Check(missing, DeepEquals, []string{"gtk-theme-bar", "icon-theme-bar", "sound-theme-bar"})
 }
 
 func (s *themesSuite) TestThemesCmd(c *C) {
@@ -318,7 +318,7 @@ func (s *themesSuite) TestThemesCmd(c *C) {
 	c.Check(themesCmd.POST, NotNil)
 	c.Check(themesCmd.PUT, IsNil)
 
-	c.Check(themesCmd.Path, Equals, "/v2/themes")
+	c.Check(themesCmd.Path, Equals, "/v2/accessories/themes")
 
 	s.daemon(c)
 	s.available = map[string]*snap.Info{
@@ -342,7 +342,7 @@ func (s *themesSuite) TestThemesCmd(c *C) {
 		},
 	}
 
-	req := httptest.NewRequest("GET", "/v2/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
+	req := httptest.NewRequest("GET", "/v2/accessories/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
 	rec := httptest.NewRecorder()
 	themesCmd.GET(themesCmd, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -418,7 +418,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 	}
 
 	buf := bytes.NewBufferString(`{"gtk-themes":["Foo-gtk"],"icon-themes":["Foo-icons"],"sound-themes":["Foo-sounds"]}`)
-	req := httptest.NewRequest("POST", "/v2/themes", buf)
+	req := httptest.NewRequest("POST", "/v2/accessories/themes", buf)
 	rec := httptest.NewRecorder()
 	themesCmd.POST(themesCmd, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 202)
