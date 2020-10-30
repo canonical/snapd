@@ -275,6 +275,12 @@ func SnapSaveDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "save")
 }
 
+// SnapSaveFDEDirUnder returns the path to full disk encryption state directory
+// inside save under rootdir.
+func SnapSaveFDEDirUnder(rootdir string) string {
+	return filepath.Join(SnapSaveDirUnder(rootdir), "device/fde")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
