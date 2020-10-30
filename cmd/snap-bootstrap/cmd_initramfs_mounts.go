@@ -510,6 +510,10 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
+
+	// TODO:UC20: some of the error conditions here should trigger an automatic
+	// transition to recover mode, we need to figure out which ones
+
 	// 1. mount ubuntu-boot
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
 		return err
