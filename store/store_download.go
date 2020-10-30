@@ -56,7 +56,7 @@ var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 	},
 ))
 
-var downloadSpeedMeasureWindow = 5 * time.Second
+var downloadSpeedMeasureWindow = 5 * time.Minute
 
 // minimum average download speed (bytes/sec), measured over downloadSpeedMeasureWindow.
 var downloadSpeedMin = float64(256)
