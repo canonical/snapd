@@ -21,7 +21,11 @@ execute: |
     # leave a canary
     nested_exec "sudo touch /run/mnt/ubuntu-save/canary"
 
-    # TODO:UC20: verify that ubuntu-save is bind mounted under /var/lib/snapd/save
+    nested_exec mountpoint /var/lib/snapd/save
+    # we know that save is mounted using a systemd unit
+    nested_exec systemctl status var-lib-snapd-save.mount
+    # and a canary exists
+    nested_exec "test -f /var/lib/snapd/save/canary"
 
     # transition to recovery mode and check again
     boot_id="$(nested_get_boot_id)"
