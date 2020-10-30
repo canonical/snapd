@@ -119,22 +119,25 @@ func updateExportedVersion(exportedName, exportedVersion string) error {
 // returned exportedVersion may be empty, indicating that given snap has no
 // current revision.
 func ExportedNameVersion(st *state.State, instanceName string) (exportedName string, exportedVersion string, err error) {
-	switch instanceName {
-	case "core", "snapd":
+	info, err := snapstateCurrentInfo(st, instanceName)
+	if _, ok := err.(*snap.NotInstalledError); err != nil && !ok {
+		return "", "", err
+	}
+	if info == nil || info.Broken != "" {
+		return instanceName, "", nil
+	}
+
+	// Not all snaps are identical. For core (TypeOS) and snapd snaps, we use a
+	// custom path which allows host, snapd or core to provide exported content
+	// and still pretend it is coming from snapd.
+	switch info.Type() {
+	case snap.TypeOS, snap.TypeSnapd:
 		exportedName = "snapd"
 		exportedVersion, err = effectiveExportedVersionForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}
 	default:
-		info, err := snapstateCurrentInfo(st, instanceName)
-		if _, ok := err.(*snap.NotInstalledError); err != nil && !ok {
-			return "", "", err
-		}
-		if info == nil || info.Broken != "" {
-			exportedName, _ = snap.SplitInstanceName(instanceName)
-			return exportedName, "", nil
-		}
 		exportedName, exportedVersion = exportedNameVersionForRegularSnap(info)
 	}
 	return exportedName, exportedVersion, nil
