@@ -35,7 +35,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -1944,10 +1943,6 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 
 	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
 	// mark it as seeded
-	modeenv := boot.Modeenv{
-		Mode: "run",
-	}
-	err := modeenv.WriteTo("")
 	s.state.Set("seeded", true)
 	// skip boot ok logic
 	devicestate.SetBootOkRan(s.mgr, true)

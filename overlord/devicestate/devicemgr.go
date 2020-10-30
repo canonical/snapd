@@ -178,8 +178,6 @@ func (m *DeviceManager) maybeSetupUbuntuSave() error {
 		return nil
 	}
 
-	m.saveAvailable = osutil.IsDirectory(dirs.SnapSaveDir)
-
 	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
 	if err != nil {
 		return err
