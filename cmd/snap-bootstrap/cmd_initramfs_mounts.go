@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
@@ -233,6 +234,18 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
+// copySafeDefaultData will copy to the destination a "safe" set of data for
+// a blank recover mode, i.e. one where we cannot copy authentication, etc. from
+// the actual host ubuntu-data. Currently this is just a file to disable
+// console-conf from running.
+func copySafeDefaultData(dst string) error {
+	consoleConfCompleteFile := filepath.Join(dst, "system-data/var/lib/console-conf/complete")
+	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0755); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(consoleConfCompleteFile, nil, 0644)
+}
+
 func copyFromGlobHelper(src, dst, globEx string) error {
 	matches, err := filepath.Glob(filepath.Join(src, globEx))
 	if err != nil {
@@ -282,25 +295,63 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	}
 
 	// 3. mount ubuntu-data for recovery
+	// start out assuming we have everything and lower expectations as things
+	// fail on us
+	haveHost := true
+	haveSave := true
 	const lockKeysOnFinish = true
 	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
 	if err != nil {
-		return err
+		haveHost = false
+		if isDecryptDev {
+			// the device is a decrypted one, but we failed to unlock it, so we
+			// should try to unlock it with another method(?)
+
+			// TODO:UC20: try another method and reset haveHost = true if it works
+
+			logger.Noticef("failed to unlock encrypted ubuntu-data: %v", err)
+		} else {
+			logger.Noticef("failed to identify ubuntu-data partition to mount: %v", err)
+		}
+		// else no decrypted device and we failed to mount it, so just continue
+		// to recover mode without the host ubuntu-data mount
 	}
 
-	// don't do fsck on the data partition, it could be corrupted
-	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
-		return err
+	// now mount the host partition (if we have it)
+	saveDir := boot.InitramfsHostWritableDir
+	if haveHost {
+		// don't do fsck on the data partition, it could be corrupted
+		if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
+			logger.Noticef("failed to mount host ubuntu-data: %v", err)
+			haveHost = false
+		}
+	} else {
+		// we don't have the host data, so we should try to mount ubuntu-save
+		// (if it exists) somewhere else
+
+		// TODO: what's the right dir to use here?
+		saveDir = filepath.Join(boot.InitramfsRunMntDir, "fallback-save-dir", "system-data")
+		if err := os.MkdirAll(saveDir, 0755); err != nil {
+			// if we fail to create the saveDir, we have real problems here, but
+			// mounting save isn't always critical for getting to recover mode
+			// so just skip trying to mount save down below
+			logger.Noticef("failed to setup ubuntu-save directory: %v", err)
+			haveSave = false
+		}
 	}
 
 	// 3.1. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, isDecryptDev, nil)
-	if err != nil {
-		return err
+	if haveSave {
+		haveSave, err = maybeMountSave(disk, saveDir, isDecryptDev, nil)
+		if err != nil {
+			// if we didn't mount save, then we don't have the mount point, but we
+			// should still try to boot recover mode
+
+			logger.Noticef("failed to mount ubuntu-save: %v", err)
+			haveSave = false
+		}
 	}
 
-	// 3.2 verify that the host ubuntu-data comes from where we expect it to
-	// right device
 	diskOpts := &disks.Options{}
 	if isDecryptDev {
 		// then we need to specify that the data mountpoint is expected to be a
@@ -308,17 +359,32 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
-	if err != nil {
-		return err
+	if haveHost {
+		// 3.2 verify that the host ubuntu-data comes from where we expect it to
+		// right device
+		matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
+		if err != nil {
+			// this is a critical error that should stop the line, because we
+			// are supposed to have the host ubuntu-data, but we are unable to
+			// verify that it is the one we expected, but it supposedly was
+			// already mounted, so it may contain dangerous data we don't want
+			// to be exposed to userspace
+			return err
+		}
+		if !matches {
+			return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
 	}
-	if !matches {
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
-	}
+
 	if haveSave {
 		// 3.2a we have ubuntu-save, verify it as well
-		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		matches, err := disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
 		if err != nil {
+			// this is a critical error that should stop the line, because we
+			// are supposed to have the host ubuntu-data, but we are unable to
+			// verify that it is the one we expected, but it supposedly was
+			// already mounted, so it may contain dangerous data we don't want
+			// to be exposed to userspace
 			return err
 		}
 		if !matches {
@@ -330,14 +396,36 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	//    the real ubuntu-data dir to the ephemeral ubuntu-data
 	//    dir, write the modeenv to the tmpfs data, and disable
 	//    cloud-init in recover mode
-	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
-	}
-	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
-	}
-	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
+	if haveHost {
+		// TODO: which of these errors should be considered critical ?
+		// we may decide that if some of these are not critical and we should
+		// continue trying a recover boot that we still need to copy in safe
+		// default data i.e. disable console-conf
+		// this is because we need to protect the system even if it is broken -
+		// a skilled attacker may be able to repair what we could not do here,
+		// and thus gain access to the system if we leave things exposed when
+		// broken
+
+		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+		if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+		if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+	} else {
+		// if we don't have an ubuntu-data to copy information from, we need to
+		// block console-conf from running, as ordinarily, console-conf will
+		// be blocked from running when we copy data from the host ubuntu-data,
+		// but in it's absence it will not run
+		if err := copySafeDefaultData(boot.InitramfsDataDir); err != nil {
+			// if we can't install safe data onto the tmpfs rootfs, then we
+			// should give up and leave the system locked in the initramfs to
+			// protect it
+			return err
+		}
 	}
 
 	modeEnv := &boot.Modeenv{
@@ -345,6 +433,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		RecoverySystem: mst.recoverySystem,
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
+		// if we can't write a modeenv, snapd in userspace may be very confused
+		// and do dangerous, destructive things, so treat not being able to
+		// setup a modeenv as critical
 		return err
 	}
 
@@ -353,7 +444,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// anything else, you are auto-transitioned back to run mode
 	// TODO:UC20: as discussed unclear we need to pass the recovery system here
 	if err := boot.EnsureNextBootToRunMode(mst.recoverySystem); err != nil {
-		return err
+		// if we can't ensure the next boot will go back to run mode, that's
+		// okay, worst case scenario is we are stuck in recover mode
+		logger.Noticef("failed to ensure system rolls back to run mode after a reboot: %v", err)
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
