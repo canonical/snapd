@@ -31,11 +31,11 @@ import (
 
 func TestRun(t *testing.T) { TestingT(t) }
 
-type gadgetSizeTestSuite struct{}
+type sizeTestSuite struct{}
 
-var _ = Suite(&gadgetSizeTestSuite{})
+var _ = Suite(&sizeTestSuite{})
 
-func (s *gadgetSizeTestSuite) TestIECString(c *C) {
+func (s *sizeTestSuite) TestIECString(c *C) {
 	for _, tc := range []struct {
 		size quantity.Size
 		exp  string
@@ -55,7 +55,7 @@ func (s *gadgetSizeTestSuite) TestIECString(c *C) {
 	}
 }
 
-func (s *gadgetSizeTestSuite) TestUnmarshalGadgetSize(c *C) {
+func (s *sizeTestSuite) TestUnmarshalGadgetSize(c *C) {
 	type foo struct {
 		Size quantity.Size `yaml:"size"`
 	}
