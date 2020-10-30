@@ -26,11 +26,13 @@ import (
 
 var (
 	// exportstate.go
-	ExportedVersionSymlinkPath                 = exportedVersionSymlinkPath
-	EffectiveExportedNameVersionForSnapdOrCore = effectiveExportedNameVersionForSnapdOrCore
-	SelectExportedVersionForSnapdTools         = selectExportedVersionForSnapdTools
-	CurrentSnapdAndCoreInfo                    = currentSnapdAndCoreInfo
-	UpdateExportedVersion                      = updateExportedVersion
+	ExportedVersionSymlinkPath         = exportedVersionSymlinkPath
+	SelectExportedVersionForSnapdTools = selectExportedVersionForSnapdTools
+	CurrentSnapdAndCoreInfo            = currentSnapdAndCoreInfo
+	UpdateExportedVersion              = updateExportedVersion
+
+	// special.go
+	EffectiveExportedVersionForSnapdOrCore = effectiveExportedVersionForSnapdOrCore
 
 	// manifest.go
 	ExportedFileSourcePath = exportedFileSourcePath

@@ -93,11 +93,11 @@ func (m *ExportManager) exportSnapdTools() error {
 		}
 		Set(m.state, info.InstanceName(), info.Revision, newManifest)
 	}
-	exportedName, exportedVersion, err := effectiveExportedNameVersionForSnapdOrCore(m.state)
+	exportedVersion, err := effectiveExportedVersionForSnapdOrCore(m.state)
 	if err != nil {
 		return err
 	}
-	return updateExportedVersion(exportedName, exportedVersion)
+	return updateExportedVersion("snapd", exportedVersion)
 }
 
 // Ensure implements StateManager.Ensure.

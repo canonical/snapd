@@ -217,8 +217,6 @@ func (s *handlersSuite) TestDoUnexportContentSnapd(c *C) {
 	initialManifest := &exportstate.Manifest{
 		SnapInstanceName: "snapd",
 		SnapRevision:     "1",
-		ExportedName:     "snapd",
-		ExportedVersion:  "1",
 		Sets: map[string]exportstate.ExportSet{
 			"tools": {
 				Name: "tools",
@@ -273,8 +271,6 @@ func (s *handlersSuite) TestUndoUnexportContentSnapd(c *C) {
 	initialManifest := &exportstate.Manifest{
 		SnapInstanceName: "snapd",
 		SnapRevision:     "1",
-		ExportedName:     "snapd",
-		ExportedVersion:  "1",
 		Sets: map[string]exportstate.ExportSet{
 			"tools": {
 				Name: "tools",

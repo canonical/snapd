@@ -121,7 +121,8 @@ func updateExportedVersion(exportedName, exportedVersion string) error {
 func ExportedNameVersion(st *state.State, instanceName string) (exportedName string, exportedVersion string, err error) {
 	switch instanceName {
 	case "core", "snapd":
-		exportedName, exportedVersion, err = effectiveExportedNameVersionForSnapdOrCore(st)
+		exportedName = "snapd"
+		exportedVersion, err = effectiveExportedVersionForSnapdOrCore(st)
 		if err != nil {
 			return "", "", err
 		}

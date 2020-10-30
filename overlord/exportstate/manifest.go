@@ -30,11 +30,9 @@ import (
 
 // Manifest describes content content exported to snaps or the host.
 type Manifest struct {
-	ExportedName    string `json:"exported-name"`
-	ExportedVersion string `json:"exported-version"`
-
-	SnapInstanceName string `json:"snap-instance-name"`
-	SnapRevision     string `json:"snap-revision"`
+	SnapInstanceName          string `json:"snap-instance-name"`
+	SnapRevision              string `json:"snap-revision"` // TODO: change to snap.Revision later
+	ExportedForSnapdAsVersion string `json:"exported-for-snapd-as-version,omitempty"`
 
 	// SourceIsHost is only true if provider of the manifest is not a snap but the classic system.
 	// All SourcePath fields, as visible through Sets[*].Exports[*].SourcePath, are absolute names
@@ -99,7 +97,12 @@ func NewManifestForHost() *Manifest {
 
 // IsEmpty returns true if a manifest describes no content.
 func (m *Manifest) IsEmpty() bool {
-	return len(m.Sets) == 0
+	for _, set := range m.Sets {
+		if len(set.Exports) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // createExportedFiles creates all the files constituting the export manifest.
@@ -140,7 +143,13 @@ func removeExportedFiles(manifest *Manifest) error {
 
 // exportedFilePath returns the path path of an exported file.
 func exportedFilePath(manifest *Manifest, set *ExportSet, exported *ExportedFile) string {
-	return filepath.Join(dirs.ExportDir, manifest.ExportedName, manifest.ExportedVersion, set.Name, exported.Name)
+	snapInstanceName := manifest.SnapInstanceName
+	snapRevision := manifest.SnapRevision
+	if manifest.ExportedForSnapdAsVersion != "" { // Exception for core and host
+		snapInstanceName = "snapd"
+		snapRevision = manifest.ExportedForSnapdAsVersion
+	}
+	return filepath.Join(dirs.ExportDir, snapInstanceName, snapRevision, set.Name, exported.Name)
 }
 
 // exportedFileSourcePath returns the source path that is to be exported.
@@ -196,8 +205,8 @@ func removeExportedFile(manifest *Manifest, set *ExportSet, exported *ExportedFi
 		return err
 	}
 	// XXX: or iterate upwards until we reach ExportDir
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.ExportedName, manifest.ExportedVersion, set.Name))
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.ExportedName, manifest.ExportedVersion))
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.ExportedName))
+	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName, manifest.SnapRevision, set.Name))
+	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName, manifest.SnapRevision))
+	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName))
 	return nil
 }
