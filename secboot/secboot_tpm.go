@@ -400,8 +400,10 @@ func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
 	if err != nil {
 		return err
 	}
-	if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
-		return fmt.Errorf("cannot write the policy auth key file: %v", err)
+	if params.TPMPolicyAuthKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
 	}
 
 	return nil

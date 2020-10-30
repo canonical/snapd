@@ -171,7 +171,6 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
-		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
 		TPMLockoutAuthFile:     filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
 	}
