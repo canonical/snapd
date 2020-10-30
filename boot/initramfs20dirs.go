@@ -68,7 +68,8 @@ var (
 	InstallHostFDEDataDir string
 
 	// InstallHostSaveDir is the directory of the FDE data on the
-	// ubuntu-save partition.
+	// ubuntu-save partition during install mode. For other modes,
+	// use dirs.SnapSaveFDEDirUnder().
 	InstallHostFDESaveDir string
 
 	// InitramfsEncryptionKeyDir is the location of the encrypted partition keys
