@@ -1129,7 +1129,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=run"},
 	}}
-	err := boot.WriteBootChains(bootChains, []boot.BootChain{}, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -1244,7 +1244,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 		KernelRevision: "",
 		KernelCmdlines: []string{"snapd_recovery_mode=run"},
 	}}
-	err := boot.WriteBootChains(bootChains, []boot.BootChain{}, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -2124,14 +2124,25 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Error("secboot.ResealKey shouldn't be called a third time")
+		}
 		return nil
 	})
 	defer restore()
@@ -2292,7 +2303,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
 
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2452,7 +2466,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
 
-	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0, 0)
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful

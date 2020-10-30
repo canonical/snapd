@@ -2512,18 +2512,31 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Error("secboot.ResealKey shouldn't be called a third time")
+		}
 		return nil
 	})
 	defer restore()
@@ -2633,14 +2646,25 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Error("secboot.ResealKey shouldn't be called a third time")
+		}
 		return nil
 	})
 	defer restore()

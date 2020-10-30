@@ -289,10 +289,8 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 // that we do not store the arrays directly as JSON and we can add
 // other information
 type predictableBootChainsWrapperForStorage struct {
-	ResealCount         int                   `json:"reseal-count"`
-	RecoveryResealCount int                   `json:"recovery-reseal-count"`
-	BootChains          predictableBootChains `json:"boot-chains"`
-	RecoveryBootChains  predictableBootChains `json:"recovery-boot-chains"`
+	ResealCount int                   `json:"reseal-count"`
+	BootChains  predictableBootChains `json:"boot-chains"`
 }
 
 func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
@@ -311,23 +309,7 @@ func readBootChains(path string) (pbc predictableBootChains, resealCount int, er
 	return wrapped.BootChains, wrapped.ResealCount, nil
 }
 
-func readRecoveryBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
-	inf, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, 0, nil
-		}
-		return nil, 0, fmt.Errorf("cannot open existing boot chains data file: %v", err)
-	}
-	defer inf.Close()
-	var wrapped predictableBootChainsWrapperForStorage
-	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
-		return nil, 0, fmt.Errorf("cannot read boot chains data: %v", err)
-	}
-	return wrapped.RecoveryBootChains, wrapped.RecoveryResealCount, nil
-}
-
-func writeBootChains(pbc, rpbc predictableBootChains, path string, resealCount, recoveryResealCount int) error {
+func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
@@ -339,10 +321,8 @@ func writeBootChains(pbc, rpbc predictableBootChains, path string, resealCount, 
 	defer outf.Cancel()
 
 	wrapped := predictableBootChainsWrapperForStorage{
-		ResealCount:         resealCount,
-		RecoveryResealCount: recoveryResealCount,
-		BootChains:          pbc,
-		RecoveryBootChains:  rpbc,
+		ResealCount: resealCount,
+		BootChains:  pbc,
 	}
 	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
 		return fmt.Errorf("cannot write boot chains data: %v", err)

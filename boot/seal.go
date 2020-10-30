@@ -51,6 +51,10 @@ func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
 
+func recoveryBootChainsFileUnder(rootdir string) string {
+	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "recovery-boot-chains")
+}
+
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
@@ -126,7 +130,12 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	}
 
 	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
-	if err := writeBootChains(pbc, rpbc, installBootChainsPath, 0, 0); err != nil {
+	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
+		return err
+	}
+
+	installRecoveryBootChainsPath := recoveryBootChainsFileUnder(InstallHostWritableDir)
+	if err := writeBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
 		return err
 	}
 
@@ -258,7 +267,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	// reseal the run object
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
-	needed, nextCount, err := isResealNeeded(pbc, rootdir, expectReseal)
+	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal)
 	if err != nil {
 		return err
 	}
@@ -284,18 +293,13 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	rpbc := toPredictableBootChains(recoveryBootChains)
 
 	var nextFallbackCount int
-	needed, nextFallbackCount, err = isFallbackResealNeeded(rpbc, rootdir, expectReseal)
+	needed, nextFallbackCount, err = isResealNeeded(rpbc, recoveryBootChainsFileUnder(rootdir), expectReseal)
 	if err != nil {
 		return err
 	}
 	if needed {
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
-
-		roleToBlName := map[bootloader.Role]string{
-			bootloader.RoleRecovery: rbl.Name(),
-			bootloader.RoleRunMode:  bl.Name(),
-		}
 
 		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
 			return err
@@ -304,7 +308,12 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	}
 
 	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, rpbc, bootChainsPath, nextCount, nextFallbackCount); err != nil {
+	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+		return err
+	}
+
+	recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
+	if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
 		return err
 	}
 
@@ -518,24 +527,8 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 // together with the boot chains.
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.
-func isResealNeeded(pbc predictableBootChains, rootdir string, expectReseal bool) (ok bool, nextCount int, err error) {
-	previousPbc, c, err := readBootChains(bootChainsFileUnder(rootdir))
-	if err != nil {
-		return false, 0, err
-	}
-
-	switch predictableBootChainsEqualForReseal(pbc, previousPbc) {
-	case bootChainEquivalent:
-		return false, c + 1, nil
-	case bootChainUnrevisioned:
-		return expectReseal, c + 1, nil
-	case bootChainDifferent:
-	}
-	return true, c + 1, nil
-}
-
-func isFallbackResealNeeded(pbc predictableBootChains, rootdir string, expectReseal bool) (ok bool, nextCount int, err error) {
-	previousPbc, c, err := readRecoveryBootChains(bootChainsFileUnder(rootdir))
+func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error) {
+	previousPbc, c, err := readBootChains(bootChainsFile)
 	if err != nil {
 		return false, 0, err
 	}

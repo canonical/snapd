@@ -152,9 +152,7 @@ var (
 	BootAssetLess                       = bootAssetLess
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
-	ReadRecoveryBootChains              = readRecoveryBootChains
 	IsResealNeeded                      = isResealNeeded
-	IsFallbackResealNeeded              = isFallbackResealNeeded
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {

@@ -1181,17 +1181,14 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 		},
 	}
 
-	recoveryChains := []boot.BootChain{chains[1]}
-
 	pbc := boot.ToPredictableBootChains(chains)
-	rpbc := boot.ToPredictableBootChains(recoveryChains)
 
 	rootdir := c.MkDir()
 
-	expected := `{"reseal-count":0,"recovery-reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}],"recovery-boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]}]}
+	expected := `{"reseal-count":0,"boot-chains":[{"brand-id":"mybrand","model":"foo","grade":"dangerous","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]}],"kernel":"pc-kernel-recovery","kernel-revision":"1234","kernel-cmdlines":["snapd_recovery_mode=recover foo"]},{"brand-id":"mybrand","model":"foo","grade":"signed","model-sign-key-id":"my-key-id","asset-chain":[{"role":"recovery","name":"shim","hashes":["x","y"]},{"role":"recovery","name":"loader","hashes":["c","d"]},{"role":"run-mode","name":"loader","hashes":["x","z"]}],"kernel":"pc-kernel-other","kernel-revision":"2345","kernel-cmdlines":["snapd_recovery_mode=run foo"]}]}
 `
 	// creates a complete tree and writes a file
-	err := boot.WriteBootChains(pbc, rpbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0, 0)
+	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), testutil.FileEquals, expected)
 
@@ -1206,24 +1203,13 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	// boot chains should be same for reseal purpose
 	c.Check(boot.PredictableBootChainsEqualForReseal(pbc, loaded), Equals, boot.BootChainEquivalent)
 
-	// also verify the recovery boot chains
-	loaded, cnt, err = boot.ReadRecoveryBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, IsNil)
-	c.Check(loaded, DeepEquals, rpbc)
-	c.Check(cnt, Equals, 0)
-	c.Check(boot.PredictableBootChainsEqualForReseal(rpbc, loaded), Equals, boot.BootChainEquivalent)
-
 	// write them again with count > 0
-	err = boot.WriteBootChains(pbc, rpbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99, 199)
+	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 99)
 	c.Assert(err, IsNil)
 
 	_, cnt, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, IsNil)
 	c.Check(cnt, Equals, 99)
-
-	_, cnt, err = boot.ReadRecoveryBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
-	c.Assert(err, IsNil)
-	c.Check(cnt, Equals, 199)
 
 	// make device/fde directory read only so that writing fails
 	otherRootdir := c.MkDir()
@@ -1231,7 +1217,7 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
 	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
 
-	err = boot.WriteBootChains(pbc, rpbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0, 0)
+	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0)
 	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
 
 	// make the original file non readable
