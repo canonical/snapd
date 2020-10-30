@@ -30,9 +30,9 @@ import (
 
 // Manifest describes content content exported to snaps or the host.
 type Manifest struct {
-	SnapInstanceName          string `json:"snap-instance-name"`
-	SnapRevision              string `json:"snap-revision"` // TODO: change to snap.Revision later
-	ExportedForSnapdAsVersion string `json:"exported-for-snapd-as-version,omitempty"`
+	SnapInstanceName          string        `json:"snap-instance-name"`
+	SnapRevision              snap.Revision `json:"snap-revision"` // TODO: change to snap.Revision later
+	ExportedForSnapdAsVersion string        `json:"exported-for-snapd-as-version,omitempty"`
 
 	// SourceIsHost is only true if provider of the manifest is not a snap but the classic system.
 	// All SourcePath fields, as visible through Sets[*].Exports[*].SourcePath, are absolute names
@@ -144,7 +144,7 @@ func removeExportedFiles(manifest *Manifest) error {
 // exportedFilePath returns the path path of an exported file.
 func exportedFilePath(manifest *Manifest, set *ExportSet, exported *ExportedFile) string {
 	snapInstanceName := manifest.SnapInstanceName
-	snapRevision := manifest.SnapRevision
+	snapRevision := manifest.SnapRevision.String()
 	if manifest.ExportedForSnapdAsVersion != "" { // Exception for core and host
 		snapInstanceName = "snapd"
 		snapRevision = manifest.ExportedForSnapdAsVersion
@@ -161,7 +161,7 @@ func exportedFileSourcePath(manifest *Manifest, set *ExportSet, exported *Export
 			return exported.SourcePath
 		}
 		// snap-to-host
-		return filepath.Join(dirs.SnapMountDir, manifest.SnapInstanceName, manifest.SnapRevision, exported.SourcePath)
+		return filepath.Join(dirs.SnapMountDir, manifest.SnapInstanceName, manifest.SnapRevision.String(), exported.SourcePath)
 	}
 	// Consumer uses snap mount namespace
 	if manifest.SourceIsHost {
@@ -169,7 +169,7 @@ func exportedFileSourcePath(manifest *Manifest, set *ExportSet, exported *Export
 		return filepath.Join("/var/lib/snapd/hostfs", exported.SourcePath)
 	}
 	// snap-to-snap, fixed /snap location inside the snap mount namespace.
-	return filepath.Join("/snap", manifest.SnapInstanceName, manifest.SnapRevision, exported.SourcePath)
+	return filepath.Join("/snap", manifest.SnapInstanceName, manifest.SnapRevision.String(), exported.SourcePath)
 }
 
 // createExportedFile creates an exported file and necessary directories.
@@ -204,9 +204,14 @@ func removeExportedFile(manifest *Manifest, set *ExportSet, exported *ExportedFi
 	if err := os.Remove(pathName); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	// XXX: or iterate upwards until we reach ExportDir
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName, manifest.SnapRevision, set.Name))
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName, manifest.SnapRevision))
-	os.Remove(filepath.Join(dirs.ExportDir, manifest.SnapInstanceName))
+	// Chomp three levels up: once for export set name, once for exported
+	// version (or revision) and finally once more for exported snap name (or
+	// snapd). This way we do not need to repeat the special case described in
+	// exportedFilePath.
+	dir := filepath.Dir(pathName)
+	for i := 0; i < 3; i++ {
+		os.Remove(dir)
+		dir = filepath.Dir(dir)
+	}
 	return nil
 }

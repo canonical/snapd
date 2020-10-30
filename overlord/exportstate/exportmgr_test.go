@@ -239,7 +239,7 @@ func (s *mgrSuite) TestSnapLinkageChangedToLinked(c *C) {
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
 		c.Assert(snapName, Equals, "snap-name")
 		return snaptest.MockInfo(c, "name: snap-name\nversion: 1\n",
-			&snap.SideInfo{Revision: snap.Revision{N: 1}}), nil
+			&snap.SideInfo{Revision: snap.R(1)}), nil
 	}))
 	err := os.MkdirAll(filepath.Join(dirs.ExportDir, "snap-name"), 0755)
 	c.Assert(err, IsNil)

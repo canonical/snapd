@@ -46,7 +46,7 @@ type exportstateSuite struct {
 var _ = Suite(&exportstateSuite{
 	m: &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"set-name": {
 				Name: "set-name",
@@ -76,7 +76,7 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	// The manifest below is artificial but models all the fields.
 	m := &exportstate.Manifest{
 		SnapInstanceName:          "snap-instance-name",
-		SnapRevision:              "snap-revision",
+		SnapRevision:              snap.R(42),
 		ExportedForSnapdAsVersion: "exported-for-snapd-as-version",
 		SourceIsHost:              true,
 		Sets: map[string]exportstate.ExportSet{
@@ -99,7 +99,7 @@ func (s *exportstateSuite) TestSetAddingState(c *C) {
 	expected := map[string]interface{}{
 		"snap-instance-name/42": map[string]interface{}{
 			"snap-instance-name":            "snap-instance-name",
-			"snap-revision":                 "snap-revision",
+			"snap-revision":                 "42",
 			"exported-for-snapd-as-version": "exported-for-snapd-as-version",
 			"source-is-host":                true,
 			"sets": map[string]interface{}{
@@ -202,7 +202,7 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	// The manifest below is artificial but models all the fields.
 	expected := exportstate.Manifest{
 		SnapInstanceName:          "snap-instance-name",
-		SnapRevision:              "snap-revision",
+		SnapRevision:              snap.R(42),
 		ExportedForSnapdAsVersion: "exported-for-snapd-as-version",
 		SourceIsHost:              true,
 		Sets: map[string]exportstate.ExportSet{
@@ -221,7 +221,7 @@ func (s *exportstateSuite) TestGetReadingRevisionState(c *C) {
 	st.Set("exports", map[string]interface{}{
 		"snap-name/42": map[string]interface{}{
 			"snap-instance-name":            "snap-instance-name",
-			"snap-revision":                 "snap-revision",
+			"snap-revision":                 "42",
 			"exported-for-snapd-as-version": "exported-for-snapd-as-version",
 			"source-is-host":                true,
 			"sets": map[string]interface{}{
@@ -258,10 +258,10 @@ func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 	// Removing the current version symlink works correctly.
 	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision)
+	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
-		testutil.SymlinkTargetEquals, s.m.SnapRevision)
+		testutil.SymlinkTargetEquals, s.m.SnapRevision.String())
 	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "")
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
@@ -271,23 +271,23 @@ func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
 	// Current version cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision)
+	err := exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
 	c.Check(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current version at will.
 	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision)
+	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
-		testutil.SymlinkTargetEquals, s.m.SnapRevision)
+		testutil.SymlinkTargetEquals, s.m.SnapRevision.String())
 
 	// The current version can be replaced to point to another value.
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "other-"+s.m.SnapRevision)
+	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "other-"+s.m.SnapRevision.String())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
-		testutil.SymlinkTargetEquals, "other-"+s.m.SnapRevision)
+		testutil.SymlinkTargetEquals, "other-"+s.m.SnapRevision.String())
 }
 
 func (s *exportstateSuite) TestExportedNameVersion(c *C) {
@@ -295,9 +295,9 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 	defer s.st.Unlock()
 
 	coreInfo := snaptest.MockInfo(c, "name: core\nversion: 1\ntype: os\n",
-		&snap.SideInfo{Revision: snap.Revision{N: 1}})
+		&snap.SideInfo{Revision: snap.R(1)})
 	snapdInfo := snaptest.MockInfo(c, "name: snapd\nversion: 1\ntype: snapd\n",
-		&snap.SideInfo{Revision: snap.Revision{N: 2}})
+		&snap.SideInfo{Revision: snap.R(2)})
 
 	// Because we have both core and snapd installed, snapd with revision 1 wins.
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
@@ -334,7 +334,7 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 	// Non-special snaps just use their revision as exported-version.
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
-			&snap.SideInfo{Revision: snap.Revision{N: 42}}), nil
+			&snap.SideInfo{Revision: snap.R(42)}), nil
 	}))
 	exportedName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
 	c.Assert(err, IsNil)
@@ -347,7 +347,7 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 	// key and the revision.
 	s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(givenState *state.State, snapName string) (*snap.Info, error) {
 		info := snaptest.MockInfo(c, "name: foo\nversion: 1\n",
-			&snap.SideInfo{Revision: snap.Revision{N: 42}})
+			&snap.SideInfo{Revision: snap.R(42)})
 		info.InstanceKey = "instance"
 		return info, nil
 	}))

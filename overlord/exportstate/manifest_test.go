@@ -49,7 +49,7 @@ func (s *manifestSuite) TestNewManifestForRegularSnap(c *C) {
 	m := exportstate.NewManifestForSnap(
 		snaptest.MockInfo(c, "name: foo\nversion: 1\n", &snap.SideInfo{Revision: snap.R(42)}))
 	c.Check(m.SnapInstanceName, Equals, "foo")
-	c.Check(m.SnapRevision, Equals, "42")
+	c.Check(m.SnapRevision, Equals, snap.R(42))
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "")
 	c.Check(m.Sets, HasLen, 0)
 }
@@ -64,7 +64,7 @@ func (s *manifestSuite) TestNewManifestForSnapdSnap(c *C) {
 	m := exportstate.NewManifestForSnap(
 		snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}))
 	c.Check(m.SnapInstanceName, Equals, "snapd")
-	c.Check(m.SnapRevision, Equals, "1")
+	c.Check(m.SnapRevision, Equals, snap.R(1))
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "")
 	c.Check(m.SourceIsHost, Equals, false)
 	c.Check(len(m.Sets) > 0, Equals, true)
@@ -81,7 +81,7 @@ func (s *manifestSuite) TestNewManifestForCoreSnap(c *C) {
 	m := exportstate.NewManifestForSnap(
 		snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)}))
 	c.Check(m.SnapInstanceName, Equals, "core")
-	c.Check(m.SnapRevision, Equals, "2")
+	c.Check(m.SnapRevision, Equals, snap.R(2))
 	c.Check(m.SourceIsHost, Equals, false)
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "core_2")
 	c.Check(len(m.Sets) > 0, Equals, true)
@@ -92,7 +92,7 @@ func (s *manifestSuite) TestNewManifestForHost(c *C) {
 	s.AddCleanup(release.MockOnClassic(true))
 	m := exportstate.NewManifestForHost()
 	c.Check(m.SnapInstanceName, Equals, "")
-	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.SnapRevision, Equals, snap.R(0))
 	c.Check(m.SourceIsHost, Equals, true)
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "host")
 	c.Check(len(m.Sets) > 0, Equals, true)
@@ -101,7 +101,7 @@ func (s *manifestSuite) TestNewManifestForHost(c *C) {
 	s.AddCleanup(release.MockOnClassic(false))
 	m = exportstate.NewManifestForHost()
 	c.Check(m.SnapInstanceName, Equals, "")
-	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.SnapRevision, Equals, snap.R(0))
 	c.Check(m.SourceIsHost, Equals, true)
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "host")
 	c.Check(m.Sets, HasLen, 0)
@@ -136,7 +136,7 @@ func (s *manifestSuite) TestIsEmpty(c *C) {
 func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 	m := &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"export-set-a": {
 				Name: "export-set-a",
@@ -169,14 +169,14 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 		// The symbolic links point from export set name to a path that is valid in
 		// either the host or exported mount namespace.
 		c.Check(filepath.Join(
-			dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-a", "symlink-name-1"),
-			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/snap-revision/source-path-1")
+			dirs.ExportDir, "snap-instance-name", "42", "export-set-a", "symlink-name-1"),
+			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/42/source-path-1")
 		c.Check(filepath.Join(
-			dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-b", "symlink-name-2"),
-			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/snap-revision/source-path-2")
+			dirs.ExportDir, "snap-instance-name", "42", "export-set-b", "symlink-name-2"),
+			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/42/source-path-2")
 		c.Check(filepath.Join(
-			dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-b", "symlink-name-3"),
-			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/snap-revision/source-path-3")
+			dirs.ExportDir, "snap-instance-name", "42", "export-set-b", "symlink-name-3"),
+			testutil.SymlinkTargetEquals, "/snap/snap-instance-name/42/source-path-3")
 	}
 	checkFiles()
 
@@ -189,7 +189,7 @@ func (s *manifestSuite) TestCreateExportedFiles(c *C) {
 func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 	// If the file system contains symlinks with different targets that clash
 	// with the exported content then the operation fails.
-	pathName := filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set", "symlink-name")
+	pathName := filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = os.Symlink("wrong-target", pathName)
@@ -197,7 +197,7 @@ func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 
 	m := &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"export-set": {
 				Name: "export-set",
@@ -211,13 +211,13 @@ func (s *manifestSuite) TestCreateClashSymlinkDifferentTarget(c *C) {
 		},
 	}
 	err = exportstate.CreateExportedFiles(m)
-	c.Check(err, ErrorMatches, "symlink /snap/snap-instance-name/snap-revision/source-path .*/var/lib/snapd/export/snap-instance-name/snap-revision/export-set/symlink-name: file exists")
+	c.Check(err, ErrorMatches, "symlink /snap/snap-instance-name/42/source-path .*/var/lib/snapd/export/snap-instance-name/42/export-set/symlink-name: file exists")
 }
 
 func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
 	// If the file system contains non-symlinks that clash with the exported
 	// content then the operation fails.
-	pathName := filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set", "symlink-name")
+	pathName := filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set", "symlink-name")
 	err := os.MkdirAll(filepath.Dir(pathName), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(pathName, nil, 0644)
@@ -225,7 +225,7 @@ func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
 
 	m := &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"export-set": {
 				Name: "export-set",
@@ -239,13 +239,13 @@ func (s *manifestSuite) TestCreateSymlinksClashNonSymlink(c *C) {
 		},
 	}
 	err = exportstate.CreateExportedFiles(m)
-	c.Check(err, ErrorMatches, "symlink /snap/snap-instance-name/snap-revision/source-path .*/var/lib/snapd/export/snap-instance-name/snap-revision/export-set/symlink-name: file exists")
+	c.Check(err, ErrorMatches, "symlink /snap/snap-instance-name/42/source-path .*/var/lib/snapd/export/snap-instance-name/42/export-set/symlink-name: file exists")
 }
 
 func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	m := &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"export-set-a": {
 				Name: "export-set-a",
@@ -276,17 +276,17 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	err = exportstate.RemoveExportedFiles(m)
 	c.Assert(err, IsNil)
 	// The symbolic links are removed.
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-a", "symlink-name-1"),
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set-a", "symlink-name-1"),
 		testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-b", "symlink-name-2"),
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set-b", "symlink-name-2"),
 		testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-b", "symlink-name-3"),
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set-b", "symlink-name-3"),
 		testutil.FileAbsent)
 
 	// The empty directories are pruned.
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-a"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision", "export-set-b"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "snap-revision"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set-a"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42", "export-set-b"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name", "42"), testutil.FileAbsent)
 	c.Check(filepath.Join(dirs.ExportDir, "snap-instance-name"), testutil.FileAbsent)
 
 	// Removing exported files doesn't fail if they are no longer present.
@@ -298,13 +298,48 @@ func (s *manifestSuite) TestRemoveExportedFiles(c *C) {
 	err = exportstate.CreateExportedFiles(m)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(dirs.ExportDir,
-		"snap-instance-name", "snap-revision", "export-set-a", "unrelated"), nil, 0644)
+		"snap-instance-name", "42", "export-set-a", "unrelated"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = exportstate.RemoveExportedFiles(m)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir,
-		"snap-instance-name", "snap-revision", "export-set-a", "unrelated"), testutil.FilePresent)
+		"snap-instance-name", "42", "export-set-a", "unrelated"), testutil.FilePresent)
+}
+
+func (s *manifestSuite) TestRemoveExportedFilesSpecialCaseForSnapd(c *C) {
+	m := &exportstate.Manifest{
+		SnapInstanceName:          "snap-instance-name",
+		SnapRevision:              snap.R(42),
+		ExportedForSnapdAsVersion: "special",
+		Sets: map[string]exportstate.ExportSet{
+			"export-set": {
+				Name: "export-set",
+				Exports: map[string]exportstate.ExportedFile{
+					"symlink-name": {
+						Name:       "symlink-name",
+						SourcePath: "source-path",
+					},
+				},
+			},
+		},
+	} // Creating and then removing exported files completes successfully.
+	err := exportstate.CreateExportedFiles(m)
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "special", "export-set", "symlink-name"),
+		testutil.SymlinkTargetMatches, "source-path")
+
+	err = exportstate.RemoveExportedFiles(m)
+	c.Assert(err, IsNil)
+	// The symbolic links are removed.
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "special", "export-set", "symlink-name"),
+		testutil.FileAbsent)
+
+	// The empty directories are pruned.
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "special", "export-set"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "special", "export-set"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd", "special"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.ExportDir, "snapd"), testutil.FileAbsent)
 }
 
 func (s *manifestSuite) TestExportedFilePathsNormalCase(c *C) {
@@ -316,7 +351,7 @@ func (s *manifestSuite) TestExportedFilePathsNormalCase(c *C) {
 
 	typicalManifest := &exportstate.Manifest{
 		SnapInstanceName: "snap-instance-name",
-		SnapRevision:     "snap-revision",
+		SnapRevision:     snap.R(42),
 		Sets: map[string]exportstate.ExportSet{
 			"export-set-for-snaps": {
 				Name: "export-set-for-snaps",
@@ -345,24 +380,24 @@ func (s *manifestSuite) TestExportedFilePathsNormalCase(c *C) {
 	export := set.Exports["exported-name"]
 	path := exportstate.ExportedFilePath(manifest, &set, &export)
 	c.Check(path, Equals, filepath.Join(dirs.ExportDir,
-		"/snap-instance-name/snap-revision/export-set-for-snaps/exported-name"))
+		"/snap-instance-name/42/export-set-for-snaps/exported-name"))
 	source := exportstate.ExportedFileSourcePath(manifest, &set, &export)
 	c.Check(source, Equals, filepath.Join(dirs.CoreSnapMountDir,
 		// Shared file uses core snap mount directory, ensuring the link is
 		// traversable from the snap mount namespace.
-		"/snap-instance-name/snap-revision/source-path"))
+		"/snap-instance-name/42/source-path"))
 
 	// Snap sharing to the host
 	set = manifest.Sets["export-set-for-host"]
 	export = set.Exports["exported-name"]
 	path = exportstate.ExportedFilePath(manifest, &set, &export)
 	c.Check(path, Equals, filepath.Join(dirs.ExportDir,
-		"/snap-instance-name/snap-revision/export-set-for-host/exported-name"))
+		"/snap-instance-name/42/export-set-for-host/exported-name"))
 	source = exportstate.ExportedFileSourcePath(manifest, &set, &export)
 	c.Check(source, Equals, filepath.Join(dirs.SnapMountDir,
 		// Shared file uses system snap mount directory, ensuring the link is
 		// traversable from the host mount namespace.
-		"/snap-instance-name/snap-revision/source-path"))
+		"/snap-instance-name/42/source-path"))
 
 }
 
@@ -377,7 +412,7 @@ func (s *manifestSuite) TestExportedFilePathsSpecialCase(c *C) {
 	// snap.
 	specialManifest := &exportstate.Manifest{
 		SnapInstanceName:          "snap-instance-name",
-		SnapRevision:              "snap-revision",
+		SnapRevision:              snap.R(42),
 		ExportedForSnapdAsVersion: "exported-for-snapd-as-version",
 		Sets: map[string]exportstate.ExportSet{
 			"export-set-for-snaps": {
@@ -410,7 +445,7 @@ func (s *manifestSuite) TestExportedFilePathsSpecialCase(c *C) {
 		"/snapd/exported-for-snapd-as-version/export-set-for-snaps/exported-name"))
 	source := exportstate.ExportedFileSourcePath(manifest, &set, &export)
 	c.Check(source, Equals, filepath.Join(dirs.CoreSnapMountDir,
-		"/snap-instance-name/snap-revision/source-path"))
+		"/snap-instance-name/42/source-path"))
 
 	// Snap sharing to the host
 	set = manifest.Sets["export-set-for-host"]
@@ -422,7 +457,7 @@ func (s *manifestSuite) TestExportedFilePathsSpecialCase(c *C) {
 	c.Check(source, Equals, filepath.Join(dirs.SnapMountDir,
 		// Shared file uses system snap mount directory, ensuring the link is
 		// traversable from the host mount namespace.
-		"/snap-instance-name/snap-revision/source-path"))
+		"/snap-instance-name/42/source-path"))
 
 	// The host can also pretend to be snapd.
 	hostManifest := &exportstate.Manifest{

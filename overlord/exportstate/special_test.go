@@ -50,7 +50,7 @@ func (s *specialSuite) TestNewManifestForHostWithDefaultSnapMountDir(c *C) {
 
 	m := exportstate.NewManifestForHost()
 	c.Check(m.SnapInstanceName, Equals, "")
-	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.SnapRevision, Equals, snap.R(0))
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "host")
 	c.Check(m.SourceIsHost, Equals, true)
 	c.Assert(m.Sets, HasLen, 1)
@@ -64,7 +64,7 @@ func (s *specialSuite) TestNewManifestForHostWithAltSnapMountDir(c *C) {
 
 	m := exportstate.NewManifestForHost()
 	c.Check(m.SnapInstanceName, Equals, "")
-	c.Check(m.SnapRevision, Equals, "")
+	c.Check(m.SnapRevision, Equals, snap.R(0))
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "host")
 	c.Check(m.SourceIsHost, Equals, true)
 	c.Assert(m.Sets, HasLen, 1)
@@ -78,10 +78,10 @@ func (s *specialSuite) checkSnapExecFromHost(c *C, exported exportstate.Exported
 }
 
 func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
-	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.Revision{N: 2}})
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(2)})
 	m := exportstate.NewManifestForSnap(snapdInfo)
 	c.Check(m.SnapInstanceName, Equals, "snapd")
-	c.Check(m.SnapRevision, Equals, "2")
+	c.Check(m.SnapRevision, Equals, snap.R(2))
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "")
 	c.Check(m.SourceIsHost, Equals, false)
 	c.Assert(m.Sets["tools"].Exports, HasLen, 9)
@@ -89,10 +89,10 @@ func (s *specialSuite) TestNewManifestForSnapdSnap(c *C) {
 }
 
 func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
-	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.Revision{N: 3}})
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(3)})
 	m := exportstate.NewManifestForSnap(coreInfo)
 	c.Check(m.SnapInstanceName, Equals, "core")
-	c.Check(m.SnapRevision, Equals, "3")
+	c.Check(m.SnapRevision, Equals, snap.R(3))
 	c.Check(m.SourceIsHost, Equals, false)
 	c.Check(m.ExportedForSnapdAsVersion, Equals, "core_3")
 	c.Assert(m.Sets["tools"].Exports, HasLen, 9)

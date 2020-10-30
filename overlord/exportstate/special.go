@@ -89,7 +89,7 @@ func manifestForSnapdSnap(info *snap.Info) *Manifest {
 	tools := snapdTools("/usr/lib/snapd")
 	return &Manifest{
 		SnapInstanceName: info.InstanceName(),
-		SnapRevision:     info.Revision.String(),
+		SnapRevision:     info.Revision,
 		Sets:             map[string]ExportSet{tools.Name: tools},
 	}
 }
@@ -99,7 +99,7 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 	tools := snapdTools("/usr/lib/snapd")
 	return &Manifest{
 		SnapInstanceName:          info.InstanceName(),
-		SnapRevision:              info.Revision.String(),
+		SnapRevision:              info.Revision,
 		ExportedForSnapdAsVersion: exportedForSnapdAsVersionForCore(info), // Exception from the rule
 		Sets:                      map[string]ExportSet{tools.Name: tools},
 	}
@@ -109,7 +109,7 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 func manifestForRegularSnap(info *snap.Info) *Manifest {
 	return &Manifest{
 		SnapInstanceName: info.InstanceName(),
-		SnapRevision:     info.Revision.String(),
+		SnapRevision:     info.Revision,
 		// TODO: eventually get this from the snap.yaml
 	}
 }
