@@ -100,7 +100,7 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 	return &Manifest{
 		SnapInstanceName:          info.InstanceName(),
 		SnapRevision:              info.Revision,
-		ExportedForSnapdAsVersion: exportedForSnapdAsVersionForCore(info), // Exception from the rule
+		ExportedForSnapdAsVersion: fmt.Sprintf("core_%s", info.Revision), // Exception from the rule
 
 		// Separate to avoid gofmt annoyance across versions.
 		Sets: map[string]ExportSet{tools.Name: tools},
@@ -114,10 +114,6 @@ func manifestForRegularSnap(info *snap.Info) *Manifest {
 		SnapRevision:     info.Revision,
 		// TODO: eventually get this from the snap.yaml
 	}
-}
-
-func exportedForSnapdAsVersionForCore(info *snap.Info) string {
-	return fmt.Sprintf("core_%s", info.Revision)
 }
 
 func exportedNameVersionForRegularSnap(info *snap.Info) (exportedName string, exportedVersion string) {
@@ -138,7 +134,7 @@ func effectiveExportedVersionForSnapdOrCore(st *state.State) (exportedVersion st
 		activeSnapdExportedVersion = snapdInfo.Revision.String()
 	}
 	if coreInfo != nil && coreInfo.Broken == "" {
-		activeCoreExportedVersion = exportedForSnapdAsVersionForCore(coreInfo)
+		activeCoreExportedVersion = fmt.Sprintf("core_%s", coreInfo.Revision)
 	}
 	exportedVersion = selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion)
 	return exportedVersion, nil
