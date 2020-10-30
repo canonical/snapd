@@ -22,6 +22,7 @@ package exportstate
 import (
 	"sync"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -83,7 +84,15 @@ func (m *ExportManager) exportSnapdTools() error {
 			return err
 		}
 		var oldManifest Manifest
-		if Get(m.state, info.InstanceName(), info.Revision, &oldManifest) == nil {
+		if err := Get(m.state, info.InstanceName(), info.Revision, &oldManifest); err != nil {
+			if err != state.ErrNoState {
+				// Be vocal about anything but the missing manifest in state.
+				// Manifest may be legitimately gone when we are updating from
+				// snapd that was not using the export manager, to one that is.
+				// In such case the point of this function is to fill the gaps.
+				logger.Noticef("cannot load export manifest of snap %q from state: %v", info.InstanceName(), err)
+			}
+		} else {
 			// If there is an export manifest then presumably there is also content on disk.
 			continue
 		}
