@@ -124,13 +124,7 @@ func exportedNameVersionForRegularSnap(info *snap.Info) (exportedName string, ex
 	if typ := info.Type(); typ == snap.TypeSnapd || typ == snap.TypeOS {
 		panic(fmt.Sprintf("internal error, cannot use exportedNameVersionForRegularSnap with core or snapd, got %q of type %q", info.SnapName(), info.Type()))
 	}
-	exportedName = info.SnapName() // Instance key goes to exportedVersion
-	if info.InstanceKey == "" {
-		exportedVersion = info.Revision.String()
-	} else {
-		exportedVersion = fmt.Sprintf("%s_%s", info.Revision.String(), info.InstanceKey)
-	}
-	return exportedName, exportedVersion
+	return info.InstanceName(), info.SnapRevision().String()
 }
 
 func effectiveExportedVersionForSnapdOrCore(st *state.State) (exportedVersion string, err error) {

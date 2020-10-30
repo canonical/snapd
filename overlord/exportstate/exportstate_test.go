@@ -353,8 +353,8 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 	}))
 	exportedName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
 	c.Assert(err, IsNil)
-	c.Check(exportedName, Equals, "foo")
-	c.Check(exportedVersion, Equals, "42_instance")
+	c.Check(exportedName, Equals, "foo_instance")
+	c.Check(exportedVersion, Equals, "42")
 }
 
 func (s *exportstateSuite) TestSelectExportedVersionForSnapdTools(c *C) {
