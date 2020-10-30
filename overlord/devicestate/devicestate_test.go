@@ -1151,7 +1151,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	defer cmd.Restore()
 
 	// ubuntu-save not mounted
-	err = s.mgr.StartUp()
+	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
 
