@@ -106,7 +106,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	privKey := asserts.RSAPrivateKey(keyPair)
-	err = m.keypairMgr.Put(privKey)
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		return keypairMgr.Put(privKey)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot store device key pair: %v", err)
 	}
