@@ -58,6 +58,8 @@ var (
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
 
+	SnapdMaintenanceFile string
+
 	SnapdStoreSSLCertsDir string
 
 	SnapSeedDir   string
@@ -101,6 +103,8 @@ var (
 	SnapModeenvFile   string
 	SnapBootAssetsDir string
 	SnapFDEDir        string
+	SnapSaveDir       string
+	SnapDeviceSaveDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -283,6 +287,17 @@ func SnapFDEDirUnder(rootdir string) string {
 	return filepath.Join(SnapDeviceDirUnder(rootdir), "fde")
 }
 
+// SnapSaveDirUnder returns the path to device save directory under rootdir.
+func SnapSaveDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "save")
+}
+
+// SnapSaveFDEDirUnder returns the path to full disk encryption state directory
+// inside save under rootdir.
+func SnapSaveFDEDirUnder(rootdir string) string {
+	return filepath.Join(SnapSaveDirUnder(rootdir), "device/fde")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -324,6 +339,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
@@ -362,6 +378,8 @@ func SetRootDir(rootdir string) {
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
+	SnapSaveDir = SnapSaveDirUnder(rootdir)
+	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")

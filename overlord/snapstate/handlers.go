@@ -1937,6 +1937,75 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
+func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	isInstalled := snapst.IsInstalled()
+	if !isInstalled {
+		return fmt.Errorf("internal error: snap %q not installed anymore", snapsup.InstanceName())
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	// undo here may be part of failed snap remove change, in which case a later
+	// "clear-snap" task could have been executed and some or all of the
+	// data of this snap could be lost. If that's the case, then we should not
+	// enable the snap back.
+	// XXX: should make an exception for snapd/core?
+	place := snapsup.placeInfo()
+	for _, dir := range []string{place.DataDir(), place.CommonDataDir()} {
+		if exists, _, _ := osutil.DirExists(dir); !exists {
+			t.Logf("cannot link snap %q back, some of its data has already been removed", snapsup.InstanceName())
+			// TODO: mark the snap broken at the SnapState level when we have
+			// such concept.
+			return nil
+		}
+	}
+
+	snapst.Active = true
+	Set(st, snapsup.InstanceName(), snapst)
+
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+		VitalityRank: vitalityRank,
+	}
+	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
+	// if we just linked back a core snap, request a restart
+	// so that we switch executing its snapd.
+	m.maybeRestart(t, info, reboot, deviceCtx)
+
+	return nil
+}
+
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()

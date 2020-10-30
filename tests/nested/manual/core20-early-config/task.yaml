@@ -23,6 +23,9 @@ prepare: |
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
+    # ensure ubuntu-save is there
+    nested_ensure_ubuntu_save pc-gadget
+
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml
     mkdir -p pc-gadget/meta/hooks
     cp install pc-gadget/meta/hooks/
