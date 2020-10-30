@@ -29,12 +29,20 @@ var (
 	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
 )
 
+const keyslotsAreaKiBSize = 2560 // 2.5MB
+const metadataKiBSize = 2048     // 2MB
+
 // FormatEncryptedDevice initializes an encrypted volume on the block device
-// given by node, setting the specified label. The key used to unlock the
-// volume is provided using the key argument.
+// given by node, setting the specified label. The key used to unlock the volume
+// is provided using the key argument.
 func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
-	// TODO:UC20: pass options
-	return sbInitializeLUKS2Container(node, label, key[:], nil)
+	opts := &sb.InitializeLUKS2ContainerOptions{
+		// use a lower, but still reasonable size that should give us
+		// enough room
+		MetadataKiBSize:     metadataKiBSize,
+		KeyslotsAreaKiBSize: keyslotsAreaKiBSize,
+	}
+	return sbInitializeLUKS2Container(node, label, key[:], opts)
 }
 
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted

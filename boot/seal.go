@@ -103,7 +103,8 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	}
 
 	// make sure relevant locations exist
-	for _, p := range []string{InitramfsEncryptionKeyDir, InstallHostFDEDataDir} {
+	for _, p := range []string{InitramfsEncryptionKeyDir, InstallHostFDEDataDir, InstallHostFDESaveDir} {
+		// XXX: should that be 0700 ?
 		if err := os.MkdirAll(p, 0755); err != nil {
 			return err
 		}
@@ -147,11 +148,12 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
+
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
-		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDEDataDir, "tpm-policy-auth-key"),
-		TPMLockoutAuthFile:     filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
+		TPMLockoutAuthFile:     filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth"),
 		TPMProvision:           true,
 		PCRPolicyCounterHandle: secboot.RunObjectPCRPolicyCounterHandle,
 	}
@@ -180,7 +182,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
-		TPMLockoutAuthFile:     filepath.Join(InstallHostFDEDataDir, "tpm-lockout-auth"),
+		TPMLockoutAuthFile:     filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth"),
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
 	}
 	// The fallback object contains the ubuntu-data and ubuntu-save keys.
