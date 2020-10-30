@@ -298,7 +298,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 			bootloader.RoleRunMode:  bl.Name(),
 		}
 
-		if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
+		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
 			return err
 		}
 		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
@@ -346,7 +346,7 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 	// list all the key files to reseal
 	keyFiles := []string{
 		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	}
 
 	resealKeyParams := &secboot.ResealKeyParams{
