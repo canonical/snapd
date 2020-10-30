@@ -181,6 +181,6 @@ func (s *emulation) Mount(what, where string, options ...string) error {
 	return errNotImplemented
 }
 
-func (s *emulation) Umount(where string) error {
+func (s *emulation) Umount(whatOrWhere string) error {
 	return errNotImplemented
 }

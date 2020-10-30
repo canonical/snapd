@@ -246,8 +246,8 @@ type Systemd interface {
 	Unmask(service string) error
 	// Mount requests a mount of what under where with options.
 	Mount(what, where string, options ...string) error
-	// Umount requests a mount at where to be unmounted.
-	Umount(where string) error
+	// Umount requests a mount from what or at where to be unmounted.
+	Umount(whatOrWhere string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -927,8 +927,8 @@ func (s *systemd) Mount(what, where string, options ...string) error {
 	return nil
 }
 
-func (s *systemd) Umount(where string) error {
-	if output, err := exec.Command("systemd-mount", "--umount", where).CombinedOutput(); err != nil {
+func (s *systemd) Umount(whatOrWhere string) error {
+	if output, err := exec.Command("systemd-mount", "--umount", whatOrWhere).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
