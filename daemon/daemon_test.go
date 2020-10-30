@@ -218,68 +218,15 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 
 	b, err := json.Marshal(maintErr)
 	c.Assert(err, check.IsNil)
-
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
-
 	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
 	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
 
-	// mark as already seeded
-	s.markSeeded(d)
-	// and pretend we have snaps
-	st := d.overlord.State()
-	st.Lock()
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
-	})
-	st.Unlock()
-	// 1 snap => extended timeout 30s + 5s
-	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
-
-	l1, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-	l2, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
-
-	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
-
+	// after starting, maintenance.json should be removed
 	d.Start()
-
-	snapdDone := make(chan struct{})
-	go func() {
-		select {
-		case <-snapdAccept:
-		case <-time.After(2 * time.Second):
-			c.Fatal("snapd accept was not called")
-		}
-		close(snapdDone)
-	}()
-
-	snapDone := make(chan struct{})
-	go func() {
-		select {
-		case <-snapAccept:
-		case <-time.After(2 * time.Second):
-			c.Fatal("snapd accept was not called")
-		}
-		close(snapDone)
-	}()
-
-	<-snapdDone
-	<-snapDone
-
-	// maintenance.json should be removed
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
-
 	d.Stop(nil)
 }
 

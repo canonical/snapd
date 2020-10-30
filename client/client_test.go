@@ -146,58 +146,37 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	c.Check(cs.req.URL.Path, Equals, "/this")
 }
 
+func makeMaintenanceFile(c *C, b []byte) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+}
+
 func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
 	// write a maintenance.json that says snapd is down for a restart
 	maintErr := &client.Error{
 		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	}
-
 	b, err := json.Marshal(maintErr)
 	c.Assert(err, IsNil)
+	makeMaintenanceFile(c, b)
 
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
-	var v []int
-	cs.rsp = `[1,2]`
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	// now after a Do(), we will have maintenance set to what we wrote
+	// originally
+	_, err = cs.cli.Do("GET", "/this", nil, nil, nil, nil)
 	c.Check(err, IsNil)
-	c.Check(statusCode, Equals, 200)
-	c.Check(v, DeepEquals, []int{1, 2})
-	c.Assert(cs.req, NotNil)
-	c.Assert(cs.req.URL, NotNil)
-	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.Body, Equals, reqBody)
-	c.Check(cs.req.URL.Path, Equals, "/this")
 
 	returnedErr := cs.cli.Maintenance()
-	c.Assert(returnedErr, Not(IsNil))
-
-	returnedMaintErr, ok := returnedErr.(*client.Error)
-	c.Check(ok, Equals, true)
-
-	c.Assert(returnedMaintErr, DeepEquals, maintErr)
+	c.Assert(returnedErr, DeepEquals, maintErr)
 }
 
 func (cs *clientSuite) TestClientIgnoresGarbageMaintenanceJSON(c *C) {
 	// write a garbage maintenance.json that can't be unmarshalled
-	maintGarbage := []byte("blah blah blah not json")
+	makeMaintenanceFile(c, []byte("blah blah blah not json"))
 
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, maintGarbage, 0644), IsNil)
-	var v []int
-	cs.rsp = `[1,2]`
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
+	// after a Do(), no maintenance set and also no error returned from Do()
+	_, err := cs.cli.Do("GET", "/this", nil, nil, nil, nil)
 	c.Check(err, IsNil)
-	c.Check(statusCode, Equals, 200)
-	c.Check(v, DeepEquals, []int{1, 2})
-	c.Assert(cs.req, NotNil)
-	c.Assert(cs.req.URL, NotNil)
-	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.Body, Equals, reqBody)
-	c.Check(cs.req.URL.Path, Equals, "/this")
 
 	returnedErr := cs.cli.Maintenance()
 	c.Assert(returnedErr, IsNil)
