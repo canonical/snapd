@@ -182,7 +182,6 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	sealKeyParams := &secboot.SealKeyParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
-		TPMLockoutAuthFile:     filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth"),
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
 	}
 	// The fallback object contains the ubuntu-data and ubuntu-save keys.
@@ -291,6 +290,11 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	}
 	logger.Debugf("resealing (%d) succeeded", nextCount)
 
+	bootChainsPath := bootChainsFileUnder(rootdir)
+	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+		return err
+	}
+
 	// reseal the fallback object
 	rpbc := toPredictableBootChains(recoveryBootChains)
 
@@ -299,27 +303,21 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err != nil {
 		return err
 	}
-	if needed {
-		rpbcJSON, _ := json.Marshal(rpbc)
-		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
-
-		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
-			return err
-		}
-		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
+	if !needed {
+		logger.Debugf("fallback reseal not necessary")
+		return nil
 	}
 
-	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+	rpbcJSON, _ := json.Marshal(rpbc)
+	logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
+
+	if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
 		return err
 	}
+	logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
 
 	recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
-	if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
-		return err
-	}
-
-	return nil
+	return writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount)
 }
 
 func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
