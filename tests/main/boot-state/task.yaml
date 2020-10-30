@@ -59,11 +59,12 @@ execute: |
     "$TESTSTOOLS"/boot-state bootenv unset snap_test_2
     "$TESTSTOOLS"/boot-state bootenv show | NOMATCH 'snap_test_2='
 
-    # check an unexisting var can be unset in bootenv
+    # check an inexistent var can be unset in bootenv
     "$TESTSTOOLS"/boot-state bootenv unset snap_boot_no_exist
 
     # wait-core-post-boot should finish inmediatly
     "$TESTSTOOLS"/boot-state wait-core-post-boot
+    # TODO: Test the scenario when the core reaches the timeout running wait-core-post-boot
 
     # check bootenv needs a subcommand
     "$TESTSTOOLS"/boot-state bootenv 2>&1 | MATCH "boot-state: unsupported bootenv subcommand"

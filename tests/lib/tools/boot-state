@@ -1,11 +1,11 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: bootenv show [var]"
-    echo "       bootenv set <var> <value>"
-    echo "       bootenv unset <var>"
-    echo "       boot-path"
-    echo "       wait-core-post-boot"
+    echo "usage: boot-state bootenv show [var]"
+    echo "       boot-state bootenv set <var> <value>"
+    echo "       boot-state bootenv unset <var>"
+    echo "       boot-state boot-path"
+    echo "       boot-state wait-core-post-boot"
     echo ""
     echo "Get information and manages the boot loader for the current system"
     echo ""
@@ -26,13 +26,7 @@ get_grub_editenv() {
 }
 
 run_grub_editenv() {
-    local CMD=$(get_grub_editenv)
-
-    if [ -n "$CMD" ]; then
-        "$CMD" "$@"
-    else
-        return 1
-    fi
+    "$(get_grub_editenv)" "$@"
 }
 
 get_grub_envfile() {
@@ -63,7 +57,7 @@ bootenv() {
             exit
             ;;
         *)
-            echo "boot-state: unsupported bootenv subcommand $1" >&2
+            echo "boot-state: unsupported bootenv sub-command $1" >&2
             show_help
             exit 1
             ;;
@@ -72,22 +66,23 @@ bootenv() {
 
 bootenv_show() {
     local var="${1:-}"
-    local GRUBENV_FILE
-    GRUBENV_FILE="$(get_grub_envfile)"
+    local grubenv_file
+    grubenv_file="$(get_grub_envfile)"
 
     if [ -z "$var" ]; then
         if run_grub_editenv list; then
             return
-        elif [ -s "$GRUBENV_FILE" ]; then
-            cat "$GRUBENV_FILE"
+        elif [ -s "$grubenv_file" ]; then
+            cat "$grubenv_file"
         else
             fw_printenv
         fi
     else
+        # TODO: fix that, it could be problematic if var ends up with regular expression
         if run_grub_editenv list | grep "^$var"; then
             return
-        elif [ -s "$GRUBENV_FILE" ]; then
-            grep "^$var" "$GRUBENV_FILE"
+        elif [ -s "$grubenv_file" ]; then
+            grep "^$var" "$grubenv_file"
         else
             fw_printenv "$1"
         fi | sed "s/^${var}=//"
@@ -103,18 +98,18 @@ bootenv_set() {
         show_help
         exit 1
     fi
-    local GRUBENV_FILE
-    GRUBENV_FILE="$(get_grub_envfile)"
+    local grubenv_file
+    grubenv_file="$(get_grub_envfile)"
 
     if run_grub_editenv set "$var=$value"; then
         return
-    elif [ -s "$GRUBENV_FILE" ]; then
-        sed -i "/^$var=/d" "$GRUBENV_FILE"
+    elif [ -s "$grubenv_file" ]; then
+        sed -i "/^$var=/d" "$grubenv_file"
         #The grubenv file could not have a new line at the end
-        if [ -n "$(tail -n 1 "$GRUBENV_FILE")" ]; then
-            echo "" >> "$GRUBENV_FILE"
+        if [ -n "$(tail -n 1 "$grubenv_file")" ]; then
+            echo "" >> "$grubenv_file"
         fi
-        echo "$var=$value" >> "$GRUBENV_FILE"
+        echo "$var=$value" >> "$grubenv_file"
     else
         fw_setenv "$var" "$value"
     fi
@@ -122,20 +117,19 @@ bootenv_set() {
 
 bootenv_unset() {
     local var="$1"
-    local GRUB_EDITENV GRUBENV_FILE
 
     if [ -z "$var" ]; then
         echo "boot-state: variable required to unset from bootenv" >&2
         show_help
         exit 1
     fi
-    GRUB_EDITENV="$(get_grub_editenv)"
-    GRUBENV_FILE="$(get_grub_envfile)"
+    local grubenv_file
+    grubenv_file="$(get_grub_envfile)"
 
-    if command -v "$GRUB_EDITENV" >/dev/null; then
-        "$GRUB_EDITENV" "$GRUBENV_FILE" unset "$var"
-    elif [ -s "$GRUBENV_FILE" ]; then
-        sed -i "/^$var=/d" "$GRUBENV_FILE"
+    if run_grub_editenv "$grubenv_file" unset "$var"; then
+        return
+    elif [ -s "$grubenv_file" ]; then
+        sed -i "/^$var=/d" "$grubenv_file"
     else
         fw_setenv "$var"
     fi
