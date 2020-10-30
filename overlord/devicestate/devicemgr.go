@@ -63,7 +63,8 @@ type DeviceManager struct {
 	// saveAvailable keeps track whether /var/lib/snapd/save
 	// is available, i.e. exists and is mounted from ubuntu-save
 	// if the latter exists.
-	// TODO: it must be set to false if ubuntu-save is unmounted.
+	// TODO: evolve this to state to track things if we start mounting
+	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
 	state *state.State
@@ -974,8 +975,7 @@ func (m *DeviceManager) withSaveDir(f func() error) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return errNoSaveSupport
 	}
-	// check for availability in case save gets mounted/unmounted,
-	// it's responsibility of the caller to have it mounted
+	// at this point we need save available
 	if !m.saveAvailable {
 		return fmt.Errorf("internal error: save dir is unavailable")
 	}
@@ -1023,8 +1023,7 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	}
 	where := dirs.SnapDeviceDir
 	if underSave {
-		// check for availability in case save gets mounted/unmounted,
-		// it's responsibility of the caller to have it mounted
+		// at this point we need save available
 		if !m.saveAvailable {
 			return fmt.Errorf("internal error: cannot access device keypair manager if ubuntu-save is unavailable")
 		}
@@ -1041,6 +1040,10 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	}
 	return f(keypairMgr)
 }
+
+// TODO:UC20: we need proper encapsulated support to read
+// tpm-policy-auth-key from save if the latter can get unmounted on
+// demand
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
