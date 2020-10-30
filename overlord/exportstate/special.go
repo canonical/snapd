@@ -100,7 +100,7 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 	return &Manifest{
 		SnapInstanceName:          info.InstanceName(),
 		SnapRevision:              info.Revision,
-		ExportedForSnapdAsVersion: exportedForSnapdAsVersionForCore(info), // Exception from the rule]
+		ExportedForSnapdAsVersion: exportedForSnapdAsVersionForCore(info), // Exception from the rule
 
 		// Separate to avoid gofmt annoyance across versions.
 		Sets: map[string]ExportSet{tools.Name: tools},
