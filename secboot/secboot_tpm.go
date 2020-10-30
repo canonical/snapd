@@ -192,6 +192,10 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 // is returned as well as whether the device node is an decrypted device node (
 // in the encrypted case). If no encrypted volume was found, then the returned
 // device node is an unencrypted normal volume.
+// Note that if the function proceeds to the point where it knows definitely
+// whether there is an encrypted device or not, the second return value will be
+// true, even if error is non-nil. This is so that callers can be robust and
+// try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
@@ -240,7 +244,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encrypt
 		var errNotFound disks.FilesystemLabelNotFoundError
 		if xerrors.As(err, &errNotFound) {
 			// didn't find the encrypted label, so return nil to try the
-			// decrypted label again
+			// decrypted label
 			return nil, false
 		}
 		if err != nil {
@@ -257,10 +261,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encrypt
 		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, ""), true
 	}()
 	if err != nil {
-		return "", false, err
+		return "", foundEncDev, err
 	}
 	if lockErr != nil {
-		return "", false, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
+		return "", foundEncDev, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
 	if foundEncDev {
