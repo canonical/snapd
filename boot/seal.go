@@ -284,7 +284,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	authKeyFile := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "tpm-policy-auth-key")
+	authKeyFile := filepath.Join(dirs.SnapSaveFDEDirUnder(rootdir), "tpm-policy-auth-key")
 	if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
 		return err
 	}
