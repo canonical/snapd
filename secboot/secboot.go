@@ -75,9 +75,11 @@ type SealKeyParams struct {
 	ModelParams []*SealKeyModelParams
 	// The authorization policy update key file (only relevant for TPM)
 	TPMPolicyAuthKey *ecdsa.PrivateKey
-	// The path to the authorization policy update key file (only relevant for TPM)
+	// The path to the authorization policy update key file (only relevant for TPM,
+	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The path to the lockout authorization file (only relevant for TPM)
+	// The path to the lockout authorization file (only relevant for TPM and only
+	// used if TPMProvision is set to true)
 	TPMLockoutAuthFile string
 	// Whether we should provision the TPM
 	TPMProvision bool
