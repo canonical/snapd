@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -1894,6 +1895,8 @@ func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
+	defer sysdb.InjectTrusted([]asserts.Assertion{s.storeSigning.TrustedKey})()
+
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
@@ -1990,4 +1993,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	// check that keypair manager is under save
 	c.Check(osutil.IsDirectory(filepath.Join(dirs.SnapDeviceSaveDir, "private-keys-v1")), Equals, true)
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "private-keys-v1"), testutil.FileAbsent)
+
+	// check that the serial was saved to the device save assertion db
+	// as well
+	savedb, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
+	c.Assert(err, IsNil)
+	// a copy of serial was backed up there
+	_, err = savedb.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc-20",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
 }
