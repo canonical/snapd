@@ -55,7 +55,7 @@ func (s *sizeTestSuite) TestIECString(c *C) {
 	}
 }
 
-func (s *sizeTestSuite) TestUnmarshalGadgetSize(c *C) {
+func (s *sizeTestSuite) TestUnmarshalYAMLSize(c *C) {
 	type foo struct {
 		Size quantity.Size `yaml:"size"`
 	}
