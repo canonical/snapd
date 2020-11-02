@@ -1,0 +1,34 @@
+summary: Test that downloads time-out on very slow connection.
+
+details: |
+  Test that snap download times out on a very slow connection. Download bandwidth
+  is reduced with 'tc', and in addition the download parameters for snapd are
+  tweaked for the test.
+
+systems: [ubuntu-1*, ubuntu-2*]
+
+prepare: |
+  cp /etc/systemd/system/snapd.service.d/local.conf snapd.local.conf
+  # set minimum download speed that is a bit higher than the rate-limited speed set with tc.
+  # also force 1-minute window, so the test doesn't have to run for full 5 minutes (the default
+  # window).
+  sed -i 's/\(Environment=.*\)/\1 SNAPD_MIN_DOWNLOAD_SPEED=99000 SNAPD_DOWNLOAD_MEAS_WINDOW=1m/' /etc/systemd/system/snapd.service.d/local.conf
+  systemctl daemon-reload
+  systemctl restart snapd.{socket,service}
+
+execute: |
+  tc qdisc add dev ens4 ingress
+  tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+  tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+
+  snap install lxd 2>&1 | MATCH "download timed out"
+  
+restore: |
+  tc filter del dev ens4
+  tc qdisc del dev ens4 ingress
+
+  # restore snapd service
+  cp snapd.local.conf /etc/systemd/system/snapd.service.d/local.conf
+  rm -f snapd.local.conf
+  systemctl daemon-reload
+  systemctl restart snapd.{socket,service}
