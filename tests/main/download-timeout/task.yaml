@@ -5,7 +5,7 @@ details: |
   is reduced with 'tc', and in addition the download parameters for snapd are
   tweaked for the test.
 
-systems: [ubuntu-1*, ubuntu-2*]
+systems: [ubuntu-18.04*, ubuntu-2*]
 
 prepare: |
   cp /etc/systemd/system/snapd.service.d/local.conf snapd.local.conf
