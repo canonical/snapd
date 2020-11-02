@@ -413,10 +413,10 @@ version: 5.0
 	defer restore()
 
 	// set mock key sealing
-	sealKeyCalls := 0
+	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
-		sealKeyCalls++
-		switch sealKeyCalls {
+		sealKeysCalls++
+		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
 			c.Check(keys[0].Key, DeepEquals, myKey)
@@ -424,8 +424,8 @@ version: 5.0
 			c.Check(keys, HasLen, 2)
 			c.Check(keys[0].Key, DeepEquals, myKey)
 			c.Check(keys[1].Key, DeepEquals, myKey2)
-		case 3:
-			c.Error("secboot.SealKey shouldn't be called a third time")
+		default:
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 		c.Assert(params.ModelParams, HasLen, 1)
 
@@ -441,7 +441,7 @@ version: 5.0
 		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		switch sealKeyCalls {
+		switch sealKeysCalls {
 		case 1:
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
@@ -458,6 +458,8 @@ version: 5.0
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			})
+		default:
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 
 		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
@@ -542,7 +544,7 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
 	// make sure SealKey was called for the run object and the fallback object
-	c.Check(sealKeyCalls, Equals, 2)
+	c.Check(sealKeysCalls, Equals, 2)
 
 	// make sure the marker file for sealed key was created
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
@@ -753,10 +755,10 @@ version: 5.0
 	defer restore()
 
 	// set mock key sealing
-	sealKeyCalls := 0
+	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
-		sealKeyCalls++
-		switch sealKeyCalls {
+		sealKeysCalls++
+		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
 			c.Check(keys[0].Key, DeepEquals, myKey)
@@ -765,7 +767,7 @@ version: 5.0
 			c.Check(keys[0].Key, DeepEquals, myKey)
 			c.Check(keys[1].Key, DeepEquals, myKey2)
 		default:
-			c.Error("secboot.SealKey shouldn't be called a third time")
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 		c.Assert(params.ModelParams, HasLen, 1)
 

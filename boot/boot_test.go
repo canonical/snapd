@@ -2141,7 +2141,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		default:
-			c.Error("secboot.ResealKey shouldn't be called a third time")
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
 		return nil
 	})

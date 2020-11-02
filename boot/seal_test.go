@@ -138,7 +138,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}, {Key: myKey2, KeyFile: saveKeyFile}})
 			default:
-				c.Error("secboot.SealKey shouldn't be called a third time")
+				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
 			c.Assert(params.ModelParams, HasLen, 1)
 			for _, d := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
@@ -176,6 +176,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				})
+			default:
+				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
@@ -396,7 +398,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 				// load chains
 				c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 2)
 			default:
-				c.Error("secboot.ResealKey shouldn't be called a third time")
+				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 			}
 
 			// recovery parameters

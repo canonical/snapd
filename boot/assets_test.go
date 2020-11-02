@@ -2535,7 +2535,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		default:
-			c.Error("secboot.ResealKey shouldn't be called a third time")
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
 		return nil
 	})
@@ -2663,7 +2663,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		default:
-			c.Error("secboot.ResealKey shouldn't be called a third time")
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
 		return nil
 	})
