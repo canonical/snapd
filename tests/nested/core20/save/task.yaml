@@ -15,13 +15,17 @@ execute: |
     save_out="$(nested_exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
     echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
     save_size="$(echo "$save_out" | awk '{print $4}')"
-    echo "check  there is at least 4MB of free space available on ubuntu-save"
-    test "$save_size" -gt "$((4*1024*1024))"
+    echo "check  there is at least 6MB of free space available on ubuntu-save"
+    test "$save_size" -gt "$((6*1024*1024))"
 
     # leave a canary
     nested_exec "sudo touch /run/mnt/ubuntu-save/canary"
 
-    # TODO:UC20: verify that ubuntu-save is bind mounted under /var/lib/snapd/save
+    nested_exec mountpoint /var/lib/snapd/save
+    # we know that save is mounted using a systemd unit
+    nested_exec systemctl status var-lib-snapd-save.mount
+    # and a canary exists
+    nested_exec "test -f /var/lib/snapd/save/canary"
 
     # transition to recovery mode and check again
     boot_id="$(nested_get_boot_id)"
