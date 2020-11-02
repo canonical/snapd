@@ -113,6 +113,7 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	// the boot chains we seal the fallback object to
 	rpbc := toPredictableBootChains(recoveryBootChains)
 
+	// gets written to a file by sealRunObjectKeys()
 	authKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
