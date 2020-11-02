@@ -70,10 +70,10 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 }
 
 // removeCreatedPartitions removes partitions added during a previous install.
-func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
+func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
 	indexes := make([]string, 0, len(dl.Structure))
 	for i, s := range dl.Structure {
-		if s.CreatedDuringInstall {
+		if gadget.WasCreatedDuringInstall(lv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			indexes = append(indexes, strconv.Itoa(i+1))
 		}
@@ -100,7 +100,7 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Ensure all created partitions were removed
-	if remaining := gadget.CreatedDuringInstall(dl); len(remaining) > 0 {
+	if remaining := gadget.CreatedDuringInstall(lv, dl); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
