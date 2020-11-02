@@ -36,7 +36,9 @@ import (
 type partitionTestSuite struct {
 	testutil.BaseTest
 
-	dir string
+	dir        string
+	gadgetRoot string
+	cmdPartx   *testutil.MockCmd
 }
 
 var _ = Suite(&partitionTestSuite{})
@@ -45,6 +47,15 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.dir = c.MkDir()
+	s.gadgetRoot = filepath.Join(c.MkDir(), "gadget")
+
+	s.cmdPartx = testutil.MockCommand(c, "partx", "")
+	s.AddCleanup(s.cmdPartx.Restore)
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo "sfdisk was not mocked"; exit 1`)
+	s.AddCleanup(cmdSfdisk.Restore)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
+	s.AddCleanup(cmdLsblk.Restore)
 }
 
 const (
@@ -170,9 +181,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	calls := 0
 	restore := install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
 		calls++
@@ -182,10 +190,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 	defer restore()
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -202,7 +209,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 
 	// Check partition table update
-	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
+	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
 }
@@ -215,10 +222,9 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBios))
 	defer cmdLsblk.Restore()
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -271,9 +277,6 @@ echo '{
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
@@ -283,10 +286,9 @@ echo '{
 		{"lsblk", "--fs", "--json", "/dev/node3"},
 	})
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err = makeMockGadget(gadgetRoot, gadgetContent)
+	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -306,16 +308,12 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err = makeMockGadget(gadgetRoot, gadgetContent)
+	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
