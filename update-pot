@@ -55,6 +55,8 @@ check_canaries
 sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
 
 find "$HERE" -path "$HERE/data/desktop/*.desktop.in" -type f -printf "%P\n" > "$tmpdir/desktop.files"
+# we need the || true because Ubuntu 14.04's xgettext does not support
+# extracting from desktop files.
 xgettext \
     -f "$tmpdir/desktop.files" \
     -D "$HERE" \
@@ -63,7 +65,7 @@ xgettext \
     --sort-output \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
-    --join-existing
+    --join-existing || true
 
 find "$HERE" -path "$HERE/data/polkit/*.policy" -type f -printf "%P\n" > "$tmpdir/polkit.files"
 # we need the || true because of
