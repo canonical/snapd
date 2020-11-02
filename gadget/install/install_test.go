@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -101,9 +102,9 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name: "BIOS Boot",
-					Size: 1 * gadget.SizeMiB,
+					Size: 1 * quantity.SizeMiB,
 				},
-				StartOffset: 1 * gadget.SizeMiB,
+				StartOffset: 1 * quantity.SizeMiB,
 			},
 			Node: "/dev/node2",
 		},
@@ -111,7 +112,7 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 	ID:         "anything",
 	Device:     "/dev/node",
 	Schema:     "gpt",
-	Size:       2 * gadget.SizeGiB,
+	Size:       2 * quantity.SizeGiB,
 	SectorSize: 512,
 }
 
@@ -132,10 +133,10 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:  "Extra partition",
-					Size:  10 * gadget.SizeMiB,
+					Size:  10 * quantity.SizeMiB,
 					Label: "extra",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
 			Node: "/dev/node3",
 		},
@@ -146,7 +147,7 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 
 	// layout is not compatible if the device is too small
 	smallDeviceLayout := mockDeviceLayout
-	smallDeviceLayout.Size = 100 * gadget.SizeMiB
+	smallDeviceLayout.Size = 100 * quantity.SizeMiB
 	// sanity check
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
@@ -188,9 +189,9 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 						// partition names have no
 						// meaning in MBR schema
 						Name: "different BIOS Boot",
-						Size: 1 * gadget.SizeMiB,
+						Size: 1 * quantity.SizeMiB,
 					},
-					StartOffset: 1 * gadget.SizeMiB,
+					StartOffset: 1 * quantity.SizeMiB,
 				},
 				Node: "/dev/node2",
 			},
@@ -198,7 +199,7 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 		ID:         "anything",
 		Device:     "/dev/node",
 		Schema:     "dos",
-		Size:       2 * gadget.SizeGiB,
+		Size:       2 * quantity.SizeGiB,
 		SectorSize: 512,
 	}
 	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml)
@@ -216,12 +217,12 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
 					Name:       "Extra partition",
-					Size:       1200 * gadget.SizeMiB,
+					Size:       1200 * quantity.SizeMiB,
 					Label:      "extra",
 					Filesystem: "ext4",
 					Type:       "83",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
 			Node: "/dev/node3",
 		},
@@ -235,44 +236,72 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
 					Name: "Extra extra partition",
-					Size: 1 * gadget.SizeMiB,
+					Size: 1 * quantity.SizeMiB,
 				},
-				StartOffset: 1202 * gadget.SizeMiB,
+				StartOffset: 1202 * quantity.SizeMiB,
 			},
 			Node: "/dev/node4",
 		},
 	)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 .* in gadget`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 \(starting at 1260388352\) in gadget: start offsets do not match \(disk: 1260388352 \(1.17 GiB\) and gadget: 2097152 \(2 MiB\)\)`)
 }
 
 func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
 	deviceLayout := mockDeviceLayout
+
 	// device matches gadget except for the filesystem type
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:       "Writable",
-					Size:       1200 * gadget.SizeMiB,
+					Size:       1200 * quantity.SizeMiB,
 					Label:      "writable",
 					Filesystem: "something_else",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
-			Node:                 "/dev/node3",
-			CreatedDuringInstall: true,
+			Node: "/dev/node3",
 		},
 	)
 	err := install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
 	c.Assert(err, IsNil)
 
-	// compare layouts without partitions created at install time (should fail)
-	deviceLayout.Structure[len(deviceLayout.Structure)-1].CreatedDuringInstall = false
-	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
+	// change the role for the laid out volume to not be a partition role that
+	// is created at install time (note that the duplicated seed role here is
+	// technically incorrect, you can't have duplicated roles, but this
+	// demonstrates that a structure that otherwise fits the bill but isn't a
+	// role that is created during install will fail the filesystem match check)
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemSeed
 
+	// now we fail to find the /dev/node3 structure from the gadget on disk
+	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
+
+	// undo the role change
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemData
+
+	// change the gadget size to be bigger than the on disk size
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Size = 10000000 * quantity.SizeMiB
+
+	// now we fail to find the /dev/node3 structure from the gadget on disk because the gadget says it must be bigger
+	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size is smaller than gadget size`)
+
+	// change the gadget size to be smaller than the on disk size and the role to be one that is not expanded
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Size = 1 * quantity.SizeMiB
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemBoot
+
+	// now we fail because the gadget says it should be smaller and it can't be expanded
+	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size is larger than gadget size \(and the role should not be expanded\)`)
+
+	// but a smaller partition on disk for SystemData role is okay
+	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemData
+	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, IsNil)
 }
 
 func (s *installSuite) TestSchemaCompatibility(c *C) {
