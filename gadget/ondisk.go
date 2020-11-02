@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -38,7 +39,7 @@ const (
 	ubuntuDataLabel = "ubuntu-data"
 	ubuntuSaveLabel = "ubuntu-save"
 
-	sectorSize Size = 512
+	sectorSize quantity.Size = 512
 
 	createdPartitionAttr = "59"
 )
@@ -137,9 +138,9 @@ type OnDiskVolume struct {
 	Device    string
 	Schema    string
 	// size in bytes
-	Size Size
+	Size quantity.Size
 	// sector size in bytes
-	SectorSize     Size
+	SectorSize     quantity.Size
 	partitionTable *sfdiskPartitionTable
 }
 
@@ -182,7 +183,7 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockDeviceSizeInSectors(devpath string) (Size, error) {
+func blockDeviceSizeInSectors(devpath string) (quantity.Size, error) {
 	// the size is reported in 512-byte sectors
 	// XXX: consider using /sys/block/<dev>/size directly
 	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
@@ -194,7 +195,7 @@ func blockDeviceSizeInSectors(devpath string) (Size, error) {
 	if err != nil {
 		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
 	}
-	return Size(sz), nil
+	return quantity.Size(sz), nil
 }
 
 // onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
@@ -227,7 +228,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 
 		structure[i] = VolumeStructure{
 			Name:       p.Name,
-			Size:       Size(p.Size) * sectorSize,
+			Size:       quantity.Size(p.Size) * sectorSize,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
@@ -236,7 +237,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		ds[i] = OnDiskStructure{
 			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     Size(p.Start) * sectorSize,
+				StartOffset:     quantity.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
 			Node:                 p.Node,
@@ -244,10 +245,10 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		}
 	}
 
-	var numSectors Size
+	var numSectors quantity.Size
 	if ptable.LastLBA != 0 {
 		// sfdisk reports the last usable LBA for GPT disks only
-		numSectors = Size(ptable.LastLBA + 1)
+		numSectors = quantity.Size(ptable.LastLBA + 1)
 	} else {
 		// sfdisk does not report any information about the size of a
 		// MBR partitioned disk, find out the size of the device by
