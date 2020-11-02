@@ -573,7 +573,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		myAuthKey := &ecdsa.PrivateKey{}
 
-		myParams := secboot.SealKeyParams{
+		myParams := secboot.SealKeysParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					EFILoadChains: []*secboot.LoadChain{
@@ -801,7 +801,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		err := secboot.SealKey(myKeys, &myParams)
+		err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addEFISbPolicyCalls, Equals, 2)
@@ -854,7 +854,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		myParams := &secboot.ResealKeyParams{
+		myParams := &secboot.ResealKeysParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
@@ -942,7 +942,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		err = secboot.ResealKey(myParams)
+		err = secboot.ResealKeys(myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addEFISbPolicyCalls, Equals, 1)
@@ -962,12 +962,12 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 			KeyFile: "keyfile",
 		},
 	}
-	myParams := secboot.SealKeyParams{
+	myParams := secboot.SealKeysParams{
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 		TPMLockoutAuthFile:   "lockout-auth-file",
 	}
 
-	err := secboot.SealKey(myKeys, &myParams)
+	err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 

@@ -351,10 +351,10 @@ func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
 	return err
 }
 
-// SealKey provisions the TPM and seals the encryption keys according to the
+// SealKeys provisions the TPM and seals the encryption keys according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
-// exists, SealKey will fail and return an error.
-func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
+// exists, SealKeys will fail and return an error.
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -409,9 +409,9 @@ func SealKey(keys []SealKeyRequest, params *SealKeyParams) error {
 	return nil
 }
 
-// ResealKey updates the PCR protection policy for the sealed encryption key according to
-// the specified parameters.
-func ResealKey(params *ResealKeyParams) error {
+// ResealKeys updates the PCR protection policy for the sealed encryption keys
+// according to the specified parameters.
+func ResealKeys(params *ResealKeysParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")

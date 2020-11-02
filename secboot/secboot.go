@@ -70,7 +70,7 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 }
 
-type SealKeyParams struct {
+type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
 	// The authorization policy update key file (only relevant for TPM)
@@ -87,7 +87,7 @@ type SealKeyParams struct {
 	PCRPolicyCounterHandle uint32
 }
 
-type ResealKeyParams struct {
+type ResealKeysParams struct {
 	// The snap model parameters
 	ModelParams []*SealKeyModelParams
 	// The path to the sealed key files
