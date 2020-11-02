@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -101,9 +102,9 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name: "BIOS Boot",
-					Size: 1 * gadget.SizeMiB,
+					Size: 1 * quantity.SizeMiB,
 				},
-				StartOffset: 1 * gadget.SizeMiB,
+				StartOffset: 1 * quantity.SizeMiB,
 			},
 			Node: "/dev/node2",
 		},
@@ -111,7 +112,7 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 	ID:         "anything",
 	Device:     "/dev/node",
 	Schema:     "gpt",
-	Size:       2 * gadget.SizeGiB,
+	Size:       2 * quantity.SizeGiB,
 	SectorSize: 512,
 }
 
@@ -132,10 +133,10 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:  "Extra partition",
-					Size:  10 * gadget.SizeMiB,
+					Size:  10 * quantity.SizeMiB,
 					Label: "extra",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
 			Node: "/dev/node3",
 		},
@@ -146,7 +147,7 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 
 	// layout is not compatible if the device is too small
 	smallDeviceLayout := mockDeviceLayout
-	smallDeviceLayout.Size = 100 * gadget.SizeMiB
+	smallDeviceLayout.Size = 100 * quantity.SizeMiB
 	// sanity check
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
@@ -188,9 +189,9 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 						// partition names have no
 						// meaning in MBR schema
 						Name: "different BIOS Boot",
-						Size: 1 * gadget.SizeMiB,
+						Size: 1 * quantity.SizeMiB,
 					},
-					StartOffset: 1 * gadget.SizeMiB,
+					StartOffset: 1 * quantity.SizeMiB,
 				},
 				Node: "/dev/node2",
 			},
@@ -198,7 +199,7 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 		ID:         "anything",
 		Device:     "/dev/node",
 		Schema:     "dos",
-		Size:       2 * gadget.SizeGiB,
+		Size:       2 * quantity.SizeGiB,
 		SectorSize: 512,
 	}
 	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml)
@@ -216,12 +217,12 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
 					Name:       "Extra partition",
-					Size:       1200 * gadget.SizeMiB,
+					Size:       1200 * quantity.SizeMiB,
 					Label:      "extra",
 					Filesystem: "ext4",
 					Type:       "83",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
 			Node: "/dev/node3",
 		},
@@ -235,9 +236,9 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
 					Name: "Extra extra partition",
-					Size: 1 * gadget.SizeMiB,
+					Size: 1 * quantity.SizeMiB,
 				},
-				StartOffset: 1202 * gadget.SizeMiB,
+				StartOffset: 1202 * quantity.SizeMiB,
 			},
 			Node: "/dev/node4",
 		},
@@ -256,11 +257,11 @@ func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:       "Writable",
-					Size:       1200 * gadget.SizeMiB,
+					Size:       1200 * quantity.SizeMiB,
 					Label:      "writable",
 					Filesystem: "something_else",
 				},
-				StartOffset: 2 * gadget.SizeMiB,
+				StartOffset: 2 * quantity.SizeMiB,
 			},
 			Node: "/dev/node3",
 		},

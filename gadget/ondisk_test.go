@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -232,8 +233,8 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	c.Assert(dl.Schema, Equals, "gpt")
 	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
 	c.Assert(dl.Device, Equals, "/dev/node")
-	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
-	c.Assert(dl.Size, Equals, gadget.Size(8388575*512))
+	c.Assert(dl.SectorSize, Equals, quantity.Size(512))
+	c.Assert(dl.Size, Equals, quantity.Size(8388575*512))
 	c.Assert(len(dl.Structure), Equals, 2)
 
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
@@ -326,8 +327,8 @@ exit 0`
 	c.Assert(dl.ID, Equals, "")
 	c.Assert(dl.Schema, Equals, "dos")
 	c.Assert(dl.Device, Equals, "/dev/node")
-	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
-	c.Assert(dl.Size, Equals, gadget.Size(12345670*512))
+	c.Assert(dl.SectorSize, Equals, quantity.Size(512))
+	c.Assert(dl.Size, Equals, quantity.Size(12345670*512))
 	c.Assert(len(dl.Structure), Equals, 4)
 
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
