@@ -879,7 +879,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -991,7 +991,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1099,7 +1099,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -1214,7 +1214,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -1540,7 +1540,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1884,7 +1884,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2115,7 +2115,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2256,7 +2256,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2418,7 +2418,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})

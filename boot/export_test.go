@@ -96,19 +96,19 @@ func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() secboot.Encryp
 	return o.saveEncryptionKey
 }
 
-func MockSecbootSealKey(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeyParams) error) (restore func()) {
-	old := secbootSealKey
-	secbootSealKey = f
+func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
+	old := secbootSealKeys
+	secbootSealKeys = f
 	return func() {
-		secbootSealKey = old
+		secbootSealKeys = old
 	}
 }
 
-func MockSecbootResealKey(f func(params *secboot.ResealKeyParams) error) (restore func()) {
-	old := secbootResealKey
-	secbootResealKey = f
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+	old := secbootResealKeys
+	secbootResealKeys = f
 	return func() {
-		secbootResealKey = old
+		secbootResealKeys = old
 	}
 }
 

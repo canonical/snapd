@@ -414,7 +414,7 @@ version: 5.0
 
 	// set mock key sealing
 	sealKeyCalls := 0
-	restore = boot.MockSecbootSealKey(func(keys []secboot.SealKeyRequest, params *secboot.SealKeyParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 		sealKeyCalls++
 		switch sealKeyCalls {
 		case 1:
@@ -754,7 +754,7 @@ version: 5.0
 
 	// set mock key sealing
 	sealKeyCalls := 0
-	restore = boot.MockSecbootSealKey(func(keys []secboot.SealKeyRequest, params *secboot.SealKeyParams) error {
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
 		sealKeyCalls++
 		switch sealKeyCalls {
 		case 1:

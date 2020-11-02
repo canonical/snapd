@@ -54,7 +54,7 @@ func (s *assetsSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error { return nil })
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 }
 
@@ -781,7 +781,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 
 	// everything is set up, trigger a reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -886,7 +886,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 
 	// everything is set up, trigger reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1642,7 +1642,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		"shim":  {shimHash},
 	})
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1796,7 +1796,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2503,7 +2503,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		runKernelBf,
 	}
 
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2638,7 +2638,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	}
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
@@ -2749,7 +2749,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// make sure that no reseal is triggered
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})

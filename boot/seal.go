@@ -41,8 +41,8 @@ import (
 )
 
 var (
-	secbootSealKey   = secboot.SealKey
-	secbootResealKey = secboot.ResealKey
+	secbootSealKeys   = secboot.SealKeys
+	secbootResealKeys = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -149,7 +149,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
-	sealKeyParams := &secboot.SealKeyParams{
+	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
 		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
@@ -166,7 +166,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		},
 	}
-	if err := secbootSealKey(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
@@ -179,7 +179,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	if err != nil {
 		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
 	}
-	sealKeyParams := &secboot.SealKeyParams{
+	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
@@ -195,7 +195,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		},
 	}
-	if err := secbootSealKey(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -332,12 +332,12 @@ func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBl
 		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
 	}
 
-	resealKeyParams := &secboot.ResealKeyParams{
+	resealKeyParams := &secboot.ResealKeysParams{
 		ModelParams:          modelParams,
 		KeyFiles:             keyFiles,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
-	if err := secbootResealKey(resealKeyParams); err != nil {
+	if err := secbootResealKeys(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the encryption key: %v", err)
 	}
 
@@ -357,12 +357,12 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	}
 
-	resealKeyParams := &secboot.ResealKeyParams{
+	resealKeyParams := &secboot.ResealKeysParams{
 		ModelParams:          modelParams,
 		KeyFiles:             keyFiles,
 		TPMPolicyAuthKeyFile: authKeyFile,
 	}
-	if err := secbootResealKey(resealKeyParams); err != nil {
+	if err := secbootResealKeys(resealKeyParams); err != nil {
 		return fmt.Errorf("cannot reseal the fallback encryption keys: %v", err)
 	}
 

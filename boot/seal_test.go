@@ -124,10 +124,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		// set mock key sealing
-		sealKeyCalls := 0
-		restore = boot.MockSecbootSealKey(func(keys []secboot.SealKeyRequest, params *secboot.SealKeyParams) error {
-			sealKeyCalls++
-			switch sealKeyCalls {
+		sealKeysCalls := 0
+		restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+			sealKeysCalls++
+			switch sealKeysCalls {
 			case 1:
 				// the run object seals only the ubuntu-data key
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key")
@@ -152,7 +152,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-			switch sealKeyCalls {
+			switch sealKeysCalls {
 			case 1:
 				c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 					secboot.NewLoadChain(shim,
@@ -185,9 +185,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
 		if tc.sealErr != nil {
-			c.Assert(sealKeyCalls, Equals, 1)
+			c.Assert(sealKeysCalls, Equals, 1)
 		} else {
-			c.Assert(sealKeyCalls, Equals, 2)
+			c.Assert(sealKeysCalls, Equals, 2)
 		}
 		if tc.err == "" {
 			c.Assert(err, IsNil)
@@ -374,14 +374,14 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		defer restore()
 
 		// set mock key resealing
-		resealKeyCalls := 0
-		restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
-			resealKeyCalls++
+		resealKeysCalls := 0
+		restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+			resealKeysCalls++
 			c.Assert(params.ModelParams, HasLen, 1)
 
 			// shared parameters
 			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
-			switch resealKeyCalls {
+			switch resealKeysCalls {
 			case 1:
 				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -420,7 +420,7 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 			runKernel2 := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-			switch resealKeyCalls {
+			switch resealKeysCalls {
 			case 1:
 				c.Assert(params.ModelParams[0].EFILoadChains[2:4], DeepEquals, []*secboot.LoadChain{
 					secboot.NewLoadChain(shim,
@@ -470,13 +470,13 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		if !tc.sealedKeys || tc.prevPbc {
 			// did nothing
 			c.Assert(err, IsNil)
-			c.Assert(resealKeyCalls, Equals, 0)
+			c.Assert(resealKeysCalls, Equals, 0)
 			continue
 		}
 		if tc.resealErr != nil {
-			c.Assert(resealKeyCalls, Equals, 1)
+			c.Assert(resealKeysCalls, Equals, 1)
 		} else {
-			c.Assert(resealKeyCalls, Equals, 2)
+			c.Assert(resealKeysCalls, Equals, 2)
 		}
 		if tc.err == "" {
 			c.Assert(err, IsNil)
