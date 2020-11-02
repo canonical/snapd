@@ -185,7 +185,9 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 		TPMPolicyAuthKey:       authKey,
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
 	}
-	// The fallback object contains the ubuntu-data and ubuntu-save keys.
+	// The fallback object contains the ubuntu-data and ubuntu-save keys. The key files
+	// are stored on ubuntu-seed, separate from ubuntu-data so they can be used if ubuntu-data
+	// and ubuntu-boot are corrupted or unavailable.
 	keys := []secboot.SealKeyRequest{
 		{
 			Key:     key,
