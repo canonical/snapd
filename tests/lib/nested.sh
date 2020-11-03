@@ -454,6 +454,16 @@ nested_create_core_vm() {
                     repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
+                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                    fi
+
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -524,7 +534,7 @@ EOF
 
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
                     # sign the snapd snap with fakestore if requested
