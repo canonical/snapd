@@ -14,18 +14,21 @@ prepare: |
 
 execute: |
     # build a fde hook runner
-    go build run-fdehook.go
+    go build run-fdehelper.go
 
     echo "Run trivial unlock fde hook"
     # create trivial "unlock" fde hook
-    mkdir -p fake-kernel/meta/hooks/
-    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    mkdir -p fake-initrd-root/bin
+    cat > fake-initrd-root/bin/fde-reveal-key <<'EOF'
     #!/bin/sh -e
     echo "$(cat -)"
+    env > env.txt
     EOF
-    chmod +x fake-kernel/meta/hooks/fde
+    chmod +x fake-initrd-root/bin/fde-reveal-key
     # validate that unlock input/output works
-    echo fake-sealed-key | ./run-fdehook ./fake-kernel | MATCH "unsealed key"
+    echo fake-sealed-key | ./run-fdehelper ./fake-initrd-root | MATCH "revealed key"
+    # validate that the env passing worked
+    MATCH "FDE_*" < env.txt
 
     echo "Run fde hook at triggers the sandboxing via a mount"
     # create bind mount *target* here (and add cleanup)
@@ -34,27 +37,27 @@ execute: |
     tests.cleanup defer "umount /tmp/test-bind-mount || true"
     tests.cleanup defer rm -f "/tmp/test-bind-mount"
     # now validate that mounting is sandboxed
-    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    cat > fake-initrd-root/bin/fde-reveal-key <<'EOF'
     #!/bin/sh -e
     mount -o bind /bin/true /tmp/test-binary
     echo "mount was successful"
     EOF
     set +e
-    echo fake-sealed-key | ./run-fdehook ./fake-kernel
+    echo fake-sealed-key | ./run-fdehelper ./fake-initrd-root
     RET=$?
     set -e
     test "$RET" -ne 0
     # no mount was performed
     not test -x /tmp/test-bind-mount
 
-    echo "Run fdehook that runs too long"
-    cat > fake-kernel/meta/hooks/fde <<'EOF'
+    echo "Run fdehelper that runs too long"
+    cat > fake-initrd-root/bin/fde-reveal-key <<'EOF'
     #!/bin/sh -e
-    sleep 60
+    sleep 30
     echo "done sleeping"
     EOF
     set +e
-    echo fake-sealed-key | DEBUG_FDEHOOK_RUNTIME_MAX=10s ./run-fdehook ./fake-kernel > output.txt
+    echo fake-sealed-key | DEBUG_FDEHELPER_RUNTIME_MAX=10s ./run-fdehelper ./fake-initrd-root > output.txt
     RET=$?
     set -e
     test "$RET" -ne 0
