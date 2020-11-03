@@ -78,6 +78,7 @@ type Disk interface {
 	// If the filesystem label was not found on the disk, and no other errors
 	// were encountered, a FilesystemLabelNotFoundError will be returned.
 	FindMatchingPartitionUUID(string) (string, error)
+	FindMatchingPartition(string) (string, error)	
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
@@ -97,38 +98,12 @@ type Disk interface {
 	HasPartitions() bool
 }
 
-func parseDeviceMajorMinor(s string) (int, int, error) {
-	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
-	devNums := strings.SplitN(s, ":", 2)
-	if len(devNums) != 2 {
-		return 0, 0, errMsg
-	}
-	maj, err := strconv.Atoi(devNums[0])
-	if err != nil {
-		return 0, 0, errMsg
-	}
-	min, err := strconv.Atoi(devNums[1])
-	if err != nil {
-		return 0, 0, errMsg
-	}
-	return maj, min, nil
-}
-
-var udevadmProperties = func(device string) ([]byte, error) {
-	// TODO: maybe combine with gadget interfaces hotplug code where the udev
-	// db is parsed?
-	cmd := exec.Command("udevadm", "info", "--query", "property", "--name", device)
-	return cmd.CombinedOutput()
-}
-
-func udevProperties(device string) (map[string]string, error) {
-	out, err := udevadmProperties(device)
+func ueventProperties(sysfspath string) (map[string]string, error) {
+	out, err := os.Open(filepath.Join(sysfspath, "uevent"))
 	if err != nil {
 		return nil, osutil.OutputErr(out, err)
 	}
-	r := bytes.NewBuffer(out)
-
-	return parseUdevProperties(r)
+	return parseUdevProperties(out)
 }
 
 func parseUdevProperties(r io.Reader) (map[string]string, error) {
@@ -192,15 +167,20 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
-	// now we have the partition for this mountpoint, we need to tie that back
-	// to a disk with a major minor, so query udev with the mount source path
-	// of the mountpoint for properties
-	props, err := udevProperties(partMountPointSource)
-	if err != nil && props == nil {
-		// only fail here if props is nil, if it's available we validate it
-		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+	sysfsPath, err := filepath.EvalSymlinks(filepath.Join("/sys/dev/block", d.Dev()))
+	if err != nil {
+		return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 	}
+
+	props, err := ueventProperties(sysfsPath)
+	if err != nil {
+		return nil, fmt.Errorf(errFmt, partMountPointSource, err)
+	}
+
+	// read uevent if you want kernel props
+	// if dm is present, partition is in realpath slaves/*
+	// if uevent says DEVTYPE=partition, then parent '../' is the parent device
+	// can read major of the parent there.
 
 	if opts != nil && opts.IsDecryptedDevice {
 		// verify that the mount point is indeed a mapper device, it should:
@@ -233,12 +213,12 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            be missing from the initrd previously, and are not
 		//            available at all during userspace on UC20 for some reason
 		errFmt := "mountpoint source %s is not a decrypted device: could not read device mapper metadata: %v"
-		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
+		dmUUID, err := ioutil.ReadFile(filepath.Join(sysfsPath, "dm", "uuid"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
 
-		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
+		dmName, err := ioutil.ReadFile(filepath.Join(sysfsPath, "dm", "name"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
@@ -260,58 +240,47 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
 		}
 
-		// the uuid is the first and only submatch, but it is not in the same
-		// format exactly as we want to use, namely it is missing all of the "-"
-		// characters in a typical uuid, i.e. it is of the form:
-		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
-		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
-		// characters
-		compactUUID := string(matches[1])
-		canonicalUUID := fmt.Sprintf(
-			"%s-%s-%s-%s-%s",
-			compactUUID[0:8],
-			compactUUID[8:12],
-			compactUUID[12:16],
-			compactUUID[16:20],
-			compactUUID[20:],
-		)
-
-		// now finally, we need to use this uuid, which is the device uuid of
-		// the actual physical encrypted partition to get the path, which will
-		// be something like /dev/vda4, etc.
-		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
-		props, err = udevProperties(byUUIDPath)
+		// Above has checked that this is dm mapper, encrypted
+		// device. To find the partition one must inspect the symlink
+		// in /sys/bloc/dm-0/slaves/nvme0n1p6 -> symlink to a
+		// partition dir, under a device.
+		// This is the kernel representation of where this mount came from
+		childrenDir := filepath.Join(sysfsPath, "slaves")
+		fil, err := ioutil.ReadDir(childrenDir)
+		if len(fil) != 1 || err != nil {
+			return nil, err
+		}
+		sysfsPath = filepath.EvalSymlinks(filepath.Join(childrenDir, fil[0].Name()))
 		if err != nil {
-			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+			return nil, err
+		}
+		props, err = udevProperties(sysfsPath)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", childPath, err)
 		}
 	}
 
-	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
-	// partition originated from
-	if majorMinor, ok := props["ID_PART_ENTRY_DISK"]; ok {
-		maj, min, err := parseDeviceMajorMinor(majorMinor)
-		if err != nil {
-			// bad udev output?
-			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", partMountPointSource, err)
-		}
-		d.major = maj
-		d.minor = min
-
-		// since the mountpoint device has a disk, the mountpoint source itself
-		// must be a partition from a disk, thus the disk has partitions
-		d.hasPartitions = true
-		return d, nil
-	}
-
-	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a volume
-	// or other non-physical disk, so confirm that DEVTYPE == disk and return
-	// the maj/min for it
 	if devType, ok := props["DEVTYPE"]; ok {
-		if devType == "disk" {
-			return d, nil
+		switch devType {
+		case "disk":
+		case "partition":
+			d.hasPartitions = true
+			props, err = udevProperties(filepath.Join(sysfsPath, '..'))
+			if err != nil {
+				return nil, err
+			}
+		case default:
+			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
 		}
-		// unclear what other DEVTYPE's we should support for this function
-		return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+		d.major, err = strconv.Atoi(props["MAJOR"])
+		if err != nil {
+			return nil, err
+		}
+		d.minor, err = strconv.Atoi(props["MINOR"])
+		if err != nil {
+			return nil, err
+		}
+		return d, nil
 	}
 
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
@@ -403,6 +372,35 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 
 	return "", FilesystemLabelNotFoundError{Label: label}
 }
+
+func (d *disk) FindMatchingPartition(label string) (string, error) {
+	sysfsPath, err := filepath.EvalSymlinks(filepath.Join("/sys/dev/block", d.Dev()))
+	if err != nil {
+		return "", FilesystemLabelNotFoundError{Label: label}
+	}
+
+	subdirs, err := ioutil.ReadDir(sysfsPath)
+	if err != nil {
+		return "", FilesystemLabelNotFoundError{Label: label}
+	}
+	for _, file := range files {
+		if file.IsDir() && (file.Mode()&os.ModeSymlink == 0) {
+			partitionPath := filepath.Join(sysfsPath, file.Name())
+			props, err := ueventProperties(partitionPath)
+			if err != nil {
+				return "", FilesystemLabelNotFoundError{Label: label}
+			}
+			if partName, ok := props["PARTNAME"]; ok {
+				if partName == "partition" {
+					return filepath.EvalSymlinks(fmt.Sprintf("/dev/block/%d:%d", props["MAJOR"], props["MINOR"]))
+				}
+			}
+		}
+	}
+
+	return "", FilesystemLabelNotFoundError{Label: label}
+}
+
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
 	d2, err := diskFromMountPointImpl(mountpoint, opts)

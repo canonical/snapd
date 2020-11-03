@@ -372,6 +372,7 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	//       to use by-uuid or by-id
 	partSrc := filepath.Join("/dev/disk/by-partuuid", partuuid)
 	if err != nil {
+		// when booted on UEFI this should be fatal!
 		// no luck, try mounting by label instead
 		partSrc = filepath.Join("/dev/disk/by-label", fallbacklabel)
 	}
@@ -492,7 +493,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		saveDevice, err := disk.FindMatchingPartition("ubuntu-save")
 		if err != nil {
 			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
@@ -501,7 +502,6 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			}
 			return false, err
 		}
-		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	}
 	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
 		return true, err
@@ -525,7 +525,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-seed")
+	partition, err := disk.FindMatchingPartition("ubuntu-seed")
 	if err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	fsckSystemdOpts := &systemdMountOptions{
 		NeedsFsck: true,
 	}
-	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
+	if err := doSystemdMount(partition, boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
