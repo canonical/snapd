@@ -302,6 +302,7 @@ func SetRootDir(rootdir string) {
 		"arch",
 		"archlinux",
 		"fedora",
+		"gentoo",
 		"manjaro",
 		"manjaro-arm",
 	}
