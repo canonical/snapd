@@ -17,7 +17,7 @@
  *
  */
 
-// fdehook implements the early boot hook that reveals the FDE key
+// fdehelper implements the early boot hook that reveals the FDE key
 //
 // This package implements running a hook from snap-bootstrap in
 // initramfs that reveals the key to continue booting. The hook is
@@ -28,7 +28,7 @@
 //
 // For the initial-provision/updating of the key a "real" snap hook
 // from "meta/hooks/fde-setup" is used.
-package fdehook
+package fdehelper
 
 import (
 	"bytes"
@@ -41,32 +41,32 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func fdeHook(rootDir string) string {
+func fdehelper(rootDir string) string {
 	return filepath.Join(rootDir, "bin/fde-reveal-key")
 }
 
 // Enabled returns whether the external FDE helper should be called
 func Enabled(rootDir string) bool {
-	return osutil.FileExists(fdeHook(rootDir))
+	return osutil.FileExists(fdehelper(rootDir))
 }
 
-// fdehookRuntimeMax is the maximum runtime a fdehook can execute
-func fdehookRuntimeMax() string {
-	// only used in tests (tests/main/fdehook)
-	if s := os.Getenv("DEBUG_FDEHOOK_RUNTIME_MAX"); s != "" {
+// fdehelperRuntimeMax is the maximum runtime a fdehelper can execute
+func fdehelperRuntimeMax() string {
+	// only used in tests (tests/main/fdehelper)
+	if s := os.Getenv("DEBUG_FDEHELPER_RUNTIME_MAX"); s != "" {
 		return s
 	}
 	// XXX: reasonable default?
 	return "1m"
 }
 
-// fdeHookCmd returns a *exec.Cmd that runs the fdehook code with
+// fdehelperCmd returns a *exec.Cmd that runs the fdehelper code with
 // (some) sandboxing around it. The sandbox will ensure that it's hard
 // for the hook to abuse that they are called in e.g. initrd.  But it
-// does not aim for perfect protection - the fdehooks are part of the
+// does not aim for perfect protection - the fdehelpers are part of the
 // kernel snap/initrd so if someone wants to do mischief there are
 // easier ways by hacking initrd directly.
-func fdeHookCmd(rootDir string, args ...string) *exec.Cmd {
+func fdehelperCmd(rootDir string, args ...string) *exec.Cmd {
 	// XXX: we could also call the systemd dbus api for this but it
 	//      seems much simpler this way (but it means we need
 	//      systemd-run in initrd)
@@ -79,7 +79,7 @@ func fdeHookCmd(rootDir string, args ...string) *exec.Cmd {
 			// ensure we get some result from the hook
 			// within a reasonable timeout and output
 			// from systemd if things go wrong
-			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehookRuntimeMax()),
+			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehelperRuntimeMax()),
 			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`),
 			// do not allow mounting, this ensures hooks
 			// in initrd can not mess around with
@@ -88,11 +88,11 @@ func fdeHookCmd(rootDir string, args ...string) *exec.Cmd {
 			// add basic sandboxing to prevent messing
 			// around
 			// XXX: this maybe too strict, i.e. to unseal
-			//      the fdehook may need to write to some
+			//      the fdehelper may need to write to some
 			//      crypto device in /dev which will not be
 			//      possible with "ProtectSystem=strict"
 			"--property=ProtectSystem=strict",
-			fdeHook(rootDir),
+			fdehelper(rootDir),
 		}, args...)...)
 	return cmd
 }
@@ -118,7 +118,7 @@ func Reveal(rootDir string, params *RevealParams) (unsealedKey []byte, err error
 		return nil, err
 	}
 
-	cmd := fdeHookCmd(rootDir, "--unlock")
+	cmd := fdehelperCmd(rootDir, "--unlock")
 	cmd.Stdin = bytes.NewReader(jbuf)
 	// provide basic things via environment to make it easier for
 	// C based hooks
