@@ -17,6 +17,17 @@
  *
  */
 
+// fdehook implements the early boot hook that reveals the FDE key
+//
+// This package implements running a hook from snap-bootstrap in
+// initramfs that reveals the key to continue booting. The hook is
+// confined by a small amount of systemd-run sandboxing to prevent
+// flagrant abuse of the hook. It is not designed as a real security
+// measure and that would be pointless anyway as the hook comes from
+// the kernel snap which has unlimited powers.
+//
+// For the initial-provision/updating of the key a "real" snap hook
+// from "meta/hooks/fde-setup" is used.
 package fdehook
 
 import (
@@ -30,13 +41,13 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func fdeHook(kernelDir string) string {
-	return filepath.Join(kernelDir, "meta/hooks/fde")
+func fdeHook(rootDir string) string {
+	return filepath.Join(rootDir, "bin/fde-reveal-key")
 }
 
 // Enabled returns whether the external FDE helper should be called
-func Enabled(kernelDir string) bool {
-	return osutil.FileExists(fdeHook(kernelDir))
+func Enabled(rootDir string) bool {
+	return osutil.FileExists(fdeHook(rootDir))
 }
 
 // fdehookRuntimeMax is the maximum runtime a fdehook can execute
@@ -46,7 +57,7 @@ func fdehookRuntimeMax() string {
 		return s
 	}
 	// XXX: reasonable default?
-	return "5m"
+	return "1m"
 }
 
 // fdeHookCmd returns a *exec.Cmd that runs the fdehook code with
@@ -55,7 +66,10 @@ func fdehookRuntimeMax() string {
 // does not aim for perfect protection - the fdehooks are part of the
 // kernel snap/initrd so if someone wants to do mischief there are
 // easier ways by hacking initrd directly.
-func fdeHookCmd(kernelDir string, args ...string) *exec.Cmd {
+func fdeHookCmd(rootDir string, args ...string) *exec.Cmd {
+	// XXX: we could also call the systemd dbus api for this but it
+	//      seems much simpler this way (but it means we need
+	//      systemd-run in initrd)
 	cmd := exec.Command(
 		"systemd-run",
 		append([]string{
@@ -78,36 +92,40 @@ func fdeHookCmd(kernelDir string, args ...string) *exec.Cmd {
 			//      crypto device in /dev which will not be
 			//      possible with "ProtectSystem=strict"
 			"--property=ProtectSystem=strict",
-			fdeHook(kernelDir),
+			fdeHook(rootDir),
 		}, args...)...)
 	return cmd
 }
 
-type UnlockParams struct {
-	SealedKey        []byte `json:"unsealed-key"`
+// XXX: this will also need to provide the full boot chains for the
+// more complex hooks, c.f.
+// https://github.com/snapcore/snapd/compare/master...cmatsuoka:spike/fde-helper-tpm#diff-9d89d75d6aa1bcb1db124c226af0d8e0R43
+type RevealParams struct {
+	// XXX: what about cases when only the hook can get the key from
+	//      some hardware security module (HSM)?
+	SealedKey        []byte `json:"sealed-key"`
 	VolumeName       string `json:"volume-name"`
 	SourceDevicePath string `json:"source-device-path"`
-	LockKeysOnFinish bool   `json:"lock-keys-on-finish"`
 }
 
-// Unlock unseals the key and unlocks the encrypted volume key specified
+// Reveal reveals the key to unlocks the encrypted volume key specified
 // in params.
 //
 // This is usually called in the inird.
-func Unlock(kernelOrRootDir string, params *UnlockParams) (unsealedKey []byte, err error) {
+func Reveal(rootDir string, params *RevealParams) (unsealedKey []byte, err error) {
 	jbuf, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fdeHookCmd(kernelOrRootDir, "--unlock")
+	cmd := fdeHookCmd(rootDir, "--unlock")
 	cmd.Stdin = bytes.NewReader(jbuf)
-	// provide this via environment to make it easier for C based hooks
+	// provide basic things via environment to make it easier for
+	// C based hooks
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("FDE_SEALED_KEY=%s", params.SealedKey),
 		fmt.Sprintf("FDE_VOLUME_NAME=%s", params.VolumeName),
 		fmt.Sprintf("FDE_SOURCE_DEVICE_PATH=%s", params.SourceDevicePath),
-		fmt.Sprintf("FDE_LOCK_KEYS_ON_FINISH=%v", params.LockKeysOnFinish),
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -115,33 +133,3 @@ func Unlock(kernelOrRootDir string, params *UnlockParams) (unsealedKey []byte, e
 	}
 	return out, nil
 }
-
-type InitialProvisionParams struct {
-	Key string `json:"key"`
-}
-
-// InitialProvision is called on system install to initialize the
-// external fde and seal the key.
-func InitialProvision(kernelDir string, params *InitialProvisionParams) (sealedKey []byte, err error) {
-	jbuf, err := json.Marshal(params)
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := fdeHookCmd(kernelDir, "--initial-provision")
-	cmd.Stdin = bytes.NewReader(jbuf)
-	// provide this via environment to make it easier for C based hooks
-	cmd.Env = append(os.Environ(),
-		// XXX: use string encoding?
-		fmt.Sprintf("FDE_Key=%s", params.Key),
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(out, err)
-	}
-	return out, nil
-}
-
-// see https://github.com/snapcore/snapd/compare/master...cmatsuoka:spike/fde-helper-tpm#diff-9d89d75d6aa1bcb1db124c226af0d8e0R43
-// XXX: we will need to add Supported()
-// XXX: we will need to add "Update()"
