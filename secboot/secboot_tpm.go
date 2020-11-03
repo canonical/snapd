@@ -196,7 +196,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 // whether there is an encrypted device or not, the second return value will be
 // true, even if error is non-nil. This is so that callers can be robust and
 // try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -257,8 +257,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, encrypt
 			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev), true
 		}
 
-		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, ""), true
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedEncryptionKeyFile, ""), true
 	}()
 	if err != nil {
 		return "", foundEncDev, err
