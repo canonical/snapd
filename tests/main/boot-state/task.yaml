@@ -3,9 +3,9 @@ summary: smoke test for the boot-state tool
 execute: |
 
     # Check help
-    "$TESTSTOOLS"/boot-state | MATCH "usage: bootenv"
-    "$TESTSTOOLS"/boot-state -h | MATCH "usage: bootenv"
-    "$TESTSTOOLS"/boot-state --help | MATCH "usage: bootenv"
+    "$TESTSTOOLS"/boot-state | MATCH "usage: boot-state bootenv"
+    "$TESTSTOOLS"/boot-state -h | MATCH "usage: boot-state bootenv"
+    "$TESTSTOOLS"/boot-state --help | MATCH "usage: boot-state bootenv"
 
     # check the bootenv command
     case "$SPREAD_SYSTEM" in
