@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
@@ -268,6 +270,39 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
+type recoverDegradedState struct {
+	// TODO: make these values enums?
+	// DataKey is which key was used to unlock ubuntu-data (if any). Valid
+	// values are:
+	// - "run" for the normal run mode key object
+	// - "fallback" for the fallback recover mode specific key object
+	// - "" for either unencrypted case, or if we were unable to unlock it
+	//   (in the case we failed to unlock it, but we know it is there, then
+	//   )
+	DataKey string
+	// TODO: make these values enums?
+	// DataState is the state of the ubuntu-data mountpoint, it can be:
+	// - "mounted" for mounted and available
+	// - "enc-not-found" for state where we found an ubuntu-data-enc
+	//   partition and tried to unlock it, but failed _before mounting it_.
+	//   Errors mounting are identified differently.
+	// TODO:UC20: "other" is a really bad term here replace with something better
+	// - "other" for some other error where we couldn't identify if there's an
+	//    ubuntu-data (or ubuntu-data-enc) partition at all
+	DataState string
+	// SaveKey is which key was used to unlock ubuntu-save (if any). Same values
+	// as DataKey.
+	SaveKey string
+	// SaveState is the state of the ubuntu-save mountpoint, it can be in any of
+	// the states documented for DataState, with the additional state of:
+	// - "not-needed" for state when we don't have ubuntu-save, but we don't need it (unencrypted only)
+	SaveState string
+	// HostLocation is the location where the host's ubuntu-data is mounted
+	// and available. If this is the empty string, then the host's
+	// ubuntu-data is not available anywhere.
+	HostLocation string
+}
+
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
 	if err := generateMountsCommonInstallRecover(mst); err != nil {
@@ -281,26 +316,59 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 3. mount ubuntu-data for recovery
+	degradedState := recoverDegradedState{}
+
+	// TODO: what follows is an awful lot of if statements, smells very iffy to
+	//       me
+
+	// 3. try to unlock or locate ubuntu-data for the recovery host mountpoint
+	//    we have a few states for ubuntu-data after this block, enumerated in
+	//    the order they may appear
+	//    1) unlocked via run mode key (or unencrypted) + mounted successfully
+	//    2) unlocked via run mode key + failed to mount
+	//    3) unlocked via fallback object + mounted successfully
+	//    4) unlocked via fallback object + failed to mount
+	//    5) failed to find/unlock at all + mount not attempted
 	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
-	if err != nil {
-		return err
+	runModeKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+	dataDevice, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, false)
+	if err == nil {
+		// successfully unlocked it with the run key, so just mark that in the
+		// state and move on
+		degradedState.DataKey = "run"
+	} else {
+		// we couldn't unlock ubuntu-data with the primary key, we need to check
+		// a few things
+		if isDecryptDev {
+			// we at least made it to the point where we know we have an
+			// encrypted device we need to unlock, but we failed to unlock it
+			// with the run key, so instead try to use the fallback key object
+			dataFallbackKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key")
+			dataDevice, isDecryptDev, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", dataFallbackKey, false)
+			if err == nil {
+				// we unlocked data with the fallback key, we are not in
+				// "fully" degraded mode, but we do need to track that we had to
+				// use the fallback key
+				degradedState.DataKey = "fallback"
+			} else {
+				// TODO: should we introspect err here to get a more detailed
+				//       response in degradedState and in the log message
+				// we failed to decrypt the device again with the fallback key,
+				// so we are for sure in degraded mode
+				logger.Noticef("failed to find or unlock encrypted ubuntu-data partition for mounting host data: %v", err)
+				degradedState.DataState = "enc-not-found"
+			}
+		} else {
+			// not a decrypted device, so nothing to fall back to try and unlock
+			// data, so just mark it not-found
+			// TODO:UC20: should we save the specific error in degradedState
+			//            somewhere in addition to logging it?
+			logger.Noticef("failed to find ubuntu-data partition for mounting host data: %v", err)
+			degradedState.DataState = "other"
+		}
 	}
 
-	// don't do fsck on the data partition, it could be corrupted
-	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
-		return err
-	}
-
-	// 3.1. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, isDecryptDev, nil)
-	if err != nil {
-		return err
-	}
-
-	// 3.2 verify that the host ubuntu-data comes from where we expect it to
-	// right device
+	// 3.1 try to mount ubuntu-data and verify it comes from the right disk
 	diskOpts := &disks.Options{}
 	if isDecryptDev {
 		// then we need to specify that the data mountpoint is expected to be a
@@ -308,16 +376,153 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
-	if err != nil {
-		return err
+	if degradedState.DataState == "" {
+		// then we have not failed catastrophically, and dataDevice us what we
+		// want to mount
+
+		// don't do fsck on the data partition, it could be corrupted
+		if err := doSystemdMount(dataDevice, boot.InitramfsHostUbuntuDataDir, nil); err == nil {
+			// we mounted it successfully, verify it comes from the right disk
+			matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
+			if err != nil {
+				return err
+			}
+			if !matches {
+				return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+			}
+
+			// otherwise it matches
+			degradedState.DataState = "mounted"
+			degradedState.HostLocation = boot.InitramfsHostUbuntuDataDir
+		} else {
+			// we failed to mount it, proceed with degraded mode
+			degradedState.DataState = "not-mounted"
+		}
 	}
-	if !matches {
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+	// otherwise we failed / exhausted all efforts around finding the device
+	// to mount for ubuntu-data host and DataState already contains information
+	// about what happened before this, so we just skip trying to mount it
+	// entirely
+
+	// 3.2  try to mount ubuntu-save (if present)
+	var haveSave bool
+	if isDecryptDev {
+		var saveDevice string
+		// we know we are encrypted, so we should try to unlock ubuntu-save
+		// first method we try is the run key, but we can only do this if we
+		// have the host ubuntu-data mounted with the unsealed "bare" key
+		if degradedState.HostLocation != "" {
+			// meh this is cheating a bit
+			saveKey := filepath.Join(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir), "ubuntu-save.key")
+			// we have save.key, volume exists and is encrypted
+			key, err := ioutil.ReadFile(saveKey)
+			if err == nil {
+				saveDevice, err = secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+				if err != nil {
+					logger.Noticef("cannot unlock ubuntu-save volume: %v", err)
+					degradedState.SaveState = "other"
+				}
+				if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, nil); err == nil {
+					degradedState.SaveKey = "run"
+					degradedState.SaveState = "mounted"
+					haveSave = true
+				} else {
+					// ubuntu-save exists but we couldn't mount it with the
+					// main unencrypted key for some reason - we need to fall
+					// back and try with the recovery save key
+					saveFallbackKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+					saveDevice, isDecryptDev, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save", saveFallbackKey, lockKeysOnFinish)
+					if err != nil {
+						if isDecryptDev {
+							logger.Noticef("failed to find or unlock encrypted ubuntu-save partition: %v", err)
+							degradedState.SaveState = "enc-not-found"
+						} else {
+							// either catastrophic error or inconsistent disk, if
+							// ubuntu-data was an encrypted device, then ubuntu-save
+							// must be also
+							logger.Noticef("cannot unlock ubuntu-save: %v", err)
+							degradedState.SaveState = "other"
+						}
+					} else {
+						// now mount ubuntu-save
+						if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, nil); err == nil {
+							degradedState.SaveKey = "fallback"
+							degradedState.SaveState = "mounted"
+							haveSave = true
+						} else {
+							// ubuntu-save exists but we couldn't mount it
+							logger.Noticef("error mounting decrypted ubuntu-save from partition %s: %v", saveDevice, err)
+							degradedState.SaveState = "not-mounted"
+						}
+					}
+				}
+			} else {
+				logger.Noticef("cannot read run-mode key for ubuntu-save: %v", err)
+				degradedState.SaveState = "other"
+			}
+		} else {
+			// we don't have ubuntu-data host to get the unsealed "bare" key, so
+			// we have to unlock with the sealed one from ubuntu-seed
+			saveFallbackKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+			saveDevice, isDecryptDev, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save", saveFallbackKey, lockKeysOnFinish)
+			if err != nil {
+				if isDecryptDev {
+					logger.Noticef("failed to find or unlock encrypted ubuntu-save partition: %v", err)
+					degradedState.SaveState = "enc-not-found"
+				} else {
+					// either catastrophic error or inconsistent disk, if
+					// ubuntu-data was an encrypted device, then ubuntu-save
+					// must be also
+					logger.Noticef("cannot unlock ubuntu-save: %v", err)
+					degradedState.SaveState = "other"
+				}
+			} else {
+				// now mount ubuntu-save
+				if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, nil); err == nil {
+					degradedState.SaveState = "mounted"
+					degradedState.SaveKey = "fallback"
+					haveSave = true
+				} else {
+					// ubuntu-save exists but we couldn't mount it
+					logger.Noticef("error mounting decrypted ubuntu-save from partition %s: %v", saveDevice, err)
+					degradedState.SaveState = "not-mounted"
+				}
+			}
+		}
+	} else {
+		// we are not on an encrypted system, so try to mount ubuntu-save
+		// directly
+		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		if err == nil {
+			// found it, try to mount it w/o any options
+			// TODO: should we fsck ubuntu-save ?
+			saveDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
+			if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, nil); err == nil {
+				degradedState.SaveState = "mounted"
+				haveSave = true
+			} else {
+				// ubuntu-save exists but we couldn't mount it
+				logger.Noticef("error mounting ubuntu-save from partition %s: %v", partUUID, err)
+				degradedState.SaveState = "not-mounted"
+			}
+		} else {
+			// error locating ubuntu-save
+			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+				// this is ok, ubuntu-save may not exist for
+				// non-encrypted device
+				degradedState.SaveState = "not-needed"
+			} else {
+				// the error is not "not-found", so we have a real error
+				// mounting a save that exists
+				logger.Noticef("error identifying ubuntu-save partition: %v", err)
+				degradedState.SaveState = "other"
+			}
+		}
 	}
+
 	if haveSave {
 		// 3.2a we have ubuntu-save, verify it as well
-		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		matches, err := disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
 		if err != nil {
 			return err
 		}
@@ -326,18 +531,49 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}
 	}
 
+	// 3.3 write out degraded.json
+	b, err := json.Marshal(degradedState)
+	if err != nil {
+		return err
+	}
+
+	// needed?
+	err = os.MkdirAll(boot.InitramfsHostUbuntuDataDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsHostUbuntuDataDir, "degraded.json"), b, 0644)
+	if err != nil {
+		return err
+	}
+
 	// 4. final step: copy the auth data and network config from
 	//    the real ubuntu-data dir to the ephemeral ubuntu-data
 	//    dir, write the modeenv to the tmpfs data, and disable
 	//    cloud-init in recover mode
-	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
-	}
-	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
-	}
-	if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-		return err
+
+	// if we have the host location, then we were able to successfully mount
+	// ubuntu-data, and as such we can proceed with copying files from there
+	// onto the tmpfs
+	if degradedState.HostLocation != "" {
+		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+		if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+		if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+			return err
+		}
+	} else {
+		// we don't have ubuntu-data host mountpoint, so we should setup safe
+		// defaults for i.e. console-conf in the running image to block
+		// attackers from accessing the system - just because we can't access
+		// ubuntu-data doesn't mean that attackers wouldn't be able to if they
+		// could login
+
+		// TODO
 	}
 
 	modeEnv := &boot.Modeenv{
@@ -553,8 +789,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// one recorded in ubuntu-data modeenv during install
 
 	// 3.2. mount Data
+	// TODO: we need to decide when to lock keys
 	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	runModeKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
