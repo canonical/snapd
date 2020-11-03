@@ -85,6 +85,14 @@ func MockSecbootUnlockVolumeIfEncrypted(f func(disk disks.Disk, name string, enc
 	}
 }
 
+func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (string, error)) (restore func()) {
+	old := secbootUnlockEncryptedVolumeUsingKey
+	secbootUnlockEncryptedVolumeUsingKey = f
+	return func() {
+		secbootUnlockEncryptedVolumeUsingKey = old
+	}
+}
+
 func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
 	old := secbootMeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapSystemEpochWhenPossible = f

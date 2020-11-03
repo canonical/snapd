@@ -50,7 +50,10 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
 			c.Assert(key, DeepEquals, myKey[:])
-			c.Assert(opts, IsNil)
+			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
+				MetadataKiBSize:     2048,
+				KeyslotsAreaKiBSize: 2560,
+			})
 			return tc.initErr
 		})
 		defer restore()

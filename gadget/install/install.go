@@ -85,7 +85,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(diskLayout); err != nil {
+	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
 		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -166,30 +166,74 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}, nil
 }
 
+// isCreatableAtInstall returns whether the gadget structure would be created at
+// install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
+func isCreatableAtInstall(gv *gadget.VolumeStructure) bool {
+	// a structure is creatable at install if it is one of the roles for
+	// system-save, system-data, or system-boot
+	switch gv.Role {
+	case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
+		return true
+	default:
+		return false
+	}
+}
+
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {
-	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) bool {
+	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) (bool, string) {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		nameMatch := gv.Name == dv.Name
 		if gadgetLayout.Schema == "mbr" {
-			// partitions have no names in MBR
+			// partitions have no names in MBR so bypass the name check
 			nameMatch = true
 		}
-		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
+		// Previous installation may have failed before filesystem creation or
+		// partition may be encrypted, so if the on disk offset matches the
+		// gadget offset, and the gadget structure is creatable during install,
+		// then they are equal
+		// otherwise, if they are not created during installation, the
+		// filesystem must be the same
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (isCreatableAtInstall(gv) || dv.Filesystem == gv.Filesystem)
+		sizeMatches := dv.Size == gv.Size
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
-			return check && dv.Size >= gv.Size
+			sizeMatches = dv.Size >= gv.Size
 		}
-		return check && dv.Size == gv.Size
+		if check && sizeMatches {
+			return true, ""
+		}
+		switch {
+		case !nameMatch:
+			// don't return a reason if the names don't match
+			return false, ""
+		case ds.StartOffset != gs.StartOffset:
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))", ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+			return false, "filesystems do not match and the partition is not creatable at install"
+		case dv.Size < gv.Size:
+			return false, "on disk size is smaller than gadget size"
+		case gv.Role != gadget.SystemData && dv.Size > gv.Size:
+			return false, "on disk size is larger than gadget size (and the role should not be expanded)"
+		default:
+			return false, "some other logic condition (should be impossible?)"
+		}
 	}
-	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) bool {
+
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) (bool, string) {
+		reasonAbsent := ""
 		for _, h := range haystack {
-			if eq(needle, h) {
-				return true
+			matches, reasonNotMatches := eq(needle, h)
+			if matches {
+				return true, ""
+			}
+			// this has the effect of only returning the last non-empty reason
+			// string
+			if reasonNotMatches != "" {
+				reasonAbsent = reasonNotMatches
 			}
 		}
-		return false
+		return false, reasonAbsent
 	}
 
 	if gadgetLayout.Size > diskLayout.Size {
@@ -207,8 +251,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
-		if !contains(gadgetLayout.LaidOutStructure, ds) {
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
+		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
+		if !present {
+			if reasonAbsent != "" {
+				// use the right format so that it can be
+				// appended to the error message
+				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+			}
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 

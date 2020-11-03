@@ -1123,3 +1123,58 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "unmask", "foo"}})
 }
+
+func (s *SystemdTestSuite) TestMountHappy(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	c.Assert(sysd.Mount("foo", "bar"), IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "foo", "bar"},
+	})
+	cmd.ForgetCalls()
+	c.Assert(sysd.Mount("foo", "bar", "-o", "bind"), IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "-o", "bind", "foo", "bar"},
+	})
+}
+
+func (s *SystemdTestSuite) TestMountErr(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", `echo "failed"; exit 111`)
+	defer cmd.Restore()
+
+	err := sysd.Mount("foo", "bar")
+	c.Assert(err, ErrorMatches, "failed")
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "foo", "bar"},
+	})
+}
+
+func (s *SystemdTestSuite) TestUmountHappy(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	c.Assert(sysd.Umount("bar"), IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "--umount", "bar"},
+	})
+}
+
+func (s *SystemdTestSuite) TestUmountErr(c *C) {
+	sysd := New(SystemMode, nil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", `echo "failed"; exit 111`)
+	defer cmd.Restore()
+
+	err := sysd.Umount("bar")
+	c.Assert(err, ErrorMatches, "failed")
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "--umount", "bar"},
+	})
+}

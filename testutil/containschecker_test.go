@@ -137,7 +137,7 @@ type myStruct struct {
 }
 
 func (*containsCheckerSuite) TestContainsUncomparableType(c *check.C) {
-	if runtime.Compiler != "go" {
+	if runtime.Compiler != "gc" {
 		c.Skip("this test only works on go (not gccgo)")
 	}
 

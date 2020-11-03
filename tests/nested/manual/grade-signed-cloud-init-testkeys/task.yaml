@@ -70,7 +70,10 @@ prepare: |
   snap download --basename=pc --channel="20/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
-  # delay all refreshes for a week from now, as otherwise refreshes for our 
+  # ensure ubuntu-save is there
+  nested_ensure_ubuntu_save pc-gadget
+
+  # delay all refreshes for a week from now, as otherwise refreshes for our
   # snaps (which are asserted by the testrootorg authority-id) may happen, which
   # will break things because the signing keys won't match, etc. and 
   # specifically snap-bootstrap in the kernel snap from the store won't trust
