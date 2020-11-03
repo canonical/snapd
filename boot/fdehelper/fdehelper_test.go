@@ -71,6 +71,9 @@ func (s *fdehelperSuite) TestRevealHappy(c *C) {
 			`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
 			"--property=SystemCallFilter=~@mount",
 			"--property=ProtectSystem=strict",
+			"--setenv=FDE_SEALED_KEY=sealed-key",
+			"--setenv=FDE_VOLUME_NAME=volume-name",
+			"--setenv=FDE_SOURCE_DEVICE_PATH=/dev/device/path",
 			tmp + "/bin/fde-reveal-key",
 		},
 	})

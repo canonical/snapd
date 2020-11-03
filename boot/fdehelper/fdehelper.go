@@ -66,34 +66,38 @@ func fdehelperRuntimeMax() string {
 // does not aim for perfect protection - the fdehelpers are part of the
 // kernel snap/initrd so if someone wants to do mischief there are
 // easier ways by hacking initrd directly.
-func fdehelperCmd(rootDir string, args ...string) *exec.Cmd {
+func fdehelperCmd(rootDir string, env map[string]string, args ...string) *exec.Cmd {
 	// XXX: we could also call the systemd dbus api for this but it
 	//      seems much simpler this way (but it means we need
 	//      systemd-run in initrd)
 	cmd := exec.Command(
 		"systemd-run",
-		append([]string{
-			"--pipe", "--same-dir", "--wait", "--collect",
-			"--service-type=exec",
-			"--quiet",
-			// ensure we get some result from the hook
-			// within a reasonable timeout and output
-			// from systemd if things go wrong
-			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehelperRuntimeMax()),
-			`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
-			// do not allow mounting, this ensures hooks
-			// in initrd can not mess around with
-			// ubuntu-data
-			"--property=SystemCallFilter=~@mount",
-			// add basic sandboxing to prevent messing
-			// around
-			// XXX: this maybe too strict, i.e. to unseal
-			//      the fdehelper may need to write to some
-			//      crypto device in /dev which will not be
-			//      possible with "ProtectSystem=strict"
-			"--property=ProtectSystem=strict",
-			fdehelper(rootDir),
-		}, args...)...)
+		// args
+		"--pipe", "--same-dir", "--wait", "--collect",
+		"--service-type=exec",
+		"--quiet",
+		// ensure we get some result from the hook
+		// within a reasonable timeout and output
+		// from systemd if things go wrong
+		fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehelperRuntimeMax()),
+		`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
+		// do not allow mounting, this ensures hooks
+		// in initrd can not mess around with
+		// ubuntu-data
+		"--property=SystemCallFilter=~@mount",
+		// add basic sandboxing to prevent messing
+		// around
+		// XXX: this maybe too strict, i.e. to unseal
+		//      the fdehelper may need to write to some
+		//      crypto device in /dev which will not be
+		//      possible with "ProtectSystem=strict"
+		"--property=ProtectSystem=strict",
+	)
+	for k, v := range env {
+		cmd.Args = append(cmd.Args, fmt.Sprintf("--setenv=%s=%s", k, v))
+	}
+	cmd.Args = append(cmd.Args, fdehelper(rootDir))
+	cmd.Args = append(cmd.Args, args...)
 	return cmd
 }
 
@@ -117,16 +121,15 @@ func Reveal(rootDir string, params *RevealParams) (unsealedKey []byte, err error
 	if err != nil {
 		return nil, err
 	}
-
-	cmd := fdehelperCmd(rootDir)
-	cmd.Stdin = bytes.NewReader(jbuf)
 	// provide basic things via environment to make it easier for
 	// C based hooks
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("FDE_SEALED_KEY=%s", params.SealedKey),
-		fmt.Sprintf("FDE_VOLUME_NAME=%s", params.VolumeName),
-		fmt.Sprintf("FDE_SOURCE_DEVICE_PATH=%s", params.SourceDevicePath),
-	)
+	fdeEnv := map[string]string{
+		"FDE_SEALED_KEY":         string(params.SealedKey),
+		"FDE_VOLUME_NAME":        params.VolumeName,
+		"FDE_SOURCE_DEVICE_PATH": params.SourceDevicePath,
+	}
+	cmd := fdehelperCmd(rootDir, fdeEnv)
+	cmd.Stdin = bytes.NewReader(jbuf)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("cannot reveal fde key: %v", osutil.OutputErr(out, err))
