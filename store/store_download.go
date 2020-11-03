@@ -269,41 +269,95 @@ func (e *downloadTimeoutError) Error() string {
 }
 
 // implements io.Writer interface
-type timeoutControl struct {
-	m       sync.Mutex
+// XXX: move to osutil?
+type WriterWithTimeout struct {
+	m sync.Mutex
+
+	measureTimeWindow   time.Duration
+	minDownloadSpeedBps float64
+
+	ctx context.Context
+
+	// internal state
 	start   time.Time
 	written int
+	cancel  func()
 	err     error
 }
 
-func (t *timeoutControl) reset() {
-	t.m.Lock()
-	defer t.m.Unlock()
-	t.written = 0
-	t.start = time.Now()
+// NewWriterWithTimeoutAndContext returns an io.Writer that measures write speed
+// in measureTimeWindow windows an cancels the operation if minDownloadSeepdBps
+// is not achieved.
+// Measure() must be called to start actual measurement.
+func NewWriterWithTimeoutAndContext(origCtx context.Context, measureTimeWindow time.Duration, minDownloadSpeedBps float64) (*WriterWithTimeout, context.Context) {
+	ctx, cancel := context.WithCancel(origCtx)
+	w := &WriterWithTimeout{
+		measureTimeWindow:   measureTimeWindow,
+		minDownloadSpeedBps: minDownloadSpeedBps,
+		ctx:                 ctx,
+		cancel:              cancel,
+	}
+	return w, ctx
 }
 
-func (t *timeoutControl) checkSpeed(min float64) bool {
-	t.m.Lock()
-	defer t.m.Unlock()
-	d := time.Now().Sub(t.start)
-	s := float64(t.written) / d.Seconds()
+func (w *WriterWithTimeout) reset() {
+	w.m.Lock()
+	defer w.m.Unlock()
+	w.written = 0
+	w.start = time.Now()
+}
+
+func (w *WriterWithTimeout) checkSpeed(min float64) bool {
+	w.m.Lock()
+	defer w.m.Unlock()
+	d := time.Now().Sub(w.start)
+	s := float64(w.written) / d.Seconds()
 	ok := s >= min
 	if !ok {
-		t.err = &downloadTimeoutError{Speed: s}
+		w.err = &downloadTimeoutError{Speed: s}
 	}
 	return ok
 }
 
-func (t *timeoutControl) Write(p []byte) (n int, err error) {
-	t.m.Lock()
-	defer t.m.Unlock()
-	t.written += len(p)
+// Measure starts a new measurement for write operations and returns a quit
+// channel that should be closed by the caller to finish the measurement.
+func (w *WriterWithTimeout) Measure() (quit chan bool) {
+	quit = make(chan bool)
+	w.reset()
+	go func() {
+		for {
+			select {
+			case <-w.ctx.Done():
+				return
+			case <-time.After(w.measureTimeWindow):
+				if !w.checkSpeed(downloadSpeedMin) {
+					w.cancel()
+					return
+				}
+				// reset the measurement every downloadSpeedMeasureWindow,
+				// we want average speed per second over short period,
+				// otherwise a large download with initial good download
+				// speed could get stuck at the end of the download, and it
+				// would take long time for overall average to "catch up".
+				w.reset()
+			case <-quit:
+				return
+			}
+		}
+	}()
+	return quit
+}
+
+func (w *WriterWithTimeout) Write(p []byte) (n int, err error) {
+	w.m.Lock()
+	defer w.m.Unlock()
+	w.written += len(p)
 	return len(p), nil
 }
 
-func (t *timeoutControl) Err() error {
-	return t.err
+// Err returns the downloadTimeoutError if encountered when measurement was run.
+func (w *WriterWithTimeout) Err() error {
+	return w.err
 }
 
 var ratelimitReader = ratelimit.Reader
@@ -329,32 +383,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	downloadCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tc := &timeoutControl{}
-	measure := func() (quit chan bool) {
-		quit = make(chan bool)
-		go func() {
-			for {
-				select {
-				case <-downloadCtx.Done():
-					return
-				case <-time.After(downloadSpeedMeasureWindow):
-					if !tc.checkSpeed(downloadSpeedMin) {
-						cancel()
-						return
-					}
-					// reset the measurement every downloadSpeedMeasureWindow,
-					// we want average speed per second over short period,
-					// otherwise a large download with initial good download
-					// speed could get stuck at the end of the download, and it
-					// would take long time for overall average to "catch up".
-					tc.reset()
-				case <-quit:
-					return
-				}
-			}
-		}()
-		return quit
-	}
+	tc, downloadCtx := NewWriterWithTimeoutAndContext(ctx, downloadSpeedMeasureWindow, downloadSpeedMin)
 
 	var finalErr error
 	var dlSize float64
@@ -436,12 +465,9 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			limiter = ratelimitReader(resp.Body, bucket)
 		}
 
-		tc.reset()
-		// measure runs in a go routine and may cancel the request if tc doesn't
-		// report required minimum throughput.
-		quit := measure()
+		finish := tc.Measure()
 		_, finalErr = io.Copy(mw, limiter)
-		close(quit)
+		close(finish)
 		pbar.Finished()
 
 		if cancelled(downloadCtx) {
