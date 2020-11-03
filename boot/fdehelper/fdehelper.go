@@ -80,7 +80,7 @@ func fdehelperCmd(rootDir string, args ...string) *exec.Cmd {
 			// within a reasonable timeout and output
 			// from systemd if things go wrong
 			fmt.Sprintf("--property=RuntimeMaxSec=%s", fdehelperRuntimeMax()),
-			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`),
+			`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
 			// do not allow mounting, this ensures hooks
 			// in initrd can not mess around with
 			// ubuntu-data
@@ -118,7 +118,7 @@ func Reveal(rootDir string, params *RevealParams) (unsealedKey []byte, err error
 		return nil, err
 	}
 
-	cmd := fdehelperCmd(rootDir, "--unlock")
+	cmd := fdehelperCmd(rootDir)
 	cmd.Stdin = bytes.NewReader(jbuf)
 	// provide basic things via environment to make it easier for
 	// C based hooks
@@ -129,7 +129,7 @@ func Reveal(rootDir string, params *RevealParams) (unsealedKey []byte, err error
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, osutil.OutputErr(out, err)
+		return nil, fmt.Errorf("cannot reveal fde key: %v", osutil.OutputErr(out, err))
 	}
 	return out, nil
 }
