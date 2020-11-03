@@ -36,7 +36,9 @@ import (
 type partitionTestSuite struct {
 	testutil.BaseTest
 
-	dir string
+	dir        string
+	gadgetRoot string
+	cmdPartx   *testutil.MockCmd
 }
 
 var _ = Suite(&partitionTestSuite{})
@@ -45,6 +47,15 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.dir = c.MkDir()
+	s.gadgetRoot = filepath.Join(c.MkDir(), "gadget")
+
+	s.cmdPartx = testutil.MockCommand(c, "partx", "")
+	s.AddCleanup(s.cmdPartx.Restore)
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo "sfdisk was not mocked"; exit 1`)
+	s.AddCleanup(cmdSfdisk.Restore)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
+	s.AddCleanup(cmdLsblk.Restore)
 }
 
 const (
@@ -170,9 +181,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	calls := 0
 	restore := install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
 		calls++
@@ -182,10 +190,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 	defer restore()
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -202,7 +209,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 
 	// Check partition table update
-	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
+	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
 }
@@ -215,10 +222,9 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBios))
 	defer cmdLsblk.Restore()
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -271,9 +277,6 @@ echo '{
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
@@ -283,10 +286,9 @@ echo '{
 		{"lsblk", "--fs", "--json", "/dev/node3"},
 	})
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err = makeMockGadget(gadgetRoot, gadgetContent)
+	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -306,16 +308,12 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "")
-	defer cmdPartx.Restore()
-
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err = makeMockGadget(gadgetRoot, gadgetContent)
+	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -366,4 +364,241 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
+}
+
+const gptGadgetContentWithSave = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `
+case $3 in
+	/dev/node1)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'
+		;;
+	/dev/node2)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-seed"} ] }'
+		;;
+	/dev/node3)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-save"} ] }'
+		;;
+	/dev/node4)
+		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-data"} ] }'
+		;;
+	*)
+		echo "unexpected args: $*"
+		exit 1
+		;;
+esac
+`)
+	defer cmdLsblk.Restore()
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `
+echo '{
+  "partitiontable": {
+    "label": "gpt",
+    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+    "device": "/dev/node",
+    "unit": "sectors",
+    "firstlba": 34,
+    "lastlba": 8388574,
+    "partitions": [
+     {
+         "node": "/dev/node1",
+         "start": 2048,
+         "size": 2048,
+         "type": "21686148-6449-6E6F-744E-656564454649",
+         "uuid": "30a26851-4b08-4b8d-8aea-f686e723ed8c",
+         "name": "BIOS boot partition"
+     },
+     {
+         "node": "/dev/node2",
+         "start": 4096,
+         "size": 2457600,
+         "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+         "uuid": "7ea3a75a-3f6d-4647-8134-89ae61fe88d5",
+         "name": "Linux filesystem"
+     },
+     {
+         "node": "/dev/node3",
+         "start": 2461696,
+         "size": 262144,
+         "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+         "uuid": "641764aa-a680-4d36-a7ad-f7bd01fd8d12",
+         "name": "Linux filesystem"
+     },
+     {
+         "node": "/dev/node4",
+         "start": 2723840,
+         "size": 2457600,
+         "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+         "uuid": "8ab3e8fd-d53d-4d72-9c5e-56146915fd07",
+         "name": "Another Linux filesystem"
+     }
+     ]
+  }
+}'
+`)
+	defer cmdSfdisk.Restore()
+
+	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("node")
+	c.Assert(err, IsNil)
+
+	list := install.CreatedDuringInstall(pv, dl)
+	// only save and writable should show up
+	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
+}
+
+// this is an mbr gadget like the pi, but doesn't have the amd64 mbr structure
+// so it's probably not representative, but still useful for unit tests here
+const mbrGadgetContentWithSave = `volumes:
+  pc:
+    schema: mbr
+    bootloader: grub
+    structure:
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        offset: 2M
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `
+what=
+shift 2
+case "$1" in
+   /dev/node1)
+      what='{"name": "node1", "fstype":"ext4", "label":"ubuntu-seed"}'
+      ;;
+   /dev/node2)
+      what='{"name": "node2", "fstype":"vfat", "label":"ubuntu-boot"}'
+      ;;
+   /dev/node3)
+      what='{"name": "node3", "fstype":"ext4", "label":"ubuntu-save"}'
+      ;;
+   /dev/node4)
+      what='{"name": "node4", "fstype":"ext4", "label":"ubuntu-data"}'
+      ;;
+  *)
+    echo "unexpected call"
+    exit 1
+esac
+
+cat <<EOF
+{
+"blockdevices": [
+   $what
+  ]
+}
+EOF`)
+	defer cmdLsblk.Restore()
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `
+echo '{
+  "partitiontable": {
+    "label": "dos",
+    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+    "device": "/dev/node",
+    "unit": "sectors",
+    "firstlba": 0,
+    "lastlba": 8388574,
+    "partitions": [
+     {
+         "node": "/dev/node1",
+         "start": 0,
+         "size": 2460672,
+         "type": "0a"
+     },
+     {
+         "node": "/dev/node2",
+         "start": 2461696,
+         "size": 2460672,
+         "type": "b"
+     },
+     {
+         "node": "/dev/node3",
+         "start": 4919296,
+         "size": 262144,
+         "type": "c"
+     },
+     {
+         "node": "/dev/node4",
+         "start": 5181440,
+         "size": 2460672,
+         "type": "0d"
+     }
+     ]
+  }
+}'
+`)
+	defer cmdSfdisk.Restore()
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `echo '1234567'`)
+	defer cmdBlockdev.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("node")
+	c.Assert(err, IsNil)
+
+	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	c.Assert(err, IsNil)
+
+	list := install.CreatedDuringInstall(pv, dl)
+	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
 }
