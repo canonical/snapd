@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
@@ -520,6 +521,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		tpmEnabled           bool
 		missingFile          bool
 		badSnapFile          bool
+		skipProvision        bool
 		addEFISbPolicyErr    error
 		addEFIBootManagerErr error
 		addSystemdEFIStubErr error
@@ -540,6 +542,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
 		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, skipProvision: true, provisioningCalls: 0, sealCalls: 1, expectedErr: ""},
 		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
 	} {
 		tmpDir := c.MkDir()
@@ -568,7 +571,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		mockBF = append(mockBF, bootloader.NewBootFile(snapPath, "kernel.efi", bootloader.RoleRecovery))
 
-		myParams := secboot.SealKeyParams{
+		myAuthKey := &ecdsa.PrivateKey{}
+
+		myParams := secboot.SealKeysParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					EFILoadChains: []*secboot.LoadChain{
@@ -595,14 +600,29 @@ func (s *secbootSuite) TestSealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile:              "keyfile",
-			TPMPolicyAuthKeyFile: filepath.Join(tmpDir, "policy-auth-key-file"),
-			TPMLockoutAuthFile:   filepath.Join(tmpDir, "lockout-auth-file"),
+			TPMPolicyAuthKey:       myAuthKey,
+			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
+			TPMLockoutAuthFile:     filepath.Join(tmpDir, "lockout-auth-file"),
+			TPMProvision:           !tc.skipProvision,
+			PCRPolicyCounterHandle: 42,
 		}
 
 		myKey := secboot.EncryptionKey{}
+		myKey2 := secboot.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
+			myKey2[i] = byte(128 + i)
+		}
+
+		myKeys := []secboot.SealKeyRequest{
+			{
+				Key:     myKey,
+				KeyFile: "keyfile",
+			},
+			{
+				Key:     myKey2,
+				KeyFile: "keyfile2",
+			},
 		}
 
 		// events for
@@ -765,12 +785,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock sealing
 		sealCalls := 0
-		restore = secboot.MockSbSealKeyToTPM(func(t *sb.TPMConnection, key []byte, keyPath string, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error) {
+		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb.TPMConnection, kr []*sb.SealKeyRequest, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(key, DeepEquals, myKey[:])
-			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(0x01880001))
+			c.Assert(kr, DeepEquals, []*sb.SealKeyRequest{{Key: myKey[:], Path: "keyfile"}, {Key: myKey2[:], Path: "keyfile2"}})
+			c.Assert(params.AuthKey, Equals, myAuthKey)
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			return sb.TPMPolicyAuthKey{}, tc.sealErr
 		})
 		defer restore()
@@ -781,7 +801,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		err := secboot.SealKey(myKey, &myParams)
+		err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addEFISbPolicyCalls, Equals, 2)
@@ -834,7 +854,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		myParams := &secboot.ResealKeyParams{
+		myParams := &secboot.ResealKeysParams{
 			ModelParams: []*secboot.SealKeyModelParams{
 				{
 					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
@@ -842,7 +862,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 					Model:          &asserts.Model{},
 				},
 			},
-			KeyFile:              "keyfile",
+			KeyFiles:             []string{"keyfile", "keyfile2"},
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
@@ -912,17 +932,17 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock PCR protection policy update
 		resealCalls := 0
-		restore = secboot.MockSbUpdateKeyPCRProtectionPolicy(func(t *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, profile *sb.PCRProtectionProfile) error {
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb.TPMConnection, keyPaths []string, authKey sb.TPMPolicyAuthKey, profile *sb.PCRProtectionProfile) error {
 			resealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(keyPath, Equals, myParams.KeyFile)
+			c.Assert(keyPaths, DeepEquals, []string{"keyfile", "keyfile2"})
 			c.Assert(authKey, DeepEquals, sb.TPMPolicyAuthKey(mockTPMPolicyAuthKey))
 			c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})
 		defer restore()
 
-		err = secboot.ResealKey(myParams)
+		err = secboot.ResealKeys(myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addEFISbPolicyCalls, Equals, 1)
@@ -936,14 +956,18 @@ func (s *secbootSuite) TestResealKey(c *C) {
 }
 
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
-	myKey := secboot.EncryptionKey{}
-	myParams := secboot.SealKeyParams{
-		KeyFile:              "keyfile",
+	myKeys := []secboot.SealKeyRequest{
+		{
+			Key:     secboot.EncryptionKey{},
+			KeyFile: "keyfile",
+		},
+	}
+	myParams := secboot.SealKeysParams{
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 		TPMLockoutAuthFile:   "lockout-auth-file",
 	}
 
-	err := secboot.SealKey(myKey, &myParams)
+	err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 

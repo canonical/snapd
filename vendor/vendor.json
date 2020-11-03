@@ -116,40 +116,40 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "OfGgrXZ/tCcuHOjmUjDujwaCnTI=",
+			"checksumSHA1": "MqzQfXfdSBWmXEI02auMw7kfoLM=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "7c5ed6888746f5a798e475c02d23c08678a5ede8",
-			"revisionTime": "2020-10-26T12:51:54Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",
 			"path": "github.com/snapcore/secboot/internal/efi",
-			"revision": "0ebc6c7e1dc3c184baf8c4a2b936afa99f988acb",
-			"revisionTime": "2020-10-15T16:53:38Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
-			"revision": "0ebc6c7e1dc3c184baf8c4a2b936afa99f988acb",
-			"revisionTime": "2020-10-15T16:53:38Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "kDay47kq9OgDplpkrYw0/a8Z+YY=",
 			"path": "github.com/snapcore/secboot/internal/tcg",
-			"revision": "0ebc6c7e1dc3c184baf8c4a2b936afa99f988acb",
-			"revisionTime": "2020-10-15T16:53:38Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "PRS8ACUu14shrvAgb747Izc25ns=",
 			"path": "github.com/snapcore/secboot/internal/tcti",
-			"revision": "0ebc6c7e1dc3c184baf8c4a2b936afa99f988acb",
-			"revisionTime": "2020-10-15T16:53:38Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "TnfofdyojXYWOwdWCKMY5RCeI7s=",
 			"path": "github.com/snapcore/secboot/internal/truststore",
-			"revision": "0ebc6c7e1dc3c184baf8c4a2b936afa99f988acb",
-			"revisionTime": "2020-10-15T16:53:38Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",

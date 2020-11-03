@@ -78,19 +78,19 @@ func MockSbAddSnapModelProfile(f func(profile *sb.PCRProtectionProfile, params *
 	}
 }
 
-func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath string, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error)) (restore func()) {
-	old := sbSealKeyToTPM
-	sbSealKeyToTPM = f
+func MockSbSealKeyToTPMMultiple(f func(tpm *sb.TPMConnection, keys []*sb.SealKeyRequest, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error)) (restore func()) {
+	old := sbSealKeyToTPMMultiple
+	sbSealKeyToTPMMultiple = f
 	return func() {
-		sbSealKeyToTPM = old
+		sbSealKeyToTPMMultiple = old
 	}
 }
 
-func MockSbUpdateKeyPCRProtectionPolicy(f func(tpm *sb.TPMConnection, keyPath string, authKey sb.TPMPolicyAuthKey, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
-	old := sbUpdateKeyPCRProtectionPolicy
-	sbUpdateKeyPCRProtectionPolicy = f
+func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb.TPMConnection, keyPaths []string, authKey sb.TPMPolicyAuthKey, pcrProfile *sb.PCRProtectionProfile) error) (restore func()) {
+	old := sbUpdateKeyPCRProtectionPolicyMultiple
+	sbUpdateKeyPCRProtectionPolicyMultiple = f
 	return func() {
-		sbUpdateKeyPCRProtectionPolicy = old
+		sbUpdateKeyPCRProtectionPolicyMultiple = old
 	}
 }
 

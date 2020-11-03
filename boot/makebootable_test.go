@@ -390,10 +390,12 @@ version: 5.0
 
 	// set encryption key
 	myKey := secboot.EncryptionKey{}
+	myKey2 := secboot.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
+		myKey2[i] = byte(128 + i)
 	}
-	obs.ChosenEncryptionKey(myKey)
+	obs.ChosenEncryptionKeys(myKey, myKey2)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -411,10 +413,20 @@ version: 5.0
 	defer restore()
 
 	// set mock key sealing
-	sealKeyCalls := 0
-	restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
-		sealKeyCalls++
-		c.Check(key, DeepEquals, myKey)
+	sealKeysCalls := 0
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		sealKeysCalls++
+		switch sealKeysCalls {
+		case 1:
+			c.Check(keys, HasLen, 1)
+			c.Check(keys[0].Key, DeepEquals, myKey)
+		case 2:
+			c.Check(keys, HasLen, 2)
+			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[1].Key, DeepEquals, myKey2)
+		default:
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
+		}
 		c.Assert(params.ModelParams, HasLen, 1)
 
 		shim := bootloader.NewBootFile("", filepath.Join(s.rootdir,
@@ -429,14 +441,27 @@ version: 5.0
 		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
-			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
-		})
-		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
-			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		})
+		switch sealKeysCalls {
+		case 1:
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+		case 2:
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
+		}
+
 		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
 
 		return nil
@@ -518,8 +543,8 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
-	// make sure SealKey was called
-	c.Check(sealKeyCalls, Equals, 1)
+	// make sure SealKey was called for the run object and the fallback object
+	c.Check(sealKeysCalls, Equals, 2)
 
 	// make sure the marker file for sealed key was created
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
@@ -707,10 +732,12 @@ version: 5.0
 
 	// set encryption key
 	myKey := secboot.EncryptionKey{}
+	myKey2 := secboot.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
+		myKey2[i] = byte(128 + i)
 	}
-	obs.ChosenEncryptionKey(myKey)
+	obs.ChosenEncryptionKeys(myKey, myKey2)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -728,10 +755,20 @@ version: 5.0
 	defer restore()
 
 	// set mock key sealing
-	sealKeyCalls := 0
-	restore = boot.MockSecbootSealKey(func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error {
-		sealKeyCalls++
-		c.Check(key, DeepEquals, myKey)
+	sealKeysCalls := 0
+	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		sealKeysCalls++
+		switch sealKeysCalls {
+		case 1:
+			c.Check(keys, HasLen, 1)
+			c.Check(keys[0].Key, DeepEquals, myKey)
+		case 2:
+			c.Check(keys, HasLen, 2)
+			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[1].Key, DeepEquals, myKey2)
+		default:
+			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
+		}
 		c.Assert(params.ModelParams, HasLen, 1)
 
 		shim := bootloader.NewBootFile("", filepath.Join(s.rootdir,
@@ -761,7 +798,7 @@ version: 5.0
 	defer restore()
 
 	err = boot.MakeBootable(model, s.rootdir, bootWith, obs)
-	c.Assert(err, ErrorMatches, "cannot seal the encryption key: seal error")
+	c.Assert(err, ErrorMatches, "cannot seal the encryption keys: seal error")
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
