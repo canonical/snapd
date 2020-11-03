@@ -77,7 +77,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)) (restore func()) {
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error)) (restore func()) {
 	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
