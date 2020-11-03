@@ -879,7 +879,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -991,7 +991,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1099,7 +1099,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -1214,7 +1214,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -1540,7 +1540,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1884,7 +1884,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2115,7 +2115,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2124,14 +2124,25 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
@@ -2156,7 +2167,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-"+dataHash),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
@@ -2245,7 +2256,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2289,7 +2300,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
 	}}
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
 	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2401,7 +2418,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2446,7 +2463,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		KernelRevision: "1",
 		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
 	}}
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
 	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful

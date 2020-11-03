@@ -73,6 +73,19 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
+	// similar to the not yet seeded case, on uc20 install mode it doesn't make
+	// sense to refresh the catalog for an ephemeral system
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	if err != nil {
+		// if we are seeded we should have a device context
+		return err
+	}
+
+	if deviceCtx.SystemMode() == "install" {
+		// skip the refresh
+		return nil
+	}
+
 	now := time.Now()
 	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
