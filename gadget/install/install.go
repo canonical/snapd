@@ -254,9 +254,11 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
 		if !present {
 			if reasonAbsent != "" {
-				return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget: %s", ds.Node, ds.StartOffset, reasonAbsent)
+				// use the right format so that it can be
+				// appended to the error message
+				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
 			}
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 

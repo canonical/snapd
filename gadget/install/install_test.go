@@ -269,6 +269,9 @@ func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 	err := install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
 	c.Assert(err, IsNil)
 
+	// we are going to manipulate last structure, which has system-data role
+	c.Assert(gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role, Equals, gadget.SystemData)
+
 	// change the role for the laid out volume to not be a partition role that
 	// is created at install time (note that the duplicated seed role here is
 	// technically incorrect, you can't have duplicated roles, but this
