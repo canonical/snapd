@@ -289,8 +289,8 @@ type recoverDegradedState struct {
 	// - "run" for the normal run mode key object
 	// - "fallback" for the fallback recover mode specific key object
 	// - "" for either unencrypted case, or if we were unable to unlock it
-	//   (in the case we failed to unlock it, but we know it is there, then
-	//   )
+	//   (in the case we failed to unlock it, but we know it is there,
+	//   the DataState field provides more information)
 	DataKey string `json:"data-key"`
 	// TODO: make these values enums?
 	// DataState is the state of the ubuntu-data mountpoint, it can be:
