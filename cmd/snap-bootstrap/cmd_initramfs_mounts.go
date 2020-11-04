@@ -429,8 +429,9 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *context) (stateFunc, error) {
 		logger.Noticef("failed to find or unlock encrypted ubuntu-data partition for mounting host data: %v", err)
 		ctx.degradedState.DataState = "enc-not-found"
 
-		// skip trying to mount data
-		return m.unlockSaveRunKey, nil
+		// skip trying to mount data, since we did not data we cannot
+		// open save with with the run key, so try the fallback one
+		return m.unlockSaveFallbackKey, nil
 	}
 
 	// we unlocked data with the fallback key, we are not in
