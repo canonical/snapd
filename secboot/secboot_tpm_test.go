@@ -236,7 +236,78 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 	}
 }
 
-func (s *secbootSuite) TestUnlockUsingSealedKeyIfEncrypted(c *C) {
+func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
+	tt := []struct {
+		tpmErr     error
+		tpmEnabled bool
+		lockOk     bool
+		expError   string
+	}{
+		// can't connect to tpm
+		{
+			tpmErr:   fmt.Errorf("failed to connect to tpm"),
+			expError: "cannot lock TPM: failed to connect to tpm",
+		},
+		// tpm is not enabled, no errors
+		{
+			tpmEnabled: false,
+		},
+		// can't lock pcr protection profile
+		{
+			lockOk:     false,
+			tpmEnabled: true,
+			expError:   "block failed",
+		},
+		// tpm enabled, we can lock it
+		{
+			lockOk:     true,
+			tpmEnabled: true,
+		},
+	}
+
+	for _, tc := range tt {
+		mockSbTPM, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
+		defer restoreConnect()
+
+		restore := secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
+
+		sbBlockPCRProtectionPolicesCalls := 0
+		restore = secboot.MockSbBlockPCRProtectionPolicies(func(tpm *sb.TPMConnection, pcrs []int) error {
+			sbBlockPCRProtectionPolicesCalls++
+			c.Assert(tpm, Equals, mockSbTPM)
+			c.Assert(pcrs, DeepEquals, []int{12})
+			if tc.lockOk {
+				return nil
+			}
+			return errors.New("block failed")
+		})
+		defer restore()
+
+		err := secboot.LockTPMSealedKeys()
+		if tc.expError != "" {
+			c.Assert(err, ErrorMatches, tc.expError)
+			// if there was not a tpm error, we should have locked it
+			if tc.tpmErr == nil {
+				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
+			} else {
+				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
+			}
+		} else {
+			c.Assert(err, IsNil)
+			// if the tpm was enabled, we should have locked it
+			if tc.tpmEnabled {
+				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
+			} else {
+				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
+			}
+		}
+	}
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
 	// restore := disks.MockMountPointDisksToPartitionMapping()
