@@ -355,13 +355,9 @@ func verifyMountPointCtx(ctx *recoverContext, dir, name string) error {
 	return nil
 }
 
+// stateFunc is a function which executes a state action, returns the next
+// function (for the next) state or nil if it is the final state.
 type stateFunc func(ctx *recoverContext) (stateFunc, error)
-
-var (
-	// errStateDone is the error returned when the state machine is done
-	// executing without a critical error
-	errStateDone = fmt.Errorf("state machine done")
-)
 
 type stateMachine struct {
 	current stateFunc
@@ -373,10 +369,10 @@ func newStateMachine() *stateMachine {
 	return m
 }
 
-func (m *stateMachine) execute(ctx *recoverContext) error {
+func (m *stateMachine) execute(ctx *recoverContext) (finished bool, err error) {
 	next, err := m.current(ctx)
 	m.current = next
-	return err
+	return next == nil, err
 }
 
 // stateUnlockDataRunKey will try to unlock ubuntu-data with the normal run-mode
@@ -492,8 +488,9 @@ func (m *stateMachine) locateUnencryptedSave(ctx *recoverContext) (stateFunc, er
 			ctx.degradedState.SaveState = "other"
 		}
 
-		// all done, nothing left to try and mount
-		return nil, errStateDone
+		// all done, nothing left to try and mount, even if errors
+		// occurred
+		return nil, nil
 	}
 
 	// we found the unencrypted device, now mount it
@@ -547,7 +544,8 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *recoverContext) (stateFunc, er
 			ctx.degradedState.SaveState = "other"
 		}
 
-		return nil, errStateDone
+		// all done, nothing left to try and mount, everything failed
+		return nil, nil
 	}
 
 	ctx.degradedState.SaveKey = "fallback"
@@ -567,13 +565,16 @@ func (m *stateMachine) mountSave(ctx *recoverContext) (stateFunc, error) {
 		if err := verifyMountPointCtx(ctx, boot.InitramfsUbuntuSaveDir, "ubuntu-save"); err != nil {
 			ctx.degradedState.LogErrorf("cannot verify ubuntu-save mount at %v: %v",
 				boot.InitramfsUbuntuSaveDir, err)
+
+			// we are done, even if errors occurred
 			return nil, err
 		}
 
 		ctx.degradedState.SaveState = "mounted"
 	}
 
-	return nil, errStateDone
+	// all done, nothing left to try and mount
+	return nil, nil
 }
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
@@ -605,12 +606,13 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// first state to execute is to unlock ubuntu-data with the run key
 	machine := newStateMachine()
 	for {
-		err := machine.execute(ctx)
+		final, err := machine.execute(ctx)
+		// TODO: consider whether certain errors are fatal or not
 		if err != nil {
-			if err == errStateDone {
-				break
-			}
 			return err
+		}
+		if final {
+			break
 		}
 	}
 
