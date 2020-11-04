@@ -324,7 +324,7 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	logger.Noticef(msg)
 }
 
-type context struct {
+type recoverContext struct {
 	// the disk we have all our partitions on
 	disk disks.Disk
 	// options for finding partitions on the disk we have all our partitions on
@@ -344,7 +344,7 @@ type context struct {
 }
 
 // TODO: should this be a method on *context ?
-func verifyMountPointCtx(ctx *context, dir, name string) error {
+func verifyMountPointCtx(ctx *recoverContext, dir, name string) error {
 	matches, err := ctx.disk.MountPointIsFromDisk(dir, ctx.diskOpts)
 	if err != nil {
 		return err
@@ -355,7 +355,7 @@ func verifyMountPointCtx(ctx *context, dir, name string) error {
 	return nil
 }
 
-type stateFunc func(ctx *context) (stateFunc, error)
+type stateFunc func(ctx *recoverContext) (stateFunc, error)
 
 var (
 	// errStateDone is the error returned when the state machine is done
@@ -373,7 +373,7 @@ func newStateMachine() *stateMachine {
 	return m
 }
 
-func (m *stateMachine) execute(ctx *context) error {
+func (m *stateMachine) execute(ctx *recoverContext) error {
 	next, err := m.current(ctx)
 	m.current = next
 	return err
@@ -384,7 +384,7 @@ func (m *stateMachine) execute(ctx *context) error {
 // - failed to unlock data, but we know it's an encrypted device -> try to unlock with fallback key
 // - failed to find data at all -> try to unlock save
 // - unlocked data with run key -> mount data
-func (m *stateMachine) unlockDataRunKey(ctx *context) (stateFunc, error) {
+func (m *stateMachine) unlockDataRunKey(ctx *recoverContext) (stateFunc, error) {
 	runModeKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
 	dataDevice, isEncryptedDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-data", runModeKey, false)
 	if isEncryptedDev {
@@ -425,7 +425,7 @@ func (m *stateMachine) unlockDataRunKey(ctx *context) (stateFunc, error) {
 	return m.mountData, nil
 }
 
-func (m *stateMachine) unlockDataFallbackKey(ctx *context) (stateFunc, error) {
+func (m *stateMachine) unlockDataFallbackKey(ctx *recoverContext) (stateFunc, error) {
 	dataFallbackKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key")
 	// XXX: we don't check isDecryptDev here, if we are here then the previous
 	// call trying to unlock ubuntu-data already said it was encrypted
@@ -452,7 +452,7 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *context) (stateFunc, error) {
 	return m.mountData, nil
 }
 
-func (m *stateMachine) mountData(ctx *context) (stateFunc, error) {
+func (m *stateMachine) mountData(ctx *recoverContext) (stateFunc, error) {
 	// don't do fsck on the data partition, it could be corrupted
 	if err := doSystemdMount(ctx.dataDevice, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		ctx.degradedState.LogErrorf("cannot mount ubuntu-data: %v", err)
@@ -477,7 +477,7 @@ func (m *stateMachine) mountData(ctx *context) (stateFunc, error) {
 	return m.unlockSaveRunKey, nil
 }
 
-func (m *stateMachine) locateUnencryptedSave(ctx *context) (stateFunc, error) {
+func (m *stateMachine) locateUnencryptedSave(ctx *recoverContext) (stateFunc, error) {
 	partUUID, err := ctx.disk.FindMatchingPartitionUUID("ubuntu-save")
 	if err != nil {
 		// error locating ubuntu-save
@@ -501,7 +501,7 @@ func (m *stateMachine) locateUnencryptedSave(ctx *context) (stateFunc, error) {
 	return m.mountSave, nil
 }
 
-func (m *stateMachine) unlockSaveRunKey(ctx *context) (stateFunc, error) {
+func (m *stateMachine) unlockSaveRunKey(ctx *recoverContext) (stateFunc, error) {
 	// XXX: would be nice to not need this redirect here
 	if !ctx.isEncryptedDev {
 		return m.locateUnencryptedSave, nil
@@ -530,7 +530,7 @@ func (m *stateMachine) unlockSaveRunKey(ctx *context) (stateFunc, error) {
 	return m.mountSave, nil
 }
 
-func (m *stateMachine) unlockSaveFallbackKey(ctx *context) (stateFunc, error) {
+func (m *stateMachine) unlockSaveFallbackKey(ctx *recoverContext) (stateFunc, error) {
 	// we don't have ubuntu-data host to get the unsealed "bare" key, so
 	// we have to unlock with the sealed one from ubuntu-seed
 	saveFallbackKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
@@ -556,7 +556,7 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *context) (stateFunc, error) {
 	return m.mountSave, nil
 }
 
-func (m *stateMachine) mountSave(ctx *context) (stateFunc, error) {
+func (m *stateMachine) mountSave(ctx *recoverContext) (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
 	if err := doSystemdMount(ctx.saveDevice, boot.InitramfsUbuntuSaveDir, nil); err != nil {
 		ctx.degradedState.LogErrorf("error mounting ubuntu-save from partition %s: %v", ctx.saveDevice, err)
@@ -597,7 +597,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// TODO: should we just put a diagram here explaining the states too?
 
-	ctx := &context{
+	ctx := &recoverContext{
 		disk:          disk,
 		degradedState: recoverDegradedState{},
 	}
