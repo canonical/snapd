@@ -308,7 +308,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			disk: mockDiskWithEncDev,
 		}, {
 			// happy case without encrypted device (lock requested)
-			tpmEnabled: true, lockRequest: true, lockOk: true, activated: true,
+			tpmEnabled: true, lockRequest: true, lockOk: true,
 			disk: mockDiskWithUnencDev,
 		}, {
 			// activation works but lock fails, without encrypted device (lock requested)
@@ -317,12 +317,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			disk: mockDiskWithUnencDev,
 		}, {
 			// happy case without encrypted device
-			tpmEnabled: true, lockOk: true, activated: true,
+			tpmEnabled: true, lockOk: true,
 			disk: mockDiskWithUnencDev,
 		}, {
 			// activation works but lock fails, no encrypted device
-			tpmEnabled: true, activated: true,
-			disk: mockDiskWithUnencDev,
+			tpmEnabled: true,
+			disk:       mockDiskWithUnencDev,
 		}, {
 			// tpm error, no encrypted device
 			tpmErr: errors.New("tpm error"),

@@ -262,6 +262,12 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 			}
 		}()
 
+		if !foundEncDev {
+			// if we didn't find an encrypted device just return, don't try to
+			// unlock it
+			return nil
+		}
+
 		mapperName = name + "-" + randutilRandomKernelUUID()
 		if !tpmDeviceAvailable {
 			return unlockEncryptedPartitionWithRecoveryKey(mapperName, devpath)
