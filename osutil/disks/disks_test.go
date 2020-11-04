@@ -35,6 +35,50 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	virtioDiskDevPath = "/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/"
+
+	// typical real-world values for tests
+	diskUdevPropMap = map[string]string{
+		"ID_PART_ENTRY_DISK": "42:0",
+		"DEVNAME":            "/dev/vda",
+		"DEVPATH":            virtioDiskDevPath,
+	}
+
+	// the udev prop for bios-boot has no fs label, which is typical of the
+	// real bios-boot partition on a amd64 pc gadget system, and so we should
+	// safely just ignore and skip this partition in the implementation
+	biotBootUdevPropMap = map[string]string{
+		"ID_PART_ENTRY_UUID": "bios-boot-partuuid",
+	}
+
+	// all the ubuntu- partitions have fs labels
+	ubuntuSeedUdevPropMap = map[string]string{
+		"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
+		"ID_FS_LABEL_ENC":    "ubuntu-seed",
+	}
+	ubuntuBootUdevPropMap = map[string]string{
+		"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
+		"ID_FS_LABEL_ENC":    "ubuntu-boot",
+	}
+	ubuntuDataUdevPropMap = map[string]string{
+		"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
+		"ID_FS_LABEL_ENC":    "ubuntu-data",
+	}
+)
+
+func createVirtioDevicesInSysfs(c *C, devsToPartition map[string]bool) {
+	diskDir := filepath.Join(dirs.SysfsDir, virtioDiskDevPath)
+	for dev, isPartition := range devsToPartition {
+		err := os.MkdirAll(filepath.Join(diskDir, dev), 0755)
+		c.Assert(err, IsNil)
+		if isPartition {
+			err = ioutil.WriteFile(filepath.Join(diskDir, dev, "partition"), []byte("1"), 0644)
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
 type diskSuite struct {
 	testutil.BaseTest
 }
@@ -104,9 +148,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 				"DEVTYPE": "partition",
 			}, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
 		}
 	})
 	defer restore()
@@ -128,10 +171,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 				"DEVTYPE": "disk",
 			}, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
 		}
 	})
 	defer restore()
@@ -140,76 +181,83 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/mapper/something is not a decrypted device: could not read device mapper metadata: open /sys/dev/block/252:0/dm/uuid: no such file or directory`)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`mountpoint source /dev/mapper/something is not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
-func (s *diskSuite) TestDiskFromMountPointHappyNoPartitions(c *C) {
-	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
+func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
+	restore := osutil.MockMountInfo(`130 30 47:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
 	defer restore()
 
-	// mock just the partition's disk major minor in udev, but no actual
-	// partitions
+	// mock just the single partition and the disk itself in udev
+	n := 0
 	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
-		switch dev {
-		case "/dev/block/42:1", "/dev/vda4":
+		n++
+		switch n {
+		case 1, 4:
+			c.Assert(dev, Equals, "/dev/vda4")
+			// this is the partition that was mounted that we initially inspect
+			// to get the disk
+			// this is also called again when we call MountPointIsFromDisk to
+			// verify that the /run/mnt/point is from the same disk
 			return map[string]string{
 				"ID_PART_ENTRY_DISK": "42:0",
 			}, nil
+		case 2:
+			c.Assert(dev, Equals, "/dev/block/42:0")
+			// this is the disk itself, from ID_PART_ENTRY_DISK above
+			// note that the major/minor for the disk is not adjacent/related to
+			// the partition itself
+			return map[string]string{
+				"DEVNAME": "/dev/vda",
+				"DEVPATH": virtioDiskDevPath,
+			}, nil
+		case 3:
+			c.Assert(dev, Equals, "vda4")
+			// this is the sysfs entry for the partition of the disk previously
+			// found under the DEVPATH for /dev/block/42:0
+			// this is essentially the same as /dev/block/42:1 in actuality, but
+			// we search for it differently
+			return map[string]string{
+				"ID_FS_LABEL_ENC":    "some-label",
+				"ID_PART_ENTRY_UUID": "some-uuid",
+			}, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
 		}
 	})
 	defer restore()
+
+	// create just the single valid partition in sysfs, and an invalid
+	// non-partition device that we should ignore
+	createVirtioDevicesInSysfs(c, map[string]bool{
+		"vda4": true,
+		"vda5": false,
+	})
 
 	disk, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(disk.Dev(), Equals, "42:0")
 	c.Assert(disk.HasPartitions(), Equals, true)
-	// trying to search for any labels though will fail
+	// searching for the single label we have for this partition will succeed
+	label, err := disk.FindMatchingPartitionUUID("some-label")
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "some-uuid")
+
+	matches, err := disk.MountPointIsFromDisk("/run/mnt/point", nil)
+	c.Assert(err, IsNil)
+	c.Assert(matches, Equals, true)
+
+	// trying to search for any other labels though will fail
 	_, err = disk.FindMatchingPartitionUUID("ubuntu-boot")
-	c.Assert(err, ErrorMatches, "no partitions found for disk 42:0")
+	c.Assert(err, ErrorMatches, "filesystem label \"ubuntu-boot\" not found")
+	c.Assert(err, FitsTypeOf, disks.FilesystemLabelNotFoundError{})
+	labelNotFoundErr := err.(disks.FilesystemLabelNotFoundError)
+	c.Assert(labelNotFoundErr.Label, Equals, "ubuntu-boot")
 }
 
-func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
-	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda1 rw
-`)
-	defer restore()
-
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
-		switch dev {
-		case "/dev/block/42:1", "/dev/vda1":
-			return map[string]string{
-				"ID_PART_ENTRY_DISK": "42:0",
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-seed",
-				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
-			}, nil
-		case "/dev/block/42:2":
-			return nil, fmt.Errorf("Unknown device 42:2")
-		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
-		}
-	})
-	defer restore()
-
-	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
-	c.Assert(d.Dev(), Equals, "42:0")
-	c.Assert(d.HasPartitions(), Equals, true)
-
-	label, err := d.FindMatchingPartitionUUID("ubuntu-seed")
-	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "ubuntu-seed-partuuid")
-}
-
-func (s *diskSuite) TestDiskFromMountPointHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointHappyRealUdevadm(c *C) {
 	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda1 rw
 `)
 	defer restore()
@@ -274,21 +322,14 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 				"DEVTYPE": "disk",
 			}, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
 		}
 	})
 	defer restore()
 
-	// mock the /sys/dev/block dir
-	devBlockDir := filepath.Join(dirs.SysfsDir, "dev", "block")
-	restore = disks.MockDevBlockDir(devBlockDir)
-	defer restore()
-
 	// mock the sysfs dm uuid and name files
-	dmDir := filepath.Join(devBlockDir, "242:1", "dm")
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -335,47 +376,84 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 `)
 	defer restore()
 
+	n := 0
 	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
-		switch dev {
-		case "/dev/vda4", "/dev/vda3":
-			return map[string]string{
-				"ID_PART_ENTRY_DISK": "42:0",
-			}, nil
-		case "/dev/block/42:1":
-			return map[string]string{
-				// bios-boot does not have a filesystem label, so it shouldn't
-				// be found, but this is not fatal
-				"DEVTYPE":            "partition",
-				"ID_PART_ENTRY_UUID": "bios-boot-partuuid",
-			}, nil
-		case "/dev/block/42:2":
-			return map[string]string{
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-seed",
-				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
-			}, nil
-		case "/dev/block/42:3":
-			return map[string]string{
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-boot",
-				"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
-			}, nil
-		case "/dev/block/42:4":
-			return map[string]string{
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-data",
-				"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
-			}, nil
-		case "/dev/block/42:5":
-			return nil, fmt.Errorf("Unknown device 42:5")
+		n++
+		switch n {
+		case 1:
+			// first request is to the mount point source
+			c.Assert(dev, Equals, "/dev/vda4")
+			return diskUdevPropMap, nil
+		case 2:
+			// next request is for the disk itself
+			c.Assert(dev, Equals, "/dev/block/42:0")
+			return diskUdevPropMap, nil
+		case 3:
+			c.Assert(dev, Equals, "vda1")
+			// this is the sysfs entry for the first partition of the disk
+			// previously found under the DEVPATH for /dev/block/42:0
+			return biotBootUdevPropMap, nil
+		case 4:
+			c.Assert(dev, Equals, "vda2")
+			// the second partition of the disk from sysfs has a fs label
+			return ubuntuSeedUdevPropMap, nil
+		case 5:
+			c.Assert(dev, Equals, "vda3")
+			// same for the third partition
+			return ubuntuBootUdevPropMap, nil
+		case 6:
+			c.Assert(dev, Equals, "vda4")
+			// same for the fourth partition
+			return ubuntuDataUdevPropMap, nil
+		case 7:
+			// next request is for the MountPointIsFromDisk for ubuntu-boot in
+			// this test
+			c.Assert(dev, Equals, "/dev/vda3")
+			return diskUdevPropMap, nil
+		case 8:
+			// next request is for the another DiskFromMountPoint build set of methods we
+			// call in this test
+			c.Assert(dev, Equals, "/dev/vda3")
+			return diskUdevPropMap, nil
+		case 9:
+			// same as for case 2, the disk itself using the major/minor
+			c.Assert(dev, Equals, "/dev/block/42:0")
+			return diskUdevPropMap, nil
+		case 10:
+			c.Assert(dev, Equals, "vda1")
+			// this is the sysfs entry for the first partition of the disk
+			// previously found under the DEVPATH for /dev/block/42:0
+			return biotBootUdevPropMap, nil
+		case 11:
+			c.Assert(dev, Equals, "vda2")
+			// the second partition of the disk from sysfs has a fs label
+			return ubuntuSeedUdevPropMap, nil
+		case 12:
+			c.Assert(dev, Equals, "vda3")
+			// same for the third partition
+			return ubuntuBootUdevPropMap, nil
+		case 13:
+			c.Assert(dev, Equals, "vda4")
+			// same for the fourth partition
+			return ubuntuDataUdevPropMap, nil
+		case 14:
+			// next request is for the MountPointIsFromDisk for ubuntu-data
+			c.Assert(dev, Equals, "/dev/vda4")
+			return diskUdevPropMap, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
+			c.Errorf("unexpected udev device properties requested (request %d): %s", n, dev)
+			return nil, fmt.Errorf("unexpected udev device (request %d): %s", n, dev)
 		}
 	})
 	defer restore()
+
+	// create all 4 partitions as device nodes in sysfs
+	createVirtioDevicesInSysfs(c, map[string]bool{
+		"vda1": true,
+		"vda2": true,
+		"vda3": true,
+		"vda4": true,
+	})
 
 	ubuntuDataDisk, err := disks.DiskFromMountPoint("/run/mnt/data", nil)
 	c.Assert(err, IsNil)
@@ -432,63 +510,92 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 `)
 	defer restore()
 
+	n := 0
 	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
-		switch dev {
-		case "/dev/mapper/ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4":
+		n++
+		switch n {
+		case 1:
+			// first request is to find the disk based on the mapper mount point
+			c.Assert(dev, Equals, "/dev/mapper/ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
+			// the mapper device is a disk/volume
 			return map[string]string{
-				// the mapper device is a disk/volume
 				"DEVTYPE": "disk",
 			}, nil
-		case "/dev/vda4",
-			"/dev/vda3",
-			"/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+		case 2:
+			// next we find the physical disk by the dm uuid
+			c.Assert(dev, Equals, "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304")
+			return diskUdevPropMap, nil
+		case 3:
+			// then re-find the disk based on it's dev major / minor
+			c.Assert(dev, Equals, "/dev/block/42:0")
+			return diskUdevPropMap, nil
+		case 4:
+			// next find each partition in turn
+			c.Assert(dev, Equals, "vda1")
+			return biotBootUdevPropMap, nil
+		case 5:
+			c.Assert(dev, Equals, "vda2")
+			return ubuntuSeedUdevPropMap, nil
+		case 6:
+			c.Assert(dev, Equals, "vda3")
+			return ubuntuBootUdevPropMap, nil
+		case 7:
+			c.Assert(dev, Equals, "vda4")
 			return map[string]string{
-				"ID_PART_ENTRY_DISK": "42:0",
-				"DEVTYPE":            "partition",
-			}, nil
-		case "/dev/block/42:1":
-			return map[string]string{
-				// bios-boot does not have a filesystem label, so it shouldn't
-				// be found, but this is not fatal
-				"DEVTYPE":            "partition",
-				"ID_PART_ENTRY_UUID": "bios-boot-partuuid",
-			}, nil
-		case "/dev/block/42:2":
-			return map[string]string{
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-seed",
-				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
-			}, nil
-		case "/dev/block/42:3":
-			return map[string]string{
-				"DEVTYPE":            "partition",
-				"ID_FS_LABEL_ENC":    "ubuntu-boot",
-				"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
-			}, nil
-		case "/dev/block/42:4":
-			return map[string]string{
-				"DEVTYPE":            "partition",
 				"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
 				"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
 			}, nil
-		case "/dev/block/42:5":
-			return nil, fmt.Errorf("Unknown device 42:5")
+		case 8:
+			// next we will find the disk for a different mount point via
+			// MountPointIsFromDisk for ubuntu-boot
+			c.Assert(dev, Equals, "/dev/vda3")
+			return diskUdevPropMap, nil
+		case 9:
+			// next we will build up a disk from the ubuntu-boot mount point
+			c.Assert(dev, Equals, "/dev/vda3")
+			return diskUdevPropMap, nil
+		case 10:
+			// same as step 3
+			c.Assert(dev, Equals, "/dev/block/42:0")
+			return diskUdevPropMap, nil
+		case 11:
+			// next find each partition in turn again, same as steps 4-7
+			c.Assert(dev, Equals, "vda1")
+			return biotBootUdevPropMap, nil
+		case 12:
+			c.Assert(dev, Equals, "vda2")
+			return ubuntuSeedUdevPropMap, nil
+		case 13:
+			c.Assert(dev, Equals, "vda3")
+			return ubuntuBootUdevPropMap, nil
+		case 14:
+			c.Assert(dev, Equals, "vda4")
+			return map[string]string{
+				"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
+				"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
+			}, nil
+		case 15:
+			// then we will find the disk for ubuntu-data mapper volume to
+			// verify it comes from the same disk as the second disk we just
+			// finished finding
+			c.Assert(dev, Equals, "/dev/mapper/ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
+			// the mapper device is a disk/volume
+			return map[string]string{
+				"DEVTYPE": "disk",
+			}, nil
+		case 16:
+			// then we find the physical disk by the dm uuid
+			c.Assert(dev, Equals, "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304")
+			return diskUdevPropMap, nil
 		default:
-			c.Logf("unexpected udev device properties requested: %s", dev)
-			c.Fail()
-			return nil, fmt.Errorf("unexpected udev device")
-
+			c.Errorf("unexpected udev device properties requested (request %d): %s", n, dev)
+			return nil, fmt.Errorf("unexpected udev device (request %d): %s", n, dev)
 		}
 	})
 	defer restore()
 
-	// mock the /sys/dev/block dir
-	devBlockDir := filepath.Join(dirs.SysfsDir, "dev", "block")
-	restore = disks.MockDevBlockDir(devBlockDir)
-	defer restore()
-
 	// mock the sysfs dm uuid and name files
-	dmDir := filepath.Join(devBlockDir, "252:0", "dm")
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:0", "dm")
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -499,6 +606,14 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
 	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
 	c.Assert(err, IsNil)
+
+	// mock the dev nodes in sysfs for the partitions
+	createVirtioDevicesInSysfs(c, map[string]bool{
+		"vda1": true,
+		"vda2": true,
+		"vda3": true,
+		"vda4": true,
+	})
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	ubuntuDataDisk, err := disks.DiskFromMountPoint("/run/mnt/data", opts)

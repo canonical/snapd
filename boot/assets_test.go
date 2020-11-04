@@ -54,7 +54,7 @@ func (s *assetsSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error { return nil })
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 }
 
@@ -476,8 +476,9 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -496,8 +497,9 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -779,7 +781,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 
 	// everything is set up, trigger a reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -884,7 +886,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 
 	// everything is set up, trigger reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1640,7 +1642,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		"shim":  {shimHash},
 	})
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1794,7 +1796,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -2501,7 +2503,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		runKernelBf,
 	}
 
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2510,25 +2512,38 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
 
 	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
@@ -2623,7 +2638,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	}
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
@@ -2631,14 +2646,25 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
@@ -2658,7 +2684,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
 	})
 
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
@@ -2723,7 +2749,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// make sure that no reseal is triggered
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})

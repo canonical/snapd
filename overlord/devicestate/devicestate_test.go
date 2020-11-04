@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -131,7 +132,13 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	err := os.MkdirAll(dirs.SnapRunDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
+	c.Assert(err, IsNil)
+
+	s.AddCleanup(osutil.MockMountInfo(``))
 
 	s.restartRequests = nil
 
@@ -1130,6 +1137,127 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
 
 	// empty is returned as "run"
 	c.Check(s.mgr.SystemMode(), Equals, "run")
+}
+
+const (
+	mountRunMntUbuntuSaveFmt = `26 27 8:3 / %s/run/mnt/ubuntu-save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	mountSnapSaveFmt         = `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+)
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	// ubuntu-save not mounted
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
+	})
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	// already mounted
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
+		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	// ubuntu-save not mounted
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
+	defer cmd.Restore()
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, ErrorMatches, "cannot set up ubuntu-save: cannot bind mount .*/run/mnt/ubuntu-save under .*/var/lib/snapd/save: failed")
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
+	})
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
+	err := os.RemoveAll(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+	c.Assert(err, IsNil)
+	// create a new manager so that we know it does not see the modeenv
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer cmd.Restore()
+
+	// ubuntu-save not mounted
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
 type startOfOperationTimeSuite struct {

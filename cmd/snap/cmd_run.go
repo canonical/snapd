@@ -186,6 +186,9 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
 
 	for i := 0; i < timeout; i++ {
+		// TODO: we could also check cli.Maintenance() here too in case snapd is
+		// down semi-permanently for a refresh, but what message do we show to
+		// the user or what do we do if we know snapd is down for maintenance?
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}

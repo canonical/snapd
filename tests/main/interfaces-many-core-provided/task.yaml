@@ -48,9 +48,6 @@ execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     echo "For each core-provided slot"
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
         plugcmd_bn=$(basename "$plugcmd")
