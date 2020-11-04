@@ -314,6 +314,14 @@ type recoverDegradedState struct {
 	// and available. If this is the empty string, then the host's
 	// ubuntu-data is not available anywhere.
 	HostLocation string `json:"host-location"`
+	// ErrorLog holds the log of errors that led to the degraded recovery mode.
+	ErrorLog []string `json:"error-log"`
+}
+
+func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	r.ErrorLog = append(r.ErrorLog, msg)
+	logger.Noticef(msg)
 }
 
 type context struct {
@@ -389,6 +397,7 @@ func (m *stateMachine) unlockDataRunKey(ctx *context) (stateFunc, error) {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
 		// find it in the unencrypted case
 		if isEncryptedDev {
+			ctx.degradedState.LogErrorf("cannot unlock encrypted ubuntu-data with sealed run key: %v", err)
 			// we know the device is encrypted, so the next state is to try
 			// unlocking with the fallback key
 			return m.unlockDataFallbackKey, nil
@@ -399,7 +408,7 @@ func (m *stateMachine) unlockDataRunKey(ctx *context) (stateFunc, error) {
 		// an unencrypted ubuntu-save directly
 		// TODO:UC20: should we save the specific error in degradedState
 		//            somewhere in addition to logging it?
-		logger.Noticef("failed to find ubuntu-data partition for mounting host data: %v", err)
+		ctx.degradedState.LogErrorf("failed to find ubuntu-data partition for mounting host data: %v", err)
 		ctx.degradedState.DataState = "other"
 		return m.locateUnencryptedSave, nil
 	}
@@ -426,7 +435,7 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *context) (stateFunc, error) {
 		//       response in degradedState and in the log message?
 		// we failed to decrypt the device again with the fallback key,
 		// so we are for sure in degraded mode
-		logger.Noticef("failed to find or unlock encrypted ubuntu-data partition for mounting host data: %v", err)
+		ctx.degradedState.LogErrorf("cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: %v", err)
 		ctx.degradedState.DataState = "enc-not-found"
 
 		// skip trying to mount data, since we did not data we cannot
@@ -446,6 +455,7 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *context) (stateFunc, error) {
 func (m *stateMachine) mountData(ctx *context) (stateFunc, error) {
 	// don't do fsck on the data partition, it could be corrupted
 	if err := doSystemdMount(ctx.dataDevice, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
+		ctx.degradedState.LogErrorf("cannot mount ubuntu-data: %v", err)
 		// we failed to mount it, proceed with degraded mode
 		ctx.degradedState.DataState = "not-mounted"
 
@@ -455,6 +465,8 @@ func (m *stateMachine) mountData(ctx *context) (stateFunc, error) {
 	}
 	// we mounted it successfully, verify it comes from the right disk
 	if err := verifyMountPointCtx(ctx, boot.InitramfsHostUbuntuDataDir, "ubuntu-data"); err != nil {
+		ctx.degradedState.LogErrorf("cannot verify ubuntu-data mount point at %v: %v",
+			boot.InitramfsHostUbuntuDataDir, err)
 		return nil, err
 	}
 
@@ -476,7 +488,7 @@ func (m *stateMachine) locateUnencryptedSave(ctx *context) (stateFunc, error) {
 		} else {
 			// the error is not "not-found", so we have a real error
 			// identifying whether save exists or not
-			logger.Noticef("error identifying ubuntu-save partition: %v", err)
+			ctx.degradedState.LogErrorf("error identifying ubuntu-save partition: %v", err)
 			ctx.degradedState.SaveState = "other"
 		}
 
@@ -501,14 +513,13 @@ func (m *stateMachine) unlockSaveRunKey(ctx *context) (stateFunc, error) {
 	key, err := ioutil.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
-
-		// XXX: do we need to log this?
-		logger.Noticef("couldn't access run ubuntu-save key: %v", err)
+		ctx.degradedState.LogErrorf("cannot access run ubuntu-save key: %v", err)
 		return m.unlockSaveFallbackKey, nil
 	}
 
 	saveDevice, err := secbootUnlockEncryptedVolumeUsingKey(ctx.disk, "ubuntu-save", key)
 	if err != nil {
+		ctx.degradedState.LogErrorf("cannot unlock encrypted ubuntu-save with run key: %v", err)
 		// failed to unlock with run key, try fallback key
 		return m.unlockSaveFallbackKey, nil
 	}
@@ -526,13 +537,13 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *context) (stateFunc, error) {
 	saveDevice, isEncryptedDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-save", saveFallbackKey, true)
 	if err != nil {
 		if isEncryptedDev {
-			logger.Noticef("failed to find or unlock encrypted ubuntu-save partition: %v", err)
+			ctx.degradedState.LogErrorf("cannot find or unlock encrypted ubuntu-save partition with recovery key: %v", err)
 			ctx.degradedState.SaveState = "enc-not-found"
 		} else {
 			// either catastrophic error or inconsistent disk, if
 			// ubuntu-data was an encrypted device, then ubuntu-save
 			// must be also
-			logger.Noticef("cannot unlock ubuntu-save: %v", err)
+			ctx.degradedState.LogErrorf("cannot unlock ubuntu-save: %v", err)
 			ctx.degradedState.SaveState = "other"
 		}
 
@@ -548,12 +559,14 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *context) (stateFunc, error) {
 func (m *stateMachine) mountSave(ctx *context) (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
 	if err := doSystemdMount(ctx.saveDevice, boot.InitramfsUbuntuSaveDir, nil); err != nil {
-		logger.Noticef("error mounting ubuntu-save from partition %s: %v", ctx.saveDevice, err)
+		ctx.degradedState.LogErrorf("error mounting ubuntu-save from partition %s: %v", ctx.saveDevice, err)
 		ctx.degradedState.SaveState = "not-mounted"
 	} else {
 		// if we couldn't verify whether the mounted save is valid, bail out of
 		// the state machine and exit snap-bootstrap
 		if err := verifyMountPointCtx(ctx, boot.InitramfsUbuntuSaveDir, "ubuntu-save"); err != nil {
+			ctx.degradedState.LogErrorf("cannot verify ubuntu-save mount at %v: %v",
+				boot.InitramfsUbuntuSaveDir, err)
 			return nil, err
 		}
 

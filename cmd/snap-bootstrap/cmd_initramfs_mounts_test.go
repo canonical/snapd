@@ -2478,10 +2478,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func checkDegradedJSON(c *C, exp map[string]string) {
+func checkDegradedJSON(c *C, exp map[string]interface{}) {
 	b, err := ioutil.ReadFile(filepath.Join(boot.InitramfsHostUbuntuDataDir, "degraded.json"))
 	c.Assert(err, IsNil)
-	degradedJSONObj := make(map[string]string, 0)
+	degradedJSONObj := make(map[string]interface{}, 0)
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
 
@@ -2607,12 +2607,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]string{
+	checkDegradedJSON(c, map[string]interface{}{
 		"data-key":      "fallback",
 		"data-state":    "mounted",
 		"save-key":      "run",
 		"save-state":    "mounted",
 		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"error-log": []interface{}{
+			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
+		},
 	})
 
 	c.Check(dataActivated, Equals, true)
@@ -2749,12 +2752,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]string{
+	checkDegradedJSON(c, map[string]interface{}{
 		"data-key":      "run",
 		"data-state":    "mounted",
 		"save-key":      "fallback",
 		"save-state":    "mounted",
 		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"error-log": []interface{}{
+			"cannot unlock encrypted ubuntu-save with run key: failed to unlock ubuntu-save with run object",
+		},
 	})
 
 	c.Check(dataActivated, Equals, true)
@@ -2769,6 +2775,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNoDataFallbackSaveHappy(c *C) {
+	// test a scenario when unsealing of data fails with both the run key
+	// and fallback key, but save can be unlocked using the fallback key
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -2792,7 +2801,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 
 	dataActivationAttempts := 0
 	saveActivated := false
-	saveActivationAttempted := false
 	unlockVolumeWithSealedKeyCalls := 0
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
@@ -2841,13 +2849,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	s.mockUbuntuSaveKey(c, boot.InitramfsHostWritableDir, "foo")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (string, error) {
-		c.Check(dataActivationAttempts, Equals, 2, Commentf("ubuntu-data not activated yet"))
-		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
-		c.Assert(err, IsNil)
-		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-		c.Assert(key, DeepEquals, []byte("foo"))
-		saveActivationAttempted = true
-		return "", fmt.Errorf("failed to unlock ubuntu-save with run object")
+		// nothing can call this function in the tested scenario
+		c.Fatalf("unexpected call")
+		return "", fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -2897,12 +2901,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 recovery_system=20191118
 `)
 
-	checkDegradedJSON(c, map[string]string{
+	checkDegradedJSON(c, map[string]interface{}{
 		"data-key":      "",
 		"data-state":    "enc-not-found",
 		"save-key":      "fallback",
 		"save-state":    "mounted",
 		"host-location": "",
+		"error-log": []interface{}{
+			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
+			"cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
+		},
 	})
 
 	bloader2, err := bootloader.Find("", nil)
@@ -2919,10 +2927,8 @@ recovery_system=20191118
 	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivationAttempts, Equals, 2)
-	c.Check(saveActivationAttempted, Equals, true)
 	c.Check(saveActivated, Equals, true)
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 3)
-	c.Check(saveActivationAttempted, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
@@ -2932,6 +2938,9 @@ recovery_system=20191118
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNoDataNoSaveHappy(c *C) {
+	// test a scenario when unlocking data with both run and fallback keys
+	// fails, followed by a failure to unlock save with the fallback key
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -2955,7 +2964,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 
 	dataActivationAttempts := 0
 	saveUnsealActivationAttempted := false
-	saveActivationAttempted := false
 	unlockVolumeWithSealedKeyCalls := 0
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
@@ -2985,7 +2993,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 
 		case 3:
 			// we also fail to unlock save
-			c.Assert(saveActivationAttempted, Equals, true)
+
+			// no attempts to activate ubuntu-save yet
 			c.Assert(name, Equals, "ubuntu-save")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
@@ -3005,13 +3014,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	s.mockUbuntuSaveKey(c, boot.InitramfsHostWritableDir, "foo")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (string, error) {
-		c.Check(dataActivationAttempts, Equals, 2, Commentf("ubuntu-data not activated yet"))
-		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
-		c.Assert(err, IsNil)
-		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-		c.Assert(key, DeepEquals, []byte("foo"))
-		saveActivationAttempted = true
-		return "", fmt.Errorf("failed to unlock ubuntu-save with run object")
+		// nothing can call this function in the tested scenario
+		c.Fatalf("unexpected call")
+		return "", fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -3056,12 +3061,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 recovery_system=20191118
 `)
 
-	checkDegradedJSON(c, map[string]string{
+	checkDegradedJSON(c, map[string]interface{}{
 		"data-key":      "",
 		"data-state":    "enc-not-found",
 		"save-key":      "",
 		"save-state":    "enc-not-found",
 		"host-location": "",
+		"error-log": []interface{}{
+			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
+			"cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
+			"cannot find or unlock encrypted ubuntu-save partition with recovery key: failed to unlock ubuntu-save with fallback object",
+		},
 	})
 
 	bloader2, err := bootloader.Find("", nil)
@@ -3078,10 +3088,8 @@ recovery_system=20191118
 	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivationAttempts, Equals, 2)
-	c.Check(saveActivationAttempted, Equals, true)
 	c.Check(saveUnsealActivationAttempted, Equals, true)
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 3)
-	c.Check(saveActivationAttempted, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
