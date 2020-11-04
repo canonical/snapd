@@ -44,4 +44,8 @@ func init() {
 	secbootUnlockEncryptedVolumeUsingKey = func(disk disks.Disk, name string, key []byte) (string, error) {
 		return "", errNotImplemented
 	}
+
+	secbootLockTPMSealedKeys = func() error {
+		return errNotImplemented
+	}
 }

@@ -80,6 +80,8 @@ var (
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
 
+	secbootLockTPMSealedKeys func() error
+
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
 
@@ -602,6 +604,14 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		disk:          disk,
 		degradedState: recoverDegradedState{},
 	}
+
+	// ensure that the last thing we do after mounting everything is to lock
+	// access to sealed keys
+	defer func() {
+		if err := secbootLockTPMSealedKeys(); err != nil {
+			logger.Noticef("error locking access to sealed keys: %v", err)
+		}
+	}()
 
 	// first state to execute is to unlock ubuntu-data with the run key
 	machine := newStateMachine()

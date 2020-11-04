@@ -109,6 +109,14 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	}
 }
 
+func MockSecbootLockTPMSealedKeys(f func() error) (restore func()) {
+	old := secbootLockTPMSealedKeys
+	secbootLockTPMSealedKeys = f
+	return func() {
+		secbootLockTPMSealedKeys = old
+	}
+}
+
 func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 	old := bootFindPartitionUUIDForBootedKernelDisk
 	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
