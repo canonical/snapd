@@ -110,7 +110,7 @@ type OnDiskVolume struct {
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
+	output, err := exec.Command("sfdisk", "--json", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
