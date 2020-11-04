@@ -307,7 +307,8 @@ type recoverDegradedState struct {
 	SaveKey string `json:"save-key"`
 	// SaveState is the state of the ubuntu-save mountpoint, it can be in any of
 	// the states documented for DataState, with the additional state of:
-	// - "not-needed" for state when we don't have ubuntu-save, but we don't need it (unencrypted only)
+	// - "not-found" for state when we don't have ubuntu-save, but it is
+	//   optional (unencrypted only)
 	SaveState string `json:"save-state"`
 	// HostLocation is the location where the host's ubuntu-data is mounted
 	// and available. If this is the empty string, then the host's
@@ -470,7 +471,7 @@ func (m *stateMachine) locateUnencryptedSave(ctx *context) (stateFunc, error) {
 		if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
 			// this is ok, ubuntu-save may not exist for
 			// non-encrypted device
-			ctx.degradedState.SaveState = "not-needed"
+			ctx.degradedState.SaveState = "not-found"
 		} else {
 			// the error is not "not-found", so we have a real error
 			// identifying whether save exists or not
