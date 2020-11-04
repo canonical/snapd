@@ -67,8 +67,8 @@ execute: |
     # TODO: Test the scenario when the core reaches the timeout running wait-core-post-boot
 
     # check bootenv needs a subcommand
-    "$TESTSTOOLS"/boot-state bootenv 2>&1 | MATCH "boot-state: unsupported bootenv subcommand"
-    "$TESTSTOOLS"/boot-state bootenv noexist 2>&1 | MATCH "boot-state: unsupported bootenv subcommand noexist"
+    "$TESTSTOOLS"/boot-state bootenv 2>&1 | MATCH "boot-state: unsupported bootenv sub-command"
+    "$TESTSTOOLS"/boot-state bootenv noexist 2>&1 | MATCH "boot-state: unsupported bootenv sub-command noexist"
 
     # check var and value are needed to call bootenv set
     "$TESTSTOOLS"/boot-state bootenv set 2>&1 | MATCH "boot-state: variable and value required to set in bootenv"
