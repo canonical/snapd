@@ -102,6 +102,9 @@ backends:
                   secure-boot: true
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-20.10-64
 
             - debian-9-64:
                   workers: 6
@@ -137,9 +140,6 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
-            - ubuntu-20.10-64:
-                  workers: 6
-                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
