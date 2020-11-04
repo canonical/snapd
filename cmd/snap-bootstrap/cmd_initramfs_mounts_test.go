@@ -226,7 +226,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 		c.Check(f, NotNil)
 		return nil
 	}))
-	s.AddCleanup(main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	s.AddCleanup(main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		return filepath.Join("/dev/disk/by-partuuid", name+"-partuuid"), false, nil
 	}))
 }
@@ -1470,9 +1470,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	c.Assert(err, IsNil)
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
-		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
+		c.Assert(encryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
 		c.Assert(lockKeysOnFinish, Equals, true)
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1578,7 +1578,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1649,7 +1649,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -2396,9 +2396,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
-		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
+		c.Assert(encryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
@@ -2525,7 +2525,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	defer restore()
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 		c.Assert(err, IsNil)
