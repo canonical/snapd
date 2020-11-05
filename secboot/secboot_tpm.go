@@ -304,7 +304,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
 		if !tpmDeviceAvailable {
-			return unlockEncryptedPartitionWithRecoveryKey(mapperName, devpath)
+			return UnlockEncryptedVolumeWithRecoveryKey(mapperName, devpath)
 		}
 
 		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "")
@@ -347,9 +347,9 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (st
 	return filepath.Join("/dev/mapper", mapperName), nil
 }
 
-// unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use
+// UnlockEncryptedVolumeWithRecoveryKey prompts for the recovery key and use
 // it to open an encrypted device.
-func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
+func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	options := sb.ActivateVolumeOptions{
 		RecoveryKeyTries: 3,
 		KeyringPrefix:    keyringPrefix,
