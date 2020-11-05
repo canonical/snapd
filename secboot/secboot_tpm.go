@@ -221,22 +221,21 @@ func LockTPMSealedKeys() error {
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
-// with a corresponding name. With lockKeysOnFinish set, access to the sealed
-// keys will be locked when this function completes. The path to the device node
-// is returned as well as whether the device node is an decrypted device node (
-// in the encrypted case). If no encrypted volume was found, then the returned
-// device node is an unencrypted normal volume. With allowRecovery set to true,
-// activation with the recovery key will be attempted if activation with the
-// sealed key failed.
+// with a corresponding name. The options control whether the access to to the
+// sealed keys will be locked when this function completes or whether activation
+// with the recovery key will be attempted if a prior activation attempt with
+// the sealed key fails.
 //
 // Note that if the function proceeds to the point where it knows definitely
 // whether there is an encrypted device or not, the second return value will be
 // true, even if error is non-nil. This is so that callers can be robust and
 // try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(
-	disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool,
-	allowRecoveryKey bool,
+	disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions,
 ) (string, bool, error) {
+	if opts == nil {
+		opts = &UnlockVolumeUsingSealedKeyOptions{}
+	}
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -286,7 +285,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	var mapperName string
 	err = func() error {
 		defer func() {
-			if lockKeysOnFinish && tpmDeviceAvailable {
+			if opts.LockKeysOnFinish && tpmDeviceAvailable {
 				// Lock access to the sealed keys. This should be called whenever there
 				// is a TPM device detected, regardless of whether secure boot is enabled
 				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
@@ -309,11 +308,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		}
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
-		if !tpmDeviceAvailable && allowRecoveryKey {
+		if !tpmDeviceAvailable && opts.AllowRecoveryKey {
 			return UnlockEncryptedVolumeWithRecoveryKey(mapperName, devpath)
 		}
 
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "", allowRecoveryKey)
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
 	}()
 	if err != nil {
 		return "", foundEncDev, err
@@ -373,13 +372,14 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 // activate it with the fallback recovery key instead.
 func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) error {
 	options := sb.ActivateVolumeOptions{
-		PassphraseTries:  1,
-		RecoveryKeyTries: 3,
+		PassphraseTries: 1,
+		// disable recovery key by default
+		RecoveryKeyTries: 0,
 		KeyringPrefix:    keyringPrefix,
 	}
-	if !allowRecovery {
-		// disable recovery key
-		options.RecoveryKeyTries = 0
+	if allowRecovery {
+		// enable recovery key only when explicitly allowed
+		options.RecoveryKeyTries = 3
 	}
 
 	// XXX: pinfile is currently not used

@@ -543,7 +543,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, tc.lockRequest, tc.rkAllow)
+		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+			LockKeysOnFinish: tc.lockRequest,
+			AllowRecoveryKey: tc.rkAllow,
+		}
+		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, opts)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)
