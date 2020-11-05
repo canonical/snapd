@@ -367,35 +367,53 @@ type stateFunc func(ctx *recoverContext) (stateFunc, error)
 // transitions:
 /**
 
-     fail or       +-------------------+  fail,     +-----------+fail,       +-------------+
-     not needed    |    locate save    |  unencrypt |unlock data|encrypted   | unlock data |
-    +--------------+    unencrypted    +<-----------+w/ run key +----------->+ w/ fallback +------+
-    |              |                   |            |           |            | key         |      |
-    |              +--------+----------+            +-----+-----+            +-----+-------+      |
-    |                       |                             |                        |              |
-    |                       |success                      |success                 |              |
-    |                       |                             |                        |success       |
-    v                       v                             v                        |              |
-+---+---+           +-------+----+                +-------+----+                   |              |
-|       |           | mount      |       success  | mount data |                   |              |
-| done  +<----------+ save       |      +---------+            +<------------------+              |
-|       |           |            |      |         |            |                                  |
-+--+----+           +----+-------+      |         +----------+-+                                  |
-   ^                     ^              |                    |                                    |
-   |                     |success       v                    |                                    |
-   |                     |     +--------+----+   fail        |fail                       unlock   |
-   |                     |     | unlock save +--------+      |                           failed   |
-   |                     +-----+ w/ run key  |        v      v                                    |
-   |                     ^     +-------------+   +----+------+-----+                              |
-   |                     |                       | unlock save     |                              |
-   |                     |                       | w/ fallback key +<-----------------------------+
+
+TODO: this state diagram actually is missing a state transition from 
+"unlock save w/ run key" to "locate unencrypted save" (which is a state that is 
+missing from this diagram), and then from "locate unencrypted save" to either 
+"done" or "mount save" states
+
+
+
+
+					+---------+                    +----------+
+					| start   |                    | mount    |       fail
+					|         +------------------->+ boot     +------------------------+
+					|         |                    |          |                        |
+					+---------+                    +----+-----+                        |
+														|                              |
+				     							success |                              |
+														|                              |
+														v                              v
+	fail or        +-------------------+  fail,     +----+------+  fail,       +--------+-------+
+	not needed     |    locate save    |  unencrypt |unlock data|  encrypted   | unlock data w/ |
+	+--------------+    unencrypted    +<-----------+w/ run key +--------------+ fallback key   +-------+
+	|              |                   |            |           |              |                |       |
+	|              +--------+----------+            +-----+-----+              +--------+-------+       |
+	|                       |                             |                             |               |
+	|                       |success                      |success                      |               |
+	|                       |                             |                    success  |        fail   |
+	v                       v                             v                             |               |
++---+---+           +-------+----+                +-------+----+                        |               |
+|       |           | mount      |       success  | mount data |                        |               |
+| done  +<----------+ save       |      +---------+            +<-----------------------+               |
+|       |           |            |      |         |            |                                        |
++--+----+           +----+-------+      |         +----------+-+                                        |
+   ^                     ^              |                    |                                          |
+   |                     | success      v                    |                                          |
+   |                     |     +--------+----+   fail        |fail                                      |
+   |                     |     | unlock save +--------+      |                                          |
+   |                     +-----+ w/ run key  |        v      v                                          |
+   |                     ^     +-------------+   +----+------+-----+                                    |
+   |                     |                       | unlock save     |                                    |
+   |                     |                       | w/ fallback key +------------------------------------+
    |                     +-----------------------+                 |
    |                             success         +-------+---------+
    |                                                     |
    |                                                     |
    |                                                     |
    +-----------------------------------------------------+
-                         fail
+						fail
 
 */
 type stateMachine struct {
@@ -498,8 +516,6 @@ func (m *stateMachine) unlockDataRunKey(ctx *recoverContext) (stateFunc, error) 
 		// not an encrypted device, so nothing to fall back to try and unlock
 		// data, so just mark it as not found and continue on to try and mount
 		// an unencrypted ubuntu-save directly
-		// TODO:UC20: should we save the specific error in degradedState
-		//            somewhere in addition to logging it?
 		ctx.degradedState.LogErrorf("failed to find ubuntu-data partition for mounting host data: %v", err)
 		ctx.degradedState.DataState = "other"
 		return m.locateUnencryptedSave, nil
