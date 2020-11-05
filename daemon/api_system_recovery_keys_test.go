@@ -42,19 +42,28 @@ func mockSystemRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(rkeyPath, []byte(rkeystr), 0644)
 	c.Assert(err, IsNil)
+
+	skeystr := "1234567890123456"
+	c.Assert(err, IsNil)
+	skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	err = ioutil.WriteFile(skeyPath, []byte(skeystr), 0644)
+	c.Assert(err, IsNil)
 }
 
 func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKey(c)
 
-	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
+	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
 	rsp := getSystemRecoveryKeys(systemRecoveryKeysCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
-	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287"})
+	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
+		RecoveryKey:      "61665-00531-54469-09783-47273-19035-40077-28287",
+		ReinstallSaveKey: "12849-13363-13877-14391-12345-12849-13363-13877",
+	})
 }
 
 func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {

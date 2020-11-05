@@ -44,5 +44,11 @@ func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Re
 	}
 	rsp.RecoveryKey = rkey.String()
 
+	reinstallSaveKey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "reinstall.key"))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	rsp.ReinstallSaveKey = reinstallSaveKey.String()
+
 	return SyncResponse(&rsp, nil)
 }
