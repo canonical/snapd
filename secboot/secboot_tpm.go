@@ -222,9 +222,9 @@ func LockTPMSealedKeys() error {
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
 // with a corresponding name. The options control whether the access to to the
-// sealed keys will be locked when this function completes or whether activation
-// with the recovery key will be attempted if a prior activation attempt with
-// the sealed key fails.
+// sealed keys will be locked when this function completes and whether
+// activation with the recovery key will be attempted if a prior activation
+// attempt with the sealed key fails.
 //
 // Note that if the function proceeds to the point where it knows definitely
 // whether there is an encrypted device or not, the second return value will be
@@ -352,8 +352,8 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (st
 	return filepath.Join("/dev/mapper", mapperName), nil
 }
 
-// UnlockEncryptedVolumeWithRecoveryKey prompts for the recovery key and use
-// it to open an encrypted device.
+// UnlockEncryptedVolumeWithRecoveryKey prompts for the recovery key and uses it
+// to open an encrypted device.
 func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	options := sb.ActivateVolumeOptions{
 		RecoveryKeyTries: 3,
