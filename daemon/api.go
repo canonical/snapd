@@ -113,6 +113,7 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
 }
 
