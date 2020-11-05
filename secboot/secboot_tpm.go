@@ -185,6 +185,40 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
+// LockTPMSealedKeys manually locks access to the sealed keys. Meant to be
+// called in place of passing lockKeysOnFinish as true to
+// UnlockVolumeUsingSealedKeyIfEncrypted for cases where we don't know if a
+// given call is the last one to unlock a volume like in degraded recover mode.
+func LockTPMSealedKeys() error {
+	tpm, tpmErr := sbConnectToDefaultTPM()
+	if tpmErr != nil {
+		if xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
+			logger.Noticef("cannot open TPM connection: %v", tpmErr)
+			return nil
+		}
+		return fmt.Errorf("cannot lock TPM: %v", tpmErr)
+	}
+	defer tpm.Close()
+	// Also check if the TPM device is enabled. The platform firmware may disable the storage
+	// and endorsement hierarchies, but the device will remain visible to the operating system.
+	if !isTPMEnabled(tpm) {
+		return nil
+	}
+
+	// Lock access to the sealed keys. This should be called whenever there
+	// is a TPM device detected, regardless of whether secure boot is enabled
+	// or there is an encrypted volume to unlock. Note that snap-bootstrap can
+	// be called several times during initialization, and if there are multiple
+	// volumes to unlock we should lock access to the sealed keys only after
+	// the last encrypted volume is unlocked, in which case lockKeysOnFinish
+	// should be set to true.
+	//
+	// We should only touch the PCR that we've currently reserved for the kernel
+	// EFI image. Touching others will break the ability to perform any kind of
+	// attestation using the TPM because it will make the log inconsistent.
+	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
+}
+
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
 // with a corresponding name. With lockKeysOnFinish set, access to the sealed
