@@ -190,7 +190,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
 		{"lsblk", "--fs", "--json", "/dev/node1"},
@@ -279,7 +279,7 @@ exit 0`
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
 		{"lsblk", "--fs", "--json", "/dev/node1"},
