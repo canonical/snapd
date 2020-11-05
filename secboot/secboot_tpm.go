@@ -192,32 +192,31 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 func LockTPMSealedKeys() error {
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
-			return fmt.Errorf("cannot lock TPM: %v", tpmErr)
+		if xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
+			logger.Noticef("cannot open TPM connection: %v", tpmErr)
+			return nil
 		}
-		logger.Noticef("cannot open TPM connection: %v", tpmErr)
-	} else {
-		defer tpm.Close()
+		return fmt.Errorf("cannot lock TPM: %v", tpmErr)
 	}
-
+	defer tpm.Close()
 	// Also check if the TPM device is enabled. The platform firmware may disable the storage
 	// and endorsement hierarchies, but the device will remain visible to the operating system.
-	if tpmErr == nil && isTPMEnabled(tpm) {
-		// Lock access to the sealed keys. This should be called whenever there
-		// is a TPM device detected, regardless of whether secure boot is enabled
-		// or there is an encrypted volume to unlock. Note that snap-bootstrap can
-		// be called several times during initialization, and if there are multiple
-		// volumes to unlock we should lock access to the sealed keys only after
-		// the last encrypted volume is unlocked, in which case lockKeysOnFinish
-		// should be set to true.
-		//
-		// We should only touch the PCR that we've currently reserved for the kernel
-		// EFI image. Touching others will break the ability to perform any kind of
-		// attestation using the TPM because it will make the log inconsistent.
-		return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
+	if !isTPMEnabled(tpm) {
+		return nil
 	}
 
-	return nil
+	// Lock access to the sealed keys. This should be called whenever there
+	// is a TPM device detected, regardless of whether secure boot is enabled
+	// or there is an encrypted volume to unlock. Note that snap-bootstrap can
+	// be called several times during initialization, and if there are multiple
+	// volumes to unlock we should lock access to the sealed keys only after
+	// the last encrypted volume is unlocked, in which case lockKeysOnFinish
+	// should be set to true.
+	//
+	// We should only touch the PCR that we've currently reserved for the kernel
+	// EFI image. Touching others will break the ability to perform any kind of
+	// attestation using the TPM because it will make the log inconsistent.
+	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
