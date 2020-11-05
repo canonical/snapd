@@ -281,9 +281,41 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
+	// 2.X mount ubuntu-boot for access to the run mode key to unseal
+	//     ubuntu-data
+	// use the disk we mounted ubuntu-seed from as a reference to find
+	// ubuntu-seed and mount it
+	// TODO: w/ degraded mode we need to be robust against not being able to
+	// find/mount ubuntu-boot and fallback to using keys from ubuntu-seed in
+	// that case
+	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-boot")
+	if err != nil {
+		return err
+	}
+
+	// should we fsck ubuntu-boot? probably yes because on some platforms
+	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
+	// dirtily, and we need to fsck it to ensure it is mounted safely before
+	// reading keys from it
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuBootDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// 2.X+1, verify ubuntu-boot comes from same disk as ubuntu-seed
+	matches, err := disk.MountPointIsFromDisk(boot.InitramfsUbuntuBootDir, nil)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return fmt.Errorf("cannot validate boot: ubuntu-boot mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+
 	// 3. mount ubuntu-data for recovery using run mode key
 	const lockKeysOnFinish = true
-	runModeKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, lockKeysOnFinish)
 	if err != nil {
 		return err
@@ -309,7 +341,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
+	matches, err = disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
 	if err != nil {
 		return err
 	}
@@ -555,7 +587,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 3.2. mount Data
 	const lockKeysOnFinish = true
-	runModeKey := filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, lockKeysOnFinish)
 	if err != nil {
 		return err
