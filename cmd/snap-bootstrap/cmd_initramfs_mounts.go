@@ -78,7 +78,7 @@ var (
 
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error)
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
 
 	secbootLockTPMSealedKeys func() error
@@ -478,8 +478,8 @@ func (m *stateMachine) unlockDataRunKey(ctx *recoverContext) (stateFunc, error) 
 		// if this call to unlock a volume will be the last one or not
 		LockKeysOnFinish: false,
 	}
-	dataDevice, isEncryptedDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-data", runModeKey, unlockOpts)
-	if isEncryptedDev {
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-data", runModeKey, unlockOpts)
+	if unlockRes.IsDecryptedDevice {
 		ctx.diskOpts = &disks.Options{
 			IsDecryptedDevice: true,
 		}
@@ -488,7 +488,7 @@ func (m *stateMachine) unlockDataRunKey(ctx *recoverContext) (stateFunc, error) 
 	if err != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
 		// find it in the unencrypted case
-		if isEncryptedDev {
+		if unlockRes.IsDecryptedDevice {
 			ctx.degradedState.LogErrorf("cannot unlock encrypted ubuntu-data with sealed run key: %v", err)
 			// we know the device is encrypted, so the next state is to try
 			// unlocking with the fallback key
@@ -506,11 +506,11 @@ func (m *stateMachine) unlockDataRunKey(ctx *recoverContext) (stateFunc, error) 
 	}
 
 	// otherwise successfully unlocked it (if it was encrypted)
-	ctx.dataDevice = dataDevice
+	ctx.dataDevice = unlockRes.Device
 
 	// successfully unlocked it with the run key, so just mark that in the
 	// state and move on to trying to mount it
-	if isEncryptedDev {
+	if unlockRes.IsDecryptedDevice {
 		ctx.degradedState.DataKey = "run"
 	}
 
@@ -530,11 +530,11 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *recoverContext) (stateFunc, er
 		LockKeysOnFinish: false,
 	}
 	dataFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key")
-	dataDevice, isEncryptedDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
 
 	// ensure consistency between encrypted state of the device/disk and what we
 	// may have seen previously
-	if ctx.isEncryptedDev && !isEncryptedDev {
+	if ctx.isEncryptedDev && !unlockRes.IsDecryptedDevice {
 		// then we previously were able to positively identifiy an
 		// ubuntu-data-enc but can't anymore, so we have inconsistent results
 		// from inspecting the disk which is suspicious and we should fail
@@ -546,8 +546,8 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *recoverContext) (stateFunc, er
 	// anything with ubuntu-data if we couldn't mount ubuntu-boot, so this might
 	// be the first time we tried to unlock ubuntu-data and ctx.isEncryptedDev
 	// may have the default value of false
-	if !ctx.isEncryptedDev && isEncryptedDev {
-		ctx.isEncryptedDev = isEncryptedDev
+	if !ctx.isEncryptedDev && unlockRes.IsDecryptedDevice {
+		ctx.isEncryptedDev = unlockRes.IsDecryptedDevice
 		ctx.diskOpts = &disks.Options{
 			IsDecryptedDevice: true,
 		}
@@ -564,14 +564,19 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *recoverContext) (stateFunc, er
 		return m.unlockSaveFallbackKey, nil
 	}
 
-	// TODO: inspect the unlock result to see if we used the fallback sealed key
-	//       or if we ended up relying on the recovery key entered by the user
-
 	// we unlocked data with the fallback key, we are not in
 	// "fully" degraded mode, but we do need to track that we had to
 	// use the fallback key
-	ctx.degradedState.DataKey = "fallback"
-	ctx.dataDevice = dataDevice
+	switch unlockRes.UnlockMethod {
+	case secboot.UnlockedWithSealedKey:
+		ctx.degradedState.DataKey = "fallback"
+	case secboot.UnlockedWithRecoveryKey:
+		ctx.degradedState.DataKey = "recovery"
+
+		// TODO: should we fail with internal error for default case here?
+	}
+
+	ctx.dataDevice = unlockRes.Device
 
 	return m.mountData, nil
 }
@@ -669,9 +674,9 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *recoverContext) (stateFunc, er
 		LockKeysOnFinish: false,
 	}
 	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
-	saveDevice, isEncryptedDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-save", saveFallbackKey, unlockOpts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(ctx.disk, "ubuntu-save", saveFallbackKey, unlockOpts)
 	if err != nil {
-		if isEncryptedDev {
+		if unlockRes.IsDecryptedDevice {
 			ctx.degradedState.LogErrorf("cannot find or unlock encrypted ubuntu-save partition with recovery key: %v", err)
 			ctx.degradedState.SaveState = "enc-not-found"
 		} else {
@@ -686,11 +691,15 @@ func (m *stateMachine) unlockSaveFallbackKey(ctx *recoverContext) (stateFunc, er
 		return nil, nil
 	}
 
-	// TODO: inspect the unlock result to see if we used the fallback sealed key
-	//       or if we ended up relying on the recovery key entered by the user
+	switch unlockRes.UnlockMethod {
+	case secboot.UnlockedWithSealedKey:
+		ctx.degradedState.SaveKey = "fallback"
+	case secboot.UnlockedWithRecoveryKey:
+		ctx.degradedState.SaveKey = "recovery"
 
-	ctx.degradedState.SaveKey = "fallback"
-	ctx.saveDevice = saveDevice
+		// TODO: should we fail with internal error for default case here?
+	}
+	ctx.saveDevice = unlockRes.Device
 
 	return m.mountSave, nil
 }
@@ -1030,26 +1039,26 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		LockKeysOnFinish: true,
 		AllowRecoveryKey: true,
 	}
-	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+	if err := doSystemdMount(unlockRes.Device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
 	// 3.3. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, isDecryptDev, fsckSystemdOpts)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, unlockRes.IsDecryptedDevice, fsckSystemdOpts)
 	if err != nil {
 		return err
 	}
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
 	diskOpts := &disks.Options{}
-	if isDecryptDev {
+	if unlockRes.IsDecryptedDevice {
 		// then we need to specify that the data mountpoint is expected to be a
 		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true

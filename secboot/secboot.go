@@ -106,3 +106,37 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
 }
+
+// UnlockMethod is the method that was used to unlock a volume.
+type UnlockMethod int
+
+const (
+	// NotUnlocked indicates that the device was either not unlocked or is not
+	// an encrypted device.
+	NotUnlocked UnlockMethod = iota
+	// UnlockedWithSealedKey indicates that the device was unlocked with the
+	// provided sealed key object.
+	UnlockedWithSealedKey
+	// UnlockedWithRecoveryKey indicates that the device was unlocked by the
+	// user providing the recovery key at the prompt.
+	UnlockedWithRecoveryKey
+	// UnlockedWithUnsealedKey indicates that the device was unlocked with the
+	// provided key object that is not sealed.
+	UnlockedWithUnsealedKey
+)
+
+// UnlockResult is the result of trying to unlock a volume.
+type UnlockResult struct {
+	// Device is the decrypted device, if encrypted or just the unencrypted
+	// device.
+	Device string
+	// IsDecryptedDevice indicates if Device is a decrypted device or an
+	// unencrypted device.
+	IsDecryptedDevice bool
+	// UnlockMethod is the method used to unlock the device. Valid values are
+	// - NotUnlocked
+	// - UnlockedWithRecoveryKey
+	// - UnlockedWithSealedKey
+	// - UnlockedWithUnsealedKey
+	UnlockMethod UnlockMethod
+}
