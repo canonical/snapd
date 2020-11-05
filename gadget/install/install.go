@@ -91,7 +91,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "*.sealed-key"))
 	for _, keyFile := range sealedKeyFiles {
 		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)

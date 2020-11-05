@@ -103,7 +103,12 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	}
 
 	// make sure relevant locations exist
-	for _, p := range []string{InitramfsEncryptionKeyDir, InstallHostFDEDataDir, InstallHostFDESaveDir} {
+	for _, p := range []string{
+		InitramfsSeedEncryptionKeyDir,
+		InitramfsBootEncryptionKeyDir,
+		InstallHostFDEDataDir,
+		InstallHostFDESaveDir,
+	} {
 		// XXX: should that be 0700 ?
 		if err := os.MkdirAll(p, 0755); err != nil {
 			return err
@@ -161,10 +166,12 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	// The run object contains only the ubuntu-data key; the ubuntu-save key
 	// is then stored inside the encrypted data partition, so that the normal run
 	// path only unseals one object because unsealing is expensive.
+	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
+	// need to continually write/read keys from ubuntu-seed.
 	keys := []secboot.SealKeyRequest{
 		{
 			Key:     key,
-			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		},
 	}
 	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
@@ -185,17 +192,17 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 		TPMPolicyAuthKey:       authKey,
 		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
 	}
-	// The fallback object contains the ubuntu-data and ubuntu-save keys. The key files
-	// are stored on ubuntu-seed, separate from ubuntu-data so they can be used if ubuntu-data
-	// and ubuntu-boot are corrupted or unavailable.
+	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
+	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
+	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 	keys := []secboot.SealKeyRequest{
 		{
 			Key:     key,
-			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		},
 		{
 			Key:     saveKey,
-			KeyFile: filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		},
 	}
 	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
@@ -332,7 +339,7 @@ func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBl
 
 	// list all the key files to reseal
 	keyFiles := []string{
-		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 	}
 
 	resealKeyParams := &secboot.ResealKeysParams{
@@ -356,8 +363,8 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 
 	// list all the key files to reseal
 	keyFiles := []string{
-		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		filepath.Join(InitramfsEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	}
 
 	resealKeyParams := &secboot.ResealKeysParams{

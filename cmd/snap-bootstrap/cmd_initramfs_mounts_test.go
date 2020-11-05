@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -84,10 +85,6 @@ var (
 	// a boot disk without ubuntu-save
 	defaultBootDisk = &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
-			// ubuntu-boot not strictly necessary, since we mount it first we
-			// don't go looking for the label ubuntu-boot on a disk, we just
-			// mount it and hope it's what we need, unless we have UEFI vars or
-			// something
 			"ubuntu-boot": "ubuntu-boot-partuuid",
 			"ubuntu-seed": "ubuntu-seed-partuuid",
 			"ubuntu-data": "ubuntu-data-partuuid",
@@ -98,10 +95,6 @@ var (
 
 	defaultBootWithSaveDisk = &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
-			// ubuntu-boot not strictly necessary, since we mount it first we
-			// don't go looking for the label ubuntu-boot on a disk, we just
-			// mount it and hope it's what we need, unless we have UEFI vars or
-			// something
 			"ubuntu-boot": "ubuntu-boot-partuuid",
 			"ubuntu-seed": "ubuntu-seed-partuuid",
 			"ubuntu-data": "ubuntu-data-partuuid",
@@ -113,10 +106,6 @@ var (
 
 	defaultEncBootDisk = &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
-			// ubuntu-boot not strictly necessary, since we mount it first we
-			// don't ever search a particular disk for the ubuntu-boot label,
-			// we just mount it and hope it's what we need, unless we have UEFI
-			// vars or something a la boot.PartitionUUIDForBootedKernelDisk
 			"ubuntu-boot":     "ubuntu-boot-partuuid",
 			"ubuntu-seed":     "ubuntu-seed-partuuid",
 			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
@@ -227,7 +216,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 		c.Check(f, NotNil)
 		return nil
 	}))
-	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		return filepath.Join("/dev/disk/by-partuuid", name+"-partuuid"), false, nil
 	}))
 }
@@ -792,6 +781,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootDisk,
 			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootDisk,
 		},
 	)
@@ -827,6 +817,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			c.Assert(where, Equals, boot.InitramfsDataDir)
 			return n%2 == 0, nil
 		case 11, 12:
+			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
+			return n%2 == 0, nil
+		case 13, 14:
 			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
 			return n%2 == 0, nil
 		default:
@@ -884,8 +877,8 @@ After=%[1]s
 		}
 	}
 
-	// 2 IsMounted calls per mount point, so 12 total IsMounted calls
-	c.Assert(n, Equals, 12)
+	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
+	c.Assert(n, Equals, 14)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -926,6 +919,13 @@ After=%[1]s
 			"--fsck=no",
 		}, {
 			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			"--no-pager",
@@ -941,6 +941,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
 		},
@@ -1010,6 +1011,7 @@ After=%[1]s
 		kernelMnt,
 		baseMnt,
 		boot.InitramfsDataDir,
+		boot.InitramfsUbuntuBootDir,
 		boot.InitramfsHostUbuntuDataDir,
 		boot.InitramfsUbuntuSaveDir,
 	})
@@ -1050,6 +1052,13 @@ After=%[1]s
 			"--no-ask-password",
 			"--type=tmpfs",
 			"--fsck=no",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1462,19 +1471,23 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	defer restore()
 
 	// write the installed model like makebootable does it
-	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
 	c.Assert(err, IsNil)
-	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	c.Assert(err, IsNil)
 	defer mf.Close()
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
-		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
-		c.Assert(lockKeysOnFinish, Equals, true)
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+		c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+			LockKeysOnFinish: true,
+			AllowRecoveryKey: true,
+		})
+
 		dataActivated = true
 		// return true because we are using an encrypted device
 		return "path-to-data-device", true, nil
@@ -1579,7 +1592,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1650,7 +1663,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1763,7 +1776,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	where := "/run/mnt/ubuntu-boot/model"
+	where := "/run/mnt/ubuntu-boot/device/model"
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
@@ -2216,6 +2229,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
 		},
@@ -2231,6 +2245,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -2279,6 +2298,7 @@ defaults:
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
 		},
@@ -2294,6 +2314,11 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -2345,6 +2370,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
 			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
 		},
@@ -2364,6 +2390,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -2395,6 +2426,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
 				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
 				IsDecryptedDevice: true,
@@ -2408,13 +2440,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
-		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-		c.Assert(lockKeysOnFinish, Equals, false)
+		c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
 		dataActivated = true
 		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 	})
@@ -2465,6 +2498,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			tmpfsMountOpts,
 		},
 		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
+		},
+		{
 			"/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
@@ -2513,6 +2551,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
 				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
 				IsDecryptedDevice: true,
@@ -2528,18 +2567,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	dataActivated := false
 	saveActivated := false
 	unlockVolumeWithSealedKeyCalls := 0
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
 			// pretend we can't unlock ubuntu-data with the main run key
 			c.Assert(name, Equals, "ubuntu-data")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
 			return "", true, fmt.Errorf("failed to unlock ubuntu-data")
 
 		case 2:
@@ -2549,7 +2588,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			dataActivated = true
 			return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 
@@ -2604,6 +2645,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			tmpfsMountOpts,
 		},
 		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
+		},
+		{
 			"/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
@@ -2654,6 +2700,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
 				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
 				IsDecryptedDevice: true,
@@ -2669,18 +2716,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	dataActivated := false
 	saveActivationAttempted := false
 	unlockVolumeWithSealedKeyCalls := 0
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
 			// ubuntu data can be unlocked fine
 			c.Assert(name, Equals, "ubuntu-data")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
 			dataActivated = true
 			return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 
@@ -2694,7 +2741,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, true)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			dataActivated = true
 			return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 
@@ -2749,6 +2798,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			tmpfsMountOpts,
 		},
 		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
+		},
+		{
 			"/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
@@ -2785,6 +2839,149 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNoBootDataFallbackHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	defaultEncDiskNoBoot := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"ubuntu-seed":     "ubuntu-seed-partuuid",
+			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "defaultEncDevNoBoot",
+	}
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncDiskNoBoot,
+			// no ubuntu-boot so we fall back to unlocking data with fallback
+			// key right away
+			{
+				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
+				IsDecryptedDevice: true,
+			}: defaultEncDiskNoBoot,
+			{
+				Mountpoint:        boot.InitramfsUbuntuSaveDir,
+				IsDecryptedDevice: true,
+			}: defaultEncDiskNoBoot,
+		},
+	)
+	defer restore()
+
+	dataActivated := false
+	unlockVolumeWithSealedKeyCalls := 0
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
+		unlockVolumeWithSealedKeyCalls++
+		switch unlockVolumeWithSealedKeyCalls {
+		case 1:
+			// we skip trying to unlock with run key on ubuntu-boot and go
+			// directly to using the fallback key on ubuntu-seed
+			c.Assert(name, Equals, "ubuntu-data")
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+			c.Assert(err, IsNil)
+			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
+			dataActivated = true
+			return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
+
+		default:
+			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
+			return "", false, fmt.Errorf("broken test")
+		}
+	})
+	defer restore()
+
+	s.mockUbuntuSaveKey(c, boot.InitramfsHostWritableDir, "foo")
+
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (string, error) {
+		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not activated yet"))
+		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+		c.Assert(err, IsNil)
+		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(key, DeepEquals, []byte("foo"))
+		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), nil
+	})
+	defer restore()
+
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+		// no ubuntu-boot
+		{
+			"/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
+			boot.InitramfsHostUbuntuDataDir,
+			nil,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			boot.InitramfsUbuntuSaveDir,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	s.testRecoverModeHappy(c)
+
+	checkDegradedJSON(c, map[string]interface{}{
+		"data-key":      "fallback",
+		"data-state":    "mounted",
+		"save-key":      "run",
+		"save-state":    "mounted",
+		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"error-log": []interface{}{
+			"error locating ubuntu-boot partition on disk defaultEncDevNoBoot: filesystem label \"ubuntu-boot\" not found",
+		},
+	})
+
+	c.Check(dataActivated, Equals, true)
+	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 1)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
+	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNoDataFallbackSaveHappy(c *C) {
 	// test a scenario when unsealing of data fails with both the run key
 	// and fallback key, but save can be unlocked using the fallback key
@@ -2802,6 +2999,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
 				Mountpoint:        boot.InitramfsUbuntuSaveDir,
 				IsDecryptedDevice: true,
@@ -2813,18 +3011,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	dataActivationAttempts := 0
 	saveActivated := false
 	unlockVolumeWithSealedKeyCalls := 0
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
 			// ubuntu data can't be unlocked with run key
 			c.Assert(name, Equals, "ubuntu-data")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
 			dataActivationAttempts++
 			return "", true, fmt.Errorf("failed to unlock ubuntu-data with run object")
 
@@ -2835,7 +3033,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			dataActivationAttempts++
 			return "", true, fmt.Errorf("failed to unlock ubuntu-data with fallback object")
 
@@ -2846,7 +3046,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, true)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			saveActivated = true
 			return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 
@@ -2895,6 +3097,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
@@ -2976,6 +3183,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
 			{
 				Mountpoint:        boot.InitramfsUbuntuSaveDir,
 				IsDecryptedDevice: true,
@@ -2987,18 +3195,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	dataActivationAttempts := 0
 	saveUnsealActivationAttempted := false
 	unlockVolumeWithSealedKeyCalls := 0
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		unlockVolumeWithSealedKeyCalls++
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
 			// ubuntu data can't be unlocked with run key
 			c.Assert(name, Equals, "ubuntu-data")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key"))
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
 			dataActivationAttempts++
 			return "", true, fmt.Errorf("failed to unlock ubuntu-data with run object")
 
@@ -3009,7 +3217,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, false)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			dataActivationAttempts++
 			return "", true, fmt.Errorf("failed to unlock ubuntu-data with fallback object")
 
@@ -3022,7 +3232,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 			c.Assert(err, IsNil)
 			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-			c.Assert(lockKeysOnFinish, Equals, true)
+			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
+				AllowRecoveryKey: true,
+			})
 			saveUnsealActivationAttempted = true
 			return "", true, fmt.Errorf("failed to unlock ubuntu-save with fallback object")
 
@@ -3071,6 +3283,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 	}, nil)
 	defer restore()
@@ -3145,6 +3362,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	mockDisk := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-partuuid",
+			"ubuntu-boot":     "ubuntu-boot-partuuid",
 			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
 			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
 		},
@@ -3154,6 +3372,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	attackerDisk := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-attacker-partuuid",
+			"ubuntu-boot":     "ubuntu-boot-attacker-partuuid",
 			"ubuntu-data-enc": "ubuntu-data-enc-attacker-partuuid",
 			"ubuntu-save-enc": "ubuntu-save-enc-attacker-partuuid",
 		},
@@ -3164,6 +3383,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: mockDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: mockDisk,
 			{
 				Mountpoint:        boot.InitramfsHostUbuntuDataDir,
 				IsDecryptedDevice: true,
@@ -3179,12 +3399,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	defer restore()
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(encDevPartUUID, Equals, "ubuntu-data-enc-partuuid")
-		c.Assert(lockKeysOnFinish, Equals, false)
+		c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
+
 		activated = true
 		return filepath.Join("/dev/disk/by-partuuid", encDevPartUUID), true, nil
 	})
@@ -3230,6 +3451,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
@@ -3288,6 +3514,11 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		// add the expected mount of ubuntu-data onto the host data dir
 		modeMnts = append(modeMnts,
 			systemdMount{
+				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+				boot.InitramfsUbuntuBootDir,
+				needsFsckDiskMountOpts,
+			},
+			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				nil,
@@ -3301,11 +3532,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		// also add the ubuntu-data and ubuntu-save fs labels to the
 		// disk referenced by the ubuntu-seed partition
 		disk := mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuSeedDir}]
+		disk.FilesystemLabelToPartUUID["ubuntu-boot"] = "ubuntu-boot-partuuid"
 		disk.FilesystemLabelToPartUUID["ubuntu-data"] = "ubuntu-data-partuuid"
 		disk.FilesystemLabelToPartUUID["ubuntu-save"] = "ubuntu-save-partuuid"
 
-		// and also add the /run/mnt/host/ubuntu-{data,save} mountpoints
+		// and also add the /run/mnt/host/ubuntu-{boot,data,save} mountpoints
 		// for cross-checking after mounting
+		mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuBootDir}] = disk
 		mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsHostUbuntuDataDir}] = disk
 		mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuSaveDir}] = disk
 	}
