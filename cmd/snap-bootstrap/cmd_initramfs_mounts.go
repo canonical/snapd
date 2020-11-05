@@ -76,7 +76,7 @@ var (
 
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (string, bool, error)
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
@@ -288,18 +288,18 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		LockKeysOnFinish: true,
 		AllowRecoveryKey: true,
 	}
-	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
 
 	// don't do fsck on the data partition, it could be corrupted
-	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
+	if err := doSystemdMount(unlockRes.Device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		return err
 	}
 
 	// 3.1. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, isDecryptDev, nil)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, unlockRes.IsDecryptedDevice, nil)
 	if err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// 3.2 verify that the host ubuntu-data comes from where we expect it to
 	// right device
 	diskOpts := &disks.Options{}
-	if isDecryptDev {
+	if unlockRes.IsDecryptedDevice {
 		// then we need to specify that the data mountpoint is expected to be a
 		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true
@@ -563,26 +563,26 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		LockKeysOnFinish: true,
 		AllowRecoveryKey: true,
 	}
-	device, isDecryptDev, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+	if err := doSystemdMount(unlockRes.Device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
 	// 3.3. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, isDecryptDev, fsckSystemdOpts)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, unlockRes.IsDecryptedDevice, fsckSystemdOpts)
 	if err != nil {
 		return err
 	}
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
 	diskOpts := &disks.Options{}
-	if isDecryptDev {
+	if unlockRes.IsDecryptedDevice {
 		// then we need to specify that the data mountpoint is expected to be a
 		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true

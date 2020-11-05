@@ -227,12 +227,16 @@ func LockTPMSealedKeys() error {
 // attempt with the sealed key fails.
 //
 // Note that if the function proceeds to the point where it knows definitely
-// whether there is an encrypted device or not, the second return value will be
-// true, even if error is non-nil. This is so that callers can be robust and
-// try unlocking using another method for example.
+// whether there is an encrypted device or not, IsDecryptedDevice on the return
+// value will be true, even if error is non-nil. This is so that callers can be
+// robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(
 	disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions,
-) (string, bool, error) {
+) (UnlockResult, error) {
+	res := UnlockResult{
+		UnlockMethod: NotUnlocked,
+	}
+
 	if opts == nil {
 		opts = &UnlockVolumeUsingSealedKeyOptions{}
 	}
@@ -246,31 +250,30 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	foundEncDev := false
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 	var errNotFound disks.FilesystemLabelNotFoundError
 	if err == nil {
-		foundEncDev = true
+		res.IsDecryptedDevice = true
 	} else {
 		if !xerrors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			// TODO: need to defer the connection to the default TPM somehow
-			return "", false, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
+			return res, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
 		}
 		// otherwise it is an error not found and we should search for the
 		// unencrypted device
 		partUUID, err = disk.FindMatchingPartitionUUID(name)
 		if err != nil {
-			return "", false, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
+			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
 	}
 
-	devpath := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	res.Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
 		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
-			return "", foundEncDev, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
@@ -301,37 +304,52 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 			}
 		}()
 
-		if !foundEncDev {
+		if !res.IsDecryptedDevice {
 			// if we didn't find an encrypted device just return, don't try to
 			// unlock it
 			return nil
 		}
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
+		// if we don't have a tpm, and we allow using a recovery key, do that
+		// directly
 		if !tpmDeviceAvailable && opts.AllowRecoveryKey {
-			return UnlockEncryptedVolumeWithRecoveryKey(mapperName, devpath)
+			err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, res.Device)
+			if err != nil {
+				return err
+			}
+			res.UnlockMethod = UnlockedWithRecoveryKey
+			return nil
 		}
 
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
+		// otherwise we have a tpm and we should use the sealed key first, but
+		// this method will fallback to using the recovery key if enabled
+		method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, res.Device, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
+		if err != nil {
+			return err
+		}
+		res.UnlockMethod = method
+		return nil
 	}()
 	if err != nil {
-		return "", foundEncDev, err
+		return res, err
 	}
 	if lockErr != nil {
-		return "", foundEncDev, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
+		return res, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
-	if foundEncDev {
+	if res.IsDecryptedDevice {
 		// return the encrypted device if the device we are maybe unlocking is
 		// an encrypted device
-		return filepath.Join("/dev/mapper", mapperName), true, nil
+		res.Device = filepath.Join("/dev/mapper", mapperName)
 	}
 
-	return devpath, false, nil
+	return res, nil
 }
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
 // path to the device node is returned.
+// TODO: use UnlockResult here too?
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (string, error) {
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
@@ -370,7 +388,7 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) error {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) (UnlockMethod, error) {
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries: 1,
 		// disable recovery key by default
@@ -382,19 +400,32 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 		options.RecoveryKeyTries = 3
 	}
 
+	var method UnlockMethod
+
 	// XXX: pinfile is currently not used
 	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
+
+	// with non-nil err, we should check for err being ActivateWithTPMSealedKeyError
+	// and RecoveryKeyUsageErr inside that being nil - this indicates that the
+	// recovery key was used to unlock it
 	if !activated {
 		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
-		return fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
+		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
 	}
 	if err != nil {
+		if activateErr, ok := err.(*sb.ActivateWithTPMSealedKeyError); ok {
+			if activateErr.RecoveryKeyUsageErr == nil {
+				// then we know for sure that it was unlocked with recover key
+				method = UnlockedWithRecoveryKey
+			}
+		}
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
 	} else {
+		method = UnlockedWithSealedKey
 		logger.Noticef("successfully activated encrypted device %q with TPM", device)
 	}
 
-	return nil
+	return method, nil
 }
 
 // unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
