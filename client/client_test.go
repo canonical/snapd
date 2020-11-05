@@ -594,10 +594,13 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 }
 
 func (cs *clientSuite) TestClientSystemRecoveryKey(c *C) {
-	cs.rsp = `{"type":"sync", "result":{"system-recovery-key":"42"}}`
+	cs.rsp = `{"type":"sync", "result":{"recovery-key":"42"}}`
 
-	var key client.SystemRecoveryKeyResponse
+	var key client.SystemRecoveryKeysResponse
 	err := cs.cli.SystemRecoveryKey(&key)
 	c.Assert(err, IsNil)
-	c.Check(key.SystemRecoveryKey, Equals, "42")
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "GET")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/system-recovery-keys")
+	c.Check(key.RecoveryKey, Equals, "42")
 }

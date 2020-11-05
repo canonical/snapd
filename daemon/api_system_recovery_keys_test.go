@@ -51,10 +51,10 @@ func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
 	c.Assert(err, IsNil)
 
-	rsp := getSystemRecoveryKey(systemRecoveryKeyCmd, req, nil).(*resp)
+	rsp := getSystemRecoveryKeys(systemRecoveryKeysCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, Equals, 200)
-	srk := rsp.Result.(*client.SystemRecoveryKeyResponse)
-	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeyResponse{SystemRecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287"})
+	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
+	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287"})
 }
 
 func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
@@ -68,6 +68,6 @@ func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	rec := httptest.NewRecorder()
 	systemsActionCmd.ServeHTTP(rec, req)
 
-	systemRecoveryKeyCmd.ServeHTTP(rec, req)
+	systemRecoveryKeysCmd.ServeHTTP(rec, req)
 	c.Assert(rec.Code, Equals, 401)
 }
