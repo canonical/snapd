@@ -204,7 +204,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 		{"sfdisk", "--append", "--no-reread", "/dev/node"},
 	})
 
@@ -234,7 +234,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 	})
 
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
@@ -295,9 +295,9 @@ echo '{
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
-		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--json", "/dev/node"},
 	})
 }
 
