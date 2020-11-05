@@ -166,7 +166,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	// The run object contains only the ubuntu-data key; the ubuntu-save key
 	// is then stored inside the encrypted data partition, so that the normal run
 	// path only unseals one object because unsealing is expensive.
-	// Futhermore, the run object key is stored on ubuntu-boot so that we do not
+	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
 	keys := []secboot.SealKeyRequest{
 		{
