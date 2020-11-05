@@ -35,7 +35,7 @@ prepare: |
 
     # start fake device svc
     #shellcheck disable=SC2148
-    systemd-run --unit fakedevicesvc $(command -v fakedevicesvc) localhost:11029
+    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
     # kick first boot again
     systemctl start snapd.service snapd.socket

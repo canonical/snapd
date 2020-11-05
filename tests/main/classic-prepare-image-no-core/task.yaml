@@ -41,7 +41,7 @@ prepare: |
 
     # start fake device svc
     #shellcheck disable=SC2148
-    systemd-run --unit fakedevicesvc $(command -v fakedevicesvc) localhost:11029
+    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
