@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -287,8 +288,8 @@ volumes:
 
 func TestRun(t *testing.T) { TestingT(t) }
 
-func mustParseGadgetSize(c *C, s string) gadget.Size {
-	gs, err := gadget.ParseSize(s)
+func mustParseGadgetSize(c *C, s string) quantity.Size {
+	gs, err := quantity.ParseSize(s)
 	c.Assert(err, IsNil)
 	return gs
 }
@@ -432,8 +433,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	})
 }
 
-func asSizePtr(size gadget.Size) *gadget.Size {
-	gsz := gadget.Size(size)
+func asSizePtr(size quantity.Size) *quantity.Size {
+	gsz := quantity.Size(size)
 	return &gsz
 }
 
@@ -673,37 +674,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
 	c.Check(err, ErrorMatches, `cannot parse gadget metadata: "edition" must be a positive number, not "-5"`)
 }
 
-func (s *gadgetYamlTestSuite) TestUnmarshalGadgetSize(c *C) {
-	type foo struct {
-		Size gadget.Size `yaml:"size"`
-	}
-
-	for i, tc := range []struct {
-		s   string
-		sz  gadget.Size
-		err string
-	}{
-		{"1234", 1234, ""},
-		{"1234M", 1234 * gadget.SizeMiB, ""},
-		{"1234G", 1234 * gadget.SizeGiB, ""},
-		{"0", 0, ""},
-		{"a0M", 0, `cannot parse size "a0M": no numerical prefix.*`},
-		{"-123", 0, `cannot parse size "-123": size cannot be negative`},
-		{"123a", 0, `cannot parse size "123a": invalid suffix "a"`},
-	} {
-		c.Logf("tc: %v", i)
-
-		var f foo
-		err := yaml.Unmarshal([]byte(fmt.Sprintf("size: %s", tc.s)), &f)
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
-		} else {
-			c.Check(err, IsNil)
-			c.Check(f.Size, Equals, tc.sz)
-		}
-	}
-}
-
 func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 	type foo struct {
 		OffsetWrite gadget.RelativeOffset `yaml:"offset-write"`
@@ -715,13 +685,13 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		err string
 	}{
 		{"1234", &gadget.RelativeOffset{Offset: 1234}, ""},
-		{"1234M", &gadget.RelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
-		{"4096M", &gadget.RelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
+		{"1234M", &gadget.RelativeOffset{Offset: 1234 * quantity.SizeMiB}, ""},
+		{"4096M", &gadget.RelativeOffset{Offset: 4096 * quantity.SizeMiB}, ""},
 		{"0", &gadget.RelativeOffset{}, ""},
 		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
-		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
-		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
-		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
+		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * quantity.SizeMiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * quantity.SizeGiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * quantity.SizeGiB}, ""},
 		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
 		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
 		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
@@ -1049,8 +1019,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: gadget.SizeMiB},
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: gadget.SizeMiB},
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
@@ -1076,13 +1046,13 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 					Role:  gadget.SystemData,
 					Label: x.label,
 					Type:  "21686148-6449-6E6F-744E-656564454123",
-					Size:  gadget.SizeMiB,
+					Size:  quantity.SizeMiB,
 				}, {
 					Name:  "data2",
 					Role:  gadget.SystemData,
 					Label: x.label,
 					Type:  "21686148-6449-6E6F-744E-656564454649",
-					Size:  gadget.SizeMiB,
+					Size:  quantity.SizeMiB,
 				}},
 			}, constraints)
 			c.Assert(err, ErrorMatches, x.errMsg)
@@ -1095,12 +1065,12 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Name:  "boot1",
 			Label: "system-boot",
 			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  gadget.SizeMiB,
+			Size:  quantity.SizeMiB,
 		}, {
 			Name:  "boot2",
 			Label: "system-boot",
 			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  gadget.SizeMiB,
+			Size:  quantity.SizeMiB,
 		}},
 	}, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
@@ -2079,28 +2049,4 @@ volumes:
 	c.Assert(err, IsNil)
 	err = gadget.IsCompatible(gi, giNew)
 	c.Check(err, IsNil)
-}
-
-type gadgetSizeTestSuite struct{}
-
-var _ = Suite(&gadgetSizeTestSuite{})
-
-func (s *gadgetSizeTestSuite) TestIECString(c *C) {
-	for _, tc := range []struct {
-		size gadget.Size
-		exp  string
-	}{
-		{512, "512 B"},
-		{1000, "1000 B"},
-		{1030, "1.01 KiB"},
-		{gadget.SizeKiB + 512, "1.50 KiB"},
-		{123 * gadget.SizeKiB, "123 KiB"},
-		{512 * gadget.SizeKiB, "512 KiB"},
-		{578 * gadget.SizeMiB, "578 MiB"},
-		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12 GiB"},
-		{1024 * gadget.SizeGiB, "1 TiB"},
-		{2 * 1024 * 1024 * 1024 * gadget.SizeGiB, "2048 PiB"},
-	} {
-		c.Check(tc.size.IECString(), Equals, tc.exp)
-	}
 }

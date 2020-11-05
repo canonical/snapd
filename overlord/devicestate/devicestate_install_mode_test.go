@@ -206,12 +206,10 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 					Key:         dataEncryptionKey,
 					RecoveryKey: dataRecoveryKey,
 				},
-			}
-			if tc.trustedBootloader {
-				keysForRoles[gadget.SystemSave] = &install.EncryptionKeySet{
+				gadget.SystemSave: {
 					Key:         saveKey,
 					RecoveryKey: reinstallKey,
-				}
+				},
 			}
 		}
 		return &install.InstalledSystemSideData{

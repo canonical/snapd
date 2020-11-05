@@ -104,12 +104,10 @@ prepare: |
   # second boot - attacker drive
   nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
+  "$TESTSTOOLS"/nested-state build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
   # system-user assertion
-  NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
-
-  nested_create_core_vm
-  nested_start_core_vm
+  "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then

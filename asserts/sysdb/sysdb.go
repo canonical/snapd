@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,11 +39,18 @@ func openDatabaseAt(path string, cfg *asserts.DatabaseConfig) (*asserts.Database
 	return asserts.OpenDatabase(cfg)
 }
 
-// Open opens the system-wide assertion database with the trusted assertions set configured.
-func Open() (*asserts.Database, error) {
+// OpenAt opens a system assertion database at the given location with
+// the trusted assertions set configured.
+func OpenAt(path string) (*asserts.Database, error) {
 	cfg := &asserts.DatabaseConfig{
 		Trusted:         Trusted(),
 		OtherPredefined: Generic(),
 	}
-	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
+	return openDatabaseAt(path, cfg)
+}
+
+// Open opens the system-wide assertion database with the trusted assertions
+// set configured.
+func Open() (*asserts.Database, error) {
+	return OpenAt(dirs.SnapAssertsDBDir)
 }

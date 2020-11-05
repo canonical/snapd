@@ -39,8 +39,8 @@ prepare: |
         exit
     fi
 
-    nested_create_core_vm
-    nested_start_core_vm
+    "$TESTSTOOLS"/nested-state build-image core
+    "$TESTSTOOLS"/nested-state create-vm core
 
 restore: |
     if [ -f skip.test ]; then

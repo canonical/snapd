@@ -38,7 +38,7 @@ func init() {
 	secbootMeasureSnapModelWhenPossible = func(_ func() (*asserts.Model, error)) error {
 		return errNotImplemented
 	}
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted = func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted = func(disk disks.Disk, name string, encryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
 		return "", false, errNotImplemented
 	}
 	secbootUnlockEncryptedVolumeUsingKey = func(disk disks.Disk, name string, key []byte) (string, error) {
