@@ -334,6 +334,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		keyfile             string // the keyfile to be used to unseal
 		tpmEnabled          bool   // TPM storage and endorsement hierarchies disabled, only relevant if TPM available
 		hasEncdev           bool   // an encrypted device exists
+		rkAllow             bool   // allow recovery key activation
 		rkErr               error  // recovery key unlock error, only relevant if TPM not available
 		lockRequest         bool   // request to lock access to the sealed key, only relevant if TPM available
 		lockOk              bool   // the lock operation succeeded
@@ -410,26 +411,40 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		}, {
 			// tpm disabled, has encrypted device, unlocked using the recovery key
 			hasEncdev: true,
+			rkAllow:   true,
 			disk:      mockDiskWithEncDev,
 		}, {
 			// tpm disabled, has encrypted device, recovery key unlocking fails
 			hasEncdev: true, rkErr: errors.New("cannot unlock with recovery key"),
-			disk: mockDiskWithEncDev,
-			err:  `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
+			rkAllow: true,
+			disk:    mockDiskWithEncDev,
+			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
 		}, {
 			// no tpm, has encrypted device, unlocked using the recovery key (lock requested)
 			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, lockRequest: true,
+			rkAllow: true,
+			disk:    mockDiskWithEncDev,
+		}, {
+			// no tpm, has encrypted device, unlocking with recovery key not allowed
+			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, lockRequest: true,
 			disk: mockDiskWithEncDev,
+			err:  `cannot activate encrypted device ".*/enc-dev-partuuid": activation error`,
 		}, {
 			// no tpm, has encrypted device, recovery key unlocking fails
 			rkErr:  errors.New("cannot unlock with recovery key"),
 			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, lockRequest: true,
-			disk: mockDiskWithEncDev,
-			err:  `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
+			rkAllow: true,
+			disk:    mockDiskWithEncDev,
+			err:     `cannot unlock encrypted device ".*/enc-dev-partuuid": cannot unlock with recovery key`,
 		}, {
 			// no tpm, has encrypted device, unlocked using the recovery key
+			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, rkAllow: true,
+			disk: mockDiskWithEncDev,
+		}, {
+			// no tpm, has encrypted device, recovery key not allowed
 			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true,
 			disk: mockDiskWithEncDev,
+			err:  `cannot activate encrypted device ".*/enc-dev-partuuid": activation error`,
 		}, {
 			// no tpm, no encrypted device (lock requested)
 			tpmErr: sb.ErrNoTPM2Device, lockRequest: true,
@@ -497,11 +512,20 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, devicePath)
 			c.Assert(keyPath, Equals, expKeyPath)
-			c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
-				PassphraseTries:  1,
-				RecoveryKeyTries: 3,
-				KeyringPrefix:    "snapd",
-			})
+			if tc.rkAllow {
+				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+					PassphraseTries:  1,
+					RecoveryKeyTries: 3,
+					KeyringPrefix:    "snapd",
+				})
+			} else {
+				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
+					PassphraseTries: 1,
+					// activation with recovery key was disabled
+					RecoveryKeyTries: 0,
+					KeyringPrefix:    "snapd",
+				})
+			}
 			if !tc.activated {
 				return false, errors.New("activation error")
 			}
@@ -511,11 +535,15 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
 			options *sb.ActivateVolumeOptions) error {
+			if !tc.rkAllow {
+				c.Fatalf("unexpected attempt to activate with recovery key")
+				return fmt.Errorf("unexpected call")
+			}
 			return tc.rkErr
 		})
 		defer restore()
 
-		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, tc.lockRequest)
+		device, isDecryptDev, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, tc.lockRequest, tc.rkAllow)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(isDecryptDev, Equals, tc.hasEncdev)

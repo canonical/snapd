@@ -225,12 +225,18 @@ func LockTPMSealedKeys() error {
 // keys will be locked when this function completes. The path to the device node
 // is returned as well as whether the device node is an decrypted device node (
 // in the encrypted case). If no encrypted volume was found, then the returned
-// device node is an unencrypted normal volume.
+// device node is an unencrypted normal volume. With allowRecovery set to true,
+// activation with the recovery key will be attempted if activation with the
+// sealed key failed.
+//
 // Note that if the function proceeds to the point where it knows definitely
 // whether there is an encrypted device or not, the second return value will be
 // true, even if error is non-nil. This is so that callers can be robust and
 // try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool) (string, bool, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(
+	disk disks.Disk, name string, sealedEncryptionKeyFile string, lockKeysOnFinish bool,
+	allowRecoveryKey bool,
+) (string, bool, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -303,11 +309,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		}
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
-		if !tpmDeviceAvailable {
+		if !tpmDeviceAvailable && allowRecoveryKey {
 			return UnlockEncryptedVolumeWithRecoveryKey(mapperName, devpath)
 		}
 
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "")
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, devpath, sealedEncryptionKeyFile, "", allowRecoveryKey)
 	}()
 	if err != nil {
 		return "", foundEncDev, err
@@ -365,11 +371,15 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string) error {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) error {
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries:  1,
 		RecoveryKeyTries: 3,
 		KeyringPrefix:    keyringPrefix,
+	}
+	if !allowRecovery {
+		// disable recovery key
+		options.RecoveryKeyTries = 0
 	}
 
 	// XXX: pinfile is currently not used
