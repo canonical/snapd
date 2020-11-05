@@ -1481,9 +1481,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	defer restore()
 
 	// write the installed model like makebootable does it
-	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
 	c.Assert(err, IsNil)
-	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	c.Assert(err, IsNil)
 	defer mf.Close()
 	err = asserts.NewEncoder(mf).Encode(s.model)
@@ -1782,7 +1782,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	where := "/run/mnt/ubuntu-boot/model"
+	where := "/run/mnt/ubuntu-boot/device/model"
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
