@@ -21,7 +21,6 @@ package secboot
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -78,15 +77,6 @@ func (key RecoveryKey) Save(filename string) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
-}
-
-// XXX: copied from github.com/snapcore/secboot/crypto.go:RecoveryKey.String()
-func (k RecoveryKey) String() string {
-	var u16 [8]uint16
-	for i := 0; i < 8; i++ {
-		u16[i] = binary.LittleEndian.Uint16(k[i*2:])
-	}
-	return fmt.Sprintf("%05d-%05d-%05d-%05d-%05d-%05d-%05d-%05d", u16[0], u16[1], u16[2], u16[3], u16[4], u16[5], u16[6], u16[7])
 }
 
 func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {

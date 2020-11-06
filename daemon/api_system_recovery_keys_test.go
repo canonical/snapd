@@ -31,9 +31,10 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 )
 
-func mockSystemRecoveryKey(c *C) {
+func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
@@ -42,24 +43,37 @@ func mockSystemRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(rkeyPath, []byte(rkeystr), 0644)
 	c.Assert(err, IsNil)
+
+	skeystr := "1234567890123456"
+	c.Assert(err, IsNil)
+	skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	err = ioutil.WriteFile(skeyPath, []byte(skeystr), 0644)
+	c.Assert(err, IsNil)
 }
 
-func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
-	s.daemon(c)
-	mockSystemRecoveryKey(c)
+func (s *apiSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
+	if (secboot.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
 
-	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
+	s.daemon(c)
+	mockSystemRecoveryKeys(c)
+
+	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := getSystemRecoveryKey(systemRecoveryKeyCmd, req, nil).(*resp)
+	rsp := getSystemRecoveryKeys(systemRecoveryKeysCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, Equals, 200)
-	srk := rsp.Result.(*client.SystemRecoveryKeyResponse)
-	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeyResponse{SystemRecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287"})
+	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
+	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
+		RecoveryKey:  "61665-00531-54469-09783-47273-19035-40077-28287",
+		ReinstallKey: "12849-13363-13877-14391-12345-12849-13363-13877",
+	})
 }
 
 func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	s.daemon(c)
-	mockSystemRecoveryKey(c)
+	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
 	c.Assert(err, IsNil)
@@ -68,6 +82,6 @@ func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	rec := httptest.NewRecorder()
 	systemsActionCmd.ServeHTTP(rec, req)
 
-	systemRecoveryKeyCmd.ServeHTTP(rec, req)
+	systemRecoveryKeysCmd.ServeHTTP(rec, req)
 	c.Assert(rec.Code, Equals, 401)
 }

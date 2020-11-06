@@ -88,6 +88,31 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniquen
 	defer r()
 }
 
+func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsistency(c *C) {
+	d1 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label1": "part1",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+	}
+
+	// a mountpoint mapping where the same mountpoint has different options for
+	// the source mountpoint
+	m := map[disks.Mountpoint]*disks.MockDiskMapping{
+		{Mountpoint: "mount1", IsDecryptedDevice: false}: d1,
+		{Mountpoint: "mount1", IsDecryptedDevice: true}:  d1,
+	}
+
+	// mocking shouldn't work
+	c.Assert(
+		func() { disks.MockMountPointDisksToPartitionMapping(m) },
+		PanicMatches,
+		// use .* for true/false since iterating over map order is not defined
+		`mocked source mountpoint mount1 is duplicated with different options - previous option for IsDecryptedDevice was .*, current option is .*`,
+	)
+}
+
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
