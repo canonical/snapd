@@ -630,11 +630,11 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 }
 
-func (cs *clientSuite) TestClientSystemRecoveryKey(c *C) {
+func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
 	cs.rsp = `{"type":"sync", "result":{"recovery-key":"42"}}`
 
 	var key client.SystemRecoveryKeysResponse
-	err := cs.cli.SystemRecoveryKey(&key)
+	err := cs.cli.SystemRecoveryKeys(&key)
 	c.Assert(err, IsNil)
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "GET")

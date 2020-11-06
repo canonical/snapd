@@ -739,7 +739,7 @@ type SystemRecoveryKeysResponse struct {
 	ReinstallKey string `json:"reinstall-key"`
 }
 
-func (client *Client) SystemRecoveryKey(result interface{}) error {
+func (client *Client) SystemRecoveryKeys(result interface{}) error {
 	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
 }
