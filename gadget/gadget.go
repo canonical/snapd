@@ -943,12 +943,6 @@ func IsCompatible(current, new *Info) error {
 // PositionedVolumeFromGadget takes a gadget rootdir and positions the
 // partitions as specified.
 func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	// TODO:UC20: since this is unconstrained via the model, it returns an
-	//            err == nil and an empty info when the gadgetRoot does not
-	//            actually contain the required gadget.yaml file (for example
-	//            when you have a typo in the args to snap-bootstrap
-	//            create-partitions). anyways just verify this more because
-	//            otherwise it's unhelpful :-/
 	info, err := ReadInfo(gadgetRoot, nil)
 	if err != nil {
 		return nil, err
