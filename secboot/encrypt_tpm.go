@@ -51,3 +51,7 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey))
 }
+
+func (k RecoveryKey) String() string {
+	return sb.RecoveryKey(k).String()
+}
