@@ -146,7 +146,9 @@ setup_fake_store(){
 
 teardown_fake_store(){
     local top_dir=$1
-    systemctl stop fakestore
+    if systemctl is-active fakestore >/dev/null; then
+        systemctl stop fakestore
+    fi
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store
