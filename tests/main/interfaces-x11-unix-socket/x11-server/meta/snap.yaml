@@ -1,0 +1,9 @@
+name: x11-server
+version: 1.0
+summary: Fake x11 server
+description: Fake x11 server
+
+apps:
+  x11-server:
+    command: bin/xserver.sh
+    slots: [x11]
