@@ -120,15 +120,14 @@ const (
 	// UnlockedWithRecoveryKey indicates that the device was unlocked by the
 	// user providing the recovery key at the prompt.
 	UnlockedWithRecoveryKey
-	// UnlockedWithUnsealedKey indicates that the device was unlocked with the
-	// provided key object that is not sealed.
-	UnlockedWithUnsealedKey
+	// UnlockStatusUnknown indicates that the unlock status of the device is not clear.
+	UnlockStatusUnknown
 )
 
 // UnlockResult is the result of trying to unlock a volume.
 type UnlockResult struct {
 	// Device is the decrypted device, if encrypted or just the unencrypted
-	// device.
+	// device. Device can be empty when none was found.
 	Device string
 	// IsDecryptedDevice indicates if Device is a decrypted device or an
 	// unencrypted device.

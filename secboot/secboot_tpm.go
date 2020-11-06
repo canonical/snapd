@@ -325,11 +325,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		// otherwise we have a tpm and we should use the sealed key first, but
 		// this method will fallback to using the recovery key if enabled
 		method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, res.Device, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
-		if err != nil {
-			return err
-		}
 		res.UnlockMethod = method
-		return nil
+		return err
 	}()
 	if err != nil {
 		return res, err
@@ -385,6 +382,20 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	return nil
 }
 
+func isActivatedWithRecoveryKey(err error) bool {
+	if err == nil {
+		return false
+	}
+	// with non-nil err, we should check for err being ActivateWithTPMSealedKeyError
+	// and RecoveryKeyUsageErr inside that being nil - this indicates that the
+	// recovery key was used to unlock it
+	activateErr, ok := err.(*sb.ActivateWithTPMSealedKeyError)
+	if !ok {
+		return false
+	}
+	return activateErr.RecoveryKeyUsageErr == nil
+}
+
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
@@ -400,32 +411,24 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 		options.RecoveryKeyTries = 3
 	}
 
-	var method UnlockMethod
-
 	// XXX: pinfile is currently not used
 	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
 
-	// with non-nil err, we should check for err being ActivateWithTPMSealedKeyError
-	// and RecoveryKeyUsageErr inside that being nil - this indicates that the
-	// recovery key was used to unlock it
-	if !activated {
-		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
-		return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
-	}
-	if err != nil {
-		if activateErr, ok := err.(*sb.ActivateWithTPMSealedKeyError); ok {
-			if activateErr.RecoveryKeyUsageErr == nil {
-				// then we know for sure that it was unlocked with recover key
-				method = UnlockedWithRecoveryKey
-			}
+	if activated {
+		// non nil error may indicate the volume was unlocked using the
+		// recovery key
+		if err == nil {
+			logger.Noticef("successfully activated encrypted device %q with TPM", device)
+			return UnlockedWithSealedKey, nil
+		} else if isActivatedWithRecoveryKey(err) {
+			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
+			return UnlockedWithRecoveryKey, nil
 		}
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
-	} else {
-		method = UnlockedWithSealedKey
-		logger.Noticef("successfully activated encrypted device %q with TPM", device)
+		// no other error is possible when activation succeeded
+		return UnlockStatusUnknown, fmt.Errorf("internal error: volume activated with unexpected error: %v", err)
 	}
-
-	return method, nil
+	// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
+	return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
 }
 
 // unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
