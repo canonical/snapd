@@ -339,6 +339,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		lockRequest         bool   // request to lock access to the sealed key, only relevant if TPM available
 		lockOk              bool   // the lock operation succeeded
 		activated           bool   // the activation operation succeeded
+		activateErr         error  // the activation error
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
@@ -388,6 +389,27 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// happy case without encrypted device (lock requested)
 			tpmEnabled: true, lockRequest: true, lockOk: true,
 			disk: mockDiskWithUnencDev,
+		}, {
+			// happy case with tpm and encrypted device, activation
+			// with recovery key
+			tpmEnabled: true, hasEncdev: true, lockOk: true, activated: true,
+			activateErr: &sb.ActivateWithTPMSealedKeyError{
+				// activation error with nil recovery key error
+				// implies volume activated successfully using
+				// the recovery key,
+				RecoveryKeyUsageErr: nil,
+			},
+			disk:            mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockedWithRecoveryKey,
+		}, {
+			// tpm and encrypted device, successful activation, but
+			// recovery key non-nil is an unexpected state
+			tpmEnabled: true, hasEncdev: true, lockOk: true, activated: true,
+			activateErr: &sb.ActivateWithTPMSealedKeyError{
+				RecoveryKeyUsageErr: fmt.Errorf("unexpected"),
+			},
+			err:  `internal error: volume activated with unexpected error: .* \(unexpected\)`,
+			disk: mockDiskWithEncDev,
 		}, {
 			// activation works but lock fails, without encrypted device (lock requested)
 			tpmEnabled: true, lockRequest: true, activated: true,
@@ -535,10 +557,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					KeyringPrefix:    "snapd",
 				})
 			}
-			if !tc.activated {
+			if !tc.activated && tc.activateErr == nil {
 				return false, errors.New("activation error")
 			}
-			return true, nil
+			return tc.activated, tc.activateErr
 		})
 		defer restore()
 
