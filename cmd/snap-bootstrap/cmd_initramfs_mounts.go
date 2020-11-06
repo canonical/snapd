@@ -368,9 +368,9 @@ type stateFunc func(ctx *recoverContext) (stateFunc, error)
 /**
 
 
-TODO: this state diagram actually is missing a state transition from 
-"unlock save w/ run key" to "locate unencrypted save" (which is a state that is 
-missing from this diagram), and then from "locate unencrypted save" to either 
+TODO: this state diagram actually is missing a state transition from
+"unlock save w/ run key" to "locate unencrypted save" (which is a state that is
+missing from this diagram), and then from "locate unencrypted save" to either
 "done" or "mount save" states
 
 
@@ -551,7 +551,7 @@ func (m *stateMachine) unlockDataFallbackKey(ctx *recoverContext) (stateFunc, er
 	// ensure consistency between encrypted state of the device/disk and what we
 	// may have seen previously
 	if ctx.isEncryptedDev && !unlockRes.IsDecryptedDevice {
-		// then we previously were able to positively identifiy an
+		// then we previously were able to positively identify an
 		// ubuntu-data-enc but can't anymore, so we have inconsistent results
 		// from inspecting the disk which is suspicious and we should fail
 		return nil, fmt.Errorf("inconsistent disk encryption status: previous access resulted in encrypted, but now is unencrypted: %v", err)
