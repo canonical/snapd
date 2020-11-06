@@ -23,7 +23,7 @@ execute: |
     MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
 
-    systemd-run --unit unmount-blocker /snap/bin/test-snapd-tools.block
+    systemd-run --unit unmount-blocker test-snapd-tools.block
 
     wait_for_service unmount-blocker active
     while [ ! -f $MARKER ]; do sleep 1; done
