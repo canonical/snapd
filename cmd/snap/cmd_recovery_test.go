@@ -40,7 +40,7 @@ The recovery command lists the available recovery systems.
                                       some things. (default: auto)
       --unicode=[auto|never|always]   Use a little bit of Unicode to improve
                                       legibility. (default: auto)
-      --show-recovery-key             Show recovery key (if available) to
+      --show-recovery-keys            Show recovery keys (if available) to
                                       unlock an encrypted partition
 `
 	s.testSubCommandHelp(c, "recovery", msg)
@@ -158,8 +158,8 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyOnClassicErrors(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("unexpected server call")
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-key"})
-	c.Assert(err, ErrorMatches, `command "show-recovery-key" is not available on classic systems`)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-keys"})
+	c.Assert(err, ErrorMatches, `command "show-recovery-keys" is not available on classic systems`)
 }
 
 func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
@@ -171,19 +171,21 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 		switch n {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/system-recovery-key")
+			c.Check(r.URL.Path, Equals, "/v2/system-recovery-keys")
 			c.Check(r.URL.RawQuery, Equals, "")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"system-recovery-key": "61665-00531-54469-09783-47273-19035-40077-28287"}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"recovery-key": "61665-00531-54469-09783-47273-19035-40077-28287", "reinstall-key":"1234"}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-key"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "61665-00531-54469-09783-47273-19035-40077-28287\n")
+	c.Check(s.Stdout(), Equals, `recovery: 61665-00531-54469-09783-47273-19035-40077-28287
+reinstall: 1234
+`)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }

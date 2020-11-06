@@ -35,7 +35,7 @@ type cmdRecovery struct {
 	clientMixin
 	colorMixin
 
-	ShowRecoveryKey bool `long:"show-recovery-key"`
+	ShowRecoveryKeys bool `long:"show-recovery-keys"`
 }
 
 var shortRecoveryHelp = i18n.G("List available recovery systems")
@@ -50,7 +50,7 @@ func init() {
 	}, colorDescs.also(
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"show-recovery-key": i18n.G("Show recovery key (if available) to unlock an encrypted partition"),
+			"show-recovery-keys": i18n.G("Show recovery keys (if available) to unlock an encrypted partition"),
 		}), nil)
 }
 
@@ -61,16 +61,17 @@ func notesForSystem(sys *client.System) string {
 	return "-"
 }
 
-func (x *cmdRecovery) showRecoveryKey() error {
+func (x *cmdRecovery) showRecoveryKeys() error {
 	if release.OnClassic {
-		return errors.New(`command "show-recovery-key" is not available on classic systems`)
+		return errors.New(`command "show-recovery-keys" is not available on classic systems`)
 	}
-	var srk *client.SystemRecoveryKeyResponse
-	err := x.client.SystemRecoveryKey(&srk)
+	var srk *client.SystemRecoveryKeysResponse
+	err := x.client.SystemRecoveryKeys(&srk)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, "%s\n", srk.SystemRecoveryKey)
+	fmt.Fprintf(Stdout, "recovery: %s\n", srk.RecoveryKey)
+	fmt.Fprintf(Stdout, "reinstall: %s\n", srk.ReinstallKey)
 	return nil
 }
 
@@ -79,8 +80,8 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	if x.ShowRecoveryKey {
-		return x.showRecoveryKey()
+	if x.ShowRecoveryKeys {
+		return x.showRecoveryKeys()
 	}
 
 	systems, err := x.client.ListSystems()
