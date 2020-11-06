@@ -735,7 +735,6 @@ func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous", "")
 	info, err := snapstate.CurrentInfo(s.state, "pc")
-	c.Logf("mount: %v", info.MountDir())
 	c.Assert(err, IsNil)
 	// replace gadget yaml with one that has no ubuntu-save
 	c.Assert(uc20gadgetYaml, Not(testutil.Contains), "ubuntu-save")
