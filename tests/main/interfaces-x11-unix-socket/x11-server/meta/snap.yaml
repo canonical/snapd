@@ -6,4 +6,5 @@ description: Fake x11 server
 apps:
   x11-server:
     command: bin/xserver.sh
+    plugs: [network]
     slots: [x11]

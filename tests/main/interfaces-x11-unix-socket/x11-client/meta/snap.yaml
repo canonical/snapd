@@ -6,7 +6,7 @@ description: Fake x11 client
 apps:
   x11-client:
     command: bin/xclient.sh
-    plugs: [x11]
+    plugs: [x11, network]
   rm:
     command: bin/rm.sh
     plugs: [x11]
