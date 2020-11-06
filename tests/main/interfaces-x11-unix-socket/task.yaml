@@ -25,6 +25,7 @@ execute: |
 
     echo "The snaps can communicate via the unix domain socket in /tmp"
     x11-server &
+    retry -n 4 --wait 0.5 test -e /tmp/snap.x11-server/tmp/.X11-unix/X0
     x11-client | MATCH "Hello from xserver"
 
     echo "The client cannot remove the unix domain sockets shared with it"
@@ -43,7 +44,7 @@ execute: |
     mkdir -p /tmp/.X11-unix
     rm -f /tmp/.X11-unix/X0
     echo "Hello from host system" | nc -l -w 0 -U /tmp/.X11-unix/X0 &
-
+    retry -n 4 --wait 0.5 test -e /tmp/.X11-unix/X0
     x11-client | MATCH "Hello from host system"
 
     echo "The client cannot remove host system sockets either"
