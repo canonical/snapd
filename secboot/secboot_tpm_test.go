@@ -516,14 +516,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 					PassphraseTries:  1,
 					RecoveryKeyTries: 3,
-					KeyringPrefix:    "snapd",
+					KeyringPrefix:    "ubuntu-fde",
 				})
 			} else {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 					PassphraseTries: 1,
 					// activation with recovery key was disabled
 					RecoveryKeyTries: 0,
-					KeyringPrefix:    "snapd",
+					KeyringPrefix:    "ubuntu-fde",
 				})
 			}
 			if !tc.activated {

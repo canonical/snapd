@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	keyringPrefix = "snapd"
+	keyringPrefix = "ubuntu-fde"
 )
 
 var (

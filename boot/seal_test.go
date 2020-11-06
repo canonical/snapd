@@ -130,7 +130,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			switch sealKeysCalls {
 			case 1:
 				// the run object seals only the ubuntu-data key
-				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key")
+				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}})
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
@@ -141,7 +141,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
 			c.Assert(params.ModelParams, HasLen, 1)
-			for _, d := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
+			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, boot.InstallHostFDEDataDir} {
 				ex, isdir, _ := osutil.DirExists(d)
 				c.Check(ex && isdir, Equals, true, Commentf("location %q does not exist or is not a directory", d))
 			}
