@@ -66,8 +66,8 @@ func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
-		RecoveryKey:      "61665-00531-54469-09783-47273-19035-40077-28287",
-		ReinstallSaveKey: "12849-13363-13877-14391-12345-12849-13363-13877",
+		RecoveryKey:  "61665-00531-54469-09783-47273-19035-40077-28287",
+		ReinstallKey: "12849-13363-13877-14391-12345-12849-13363-13877",
 	})
 }
 

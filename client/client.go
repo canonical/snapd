@@ -735,8 +735,8 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 }
 
 type SystemRecoveryKeysResponse struct {
-	RecoveryKey      string `json:"recovery-key"`
-	ReinstallSaveKey string `json:"reinstall-save-key"`
+	RecoveryKey  string `json:"recovery-key"`
+	ReinstallKey string `json:"reinstall-key"`
 }
 
 func (client *Client) SystemRecoveryKey(result interface{}) error {
