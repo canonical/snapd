@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -228,7 +227,7 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
 		snippet := strings.Replace(x11ConnectedSlotAppArmor, old, new, -1)
@@ -238,21 +237,21 @@ func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 }
 
 func (iface *x11Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(x11PermanentSlotSecComp)
 	}
 	return nil
 }
 
 func (iface *x11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(x11PermanentSlotAppArmor)
 	}
 	return nil
 }
 
 func (iface *x11Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.TriggerSubsystem("input")
 		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mice"`)

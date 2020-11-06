@@ -258,7 +258,7 @@ KERNEL=="tty[0-9]*", TAG+="snap_x11_app"`)
 	defer restore()
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(spec.TriggeredSubsystems(), IsNil)
 }
