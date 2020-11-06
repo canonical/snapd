@@ -408,8 +408,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			activateErr: &sb.ActivateWithTPMSealedKeyError{
 				RecoveryKeyUsageErr: fmt.Errorf("unexpected"),
 			},
-			err:  `internal error: volume activated with unexpected error: .* \(unexpected\)`,
-			disk: mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockStatusUnknown,
+			err:             `internal error: volume activated with unexpected error: .* \(unexpected\)`,
+			disk:            mockDiskWithEncDev,
 		}, {
 			// activation works but lock fails, without encrypted device (lock requested)
 			tpmEnabled: true, lockRequest: true, activated: true,

@@ -120,6 +120,8 @@ const (
 	// UnlockedWithRecoveryKey indicates that the device was unlocked by the
 	// user providing the recovery key at the prompt.
 	UnlockedWithRecoveryKey
+	// UnlockStatusUnknown indicates that the unlock status of the device is not clear.
+	UnlockStatusUnknown
 )
 
 // UnlockResult is the result of trying to unlock a volume.
