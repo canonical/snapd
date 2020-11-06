@@ -40,7 +40,9 @@ execute: |
     test ! -f /etc/systemd/system/testunit.service
 
     # Check the snapd service is listed
-    "$TESTSTOOLS"/systemd-state active-snapd-units | MATCH 'snapd.service'
+    if ! os.query is-trusty; then
+        "$TESTSTOOLS"/systemd-state active-snapd-units | MATCH 'snapd.service'
+    fi
 
     # Check the services can be stopped
     "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "$CMD_SLEEP 100"
