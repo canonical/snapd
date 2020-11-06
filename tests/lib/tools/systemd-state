@@ -1,46 +1,23 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: create-and-start-unit <unit-name> <unit-args> [--overrides <conf>] [--persistent]"
-    echo "       stop-and-remove-unit <unit-name>"
-    echo "       wait-for-unit <unit-name>"
-    echo "       stop-units <unit-names>"
-    echo "       active-snapd-units"
+    echo "usage: systemd-state create-and-start-unit <unit-name> <unit-args> [--overrides <conf>]"
+    echo "       systemd-state stop-and-remove-unit <unit-name>"
+    echo "       systemd-state wait-for-unit <unit-name>"
+    echo "       systemd-state stop-units <unit-names>"
+    echo "       systemd-state active-snapd-units"
     echo ""
     echo "Manage systemd service units and retrieve information about existing units."
     echo ""
     echo "COMMANDS:"
-    echo "  create-and-start-unit:   creates and starts systemd unit. In case it is set as persistent the unit survive reboots. Also it allows to overrides the configuration."
+    echo "  create-and-start-unit:   creates and starts systemd unit which survive reboots. Also it allows to overrides the configuration."
     echo "  stop-and-remove-unit:    stops and removes a service unit"
     echo "  wait-for-unit:           waits until a service unit is active"
     echo "  stop-units:              stops a list of service units"
     echo "  active-snapd-units:      retrieve a list ov active snapd units"
 }
 
-# Use like systemd_create_and_start_unit "fakestore" "$(which fakestore) -start -dir $top_dir -addr localhost:11028 $@"
-systemd_create_and_start_unit() {
-    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n' "${SPREAD_JOB:-unknown}" "$2" > "/run/systemd/system/$1.service"
-    if [ -n "${3:-}" ]; then
-        echo "Environment=$3" >> "/run/systemd/system/$1.service"
-    fi
-    systemctl daemon-reload
-    systemctl start "$1"
-}
-
-# Use like systemd_create_and_start_persistent_unit "name" "start" "[Unit]\nAfter=foo"
-systemd_create_and_start_persistent_unit() {
-    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "${SPREAD_JOB:-unknown}" "$2" > "/etc/systemd/system/$1.service"
-    if [ -n "${3:-}" ]; then
-        mkdir -p "/etc/systemd/system/$1.service.d"
-        # shellcheck disable=SC2059
-        printf "$3" >> "/etc/systemd/system/$1.service.d/override.conf"
-    fi
-    systemctl daemon-reload
-    systemctl enable "$1"
-    systemctl start "$1"
-    wait_for_unit "$1"
-}
-
+# Use like create_and_start_unit "name" "start" "[Unit]\nAfter=foo"
 create_and_start_unit() {
     local unit_name="$1"
     local unit_args="$2"
@@ -52,7 +29,6 @@ create_and_start_unit() {
 
     shift 2
     local overrides=''
-    local persistent=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --overrides)
@@ -64,10 +40,6 @@ create_and_start_unit() {
                 fi
                 shift 2
                 ;;
-            --persistent)
-                persistent=true
-                shift
-                ;;
             *)
                 echo "systemd-state: parameter used to create and start service unit not supported $1" >&2
                 show_help
@@ -76,11 +48,16 @@ create_and_start_unit() {
         esac
     done
 
-    if [ -z "$persistent" ]; then
-        systemd_create_and_start_unit "$unit_name" "$unit_args" "$overrides"
-    else
-        systemd_create_and_start_persistent_unit "$unit_name" "$unit_args" "$overrides"
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "${SPREAD_JOB:-unknown}" "$unit_args" > "/etc/systemd/system/$unit_name.service"
+    if [ -n "$overrides" ]; then
+        mkdir -p "/etc/systemd/system/$unit_name.service.d"
+        # shellcheck disable=SC2059
+        printf "$overrides" >> "/etc/systemd/system/$unit_name.service.d/override.conf"
     fi
+    systemctl daemon-reload
+    systemctl enable "$unit_name"
+    systemctl start "$unit_name"
+    wait_for_unit "$unit_name"
 }
 
 stop_and_remove_unit() {
@@ -99,11 +76,7 @@ stop_and_remove_unit() {
         systemctl disable "$unit_name"
     fi
 
-    local unit_path="/run/systemd/system"
-    if [ -f "/etc/systemd/system/$unit_name.service" ]; then
-        unit_path="/etc/systemd/system"
-    fi
-
+    local unit_path="/etc/systemd/system"
     rm -f "$unit_path/$unit_name.service"
     rm -rf "$unit_path/$unit_name.service.d"
     systemctl daemon-reload

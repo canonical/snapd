@@ -3,28 +3,14 @@ summary: smoke test for the systemd-state tool
 execute: |
 
     # Check help
-    "$TESTSTOOLS"/systemd-state | MATCH "usage: create-and-start-unit"
-    "$TESTSTOOLS"/systemd-state -h | MATCH "usage: create-and-start-unit"
-    "$TESTSTOOLS"/systemd-state --help | MATCH "usage: create-and-start-unit"
+    "$TESTSTOOLS"/systemd-state | MATCH "usage: systemd-state create-and-start-unit"
+    "$TESTSTOOLS"/systemd-state -h | MATCH "usage: systemd-state create-and-start-unit"
+    "$TESTSTOOLS"/systemd-state --help | MATCH "usage: systemd-state create-and-start-unit"
 
     CMD_SLEEP="$(command -v sleep)"
 
-    # Create a non persistent service unit
+    # Create a service unit
     "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 5"
-    systemctl is-active testunit
-    test -f /run/systemd/system/testunit.service
-    test ! -f /etc/systemd/system/testunit.service
-    sleep 5
-    not systemctl is-active testunit
-    systemctl is-enabled testunit
-
-    # Delete the created service unit
-    "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
-    not systemctl is-enabled testunit
-    test ! -f /run/systemd/system/testunit.service
-
-    # Create a persistent service unit
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 5" --persistent
     systemctl is-active testunit
     test -f /etc/systemd/system/testunit.service
     test ! -f /run/systemd/system/testunit.service
@@ -33,14 +19,17 @@ execute: |
     systemctl is-enabled testunit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
 
-    # Create a service unit with overrides
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 10" --overrides "TESTVAR=TESTVAL"
-    systemctl cat testunit | MATCH "Environment=TESTVAR=TESTVAL"
+    # Delete the created service unit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
+    not systemctl is-enabled testunit
+    test ! -f /run/systemd/system/testunit.service
 
-    # Create a service unit with overrides for a persistent unit
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 10" --overrides "[Unit]\nTESTVAR=TESTVAL" --persistent
-    systemctl cat testunit | MATCH "TESTVAR=TESTVAL"
+    # Create a service unit with overrides
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 10" --overrides "[Unit]\nTESTVAR=TESTVAL"
+    if ! os.query is-trusty; then
+        systemctl cat testunit | MATCH "TESTVAR=TESTVAL"
+    fi
+    MATCH "TESTVAR=TESTVAL" < /etc/systemd/system/testunit.service.d/override.conf
     test -f /etc/systemd/system/testunit.service.d/override.conf
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
     test ! -d /etc/systemd/system/testunit.service.d
@@ -54,9 +43,9 @@ execute: |
     "$TESTSTOOLS"/systemd-state active-snapd-units | MATCH 'snapd.service'
 
     # Check the services can be stopped
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "$CMD_SLEEP 100" --persistent
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit2 "$CMD_SLEEP 100" --persistent
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit3 "$CMD_SLEEP 100" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit1 "$CMD_SLEEP 100"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit2 "$CMD_SLEEP 100"
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit3 "$CMD_SLEEP 100"
     systemctl is-active testunit1
     systemctl is-active testunit2
     systemctl is-active testunit3
@@ -76,7 +65,7 @@ execute: |
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit3
 
     # wait for unit until it is active
-    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 10" --persistent
+    "$TESTSTOOLS"/systemd-state create-and-start-unit testunit "$CMD_SLEEP 10"
     "$TESTSTOOLS"/systemd-state wait-for-unit testunit
     "$TESTSTOOLS"/systemd-state stop-and-remove-unit testunit
 
