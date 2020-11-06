@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-func mockSystemRecoveryKey(c *C) {
+func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
@@ -51,13 +51,13 @@ func mockSystemRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
+func (s *apiSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	if (secboot.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
 
 	s.daemon(c)
-	mockSystemRecoveryKey(c)
+	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
@@ -73,7 +73,7 @@ func (s *apiSuite) TestSystemGetRecoveryKeyAsRootHappy(c *C) {
 
 func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	s.daemon(c)
-	mockSystemRecoveryKey(c)
+	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
 	c.Assert(err, IsNil)
