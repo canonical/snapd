@@ -2681,11 +2681,28 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	s.testRecoverModeHappy(c)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "fallback",
-		"data-state":    "mounted",
-		"save-key":      "run",
-		"save-state":    "mounted",
-		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"ubuntu-boot": map[string]interface{}{
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+		},
+		"ubuntu-data": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
+			"unlock-state":   "unlocked",
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"key-state":      "fallback",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "run",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
 		},
@@ -2842,11 +2859,28 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 	s.testRecoverModeHappy(c)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "run",
-		"data-state":    "mounted",
-		"save-key":      "fallback",
-		"save-state":    "mounted",
-		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"ubuntu-boot": map[string]interface{}{
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+		},
+		"ubuntu-data": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
+			"unlock-state":   "unlocked",
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"key-state":      "run",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "fallback",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-save with run key: failed to unlock ubuntu-save with run object",
 		},
@@ -2990,11 +3024,25 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	s.testRecoverModeHappy(c)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "fallback",
-		"data-state":    "mounted",
-		"save-key":      "run",
-		"save-state":    "mounted",
-		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"ubuntu-boot": map[string]interface{}{
+			"locate-state": "not-found",
+		},
+		"ubuntu-data": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
+			"unlock-state":   "unlocked",
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"key-state":      "fallback",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "run",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"error locating ubuntu-boot partition on disk defaultEncDevNoBoot: filesystem label \"ubuntu-boot\" not found",
 		},
@@ -3138,11 +3186,25 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 	s.testRecoverModeHappy(c)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "recovery",
-		"data-state":    "mounted",
-		"save-key":      "run",
-		"save-state":    "mounted",
-		"host-location": boot.InitramfsHostUbuntuDataDir,
+		"ubuntu-boot": map[string]interface{}{
+			"locate-state": "not-found",
+		},
+		"ubuntu-data": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
+			"unlock-state":   "unlocked",
+			"locate-state":   "found",
+			"mount-state":    "mounted",
+			"key-state":      "recovery",
+			"mount-location": boot.InitramfsHostUbuntuDataDir,
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "run",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"error locating ubuntu-boot partition on disk defaultEncDevNoBoot: filesystem label \"ubuntu-boot\" not found",
 		},
@@ -3311,14 +3373,27 @@ recovery_system=20191118
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "",
-		"data-state":    "enc-not-found",
-		"save-key":      "fallback",
-		"save-state":    "mounted",
-		"host-location": "",
+		"ubuntu-boot": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+		},
+		"ubuntu-data": map[string]interface{}{
+			"unlock-state": "failed",
+			"locate-state": "not-found",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "fallback",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
-			"cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
+			"cannot unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
 		},
 	})
 
@@ -3500,14 +3575,27 @@ recovery_system=20191118
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "",
-		"data-state":    "enc-not-found",
-		"save-key":      "recovery",
-		"save-state":    "mounted",
-		"host-location": "",
+		"ubuntu-boot": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+		},
+		"ubuntu-data": map[string]interface{}{
+			"unlock-state": "failed",
+			"locate-state": "not-found",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"key-state":      "recovery",
+			"unlock-state":   "unlocked",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
-			"cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
+			"cannot unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
 		},
 	})
 
@@ -3681,15 +3769,23 @@ recovery_system=20191118
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
-		"data-key":      "",
-		"data-state":    "enc-not-found",
-		"save-key":      "",
-		"save-state":    "enc-not-found",
-		"host-location": "",
+		"ubuntu-boot": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"mount-state":    "mounted",
+			"locate-state":   "found",
+			"mount-location": boot.InitramfsUbuntuBootDir,
+		},
+		"ubuntu-data": map[string]interface{}{
+			"unlock-state": "failed",
+			"locate-state": "not-found",
+		},
+		"ubuntu-save": map[string]interface{}{
+			"unlock-state": "failed",
+		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
-			"cannot find or unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
-			"cannot find or unlock encrypted ubuntu-save partition with recovery key: failed to unlock ubuntu-save with fallback object",
+			"cannot unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
+			"cannot unlock encrypted ubuntu-save partition with fallback key: failed to unlock ubuntu-save with fallback object",
 		},
 	})
 
