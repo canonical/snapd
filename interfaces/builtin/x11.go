@@ -173,8 +173,8 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 		// X11 slot is provided by the host system. Bring the host's
 		// /tmp/.X11-unix/ directory over to the snap mount namespace.
 		return spec.AddMountEntry(osutil.MountEntry{
-			Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
-			Dir:     "/tmp/.X11-unix/",
+			Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix",
+			Dir:     "/tmp/.X11-unix",
 			Options: []string{"bind", "ro"},
 		})
 	}
@@ -191,8 +191,8 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 	}
 	slotSnapName := slot.Snap().InstanceName()
 	return spec.AddMountEntry(osutil.MountEntry{
-		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/", slotSnapName),
-		Dir:     "/tmp/.X11-unix/",
+		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix", slotSnapName),
+		Dir:     "/tmp/.X11-unix",
 		Options: []string{"bind", "ro"},
 	})
 }

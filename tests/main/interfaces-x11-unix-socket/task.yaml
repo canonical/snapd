@@ -45,3 +45,6 @@ execute: |
     echo "Hello from host system" | nc -l -w 0 -U /tmp/.X11-unix/X0 &
 
     x11-client | MATCH "Hello from host system"
+
+    echo "The client cannot remove host system sockets either"
+    not x11-client.rm -f /tmp/.X11-unix/X0

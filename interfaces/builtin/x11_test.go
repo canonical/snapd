@@ -106,8 +106,8 @@ func (s *X11InterfaceSuite) TestMountSpec(c *C) {
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-		Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix/",
-		Dir:     "/tmp/.X11-unix/",
+		Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix",
+		Dir:     "/tmp/.X11-unix",
 		Options: []string{"bind", "ro"},
 	}})
 	c.Assert(spec.UserMountEntries(), HasLen, 0)
@@ -116,8 +116,8 @@ func (s *X11InterfaceSuite) TestMountSpec(c *C) {
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-		Name:    "/var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix/",
-		Dir:     "/tmp/.X11-unix/",
+		Name:    "/var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix",
+		Dir:     "/tmp/.X11-unix",
 		Options: []string{"bind", "ro"},
 	}})
 	c.Assert(spec.UserMountEntries(), HasLen, 0)
