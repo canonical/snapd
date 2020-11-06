@@ -43,7 +43,7 @@ execute: |
     echo "The client can communicate with the host system X socket"
     mkdir -p /tmp/.X11-unix
     rm -f /tmp/.X11-unix/X0
-    echo "Hello from host system" | nc -l -w 0 -U /tmp/.X11-unix/X0 &
+    echo "Hello from host system" | nc -l -w 1 -U /tmp/.X11-unix/X0 &
     retry -n 4 --wait 0.5 test -e /tmp/.X11-unix/X0
     x11-client | MATCH "Hello from host system"
 
