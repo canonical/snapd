@@ -114,6 +114,7 @@ var api = []*Command{
 	systemsCmd,
 	systemsActionCmd,
 	routineConsoleConfStartCmd,
+	systemRecoveryKeysCmd,
 }
 
 var servicestateControl = servicestate.Control
