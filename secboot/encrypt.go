@@ -90,7 +90,7 @@ func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
 		return nil, fmt.Errorf("cannot stat recovery key: %v", err)
 	}
 	if st.Size() != int64(len(RecoveryKey{})) {
-		return nil, fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file", st.Size())
+		return nil, fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file %s", st.Size(), recoveryKeyFile)
 	}
 
 	var rkey RecoveryKey
