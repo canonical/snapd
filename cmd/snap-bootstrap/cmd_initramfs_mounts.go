@@ -482,7 +482,7 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 		// then we previously were able to positively identify an
 		// ubuntu-data-enc but can't anymore, so we have inconsistent results
 		// from inspecting the disk which is suspicious and we should fail
-		return fmt.Errorf("inconsistent disk encryption status: previous access resulted in encrypted, but now is unencrypted")
+		return fmt.Errorf("inconsistent disk encryption status: previous access resulted in encrypted, but now is unencrypted from partition %s", part)
 	}
 
 	// if isEncryptedDev hasn't been set on the state machine yet, then set that
@@ -497,7 +497,7 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 	// also make sure that if we previously saw a device that we see the same
 	// device again
 	if unlockRes.Device != "" && *stateDevice != "" && unlockRes.Device != *stateDevice {
-		return fmt.Errorf("inconsistent partitions found for ubuntu-data: previously found %s but now found %s", *stateDevice, unlockRes.Device)
+		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", part, *stateDevice, unlockRes.Device)
 	}
 
 	if unlockRes.Device != "" {
@@ -509,7 +509,7 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 	if !unlockRes.IsDecryptedDevice && unlockRes.Device != "" && unlockErr != nil {
 		// this case should be impossible to enter, if we have an unencrypted
 		// device and we know what the device is then what is the error?
-		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted")
+		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s", part)
 	}
 
 	return nil
