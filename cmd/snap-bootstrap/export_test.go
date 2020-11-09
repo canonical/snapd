@@ -36,6 +36,18 @@ var (
 
 type SystemdMountOptions = systemdMountOptions
 
+type RecoverDegradedState = recoverDegradedState
+
+type PartitionState = partitionState
+
+func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
+	m := stateMachine{
+		isEncryptedDev: isEncrypted,
+		degradedState:  r,
+	}
+	return m.degraded()
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
 	timeNow = f

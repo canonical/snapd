@@ -933,6 +933,9 @@ After=%[1]s
 			"--fsck=no",
 		},
 	})
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSystemdMount(c *C) {
@@ -1075,6 +1078,9 @@ After=%[1]s
 			"--fsck=no",
 		},
 	})
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdMount(c *C) {
@@ -1387,6 +1393,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
@@ -2274,6 +2283,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	defer restore()
 
 	s.testRecoverModeHappy(c)
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeGadgetDefaultsHappy(c *C) {
@@ -2353,6 +2365,9 @@ defaults:
 
 	s.testRecoverModeHappy(c)
 
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
 	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")), Equals, true)
 
 	// check that everything from the gadget defaults was setup
@@ -2419,6 +2434,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 	defer restore()
 
 	s.testRecoverModeHappy(c)
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C) {
@@ -2528,6 +2546,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	s.testRecoverModeHappy(c)
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(saveActivated, Equals, true)

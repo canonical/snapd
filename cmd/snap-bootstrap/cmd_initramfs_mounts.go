@@ -425,6 +425,52 @@ type stateMachine struct {
 	degradedState *recoverDegradedState
 }
 
+// degraded returns whether a degraded recover mode state has fallen back from
+// the typical operation to some sort of degraded mode.
+func (m *stateMachine) degraded() bool {
+	r := m.degradedState
+	// we should have nothing in the error log
+	if len(r.ErrorLog) != 0 {
+		return true
+	}
+
+	if m.isEncryptedDev {
+		// for encrypted devices, we need to have ubuntu-save mounted
+		if r.UbuntuSave.MountState != partitionMounted {
+			return true
+		}
+
+		// we also should have all the unlock keys as run keys
+		if r.UbuntuData.UnlockKey != keyRun {
+			return true
+		}
+
+		if r.UbuntuSave.UnlockKey != keyRun {
+			return true
+		}
+	} else {
+		// for unencrypted devices, ubuntu-save must either be mounted or
+		// absent-but-optional
+		if r.UbuntuSave.MountState != partitionMounted {
+			if r.UbuntuSave.MountState != partitionAbsentOptional {
+				return true
+			}
+		}
+	}
+
+	// ubuntu-boot and ubuntu-data should both be mounted
+	if r.UbuntuBoot.MountState != partitionMounted {
+		return true
+	}
+	if r.UbuntuData.MountState != partitionMounted {
+		return true
+	}
+
+	// TODO: should we also check MountLocation too?
+
+	return false
+}
+
 func (m *stateMachine) diskOpts() *disks.Options {
 	if m.isEncryptedDev {
 		return &disks.Options{
@@ -445,7 +491,7 @@ func (m *stateMachine) verifyMountPoint(dir, name string) error {
 	return nil
 }
 
-func (m *stateMachine) setFindState(part string, err error) error {
+func (m *stateMachine) setFindState(part string, err error, logNotFoundErr bool) error {
 	if err == nil {
 		// device was found
 		m.degradedState.partition(part).FindState = partitionFound
@@ -454,7 +500,9 @@ func (m *stateMachine) setFindState(part string, err error) error {
 	if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
 		// explicit error that the device was not found
 		m.degradedState.partition(part).FindState = partitionNotFound
-		m.degradedState.LogErrorf("cannot find %v partition on disk %s", part, m.disk.Dev())
+		if logNotFoundErr {
+			m.degradedState.LogErrorf("cannot find %v partition on disk %s", part, m.disk.Dev())
+		}
 		return nil
 	}
 	// the error is not "not-found", so we have a real error
@@ -625,7 +673,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
 	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
-	if err := m.setFindState("ubuntu-boot", findErr); err != nil {
+	if err := m.setFindState("ubuntu-boot", findErr, true); err != nil {
 		return nil, err
 	}
 	if part.FindState != partitionFound {
@@ -758,7 +806,7 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-save")
 	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-save")
-	if err := m.setFindState("ubuntu-save", findErr); err != nil {
+	if err := m.setFindState("ubuntu-save", findErr, false); err != nil {
 		return nil, nil
 	}
 	if part.FindState != partitionFound {
@@ -890,22 +938,23 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}
 	}
 
-	// 3.1 write out degraded.json
-	b, err := json.Marshal(machine.degradedState)
-	if err != nil {
-		return err
-	}
+	// 3.1 write out degraded.json if we ended up falling back somewhere
+	if machine.degraded() {
+		b, err := json.Marshal(machine.degradedState)
+		if err != nil {
+			return err
+		}
 
-	// needed?
-	err = os.MkdirAll(boot.InitramfsHostUbuntuDataDir, 0755)
-	if err != nil {
-		return err
-	}
+		err = os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
+		if err != nil {
+			return err
+		}
 
-	// leave the information about degraded state at an ephemeral location
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644)
-	if err != nil {
-		return err
+		// leave the information about degraded state at an ephemeral location
+		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644)
+		if err != nil {
+			return err
+		}
 	}
 
 	// 4. final step: copy the auth data and network config from
