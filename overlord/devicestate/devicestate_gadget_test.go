@@ -82,6 +82,13 @@ volumes:
         size: 50M
 `
 
+var uc20gadgetYamlWithSave = uc20gadgetYaml + `
+      - name: ubuntu-save
+        role: system-save
+        type: 21686148-6449-6E6F-744E-656564454649
+        size: 50M
+`
+
 func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
