@@ -422,7 +422,7 @@ type stateMachine struct {
 
 	// state for tracking what happens as we progress through degraded mode of
 	// recovery
-	degradedState recoverDegradedState
+	degradedState *recoverDegradedState
 }
 
 func (m *stateMachine) diskOpts() *disks.Options {
@@ -598,7 +598,7 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 func newStateMachine(disk disks.Disk) *stateMachine {
 	m := &stateMachine{
 		disk: disk,
-		degradedState: recoverDegradedState{
+		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
 		},
 	}
