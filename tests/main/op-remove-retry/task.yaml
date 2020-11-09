@@ -1,5 +1,8 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-14.04*]
+
 restore: |
     kill %1 || true
 
@@ -39,4 +42,3 @@ execute: |
 
     # cleanup umount blocker
     systemctl stop unmount-blocker
-

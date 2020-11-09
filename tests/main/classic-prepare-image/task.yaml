@@ -1,6 +1,7 @@
 summary: Check that prepare-image --classic works.
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04*]
 
 backends: [-autopkgtest]
 
