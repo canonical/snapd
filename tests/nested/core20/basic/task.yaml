@@ -33,8 +33,8 @@ execute: |
     nested_exec "! snap list test-snapd-sh"
 
     echo "Ensure 'snap debug show-recovery-keys' works as root"
-    nested_exec "sudo snap recovery --show-recoverys-keys" | MATCH 'recovery: [0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
-    nested_exec "sudo snap recovery --show-recoverys-keys" | MATCH 'install: [0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'    
+    nested_exec "sudo snap recovery --show-recovery-keys" | MATCH 'recovery: [0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    nested_exec "sudo snap recovery --show-recovery-keys" | MATCH 'install: [0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
     echo "But not as user (normal file permissions prevent this)"
     if nested_exec "snap recovery --show-recovery-key"; then
         echo "snap recovery --show-recovery-key should not work as a user"
