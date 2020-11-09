@@ -75,23 +75,55 @@ execute: |
         rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
     fi
 
-    # check the command is-classic-confinement-supported works
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
-        not "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
-    elif os.query is-core; then
-        not "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
-    elif os.query is-focal; then
-        "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
-    fi
+    # check the command is-confinement-supported works
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+        ubuntu-core-*)
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+        ubuntu-1*|ubuntu-2*)
+            "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+    esac
 
-    # Check the repack of the snapd del into core and snapd snaps
+    # Check the repack of the snapd deb into core and snapd snaps
     "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core
-    test -e core-from-snapd-deb.snap
+    test -e core/core-from-snapd-deb.snap
+    rm -rf core
+
     "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
-    test -e snapd-from-deb.snap
+    test -e snapd/snapd-from-deb.snap
+    rm -rf snapd
+
+    cp "$SPREAD_PATH"/../snapd_*.deb current_snapd.deb
+    "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core current_snapd.deb
+    test -e core/core-from-snapd-deb.snap
+    rm -rf core
+
+    "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd current_snapd.deb
+    test -e snapd/snapd-from-deb.snap
+    rm -rf snapd
+
+    "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
 
     # Check the repach of the core snap info snapd snap
     if [ -d /snap/core/current ]; then
         "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap
         test -e snapd-from-core.snap
+        rm snapd-from-core.snap
     fi
+
+    snap download core --basename=core --edge
+    "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap core.snap
+    test -e snapd-from-core.snap
+    rm snapd-from-core.snap
+
+    "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap noexist.snap 2>&1 | MATCH "snaps-state: core snap used to repack not found: noexist.snap"

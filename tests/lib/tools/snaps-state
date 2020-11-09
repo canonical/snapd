@@ -4,7 +4,7 @@ show_help() {
     echo "usage: pack-local <snap-name>"
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
-    echo "       is-classic-confinement-supported"
+    echo "       is-confinement-supported <classic|devmode|strict>"
     echo "       repack-snapd-deb-into-snap <snapd|core>"
     echo "       repack-core-snap-into-snapd-snap"
     echo ""
@@ -62,48 +62,65 @@ install_local_as() {
     install_local "$snap" --name "$name" "$@"
 }
 
-is_classic_confinement_supported() {
-    snap debug sandbox-features --required=confinement-options:classic
+is_confinement_supported() {
+    local confinement="$1"
+    if [ -z "$confinement" ]; then
+        echo "snaps-state: a confinement is required"
+        show_help
+        exit 1
+    fi
+
+    snap debug sandbox-features --required=confinement-options:"$confinement"
 }
 
 # The function will re-pack either core or snpad snap using the assets
 # from the snapd deb installed on the system
 repack_snapd_deb_into_snap() {
-    local SNAP_NAME="$1"
+    local snap_name="$1"
+    local deb_file="${2:-$(ls "$SPREAD_PATH"/../snapd_*.deb)}"
 
-    if  [ "$SNAP_NAME" = "core" ]; then
-        # use snapd from edge as a recent snap that should be close to what we will
-        # have in the snapd deb
-        snap download core --basename=core --edge
-        unsquashfs -d ./core-unpacked core.snap
-
-        # extract all the files from the snapd deb
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./core-unpacked
-
-        # repack into the target dir specified
-        snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
-
-        # cleanup
-        rm -rf core-unpacked
-    elif [ "$SNAP_NAME" = "snapd" ]; then
-        # use snapd from edge as a recent snap that should be close to what we will
-        # have in the snapd deb
-        snap download snapd --basename=snapd --edge
-        unsquashfs -d ./snapd-unpacked snapd.snap
-
-        # extract all the files from the snapd deb
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./snapd-unpacked
-
-        # repack into the target dir specified
-        snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
-
-        # cleanup
-        rm -rf snapd-unpacked
-    else
-        echo "snaps-state: use either core or snapd snaps for repack, snapd $SNAP_NAME not supported"
-        show_help
+    if [ ! -e "$deb_file" ]; then
+        echo "snaps-state: deb file used to repack not found: $deb_file"
         exit 1
     fi
+
+    case "$snap_name" in
+            core)
+                # use snapd from edge as a recent snap that should be close to what we will
+                # have in the snapd deb
+                snap download core --basename=core --edge
+                unsquashfs -d ./core-unpacked core.snap
+
+                # extract all the files from the snapd deb
+                dpkg-deb -x "$deb_file" ./core-unpacked
+
+                # repack into the target dir specified
+                snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+
+                # cleanup
+                rm -rf core-unpacked
+                ;;
+            snapd)
+                # use snapd from edge as a recent snap that should be close to what we will
+                # have in the snapd deb
+                snap download snapd --basename=snapd --edge
+                unsquashfs -d ./snapd-unpacked snapd.snap
+
+                # extract all the files from the snapd deb
+                dpkg-deb -x "$deb_file" ./snapd-unpacked
+
+                # repack into the target dir specified
+                snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+
+                # cleanup
+                rm -rf snapd-unpacked
+                ;;
+            *)
+                echo "snaps-state: use either core or snapd snaps for repack, snapd $snap_name not supported"
+                show_help
+                exit 1
+                ;;
+        esac
 }
 
 # This function will re-pack the current core snap as the snapd snap,
@@ -122,6 +139,18 @@ repack_core_snap_into_snapd_snap() {
     # NOTE: this may break if a spread run adds files to the snapd snap that
     # don't exist in the snapd snap on edge and those files are necessary
     # for snapd to run or revert, etc.
+    local core_snap current
+    if [ $# -eq 0 ]; then
+        current="$(readlink /snap/core/current)"
+        core_snap="${1:-/var/lib/snapd/snaps/core_"$current".snap}"
+    else
+        core_snap=$1
+        if [ ! -e "$core_snap" ]; then
+            echo "snaps-state: core snap used to repack not found: $core_snap"
+            exit 1
+        fi
+    fi
+
     snap download snapd --basename=snapd-upstream --edge
     unsquashfs -d ./snapd-upstream snapd-upstream.snap
     (
@@ -131,14 +160,11 @@ repack_core_snap_into_snapd_snap() {
     find . \( -type l -o -type f \) | cut -c3- > ../files.txt
     )
 
-    current=$(readlink /snap/core/current)
-    CORE_SNAP=/var/lib/snapd/snaps/core_"$current".snap
-
     # only unpack files from the core snap that are in the snapd snap - this
     # is kosher because the set of files in the core snap is a superset of
     # all the files in the snapd snap
     #shellcheck disable=2046
-    unsquashfs -d ./snapd-local "$CORE_SNAP" $(cat files.txt)
+    unsquashfs -d ./snapd-local "$core_snap" $(cat files.txt)
 
     # replace snap.yaml from the core snap with the snapd snap, and pack the snap
     cp snapd-upstream/meta/snap.yaml snapd-local/meta/snap.yaml
