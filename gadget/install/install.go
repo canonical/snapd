@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -53,6 +54,11 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+	logger.Noticef("installing a new system")
+	logger.Noticef("        gadget data from: %v", gadgetRoot)
+	if options.Encrypt {
+		logger.Noticef("        encryption: on")
+	}
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -124,11 +130,18 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	var keysForRoles map[string]*EncryptionKeySet
 
 	for _, part := range created {
+		roleFmt := ""
+		if part.Role != "" {
+			roleFmt = fmt.Sprintf("role %v", part.Role)
+		}
+		logger.Noticef("created new partition %v for structure %v (size %v) %s",
+			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
 			keys, err := makeKeySet()
 			if err != nil {
 				return nil, err
 			}
+			logger.Noticef("encrypting partition device %v", part.Node)
 			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
 			if err != nil {
 				return nil, err
@@ -144,6 +157,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 				keysForRoles = map[string]*EncryptionKeySet{}
 			}
 			keysForRoles[part.Role] = keys
+			logger.Noticef("encrypted device %v", part.Node)
 		}
 
 		if err := makeFilesystem(&part); err != nil {
