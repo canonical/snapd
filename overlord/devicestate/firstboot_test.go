@@ -514,10 +514,6 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-
-	checkTasks(c, tsAll)
-
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -525,6 +521,9 @@ snaps:
 		chg.AddAll(ts)
 	}
 	c.Assert(st.Changes(), HasLen, 1)
+
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
+	checkTasks(c, tsAll)
 
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")
