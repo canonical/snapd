@@ -2882,7 +2882,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
-			"cannot unlock encrypted ubuntu-save with run key: failed to unlock ubuntu-save with run object",
+			"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save with run object",
 		},
 	})
 
@@ -3785,7 +3785,7 @@ recovery_system=20191118
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",
 			"cannot unlock encrypted ubuntu-data partition with sealed fallback key: failed to unlock ubuntu-data with fallback object",
-			"cannot unlock encrypted ubuntu-save partition with fallback key: failed to unlock ubuntu-save with fallback object",
+			"cannot unlock encrypted ubuntu-save partition with sealed fallback key: failed to unlock ubuntu-save with fallback object",
 		},
 	})
 
