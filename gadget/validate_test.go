@@ -55,7 +55,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir, nil)
+	err := gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 }
 
@@ -83,7 +83,7 @@ volumes:
 	// only content for the first volume
 	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
 
-	err := gadget.Validate(s.dir, nil)
+	err := gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
@@ -100,7 +100,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir, nil)
+	err := gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid gadget metadata: bootloader must be one of .*`)
 }
 
@@ -121,13 +121,13 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir, nil)
+	err := gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
 
 	// make it a file, which conflicts with foo/ as 'source'
 	fooPath := filepath.Join(s.dir, "foo")
 	makeSizedFile(c, fooPath, 1, nil)
-	err = gadget.Validate(s.dir, nil)
+	err = gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
 
 	// make it a directory
@@ -136,7 +136,7 @@ volumes:
 	err = os.Mkdir(fooPath, 0755)
 	c.Assert(err, IsNil)
 	// validate should no longer complain
-	err = gadget.Validate(s.dir, nil)
+	err = gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -146,13 +146,13 @@ func (s *validateGadgetTestSuite) TestValidateClassic(c *C) {
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir, nil)
+	err := gadget.Validate(s.dir, nil, nil)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &modelConstraints{classic: true})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: true}, nil)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &modelConstraints{classic: false})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: false}, nil)
 	c.Assert(err, ErrorMatches, "invalid gadget metadata: bootloader not declared in any volume")
 }
 
@@ -174,7 +174,52 @@ volumes:
         role: %[1]s
 `, role)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
-		err := gadget.Validate(s.dir, nil)
+		err := gadget.Validate(s.dir, nil, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid gadget metadata: invalid volume "pc": cannot have more than one partition with %s role`, role))
 	}
+}
+
+var gadgetYamlContentNoSave = `
+volumes:
+  vol1:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+      - name: ubuntu-boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+      - name: ubuntu-data
+        role: system-data
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+`
+
+var gadgetYamlContentWithSave = gadgetYamlContentNoSave + `
+      - name: ubuntu-save
+        role: system-save
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+`
+
+func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
+	err := gadget.Validate(s.dir, &modelConstraints{systemSeed: true}, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: volume "vol1" has no structure with system-save role`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
+	err := gadget.Validate(s.dir, &modelConstraints{systemSeed: true}, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
 }

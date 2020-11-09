@@ -14,11 +14,8 @@ systems:
 prepare: |
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install the test-snapd-fwupd" interface
-    install_local test-snapd-fwupd
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-fwupd
 
     echo "The fwupd plug is disconnected by default"
     snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +- +-"

@@ -3228,7 +3228,7 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	c.Assert(l, HasLen, 1)
 }
 
-func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
+func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	r := release.MockOnClassic(true)
 	defer r()
 
@@ -3243,13 +3243,75 @@ func (s *snapmgrTestSuite) TestWaitRestartBasics(c *C) {
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
-	err := snapstate.WaitRestart(task, snapsup)
+	err := snapstate.FinishRestart(task, snapsup)
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
 	state.MockRestarting(st, state.RestartDaemon)
-	err = snapstate.WaitRestart(task, snapsup)
+	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
+func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	var generateWrappersCalled bool
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info) error {
+		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		generateWrappersCalled = true
+		return nil
+	})
+	defer restore()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	for i, tc := range []struct {
+		onClassic            bool
+		expectedWrappersCall bool
+		snapName             string
+		snapYaml             string
+	}{
+		{
+			onClassic: false,
+			snapName:  "snapd",
+			snapYaml: `name: snapd
+type: snapd
+`,
+			expectedWrappersCall: true,
+		},
+		{
+			onClassic: true,
+			snapName:  "snapd",
+			snapYaml: `name: snapd
+type: snapd
+`,
+			expectedWrappersCall: false,
+		},
+		{
+			onClassic:            false,
+			snapName:             "some-snap",
+			snapYaml:             `name: some-snap`,
+			expectedWrappersCall: false,
+		},
+	} {
+		generateWrappersCalled = false
+		release.MockOnClassic(tc.onClassic)
+
+		task := st.NewTask("auto-connect", "...")
+		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
+		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
+		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
+
+		// restarting
+		state.MockRestarting(st, state.RestartUnset)
+		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
+		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
+
+		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName()), "current")), IsNil)
+	}
 }
 
 type snapmgrQuerySuite struct {
@@ -4687,6 +4749,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
@@ -4780,6 +4846,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "ubuntu-core",
 		},
 		{
@@ -6252,4 +6322,63 @@ func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
 		NoReRefresh:      false,
 		RequireTypeBase:  false,
 	})
+}
+
+func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t0 := time.Now()
+	// with no changes in flight still works and we set the auto-refresh time as
+	// at least one minute past the start of the test
+	chgs, err := s.snapmgr.EnsureAutoRefreshesAreDelayed(time.Minute)
+	c.Assert(err, IsNil)
+	c.Assert(chgs, HasLen, 0)
+
+	var holdTime time.Time
+	tr := config.NewTransaction(s.state)
+	err = tr.Get("core", "refresh.hold", &holdTime)
+	c.Assert(err, IsNil)
+	// use After() == false in case holdTime is _exactly_ one minute later than
+	// t0, in which case both After() and Before() will be false
+	c.Assert(t0.Add(time.Minute).After(holdTime), Equals, false)
+
+	// now make some auto-refresh changes to make sure we get those figured out
+	chg0 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg0.AddTask(s.state.NewTask("nop", "do nothing"))
+
+	// make it in doing state
+	chg0.SetStatus(state.DoingStatus)
+
+	// this one will be picked up too
+	chg1 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg1.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg1.SetStatus(state.DoStatus)
+
+	// this one won't, it's Done
+	chg2 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg2.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg2.SetStatus(state.DoneStatus)
+
+	// nor this one, it's Undone
+	chg3 := s.state.NewChange("auto-refresh", "auto-refresh-the-things")
+	chg3.AddTask(s.state.NewTask("nop", "do nothing"))
+	chg3.SetStatus(state.UndoneStatus)
+
+	// now we get our change ID returned when calling EnsureAutoRefreshesAreDelayed
+	chgs, err = s.snapmgr.EnsureAutoRefreshesAreDelayed(time.Minute)
+	c.Assert(err, IsNil)
+	// more helpful error message if we first compare the change ID's
+	expids := []string{chg0.ID(), chg1.ID()}
+	sort.Strings(expids)
+	c.Assert(chgs, HasLen, len(expids))
+	gotids := []string{chgs[0].ID(), chgs[1].ID()}
+	sort.Strings(gotids)
+	c.Assert(expids, DeepEquals, gotids)
+
+	sort.SliceStable(chgs, func(i, j int) bool {
+		return chgs[i].ID() < chgs[j].ID()
+	})
+
+	c.Assert(chgs, DeepEquals, []*state.Change{chg0, chg1})
 }

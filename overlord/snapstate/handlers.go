@@ -33,6 +33,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -833,17 +834,15 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if experimentalRefreshAppAwareness {
-		// A process may be created after the soft refresh done upon
-		// the request to refresh a snap. If such process is alive by
-		// the time this code is reached the refresh process is stopped.
-		// In case of failure the snap state is modified to indicate
-		// when the refresh was first inhibited. If the first
-		// inhibition is outside of a grace period then refresh
-		// proceeds regardless of the existing processes.
-		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+	if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+		// Invoke the hard refresh flow. Upon success the returned lock will be
+		// held to prevent snap-run from advancing until UnlinkSnap, executed
+		// below, completes.
+		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
+		if err != nil {
 			return err
 		}
+		defer lock.Close()
 	}
 
 	snapst.Active = false
@@ -851,6 +850,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// do the final unlink
 	linkCtx := backend.LinkContext{
 		FirstInstall: false,
+		// This task is only used for unlinking a snap during refreshes so we
+		// can safely hard-code this condition here.
+		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 	}
 	err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
@@ -859,6 +861,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	Set(st, snapsup.InstanceName(), snapst)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 	return nil
 }
 
@@ -917,10 +922,12 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as active again
 	Set(st, snapsup.InstanceName(), snapst)
 
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
 	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
-
 	return nil
 }
 
@@ -1106,6 +1113,47 @@ func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
 	return 0, nil
 }
 
+// LinkSnapParticipant is an interface for interacting with snap link/unlink
+// operations.
+//
+// Unlike the interface for a task handler, only one notification method is
+// used. The method notifies a participant that linkage of a snap has changed.
+// This method is invoked in link-snap, unlink-snap, the undo path of those
+// methods and the undo handler for link-snap.
+//
+// In all cases it is invoked after all other operations are completed but
+// before the task completes.
+type LinkSnapParticipant interface {
+	// SnapLinkageChanged is called when a snap is linked or unlinked.
+	// The error is only logged and does not stop the task it is used from.
+	SnapLinkageChanged(st *state.State, instanceName string) error
+}
+
+var linkSnapParticipants []LinkSnapParticipant
+
+// AddLinkSnapParticipant adds a participant in the link/unlink operations.
+func AddLinkSnapParticipant(p LinkSnapParticipant) {
+	linkSnapParticipants = append(linkSnapParticipants, p)
+}
+
+// MockLinkSnapParticipants replaces the list of link snap participants for testing.
+func MockLinkSnapParticipants(ps []LinkSnapParticipant) (restore func()) {
+	old := linkSnapParticipants
+	linkSnapParticipants = ps
+	return func() {
+		linkSnapParticipants = old
+	}
+}
+
+func notifyLinkParticipants(t *state.Task, instanceName string) {
+	st := t.State()
+	for _, p := range linkSnapParticipants {
+		if err := p.SnapLinkageChanged(st, instanceName); err != nil {
+			t.Errorf("%v", err)
+		}
+	}
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1234,6 +1282,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if unlinkErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
+		notifyLinkParticipants(t, snapsup.InstanceName())
 	}()
 	if err != nil {
 		return err
@@ -1280,9 +1329,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
-
-	// Do at the end so we only preserve the new state if it worked.
-	Set(st, snapsup.InstanceName(), snapst)
 
 	if cand.SnapID != "" {
 		// write the auxiliary store info
@@ -1333,6 +1379,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			InjectAutoConnect(t, snapsup)
 		}
 	}
+
+	// Do at the end so we only preserve the new state if it worked.
+	Set(st, snapsup.InstanceName(), snapst)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
@@ -1650,12 +1702,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
-	// mark as inactive
-	Set(st, snapsup.InstanceName(), snapst)
 	// write sequence file for failover helpers
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
 	}
+	// mark as inactive
+	Set(st, snapsup.InstanceName(), snapst)
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -1872,7 +1928,79 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	Set(st, snapsup.InstanceName(), snapst)
 
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
 	return err
+}
+
+func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	isInstalled := snapst.IsInstalled()
+	if !isInstalled {
+		return fmt.Errorf("internal error: snap %q not installed anymore", snapsup.InstanceName())
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	// undo here may be part of failed snap remove change, in which case a later
+	// "clear-snap" task could have been executed and some or all of the
+	// data of this snap could be lost. If that's the case, then we should not
+	// enable the snap back.
+	// XXX: should make an exception for snapd/core?
+	place := snapsup.placeInfo()
+	for _, dir := range []string{place.DataDir(), place.CommonDataDir()} {
+		if exists, _, _ := osutil.DirExists(dir); !exists {
+			t.Logf("cannot link snap %q back, some of its data has already been removed", snapsup.InstanceName())
+			// TODO: mark the snap broken at the SnapState level when we have
+			// such concept.
+			return nil
+		}
+	}
+
+	snapst.Active = true
+	Set(st, snapsup.InstanceName(), snapst)
+
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+		VitalityRank: vitalityRank,
+	}
+	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
+	if err != nil {
+		return err
+	}
+
+	// Notify link snap participants about link changes.
+	notifyLinkParticipants(t, snapsup.InstanceName())
+
+	// if we just linked back a core snap, request a restart
+	// so that we switch executing its snapd.
+	m.maybeRestart(t, info, reboot, deviceCtx)
+
+	return nil
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1974,6 +2102,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
+		}
+		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName())
+		if err != nil {
+			return err
 		}
 		if err := m.removeSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot remove snap cookie: %v", err)

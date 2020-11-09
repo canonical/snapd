@@ -25,7 +25,7 @@ prepare: |
   dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
   # create a VM and mount a cloud image
-  nested_create_classic_vm
+  "$TESTSTOOLS"/nested-state build-image classic
   mkdir -p "$IMAGE_MOUNTPOINT"
   IMAGE_NAME=$(nested_get_image_name classic)
   mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
@@ -82,10 +82,11 @@ execute: |
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
+  "$TESTSTOOLS"/nested-state create-vm classic
+
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  nested_start_classic_vm
-
+  
   echo "Waiting for firstboot seeding to finish"
   nested_exec "sudo snap wait system seed.loaded"
   nested_exec "snap changes" | MATCH "Done .+ Initialize system state"

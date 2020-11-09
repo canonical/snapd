@@ -10,18 +10,15 @@ debug: |
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "When the service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
 
     echo "When it is re-installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can still see it running with the same PID"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid

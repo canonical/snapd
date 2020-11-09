@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -77,11 +78,19 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)) (restore func()) {
-	old := secbootUnlockVolumeIfEncrypted
-	secbootUnlockVolumeIfEncrypted = f
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
+	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
-		secbootUnlockVolumeIfEncrypted = old
+		secbootUnlockVolumeUsingSealedKeyIfEncrypted = old
+	}
+}
+
+func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (string, error)) (restore func()) {
+	old := secbootUnlockEncryptedVolumeUsingKey
+	secbootUnlockEncryptedVolumeUsingKey = f
+	return func() {
+		secbootUnlockEncryptedVolumeUsingKey = old
 	}
 }
 

@@ -1,17 +1,14 @@
 summary: Check that `snap set` runs configure hook.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Build basic test package (without hooks)"
-    install_local basic
+    "$TESTSTOOLS"/snaps-state install-local basic
 
     echo "Build failing hooks package"
     snap pack "$TESTSLIB"/snaps/failing-config-hooks
 
     echo "Build package with hook to run snapctl set"
-    install_local snapctl-hooks
+    "$TESTSTOOLS"/snaps-state install-local snapctl-hooks
 
 execute: |
     echo "Test that snap set fails without configure hook"

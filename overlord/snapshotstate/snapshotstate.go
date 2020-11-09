@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -290,6 +291,27 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // List valid snapshots.
 // Note that the state must be locked by the caller.
 var List = backend.List
+
+// XXX: Something needs to cleanup incomplete imports. This is conceptually
+//      very simple: on startup, do:
+//      for setID in *_importing:
+//          newImportTransaction(setID).Cancel()
+//      But it needs to happen early *before* anything can start new imports
+
+// Import a given snapshot ID from an exported snapshot
+func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
+	st.Lock()
+	setID, err = newSnapshotSetID(st)
+	st.Unlock()
+	if err != nil {
+		return 0, nil, err
+	}
+	snapNames, err = backendImport(ctx, setID, r)
+	if err != nil {
+		return 0, nil, err
+	}
+	return setID, snapNames, nil
+}
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
