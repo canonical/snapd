@@ -604,6 +604,8 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 		return nil, err
 	}
 	if m.degradedState.partition("ubuntu-boot").MountState == partitionErrMounting {
+		// if we didn't mount data, then try to unlock data with the
+		// fallback key
 		return m.unlockDataFallbackKey, nil
 	}
 
@@ -758,7 +760,6 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-save")
 	if err := m.setFindState("ubuntu-save", findErr); err != nil {
-
 		return nil, nil
 	}
 	findState := m.degradedState.partition("ubuntu-save").FindState
