@@ -285,59 +285,71 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
-// recoverDegradedState is a map which usually contains the following keys:
-// - "ubuntu-data" - a map of states for the partition including the keys below
-// - "ubuntu-boot" - same as ubuntu-data
-// - "ubuntu-save" - same as ubuntu-data
-// - "error-log" - a list of errors encountered while setting up recover mode
-//
-// partitions can have the following keys in their maps:
-// - "mount-state" - whether it was mounted successfully or not
-// - "mount-location" - where this partition was mounted
-// - "device" - what device the partition corresponds to
-// - "locate-state" - whether the partition on the disk was located or not
-// - "unlock-state" - whether it was unlocked successfully or not
-// - "unlock-key" - what key it was unlocked with (TODO: should this be rolled into "unlock-state" ?)
-type recoverDegradedState map[string]interface{}
+// states for partition state
+const (
+	// states for UnlockState
+	partitionFound    = "found"
+	partitionNotFound = "not-found"
+	partitionErrFound = "err-finding"
+	// states for MountState
+	partitionErrMounting = "failed-to-mount"
+	partitionMounted     = "mounted"
+	// states for UnlockState
+	partitionUnlocked     = "unlocked"
+	partitionErrUnlocking = "failed-to-unlock"
+	// keys used to unlock for UnlockKey
+	keyRun      = "run"
+	keyFallback = "fallback"
+	keyRecovery = "recovery"
+)
 
-func (r recoverDegradedState) setPartitionKeyValue(diskName, k, v string) {
-	if obj, ok := r[diskName]; ok {
-		m, ok := obj.(map[string]string)
-		if !ok {
-			panic("expected disk object to be a map[string]string")
-		}
-		m[k] = v
-		r[diskName] = m
-	} else {
-		r[diskName] = map[string]string{
-			k: v,
-		}
-	}
+// partitionState is the state of a partition after recover mode has completed
+// for degraded mode.
+type partitionState struct {
+	// MountState is whether the partition was mounted successfully or not.
+	MountState string `json:"mount-state,omitempty"`
+	// MountLocation is where the partition was mounted.
+	MountLocation string `json:"mount-location,omitempty"`
+	// Device is what device the partition corresponds to.
+	Device string `json:"device,omitempty"`
+	// LocateState is whether the partitino on the disk was located or not.
+	LocateState string `json:"locate-state,omitempty"`
+	// UnlockState was whether the partition was unlocked successfully or not.
+	UnlockState string `json:"unlock-state,omitempty"`
+	// UnlockKey was what key the partition was unlocked with, either "run",
+	// "fallback" or "recovery".
+	UnlockKey string `json:"unlock-key,omitempty"`
 }
 
-func (r recoverDegradedState) getPartitionKey(diskName, k string) string {
-	if obj, ok := r[diskName]; ok {
-		m, ok := obj.(map[string]string)
-		if !ok {
-			panic("expected disk object to be a map[string]string")
-		}
-		return m[k]
-	}
-	return ""
+type recoverDegradedState struct {
+	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
+	// partition.
+	UbuntuData partitionState `json:"ubuntu-data,omitempty"`
+	// UbuntuBoot is the state of the ubuntu-boot partition.
+	UbuntuBoot partitionState `json:"ubuntu-boot,omitempty"`
+	// UbuntuSave is the state of the ubuntu-save (or ubuntu-save-enc)
+	// partition.
+	UbuntuSave partitionState `json:"ubuntu-save,omitempty"`
+	// ErrorLog is the log of error messages encountered during recover mode
+	// setting up degraded mode.
+	ErrorLog []string `json:"error-log"`
 }
 
-func (r recoverDegradedState) LogErrorf(format string, v ...interface{}) {
+func (r *recoverDegradedState) partition(part string) *partitionState {
+	switch part {
+	case "ubuntu-data":
+		return &r.UbuntuData
+	case "ubuntu-boot":
+		return &r.UbuntuBoot
+	case "ubuntu-save":
+		return &r.UbuntuSave
+	}
+	panic(fmt.Sprintf("unknown partition %s", part))
+}
+
+func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
-	if _, ok := r["error-log"]; ok {
-		errLog, ok := r["error-log"].([]string)
-		if !ok {
-			panic("internal error: error-log is not a slice")
-		}
-		errLog = append(errLog, msg)
-		r["error-log"] = errLog
-	} else {
-		r["error-log"] = []string{msg}
-	}
+	r.ErrorLog = append(r.ErrorLog, msg)
 	logger.Noticef(msg)
 }
 
@@ -490,8 +502,8 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 
 	if unlockRes.Device != "" {
 		*stateDevice = unlockRes.Device
-		m.degradedState.setPartitionKeyValue(part, "locate-state", "found")
-		m.degradedState.setPartitionKeyValue(part, "device", unlockRes.Device)
+		m.degradedState.partition(part).LocateState = partitionFound
+		m.degradedState.partition(part).Device = unlockRes.Device
 	}
 
 	if !unlockRes.IsDecryptedDevice && unlockRes.Device != "" && unlockErr != nil {
@@ -505,8 +517,10 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 
 func newStateMachine(disk disks.Disk) *stateMachine {
 	m := &stateMachine{
-		disk:          disk,
-		degradedState: recoverDegradedState{},
+		disk: disk,
+		degradedState: recoverDegradedState{
+			ErrorLog: []string{},
+		},
 	}
 	// first step is to mount ubuntu-boot to check for run mode keys to unlock
 	// ubuntu-data
@@ -535,10 +549,10 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 		// run key, and should instead just jump straight to attempting to
 		// unlock with the fallback key
 		if _, ok := err.(disks.FilesystemLabelNotFoundError); !ok {
-			m.degradedState.setPartitionKeyValue("ubuntu-boot", "locate-state", "err-finding")
+			m.degradedState.partition("ubuntu-boot").LocateState = partitionErrFound
 			m.degradedState.LogErrorf("cannot find ubuntu-boot partition on disk %s", m.disk.Dev())
 		} else {
-			m.degradedState.setPartitionKeyValue("ubuntu-boot", "locate-state", "not-found")
+			m.degradedState.partition("ubuntu-boot").LocateState = partitionNotFound
 			m.degradedState.LogErrorf("error locating ubuntu-boot partition on disk %s: %v", m.disk.Dev(), err)
 		}
 
@@ -546,8 +560,8 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	}
 
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
-	m.degradedState.setPartitionKeyValue("ubuntu-boot", "device", dev)
-	m.degradedState.setPartitionKeyValue("ubuntu-boot", "locate-state", "found")
+	m.degradedState.partition("ubuntu-boot").Device = dev
+	m.degradedState.partition("ubuntu-boot").LocateState = partitionFound
 
 	// should we fsck ubuntu-boot? probably yes because on some platforms
 	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
@@ -559,7 +573,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	if err := doSystemdMount(dev, boot.InitramfsUbuntuBootDir, fsckSystemdOpts); err != nil {
 		// didn't manage to mount boot, so try to use fallback key for data
 		m.degradedState.LogErrorf("failed to mount ubuntu-boot: %v", err)
-		m.degradedState.setPartitionKeyValue("ubuntu-boot", "mount-state", "failed-to-mount")
+		m.degradedState.partition("ubuntu-boot").MountState = partitionErrMounting
 		return m.unlockDataFallbackKey, nil
 	}
 
@@ -568,8 +582,8 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 		return nil, err
 	}
 
-	m.degradedState.setPartitionKeyValue("ubuntu-boot", "mount-state", "mounted")
-	m.degradedState.setPartitionKeyValue("ubuntu-boot", "mount-location", boot.InitramfsUbuntuBootDir)
+	m.degradedState.partition("ubuntu-boot").MountState = partitionMounted
+	m.degradedState.partition("ubuntu-boot").MountLocation = boot.InitramfsUbuntuBootDir
 
 	// next step try to unlock data with run object
 	return m.unlockDataRunKey, nil
@@ -597,10 +611,10 @@ func (m *stateMachine) unlockDataRunKey() (stateFunc, error) {
 	// save the device if we found it
 	if unlockRes.Device != "" {
 		m.dataDevice = unlockRes.Device
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "locate-state", "found")
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "device", unlockRes.Device)
+		m.degradedState.partition("ubuntu-data").LocateState = partitionFound
+		m.degradedState.partition("ubuntu-data").Device = unlockRes.Device
 	} else {
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "locate-state", "not-found")
+		m.degradedState.partition("ubuntu-data").LocateState = partitionNotFound
 	}
 
 	if unlockRes.IsDecryptedDevice {
@@ -632,8 +646,8 @@ func (m *stateMachine) unlockDataRunKey() (stateFunc, error) {
 	// successfully unlocked it with the run key, so just mark that in the
 	// state and move on to trying to mount it
 	if unlockRes.IsDecryptedDevice {
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "unlock-state", "unlocked")
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "key-state", "run")
+		m.degradedState.partition("ubuntu-data").UnlockState = partitionUnlocked
+		m.degradedState.partition("ubuntu-data").UnlockKey = keyRun
 	}
 
 	return m.mountData, nil
@@ -667,7 +681,7 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 	if err != nil {
 		if m.isEncryptedDev {
 			m.degradedState.LogErrorf("cannot unlock encrypted ubuntu-data partition with sealed fallback key: %v", err)
-			m.degradedState.setPartitionKeyValue("ubuntu-data", "unlock-state", "failed")
+			m.degradedState.partition("ubuntu-data").UnlockState = partitionErrUnlocking
 		} else {
 			// if we don't have an encrypted device and err != nil, then the
 			// device must not be found, see the above if
@@ -685,13 +699,14 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// use the fallback key
 		switch unlockRes.UnlockMethod {
 		case secboot.UnlockedWithSealedKey:
-			m.degradedState.setPartitionKeyValue("ubuntu-data", "key-state", "fallback")
+			m.degradedState.partition("ubuntu-data").UnlockKey = keyFallback
 		case secboot.UnlockedWithRecoveryKey:
-			m.degradedState.setPartitionKeyValue("ubuntu-data", "key-state", "recovery")
+			m.degradedState.partition("ubuntu-data").UnlockKey = keyRecovery
 
 			// TODO: should we fail with internal error for default case here?
 		}
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "unlock-state", "unlocked")
+		m.degradedState.partition("ubuntu-data").UnlockState = partitionUnlocked
+
 	}
 
 	return m.mountData, nil
@@ -702,7 +717,7 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 	if err := doSystemdMount(m.dataDevice, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		m.degradedState.LogErrorf("cannot mount ubuntu-data: %v", err)
 		// we failed to mount it, proceed with degraded mode
-		m.degradedState.setPartitionKeyValue("ubuntu-data", "mount-state", "failed-to-mount")
+		m.degradedState.partition("ubuntu-data").MountState = partitionErrMounting
 
 		// no point trying to unlock save with the run key, we need data to be
 		// mounted for that and we failed to mount it
@@ -715,8 +730,8 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 		return nil, err
 	}
 
-	m.degradedState.setPartitionKeyValue("ubuntu-data", "mount-state", "mounted")
-	m.degradedState.setPartitionKeyValue("ubuntu-data", "mount-location", boot.InitramfsHostUbuntuDataDir)
+	m.degradedState.partition("ubuntu-data").MountState = partitionMounted
+	m.degradedState.partition("ubuntu-data").MountLocation = boot.InitramfsHostUbuntuDataDir
 
 	// next step: try to unlock with run save key if we are encrypted
 	if m.isEncryptedDev {
@@ -736,12 +751,12 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 			// the error is not "not-found", so we have a real error
 			// identifying whether save exists or not
 			m.degradedState.LogErrorf("error identifying ubuntu-save partition: %v", err)
-			m.degradedState.setPartitionKeyValue("ubuntu-save", "locate-state", "err-finding")
+			m.degradedState.partition("ubuntu-save").LocateState = partitionErrFound
 		} else {
 			// this is ok, ubuntu-save may not exist for
 			// non-encrypted device
 			// TODO: should this be a locate-state or mount-state setting?
-			m.degradedState.setPartitionKeyValue("ubuntu-save", "locate-state", "not-needed")
+			m.degradedState.partition("ubuntu-save").LocateState = "not-needed"
 		}
 
 		// all done, nothing left to try and mount, even if errors
@@ -751,8 +766,8 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 
 	// we found the unencrypted device, now mount it
 	m.saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "device", m.saveDevice)
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "locate-state", "found")
+	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
+	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
 	return m.mountSave, nil
 }
 
@@ -774,13 +789,13 @@ func (m *stateMachine) unlockSaveRunKey() (stateFunc, error) {
 		return m.unlockSaveFallbackKey, nil
 	}
 
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "unlock-state", "unlocked")
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "key-state", "run")
+	m.degradedState.partition("ubuntu-save").UnlockState = partitionUnlocked
+	m.degradedState.partition("ubuntu-save").UnlockKey = keyRun
 
 	// unlocked it properly, go mount it
 	m.saveDevice = saveDevice
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "device", saveDevice)
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "locate-state", "found")
+	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
+	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
 	return m.mountSave, nil
 }
 
@@ -813,7 +828,7 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 	if err != nil {
 		if m.isEncryptedDev {
 			m.degradedState.LogErrorf("cannot unlock encrypted ubuntu-save partition with fallback key: %v", err)
-			m.degradedState.setPartitionKeyValue("ubuntu-save", "unlock-state", "failed")
+			m.degradedState.partition("ubuntu-save").UnlockState = partitionErrUnlocking
 		} else {
 			// if we don't have an encrypted device and err != nil, then the
 			// device must not be found, see the above if
@@ -826,17 +841,17 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 
 	switch unlockRes.UnlockMethod {
 	case secboot.UnlockedWithSealedKey:
-		m.degradedState.setPartitionKeyValue("ubuntu-save", "key-state", "fallback")
+		m.degradedState.partition("ubuntu-save").UnlockKey = keyFallback
 	case secboot.UnlockedWithRecoveryKey:
-		m.degradedState.setPartitionKeyValue("ubuntu-save", "key-state", "recovery")
+		m.degradedState.partition("ubuntu-save").UnlockKey = keyRecovery
 
 		// TODO: should we fail with internal error for default case here?
 	}
 
 	m.saveDevice = unlockRes.Device
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "unlock-state", "unlocked")
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "device", m.saveDevice)
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "locate-state", "found")
+	m.degradedState.partition("ubuntu-save").UnlockState = partitionUnlocked
+	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
+	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
 
 	return m.mountSave, nil
 }
@@ -845,7 +860,7 @@ func (m *stateMachine) mountSave() (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
 	if err := doSystemdMount(m.saveDevice, boot.InitramfsUbuntuSaveDir, nil); err != nil {
 		m.degradedState.LogErrorf("error mounting ubuntu-save from partition %s: %v", m.saveDevice, err)
-		m.degradedState.setPartitionKeyValue("ubuntu-save", "mount-state", "failed-to-mount")
+		m.degradedState.partition("ubuntu-save").MountState = partitionErrMounting
 		return nil, nil
 	}
 	// if we couldn't verify whether the mounted save is valid, bail out of
@@ -858,8 +873,8 @@ func (m *stateMachine) mountSave() (stateFunc, error) {
 		return nil, err
 	}
 
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "mount-state", "mounted")
-	m.degradedState.setPartitionKeyValue("ubuntu-save", "mount-location", boot.InitramfsUbuntuSaveDir)
+	m.degradedState.partition("ubuntu-save").MountState = partitionMounted
+	m.degradedState.partition("ubuntu-save").MountLocation = boot.InitramfsUbuntuSaveDir
 
 	// all done, nothing left to try and mount
 	return nil, nil
@@ -930,7 +945,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// if we have the host location, then we were able to successfully mount
 	// ubuntu-data, and as such we can proceed with copying files from there
 	// onto the tmpfs
-	if machine.degradedState.getPartitionKey("ubuntu-data", "mount-location") != "" {
+	if machine.degradedState.partition("ubuntu-data").MountLocation != "" {
 		// TODO: erroring here should fallback to copySafeDefaultData and
 		// proceed on with degraded mode anyways
 		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
