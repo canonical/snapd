@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -172,6 +173,8 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 		StartOffset: 1260388352,
 		Index:       3,
 	},
+	// expanded to fill the disk
+	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
