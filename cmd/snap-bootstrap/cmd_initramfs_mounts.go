@@ -444,7 +444,7 @@ func (m *stateMachine) diskOpts() *disks.Options {
 	return nil
 }
 
-func (m *stateMachine) verifyMountPointCtx(dir, name string) error {
+func (m *stateMachine) verifyMountPoint(dir, name string) error {
 	matches, err := m.disk.MountPointIsFromDisk(dir, m.diskOpts())
 	if err != nil {
 		return err
@@ -578,7 +578,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	}
 
 	// verify ubuntu-boot comes from same disk as ubuntu-seed
-	if err := m.verifyMountPointCtx(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	if err := m.verifyMountPoint(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
 		return nil, err
 	}
 
@@ -724,7 +724,7 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 		return m.unlockSaveFallbackKey, nil
 	}
 	// we mounted it successfully, verify it comes from the right disk
-	if err := m.verifyMountPointCtx(boot.InitramfsHostUbuntuDataDir, "ubuntu-data"); err != nil {
+	if err := m.verifyMountPoint(boot.InitramfsHostUbuntuDataDir, "ubuntu-data"); err != nil {
 		m.degradedState.LogErrorf("cannot verify ubuntu-data mount point at %v: %v",
 			boot.InitramfsHostUbuntuDataDir, err)
 		return nil, err
@@ -865,7 +865,7 @@ func (m *stateMachine) mountSave() (stateFunc, error) {
 	}
 	// if we couldn't verify whether the mounted save is valid, bail out of
 	// the state machine and exit snap-bootstrap
-	if err := m.verifyMountPointCtx(boot.InitramfsUbuntuSaveDir, "ubuntu-save"); err != nil {
+	if err := m.verifyMountPoint(boot.InitramfsUbuntuSaveDir, "ubuntu-save"); err != nil {
 		m.degradedState.LogErrorf("cannot verify ubuntu-save mount at %v: %v",
 			boot.InitramfsUbuntuSaveDir, err)
 
