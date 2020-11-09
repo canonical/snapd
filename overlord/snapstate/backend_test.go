@@ -336,6 +336,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-other-snap-id":
+		name = "some-other-snap"
 	case "some-epoch-snap-id":
 		name = "some-epoch-snap"
 		epoch = snap.E("42")
