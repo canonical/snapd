@@ -418,15 +418,6 @@ type stateMachine struct {
 	// the disk we have all our partitions on
 	disk disks.Disk
 
-	// TODO: roll these next two into degradedState instead ?
-
-	// the device for ubuntu-data that is to be mounted - either an unencrypted
-	// volume, or a decrypted mapper volume if ubuntu-data is really encrypted
-	// on the physical disk
-	dataDevice string
-	// the device for ubuntu-save that is to be mounted
-	saveDevice string
-
 	isEncryptedDev bool
 
 	// state for tracking what happens as we progress through degraded mode of
@@ -497,14 +488,9 @@ func (m *stateMachine) setMountState(part, where string, err error) error {
 // - ensures that previous state the state machine has seen is consistent with
 //   the new unlock result we have
 // - verifies the logical consistency of the unlock error and the unlock result
-func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot.UnlockResult, unlockErr error) error {
-	var stateDevice *string
-	switch part {
-	case "ubuntu-data":
-		stateDevice = &m.dataDevice
-	case "ubuntu-save":
-		stateDevice = &m.saveDevice
-	}
+func (m *stateMachine) ensureUnlockResConsistency(partName string, unlockRes secboot.UnlockResult, unlockErr error) error {
+	part := m.degradedState.partition(partName)
+
 	// TODO: we do a lot of checking on the result here to simplify later
 	//       decisions, perhaps this is too much?
 
@@ -531,14 +517,14 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 
 	// also make sure that if we previously saw a device that we see the same
 	// device again
-	if unlockRes.Device != "" && *stateDevice != "" && unlockRes.Device != *stateDevice {
-		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", part, *stateDevice, unlockRes.Device)
+	if unlockRes.Device != "" && part.Device != "" && unlockRes.Device != part.Device {
+		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", partName, part.Device, unlockRes.Device)
 	}
 
 	if unlockRes.Device != "" {
-		*stateDevice = unlockRes.Device
-		m.degradedState.partition(part).FindState = partitionFound
-		m.degradedState.partition(part).Device = unlockRes.Device
+		// *stateDevice = unlockRes.Device
+		part.FindState = partitionFound
+		part.Device = unlockRes.Device
 	}
 
 	if !unlockRes.IsDecryptedDevice && unlockRes.Device != "" && unlockErr != nil {
@@ -634,7 +620,6 @@ func (m *stateMachine) unlockDataRunKey() (stateFunc, error) {
 
 	// save the device if we found it
 	if unlockRes.Device != "" {
-		m.dataDevice = unlockRes.Device
 		m.degradedState.partition("ubuntu-data").FindState = partitionFound
 		m.degradedState.partition("ubuntu-data").Device = unlockRes.Device
 	} else {
@@ -729,7 +714,6 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 			// TODO: should we fail with internal error for default case here?
 		}
 		m.degradedState.partition("ubuntu-data").UnlockState = partitionUnlocked
-
 	}
 
 	return m.mountData, nil
@@ -737,7 +721,8 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 
 func (m *stateMachine) mountData() (stateFunc, error) {
 	// don't do fsck on the data partition, it could be corrupted
-	mountErr := doSystemdMount(m.dataDevice, boot.InitramfsHostUbuntuDataDir, nil)
+	dev := m.degradedState.partition("ubuntu-data").Device
+	mountErr := doSystemdMount(dev, boot.InitramfsHostUbuntuDataDir, nil)
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -775,8 +760,7 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	}
 
 	// we found the unencrypted device, now mount it
-	m.saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
-	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
+	m.degradedState.partition("ubuntu-save").Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	return m.mountSave, nil
 }
 
@@ -802,8 +786,7 @@ func (m *stateMachine) unlockSaveRunKey() (stateFunc, error) {
 	m.degradedState.partition("ubuntu-save").UnlockKey = keyRun
 
 	// unlocked it properly, go mount it
-	m.saveDevice = saveDevice
-	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
+	m.degradedState.partition("ubuntu-save").Device = saveDevice
 	m.degradedState.partition("ubuntu-save").FindState = partitionFound
 	return m.mountSave, nil
 }
@@ -857,17 +840,16 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 		// TODO: should we fail with internal error for default case here?
 	}
 
-	m.saveDevice = unlockRes.Device
 	m.degradedState.partition("ubuntu-save").UnlockState = partitionUnlocked
-	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
-	m.degradedState.partition("ubuntu-save").FindState = partitionFound
+	m.degradedState.partition("ubuntu-save").Device = unlockRes.Device
 
 	return m.mountSave, nil
 }
 
 func (m *stateMachine) mountSave() (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
-	mountErr := doSystemdMount(m.saveDevice, boot.InitramfsUbuntuSaveDir, nil)
+	dev := m.degradedState.partition("ubuntu-save").Device
+	mountErr := doSystemdMount(dev, boot.InitramfsUbuntuSaveDir, nil)
 	if err := m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr); err != nil {
 		return nil, err
 	}
