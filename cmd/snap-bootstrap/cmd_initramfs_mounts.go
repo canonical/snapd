@@ -429,10 +429,6 @@ type stateMachine struct {
 // the typical operation to some sort of degraded mode.
 func (m *stateMachine) degraded() bool {
 	r := m.degradedState
-	// we should have nothing in the error log
-	if len(r.ErrorLog) != 0 {
-		return true
-	}
 
 	if m.isEncryptedDev {
 		// for encrypted devices, we need to have ubuntu-save mounted
@@ -467,6 +463,11 @@ func (m *stateMachine) degraded() bool {
 	}
 
 	// TODO: should we also check MountLocation too?
+
+	// we should have nothing in the error log
+	if len(r.ErrorLog) != 0 {
+		return true
+	}
 
 	return false
 }
@@ -538,6 +539,10 @@ func (m *stateMachine) setUnlockStateWithRunKey(partName string, unlockRes secbo
 	} else {
 		part.FindState = partitionNotFound
 	}
+	if unlockRes.IsDecryptedDevice {
+		// if the unlock result deduced we have a decrypted device, save that
+		m.isEncryptedDev = true
+	}
 
 	if err != nil {
 		// create different error message for encrypted vs unencrypted
@@ -547,16 +552,17 @@ func (m *stateMachine) setUnlockStateWithRunKey(partName string, unlockRes secbo
 				devStr += fmt.Sprintf(" (device %s)", unlockRes.Device)
 			}
 			m.degradedState.LogErrorf("cannot unlock encrypted %s with sealed run key: %v", devStr, err)
+			part.UnlockState = partitionErrUnlocking
+
 		} else {
-			m.degradedState.LogErrorf("failed to find %s partition for mounting host data: %v", part, err)
+			// TODO: we don't know if this is a plain not found or  a different error
+			m.degradedState.LogErrorf("cannot locate %s partition for mounting host data: %v", part, err)
 		}
 
 		return nil
 	}
 
 	if unlockRes.IsDecryptedDevice {
-		// if the unlock result deduced we have a decrypted device, save that
-		m.isEncryptedDev = true
 		part.UnlockState = partitionUnlocked
 		part.UnlockKey = keyRun
 	}
@@ -598,7 +604,6 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 	}
 
 	if unlockRes.Device != "" {
-		// *stateDevice = unlockRes.Device
 		part.FindState = partitionFound
 		part.Device = unlockRes.Device
 	}
@@ -624,9 +629,6 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 	}
 
 	if m.isEncryptedDev {
-		// if the unlock result deduced we have a decrypted device, save that
-		m.isEncryptedDev = true
-
 		part.UnlockState = partitionUnlocked
 
 		// figure out which key/method we used to unlock the partition
@@ -917,25 +919,32 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	//    see the state* functions for details of what each step does and
 	//    possible transition points
 
-	// ensure that the last thing we do after mounting everything is to lock
-	// access to sealed keys
-	defer func() {
-		if err := secbootLockTPMSealedKeys(); err != nil {
-			logger.Noticef("error locking access to sealed keys: %v", err)
-		}
-	}()
+	machine, err := func() (machine *stateMachine, err error) {
+		// ensure that the last thing we do after mounting everything is to lock
+		// access to sealed keys
+		defer func() {
+			if err := secbootLockTPMSealedKeys(); err != nil {
+				logger.Noticef("error locking access to sealed keys: %v", err)
+			}
+		}()
 
-	// first state to execute is to unlock ubuntu-data with the run key
-	machine := newStateMachine(disk)
-	for {
-		final, err := machine.execute()
-		// TODO: consider whether certain errors are fatal or not
-		if err != nil {
-			return err
+		// first state to execute is to unlock ubuntu-data with the run key
+		machine = newStateMachine(disk)
+		for {
+			final, err := machine.execute()
+			// TODO: consider whether certain errors are fatal or not
+			if err != nil {
+				return nil, err
+			}
+			if final {
+				break
+			}
 		}
-		if final {
-			break
-		}
+
+		return machine, nil
+	}()
+	if err != nil {
+		return err
 	}
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
