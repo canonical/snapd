@@ -492,10 +492,12 @@ func (m *stateMachine) verifyMountPoint(dir, name string) error {
 	return nil
 }
 
-func (m *stateMachine) setFindState(part string, err error, logNotFoundErr bool) error {
+func (m *stateMachine) setFindState(part, partUUID string, err error, logNotFoundErr bool) error {
 	if err == nil {
 		// device was found
-		m.degradedState.partition(part).FindState = partitionFound
+		part := m.degradedState.partition(part)
+		part.FindState = partitionFound
+		part.Device = fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 		return nil
 	}
 	if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
@@ -675,7 +677,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
 	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
-	if err := m.setFindState("ubuntu-boot", findErr, true); err != nil {
+	if err := m.setFindState("ubuntu-boot", partUUID, findErr, true); err != nil {
 		return nil, err
 	}
 	if part.FindState != partitionFound {
@@ -685,9 +687,6 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 		return m.unlockDataFallbackKey, nil
 	}
 
-	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
-	part.Device = dev
-
 	// should we fsck ubuntu-boot? probably yes because on some platforms
 	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
 	// dirtily, and we need to fsck it to ensure it is mounted safely before
@@ -695,7 +694,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	fsckSystemdOpts := &systemdMountOptions{
 		NeedsFsck: true,
 	}
-	mountErr := doSystemdMount(dev, boot.InitramfsUbuntuBootDir, fsckSystemdOpts)
+	mountErr := doSystemdMount(part.Device, boot.InitramfsUbuntuBootDir, fsckSystemdOpts)
 	if err := m.setMountState("ubuntu-boot", boot.InitramfsUbuntuBootDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -784,8 +783,7 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 func (m *stateMachine) mountData() (stateFunc, error) {
 	data := m.degradedState.partition("ubuntu-data")
 	// don't do fsck on the data partition, it could be corrupted
-	dev := data.Device
-	mountErr := doSystemdMount(dev, boot.InitramfsHostUbuntuDataDir, nil)
+	mountErr := doSystemdMount(data.Device, boot.InitramfsHostUbuntuDataDir, nil)
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -808,7 +806,7 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-save")
 	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-save")
-	if err := m.setFindState("ubuntu-save", findErr, false); err != nil {
+	if err := m.setFindState("ubuntu-save", partUUID, findErr, false); err != nil {
 		return nil, nil
 	}
 	if part.FindState != partitionFound {
@@ -823,7 +821,6 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	}
 
 	// we found the unencrypted device, now mount it
-	part.Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	return m.mountSave, nil
 }
 
@@ -890,9 +887,9 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 }
 
 func (m *stateMachine) mountSave() (stateFunc, error) {
-	dev := m.degradedState.partition("ubuntu-save").Device
+	saveDev := m.degradedState.partition("ubuntu-save").Device
 	// TODO: should we fsck ubuntu-save ?
-	mountErr := doSystemdMount(dev, boot.InitramfsUbuntuSaveDir, nil)
+	mountErr := doSystemdMount(saveDev, boot.InitramfsUbuntuSaveDir, nil)
 	if err := m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr); err != nil {
 		return nil, err
 	}
