@@ -72,6 +72,10 @@ const fwupdPermanentSlotAppArmor = `
 
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
+  # allow access to fwupd* and fw/ under boot/ for core systems
+  /boot/efi/EFI/boot/fwupd*.efi* rw,
+  /boot/efi/EFI/boot/fw/** rw,
+  # allow access to fwupd* and fw/ under ubuntu/ for classic systems
   /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
   /boot/efi/EFI/ubuntu/fw/** rw,
 
