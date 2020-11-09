@@ -287,7 +287,7 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 
 // states for partition state
 const (
-	// states for UnlockState
+	// states for LocateState
 	partitionFound    = "found"
 	partitionNotFound = "not-found"
 	partitionErrFound = "err-finding"
@@ -450,7 +450,7 @@ func (m *stateMachine) verifyMountPoint(dir, name string) error {
 		return err
 	}
 	if !matches {
-		return fmt.Errorf("cannot validate boot: %s mountpoint is expected to be from disk %s but is not", name, m.disk.Dev())
+		return fmt.Errorf("cannot validate mount: %s mountpoint %s is expected to be from disk %s but is not", name, dir, m.disk.Dev())
 	}
 	return nil
 }
@@ -665,8 +665,7 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// if this call to unlock a volume will be the last one or not
 		LockKeysOnFinish: false,
 	}
-	// TODO: this prompts again for a recover key, but really this is the
-	// reinstall key we will prompt for
+	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
@@ -932,7 +931,8 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsHostUbuntuDataDir, "degraded.json"), b, 0644)
+	// leave the information about degraded state at an ephemeral location
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644)
 	if err != nil {
 		return err
 	}

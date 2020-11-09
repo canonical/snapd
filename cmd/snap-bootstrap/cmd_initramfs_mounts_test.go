@@ -2540,7 +2540,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 }
 
 func checkDegradedJSON(c *C, exp map[string]interface{}) {
-	b, err := ioutil.ReadFile(filepath.Join(boot.InitramfsHostUbuntuDataDir, "degraded.json"))
+	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"))
 	c.Assert(err, IsNil)
 	degradedJSONObj := make(map[string]interface{}, 0)
 	err = json.Unmarshal(b, &degradedJSONObj)
