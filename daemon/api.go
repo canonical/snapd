@@ -113,6 +113,8 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	routineConsoleConfStartCmd,
+	systemRecoveryKeysCmd,
 }
 
 var servicestateControl = servicestate.Control

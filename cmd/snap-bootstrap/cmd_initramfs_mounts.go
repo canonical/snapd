@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
@@ -73,9 +74,10 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootMeasureSnapSystemEpochWhenPossible func() error
-	secbootMeasureSnapModelWhenPossible       func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeIfEncrypted            func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)
+	secbootMeasureSnapSystemEpochWhenPossible    func() error
+	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
+	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -280,32 +282,85 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 3. mount ubuntu-data for recovery
-	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	// 2.X mount ubuntu-boot for access to the run mode key to unseal
+	//     ubuntu-data
+	// use the disk we mounted ubuntu-seed from as a reference to find
+	// ubuntu-seed and mount it
+	// TODO: w/ degraded mode we need to be robust against not being able to
+	// find/mount ubuntu-boot and fallback to using keys from ubuntu-seed in
+	// that case
+	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-boot")
+	if err != nil {
+		return err
+	}
+
+	// should we fsck ubuntu-boot? probably yes because on some platforms
+	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
+	// dirtily, and we need to fsck it to ensure it is mounted safely before
+	// reading keys from it
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuBootDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// 2.X+1, verify ubuntu-boot comes from same disk as ubuntu-seed
+	matches, err := disk.MountPointIsFromDisk(boot.InitramfsUbuntuBootDir, nil)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return fmt.Errorf("cannot validate boot: ubuntu-boot mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+
+	// 3. mount ubuntu-data for recovery using run mode key
+	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		LockKeysOnFinish: true,
+		AllowRecoveryKey: true,
+	}
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
 
 	// don't do fsck on the data partition, it could be corrupted
-	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
+	if err := doSystemdMount(unlockRes.Device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		return err
 	}
 
-	// 3.1 verify that the host ubuntu-data comes from where we expect it to
+	// 3.1. mount ubuntu-save (if present)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsHostWritableDir, unlockRes.IsDecryptedDevice, nil)
+	if err != nil {
+		return err
+	}
+
+	// 3.2 verify that the host ubuntu-data comes from where we expect it to
+	// right device
 	diskOpts := &disks.Options{}
-	if isDecryptDev {
+	if unlockRes.IsDecryptedDevice {
 		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device
+		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
+	matches, err = disk.MountPointIsFromDisk(boot.InitramfsHostUbuntuDataDir, diskOpts)
 	if err != nil {
 		return err
 	}
 	if !matches {
 		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+	if haveSave {
+		// 3.2a we have ubuntu-save, verify it as well
+		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
 	}
 
 	// 4. final step: copy the auth data and network config from
@@ -454,6 +509,43 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	return sysconfig.ConfigureTargetSystem(configOpts)
 }
 
+func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
+	var saveDevice string
+	if encrypted {
+		saveKey := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "ubuntu-save.key")
+		// if ubuntu-save exists and is encrypted, the key has been created during install
+		if !osutil.FileExists(saveKey) {
+			// ubuntu-data is encrypted, but we appear to be missing
+			// a key to open ubuntu-save
+			return false, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
+		}
+		// we have save.key, volume exists and is encrypted
+		key, err := ioutil.ReadFile(saveKey)
+		if err != nil {
+			return true, err
+		}
+		saveDevice, err = secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+		if err != nil {
+			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
+		}
+	} else {
+		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		if err != nil {
+			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+				// this is ok, ubuntu-save may not exist for
+				// non-encrypted device
+				return false, nil
+			}
+			return false, err
+		}
+		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
+	}
+	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
@@ -498,23 +590,33 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// one recorded in ubuntu-data modeenv during install
 
 	// 3.2. mount Data
-	const lockKeysOnFinish = true
-	device, isDecryptDev, err := secbootUnlockVolumeIfEncrypted(disk, "ubuntu-data", boot.InitramfsEncryptionKeyDir, lockKeysOnFinish)
+	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		LockKeysOnFinish: true,
+		AllowRecoveryKey: true,
+	}
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	if err := doSystemdMount(device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+	if err := doSystemdMount(unlockRes.Device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// 3.3. mount ubuntu-save (if present)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, unlockRes.IsDecryptedDevice, fsckSystemdOpts)
+	if err != nil {
 		return err
 	}
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
 	diskOpts := &disks.Options{}
-	if isDecryptDev {
+	if unlockRes.IsDecryptedDevice {
 		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device
+		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true
 	}
 
@@ -526,6 +628,16 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// failed to verify that ubuntu-data mountpoint comes from the same disk
 		// as ubuntu-boot
 		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+	if haveSave {
+		// 4.1a we have ubuntu-save, verify it as well
+		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
 	}
 
 	// 4.2. read modeenv

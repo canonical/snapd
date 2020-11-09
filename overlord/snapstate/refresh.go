@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 // pidsOfSnap is a mockable version of PidsOfSnap
@@ -79,7 +81,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 	sort.Strings(busyHookNames)
 	sort.Ints(busyPIDs)
 	return &BusySnapError{
-		SnapName:      info.SnapName(),
+		SnapInfo:      info,
 		busyAppNames:  busyAppNames,
 		busyHookNames: busyHookNames,
 		pids:          busyPIDs,
@@ -123,10 +125,33 @@ func HardNothingRunningRefreshCheck(info *snap.Info) error {
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
 type BusySnapError struct {
-	SnapName      string
+	SnapInfo      *snap.Info
 	pids          []int
 	busyAppNames  []string
 	busyHookNames []string
+}
+
+// PendingSnapRefreshInfo computes information necessary to perform user notification
+// of postponed refresh of a snap, based on the information about snap "business".
+//
+// The returned value contains the instance name of the snap as well as, if possible,
+// information relevant for desktop notification services, such as application name
+// and the snapd-generated desktop file name.
+func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefreshInfo {
+	refreshInfo := &userclient.PendingSnapRefreshInfo{
+		InstanceName: err.SnapInfo.InstanceName(),
+	}
+	for _, appName := range err.busyAppNames {
+		if app, ok := err.SnapInfo.Apps[appName]; ok {
+			path := app.DesktopFile()
+			if osutil.FileExists(path) {
+				refreshInfo.BusyAppName = appName
+				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
+				break
+			}
+		}
+	}
+	return refreshInfo
 }
 
 // Error formats an error string describing what is running.
@@ -134,15 +159,15 @@ func (err *BusySnapError) Error() string {
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.SnapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
 	case len(err.busyAppNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.SnapName, strings.Join(err.busyAppNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "))
 	case len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.SnapName, strings.Join(err.busyHookNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "))
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapName)
+		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapInfo.InstanceName())
 	}
 }
 

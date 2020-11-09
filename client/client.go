@@ -317,7 +317,9 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 type doOptions struct {
 	// Timeout is the overall request timeout
 	Timeout time.Duration
-	// Retry interval
+	// Retry interval.
+	// Note for a request with a Timeout but without a retry, Retry should just
+	// be set to something larger than the Timeout.
 	Retry time.Duration
 }
 
@@ -343,6 +345,8 @@ var doNoTimeoutAndRetry = &doOptions{
 // usually use a higher level interface that builds on this.
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
 	opts = ensureDoOpts(opts)
+
+	client.checkMaintenanceJSON()
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
@@ -413,7 +417,55 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	return client.doSyncWithOpts(method, path, query, headers, body, v, nil)
 }
 
+// checkMaintenanceJSON checks if there is a maintenance.json file written by
+// snapd the daemon that positively identifies snapd as being unavailable due to
+// maintenance, either for snapd restarting itself to update, or rebooting the
+// system to update the kernel or base snap, etc. If there is ongoing
+// maintenance, then the maintenance object on the client is set appropriately.
+// note that currently checkMaintenanceJSON does not return errors, such that
+// if the file is missing or corrupt or empty, nothing will happen and it will
+// be silently ignored
+func (client *Client) checkMaintenanceJSON() {
+	f, err := os.Open(dirs.SnapdMaintenanceFile)
+	// just continue if we can't read the maintenance file
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	// we have a maintenance file, try to read it
+	maintenance := &Error{}
+
+	if err := json.NewDecoder(f).Decode(&maintenance); err != nil {
+		// if the json is malformed, just ignore it for now, we only use it for
+		// positive identification of snapd down for maintenance
+		return
+	}
+
+	if maintenance != nil {
+		switch maintenance.Kind {
+		case ErrorKindDaemonRestart:
+			client.maintenance = maintenance
+		case ErrorKindSystemRestart:
+			client.maintenance = maintenance
+		}
+		// don't set maintenance for other kinds, as we don't know what it
+		// is yet
+
+		// this also means an empty json object in maintenance.json doesn't get
+		// treated as a real maintenance downtime for example
+	}
+}
+
 func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
+	// first check maintenance.json to see if snapd is down for a restart, and
+	// set cli.maintenance as appropriate, then perform the request
+	// TODO: it would be a nice thing to skip the request if we know that snapd
+	// won't respond and return a specific error, but that's a big behavior
+	// change we probably shouldn't make right now, not to mention it probably
+	// requires adjustments in other areas too
+	client.checkMaintenanceJSON()
+
 	var rsp response
 	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
 	if err != nil {
@@ -679,5 +731,15 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 		urlParams.Set(k, v)
 	}
 	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
+	return err
+}
+
+type SystemRecoveryKeysResponse struct {
+	RecoveryKey  string `json:"recovery-key"`
+	ReinstallKey string `json:"reinstall-key"`
+}
+
+func (client *Client) SystemRecoveryKeys(result interface{}) error {
+	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
 }

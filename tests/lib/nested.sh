@@ -3,9 +3,6 @@
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
-
 # shellcheck source=tests/lib/store.sh
 . "$TESTSLIB"/store.sh
 
@@ -253,15 +250,15 @@ nested_is_classic_system() {
 }
 
 nested_is_core_20_system() {
-    is_focal_system
+    os.query is-focal
 }
 
 nested_is_core_18_system() {
-    is_bionic_system
+    os.query is-bionic
 }
 
 nested_is_core_16_system() {
-    is_xenial_system
+    os.query is-xenial
 }
 
 nested_refresh_to_new_core() {
@@ -411,6 +408,16 @@ nested_get_model() {
     esac
 }
 
+nested_ensure_ubuntu_save() {
+    local GADGET_DIR="$1"
+    "$TESTSLIB"/ensure_ubuntu_save.py "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
+    if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
+        mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
+    else
+        rm -f /tmp/gadget-with-save.yaml
+    fi
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -447,6 +454,16 @@ nested_create_core_vm() {
                     repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
+                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                    fi
+
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -480,6 +497,10 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
+                        # lands there is no ubuntu-save in the gadget, make sure we have one
+                        nested_ensure_ubuntu_save pc-gadget
+
                         # also make logging persistent for easier debugging of 
                         # test failures, otherwise we have no way to see what 
                         # happened during a failed nested VM boot where we 
@@ -513,7 +534,7 @@ EOF
 
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
                     # sign the snapd snap with fakestore if requested
@@ -939,7 +960,7 @@ nested_start_core_vm() {
     else
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
-    fi    
+    fi
 }
 
 nested_shutdown() {
@@ -1009,19 +1030,20 @@ nested_start_classic_vm() {
     PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m 4096"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="-m 2048"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
-    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_RANDOM PARAM_SNAPSHOT
+    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_CD PARAM_RANDOM PARAM_SNAPSHOT
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
     PARAM_USB="-usb"
     PARAM_CPU=""
+    PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
 
@@ -1082,7 +1104,8 @@ nested_start_classic_vm() {
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
     nested_wait_for_ssh
 }

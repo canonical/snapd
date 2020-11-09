@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -38,7 +39,10 @@ func init() {
 	secbootMeasureSnapModelWhenPossible = func(_ func() (*asserts.Model, error)) error {
 		return errNotImplemented
 	}
-	secbootUnlockVolumeIfEncrypted = func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
-		return "", false, errNotImplemented
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted = func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		return secboot.UnlockResult{}, errNotImplemented
+	}
+	secbootUnlockEncryptedVolumeUsingKey = func(disk disks.Disk, name string, key []byte) (string, error) {
+		return "", errNotImplemented
 	}
 }
