@@ -733,3 +733,13 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
 	return err
 }
+
+type SystemRecoveryKeysResponse struct {
+	RecoveryKey  string `json:"recovery-key"`
+	ReinstallKey string `json:"reinstall-key"`
+}
+
+func (client *Client) SystemRecoveryKeys(result interface{}) error {
+	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
+	return err
+}

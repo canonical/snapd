@@ -131,6 +131,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	bopts.Encrypt = useEncryption
 
+	// make sure that gadget is usable for the set up we want to use it in
+	gadgetContaints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
