@@ -2682,7 +2682,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-location": boot.InitramfsUbuntuBootDir,
@@ -2690,7 +2690,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 		"ubuntu-data": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			"unlock-state":   "unlocked",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"unlock-key":     "fallback",
 			"mount-location": boot.InitramfsHostUbuntuDataDir,
@@ -2700,7 +2700,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			"unlock-key":     "run",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -2860,7 +2860,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-location": boot.InitramfsUbuntuBootDir,
@@ -2868,7 +2868,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 		"ubuntu-data": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			"unlock-state":   "unlocked",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"unlock-key":     "run",
 			"mount-location": boot.InitramfsHostUbuntuDataDir,
@@ -2878,7 +2878,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedFa
 			"unlock-key":     "fallback",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -3025,12 +3025,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
-			"locate-state": "not-found",
+			"find-state": "not-found",
 		},
 		"ubuntu-data": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			"unlock-state":   "unlocked",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"unlock-key":     "fallback",
 			"mount-location": boot.InitramfsHostUbuntuDataDir,
@@ -3040,7 +3040,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"unlock-key":     "run",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -3187,12 +3187,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
-			"locate-state": "not-found",
+			"find-state": "not-found",
 		},
 		"ubuntu-data": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-data-enc-partuuid",
 			"unlock-state":   "unlocked",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-state":    "mounted",
 			"unlock-key":     "recovery",
 			"mount-location": boot.InitramfsHostUbuntuDataDir,
@@ -3202,7 +3202,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"unlock-key":     "run",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -3376,19 +3376,19 @@ recovery_system=20191118
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuBootDir,
 		},
 		"ubuntu-data": map[string]interface{}{
-			"unlock-state": "failed-to-unlock",
-			"locate-state": "not-found",
+			"unlock-state": "error-unlocking",
+			"find-state":   "not-found",
 		},
 		"ubuntu-save": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
 			"unlock-key":     "fallback",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -3578,19 +3578,19 @@ recovery_system=20191118
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuBootDir,
 		},
 		"ubuntu-data": map[string]interface{}{
-			"unlock-state": "failed-to-unlock",
-			"locate-state": "not-found",
+			"unlock-state": "error-unlocking",
+			"find-state":   "not-found",
 		},
 		"ubuntu-save": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
 			"unlock-key":     "recovery",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
@@ -3772,15 +3772,15 @@ recovery_system=20191118
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
-			"locate-state":   "found",
+			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuBootDir,
 		},
 		"ubuntu-data": map[string]interface{}{
-			"unlock-state": "failed-to-unlock",
-			"locate-state": "not-found",
+			"unlock-state": "error-unlocking",
+			"find-state":   "not-found",
 		},
 		"ubuntu-save": map[string]interface{}{
-			"unlock-state": "failed-to-unlock",
+			"unlock-state": "error-unlocking",
 		},
 		"error-log": []interface{}{
 			"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data with run object",

@@ -288,15 +288,16 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 // states for partition state
 const (
 	// states for LocateState
-	partitionFound    = "found"
-	partitionNotFound = "not-found"
-	partitionErrFound = "err-finding"
+	partitionFound      = "found"
+	partitionNotFound   = "not-found"
+	partitionErrFinding = "error-finding"
 	// states for MountState
-	partitionErrMounting = "failed-to-mount"
-	partitionMounted     = "mounted"
+	partitionMounted        = "mounted"
+	partitionErrMounting    = "error-mounting"
+	partitionAbsentOptional = "absent-but-optional"
 	// states for UnlockState
 	partitionUnlocked     = "unlocked"
-	partitionErrUnlocking = "failed-to-unlock"
+	partitionErrUnlocking = "error-unlocking"
 	// keys used to unlock for UnlockKey
 	keyRun      = "run"
 	keyFallback = "fallback"
@@ -312,8 +313,8 @@ type partitionState struct {
 	MountLocation string `json:"mount-location,omitempty"`
 	// Device is what device the partition corresponds to.
 	Device string `json:"device,omitempty"`
-	// LocateState is whether the partitino on the disk was located or not.
-	LocateState string `json:"locate-state,omitempty"`
+	// FindState indicates whether the partition was found on the disk or not.
+	FindState string `json:"find-state,omitempty"`
 	// UnlockState was whether the partition was unlocked successfully or not.
 	UnlockState string `json:"unlock-state,omitempty"`
 	// UnlockKey was what key the partition was unlocked with, either "run",
@@ -450,7 +451,7 @@ func (m *stateMachine) verifyMountPoint(dir, name string) error {
 		return err
 	}
 	if !matches {
-		return fmt.Errorf("cannot validate mount: %s mountpoint %s is expected to be from disk %s but is not", name, dir, m.disk.Dev())
+		return fmt.Errorf("cannot validate mount: %s mountpoint target %s is expected to be from disk %s but is not", name, dir, m.disk.Dev())
 	}
 	return nil
 }
@@ -502,7 +503,7 @@ func (m *stateMachine) ensureUnlockResConsistency(part string, unlockRes secboot
 
 	if unlockRes.Device != "" {
 		*stateDevice = unlockRes.Device
-		m.degradedState.partition(part).LocateState = partitionFound
+		m.degradedState.partition(part).FindState = partitionFound
 		m.degradedState.partition(part).Device = unlockRes.Device
 	}
 
@@ -549,10 +550,10 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 		// run key, and should instead just jump straight to attempting to
 		// unlock with the fallback key
 		if _, ok := err.(disks.FilesystemLabelNotFoundError); !ok {
-			m.degradedState.partition("ubuntu-boot").LocateState = partitionErrFound
+			m.degradedState.partition("ubuntu-boot").FindState = partitionErrFinding
 			m.degradedState.LogErrorf("cannot find ubuntu-boot partition on disk %s", m.disk.Dev())
 		} else {
-			m.degradedState.partition("ubuntu-boot").LocateState = partitionNotFound
+			m.degradedState.partition("ubuntu-boot").FindState = partitionNotFound
 			m.degradedState.LogErrorf("error locating ubuntu-boot partition on disk %s: %v", m.disk.Dev(), err)
 		}
 
@@ -561,7 +562,7 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	m.degradedState.partition("ubuntu-boot").Device = dev
-	m.degradedState.partition("ubuntu-boot").LocateState = partitionFound
+	m.degradedState.partition("ubuntu-boot").FindState = partitionFound
 
 	// should we fsck ubuntu-boot? probably yes because on some platforms
 	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
@@ -611,10 +612,10 @@ func (m *stateMachine) unlockDataRunKey() (stateFunc, error) {
 	// save the device if we found it
 	if unlockRes.Device != "" {
 		m.dataDevice = unlockRes.Device
-		m.degradedState.partition("ubuntu-data").LocateState = partitionFound
+		m.degradedState.partition("ubuntu-data").FindState = partitionFound
 		m.degradedState.partition("ubuntu-data").Device = unlockRes.Device
 	} else {
-		m.degradedState.partition("ubuntu-data").LocateState = partitionNotFound
+		m.degradedState.partition("ubuntu-data").FindState = partitionNotFound
 	}
 
 	if unlockRes.IsDecryptedDevice {
@@ -750,12 +751,12 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 			// the error is not "not-found", so we have a real error
 			// identifying whether save exists or not
 			m.degradedState.LogErrorf("error identifying ubuntu-save partition: %v", err)
-			m.degradedState.partition("ubuntu-save").LocateState = partitionErrFound
+			m.degradedState.partition("ubuntu-save").FindState = partitionErrFinding
 		} else {
 			// this is ok, ubuntu-save may not exist for
 			// non-encrypted device
-			// TODO: should this be a locate-state or mount-state setting?
-			m.degradedState.partition("ubuntu-save").LocateState = "not-needed"
+			m.degradedState.partition("ubuntu-save").FindState = partitionNotFound
+			m.degradedState.partition("ubuntu-save").MountState = partitionAbsentOptional
 		}
 
 		// all done, nothing left to try and mount, even if errors
@@ -766,7 +767,7 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	// we found the unencrypted device, now mount it
 	m.saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
-	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
+	m.degradedState.partition("ubuntu-save").FindState = partitionFound
 	return m.mountSave, nil
 }
 
@@ -794,7 +795,7 @@ func (m *stateMachine) unlockSaveRunKey() (stateFunc, error) {
 	// unlocked it properly, go mount it
 	m.saveDevice = saveDevice
 	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
-	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
+	m.degradedState.partition("ubuntu-save").FindState = partitionFound
 	return m.mountSave, nil
 }
 
@@ -850,7 +851,7 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 	m.saveDevice = unlockRes.Device
 	m.degradedState.partition("ubuntu-save").UnlockState = partitionUnlocked
 	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
-	m.degradedState.partition("ubuntu-save").LocateState = partitionFound
+	m.degradedState.partition("ubuntu-save").FindState = partitionFound
 
 	return m.mountSave, nil
 }
