@@ -74,3 +74,24 @@ execute: |
         snap remove "$SNAP_JAILMODE"
         rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
     fi
+
+    # check the command is-classic-confinement-supported works
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        not "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
+    elif os.query is-core; then
+        not "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
+    elif os.query is-focal; then
+        "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
+    fi
+
+    # Check the repack of the snapd del into core and snapd snaps
+    "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core
+    test -e core-from-snapd-deb.snap
+    "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
+    test -e snapd-from-deb.snap
+
+    # Check the repach of the core snap info snapd snap
+    if [ -d /snap/core/current ]; then
+        "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap
+        test -e snapd-from-core.snap
+    fi

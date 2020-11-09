@@ -4,6 +4,9 @@ show_help() {
     echo "usage: pack-local <snap-name>"
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo "       is-classic-confinement-supported"
+    echo "       repack-snapd-deb-into-snap <snapd|core>"
+    echo "       repack-core-snap-into-snapd-snap"
     echo ""
     echo "Available options:"
     echo "  --devmode --jailmode --classic"
@@ -57,6 +60,92 @@ install_local_as() {
     local name="$2"
     shift 2
     install_local "$snap" --name "$name" "$@"
+}
+
+is_classic_confinement_supported() {
+    snap debug sandbox-features --required=confinement-options:classic
+}
+
+# The function will re-pack either core or snpad snap using the assets
+# from the snapd deb installed on the system
+repack_snapd_deb_into_snap() {
+    local SNAP_NAME="$1"
+
+    if  [ "$SNAP_NAME" = "core" ]; then
+        # use snapd from edge as a recent snap that should be close to what we will
+        # have in the snapd deb
+        snap download core --basename=core --edge
+        unsquashfs -d ./core-unpacked core.snap
+
+        # extract all the files from the snapd deb
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./core-unpacked
+
+        # repack into the target dir specified
+        snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+
+        # cleanup
+        rm -rf core-unpacked
+    elif [ "$SNAP_NAME" = "snapd" ]; then
+        # use snapd from edge as a recent snap that should be close to what we will
+        # have in the snapd deb
+        snap download snapd --basename=snapd --edge
+        unsquashfs -d ./snapd-unpacked snapd.snap
+
+        # extract all the files from the snapd deb
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./snapd-unpacked
+
+        # repack into the target dir specified
+        snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+
+        # cleanup
+        rm -rf snapd-unpacked
+    else
+        echo "snaps-state: use either core or snapd snaps for repack, snapd $SNAP_NAME not supported"
+        show_help
+        exit 1
+    fi
+}
+
+# This function will re-pack the current core snap as the snapd snap,
+# using the snapd snap from edge as the set of files to use from the core snap.
+# This is primarily meant to be used in UC16 tests that need to use the snapd
+# snap because neither the snapd snap, nor the snapd deb built for the spread
+# run are seeded on the image
+# The build snap is located in the current working directory at with the
+# filename snapd-from-core.snap.
+repack_core_snap_into_snapd_snap() {
+    # FIXME: maybe build the snapd snap from the deb in prepare_ubuntu_core /
+    # setup_reflash_magic and include it somewhere in the image so we don't need
+    # to do this hack here?
+
+    # get the snap.yaml and a list of all the snapd snap files using edge
+    # NOTE: this may break if a spread run adds files to the snapd snap that
+    # don't exist in the snapd snap on edge and those files are necessary
+    # for snapd to run or revert, etc.
+    snap download snapd --basename=snapd-upstream --edge
+    unsquashfs -d ./snapd-upstream snapd-upstream.snap
+    (
+    cd snapd-upstream || exit 1
+    # find all files and symlinks - not directories because when unsquashfs
+    # is provided a directory it will extract all the files in that directory
+    find . \( -type l -o -type f \) | cut -c3- > ../files.txt
+    )
+
+    current=$(readlink /snap/core/current)
+    CORE_SNAP=/var/lib/snapd/snaps/core_"$current".snap
+
+    # only unpack files from the core snap that are in the snapd snap - this
+    # is kosher because the set of files in the core snap is a superset of
+    # all the files in the snapd snap
+    #shellcheck disable=2046
+    unsquashfs -d ./snapd-local "$CORE_SNAP" $(cat files.txt)
+
+    # replace snap.yaml from the core snap with the snapd snap, and pack the snap
+    cp snapd-upstream/meta/snap.yaml snapd-local/meta/snap.yaml
+    snap pack snapd-local --filename=snapd-from-core.snap
+
+    # cleanup the snaps we downloaded and built
+    rm -rf snapd-local snapd-upstream* files.txt
 }
 
 main() {
