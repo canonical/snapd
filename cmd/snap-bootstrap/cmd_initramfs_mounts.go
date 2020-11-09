@@ -454,6 +454,42 @@ func (m *stateMachine) verifyMountPoint(dir, name string) error {
 	return nil
 }
 
+func (m *stateMachine) setFindState(part string, err error) error {
+	if err == nil {
+		// device was found
+		m.degradedState.partition(part).FindState = partitionFound
+		return nil
+	}
+	if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+		// explicit error that the device was not found
+		m.degradedState.partition(part).FindState = partitionNotFound
+		m.degradedState.LogErrorf("cannot find %v partition on disk %s", part, m.disk.Dev())
+		return nil
+	}
+	// the error is not "not-found", so we have a real error
+	m.degradedState.partition(part).FindState = partitionErrFinding
+	m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", part, m.disk.Dev(), err)
+	return nil
+}
+
+func (m *stateMachine) setMountState(part, where string, err error) error {
+	if err != nil {
+		m.degradedState.LogErrorf("cannot mount %v: %v", part, err)
+		m.degradedState.partition(part).MountState = partitionErrMounting
+		return nil
+	}
+
+	m.degradedState.partition(part).MountState = partitionMounted
+	m.degradedState.partition(part).MountLocation = where
+
+	if err := m.verifyMountPoint(where, part); err != nil {
+		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v",
+			part, where, err)
+		return err
+	}
+	return nil
+}
+
 // ensureUnlockResConsistency does a couple of things for ubuntu-data and
 // ubuntu-save respectively, it:
 // - updates the state machine with new, consistent information from the unlock
@@ -542,25 +578,19 @@ func (m *stateMachine) execute() (finished bool, err error) {
 func (m *stateMachine) mountBoot() (stateFunc, error) {
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, err := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
-	if err != nil {
+	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
+	if err := m.setFindState("ubuntu-boot", findErr); err != nil {
+		return nil, err
+	}
+	if m.degradedState.partition("ubuntu-boot").FindState != partitionFound {
 		// if we didn't find ubuntu-boot, we can't try to unlock data with the
 		// run key, and should instead just jump straight to attempting to
 		// unlock with the fallback key
-		if _, ok := err.(disks.FilesystemLabelNotFoundError); !ok {
-			m.degradedState.partition("ubuntu-boot").FindState = partitionErrFinding
-			m.degradedState.LogErrorf("cannot find ubuntu-boot partition on disk %s", m.disk.Dev())
-		} else {
-			m.degradedState.partition("ubuntu-boot").FindState = partitionNotFound
-			m.degradedState.LogErrorf("error locating ubuntu-boot partition on disk %s: %v", m.disk.Dev(), err)
-		}
-
 		return m.unlockDataFallbackKey, nil
 	}
 
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	m.degradedState.partition("ubuntu-boot").Device = dev
-	m.degradedState.partition("ubuntu-boot").FindState = partitionFound
 
 	// should we fsck ubuntu-boot? probably yes because on some platforms
 	// (u-boot for example) ubuntu-boot is vfat and it could have been unmounted
@@ -569,20 +599,13 @@ func (m *stateMachine) mountBoot() (stateFunc, error) {
 	fsckSystemdOpts := &systemdMountOptions{
 		NeedsFsck: true,
 	}
-	if err := doSystemdMount(dev, boot.InitramfsUbuntuBootDir, fsckSystemdOpts); err != nil {
-		// didn't manage to mount boot, so try to use fallback key for data
-		m.degradedState.LogErrorf("failed to mount ubuntu-boot: %v", err)
-		m.degradedState.partition("ubuntu-boot").MountState = partitionErrMounting
-		return m.unlockDataFallbackKey, nil
-	}
-
-	// verify ubuntu-boot comes from same disk as ubuntu-seed
-	if err := m.verifyMountPoint(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	mountErr := doSystemdMount(dev, boot.InitramfsUbuntuBootDir, fsckSystemdOpts)
+	if err := m.setMountState("ubuntu-boot", boot.InitramfsUbuntuBootDir, mountErr); err != nil {
 		return nil, err
 	}
-
-	m.degradedState.partition("ubuntu-boot").MountState = partitionMounted
-	m.degradedState.partition("ubuntu-boot").MountLocation = boot.InitramfsUbuntuBootDir
+	if m.degradedState.partition("ubuntu-boot").MountState == partitionErrMounting {
+		return m.unlockDataFallbackKey, nil
+	}
 
 	// next step try to unlock data with run object
 	return m.unlockDataRunKey, nil
@@ -712,24 +735,15 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 
 func (m *stateMachine) mountData() (stateFunc, error) {
 	// don't do fsck on the data partition, it could be corrupted
-	if err := doSystemdMount(m.dataDevice, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
-		m.degradedState.LogErrorf("cannot mount ubuntu-data: %v", err)
-		// we failed to mount it, proceed with degraded mode
-		m.degradedState.partition("ubuntu-data").MountState = partitionErrMounting
-
+	mountErr := doSystemdMount(m.dataDevice, boot.InitramfsHostUbuntuDataDir, nil)
+	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
+		return nil, err
+	}
+	if m.degradedState.partition("ubuntu-data").MountState == partitionErrMounting {
 		// no point trying to unlock save with the run key, we need data to be
 		// mounted for that and we failed to mount it
 		return m.unlockSaveFallbackKey, nil
 	}
-	// we mounted it successfully, verify it comes from the right disk
-	if err := m.verifyMountPoint(boot.InitramfsHostUbuntuDataDir, "ubuntu-data"); err != nil {
-		m.degradedState.LogErrorf("cannot verify ubuntu-data mount point at %v: %v",
-			boot.InitramfsHostUbuntuDataDir, err)
-		return nil, err
-	}
-
-	m.degradedState.partition("ubuntu-data").MountState = partitionMounted
-	m.degradedState.partition("ubuntu-data").MountLocation = boot.InitramfsHostUbuntuDataDir
 
 	// next step: try to unlock with run save key if we are encrypted
 	if m.isEncryptedDev {
@@ -742,21 +756,18 @@ func (m *stateMachine) mountData() (stateFunc, error) {
 }
 
 func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
-	partUUID, err := m.disk.FindMatchingPartitionUUID("ubuntu-save")
-	if err != nil {
-		// error locating ubuntu-save
-		if _, ok := err.(disks.FilesystemLabelNotFoundError); !ok {
-			// the error is not "not-found", so we have a real error
-			// identifying whether save exists or not
-			m.degradedState.LogErrorf("error identifying ubuntu-save partition: %v", err)
-			m.degradedState.partition("ubuntu-save").FindState = partitionErrFinding
-		} else {
+	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-save")
+	if err := m.setFindState("ubuntu-save", findErr); err != nil {
+
+		return nil, nil
+	}
+	findState := m.degradedState.partition("ubuntu-save").FindState
+	if findState != partitionFound {
+		if findState == partitionNotFound {
 			// this is ok, ubuntu-save may not exist for
 			// non-encrypted device
-			m.degradedState.partition("ubuntu-save").FindState = partitionNotFound
 			m.degradedState.partition("ubuntu-save").MountState = partitionAbsentOptional
 		}
-
 		// all done, nothing left to try and mount, even if errors
 		// occurred
 		return nil, nil
@@ -765,7 +776,6 @@ func (m *stateMachine) locateUnencryptedSave() (stateFunc, error) {
 	// we found the unencrypted device, now mount it
 	m.saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 	m.degradedState.partition("ubuntu-save").Device = m.saveDevice
-	m.degradedState.partition("ubuntu-save").FindState = partitionFound
 	return m.mountSave, nil
 }
 
@@ -856,24 +866,10 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 
 func (m *stateMachine) mountSave() (stateFunc, error) {
 	// TODO: should we fsck ubuntu-save ?
-	if err := doSystemdMount(m.saveDevice, boot.InitramfsUbuntuSaveDir, nil); err != nil {
-		m.degradedState.LogErrorf("error mounting ubuntu-save from partition %s: %v", m.saveDevice, err)
-		m.degradedState.partition("ubuntu-save").MountState = partitionErrMounting
-		return nil, nil
-	}
-	// if we couldn't verify whether the mounted save is valid, bail out of
-	// the state machine and exit snap-bootstrap
-	if err := m.verifyMountPoint(boot.InitramfsUbuntuSaveDir, "ubuntu-save"); err != nil {
-		m.degradedState.LogErrorf("cannot verify ubuntu-save mount at %v: %v",
-			boot.InitramfsUbuntuSaveDir, err)
-
-		// we are done, even if errors occurred
+	mountErr := doSystemdMount(m.saveDevice, boot.InitramfsUbuntuSaveDir, nil)
+	if err := m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr); err != nil {
 		return nil, err
 	}
-
-	m.degradedState.partition("ubuntu-save").MountState = partitionMounted
-	m.degradedState.partition("ubuntu-save").MountLocation = boot.InitramfsUbuntuSaveDir
-
 	// all done, nothing left to try and mount
 	return nil, nil
 }

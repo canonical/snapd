@@ -3044,7 +3044,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
-			"error locating ubuntu-boot partition on disk defaultEncDevNoBoot: filesystem label \"ubuntu-boot\" not found",
+			"cannot find ubuntu-boot partition on disk defaultEncDevNoBoot",
 		},
 	})
 
@@ -3206,7 +3206,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedNo
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
 		"error-log": []interface{}{
-			"error locating ubuntu-boot partition on disk defaultEncDevNoBoot: filesystem label \"ubuntu-boot\" not found",
+			"cannot find ubuntu-boot partition on disk defaultEncDevNoBoot",
 		},
 	})
 
