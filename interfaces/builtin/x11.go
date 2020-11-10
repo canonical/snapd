@@ -20,13 +20,15 @@
 package builtin
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -162,8 +164,67 @@ type x11Interface struct {
 	commonInterface
 }
 
+func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if implicitSystemConnectedSlot(slot) {
+		// X11 slot is provided by the host system. Bring the host's
+		// /tmp/.X11-unix/ directory over to the snap mount namespace.
+		return spec.AddMountEntry(osutil.MountEntry{
+			Name:    "/var/lib/snapd/hostfs/tmp/.X11-unix",
+			Dir:     "/tmp/.X11-unix",
+			Options: []string{"bind", "ro"},
+		})
+	}
+
+	// X11 slot is provided by another snap on the system. Bring that snap's
+	// /tmp/.X11-unix/ directory over to the snap mount namespace. Here we
+	// rely on the predictable naming of the private /tmp directory of the
+	// slot-side snap which is currently provided by snap-confine.
+
+	// But if the same snap is providing both the plug and the slot, this is
+	// not necessary.
+	if plug.Snap().InstanceName() == slot.Snap().InstanceName() {
+		return nil
+	}
+	slotSnapName := slot.Snap().InstanceName()
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix", slotSnapName),
+		Dir:     "/tmp/.X11-unix",
+		Options: []string{"bind", "ro"},
+	})
+}
+
+func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+	// Consult the comments in MountConnectedPlug for the rationale of the control flow.
+	if implicitSystemConnectedSlot(slot) {
+		spec.AddUpdateNS(`
+		/{,var/lib/snapd/hostfs/}tmp/.X11-unix/ rw,
+		mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+		mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+		mount options=(rslave) -> /tmp/.X11-unix/,
+		umount /tmp/.X11-unix/,
+		`)
+		return nil
+	}
+	if plug.Snap().InstanceName() == slot.Snap().InstanceName() {
+		return nil
+	}
+	slotSnapName := slot.Snap().InstanceName()
+	spec.AddUpdateNS(fmt.Sprintf(`
+	/tmp/.X11-unix/ rw,
+	/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ rw,
+	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+	mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
+	mount options=(rslave) -> /tmp/.X11-unix/,
+	umount /tmp/.X11-unix/,
+	`, slotSnapName, slotSnapName))
+	return nil
+}
+
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
 		snippet := strings.Replace(x11ConnectedSlotAppArmor, old, new, -1)
@@ -173,21 +234,21 @@ func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 }
 
 func (iface *x11Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(x11PermanentSlotSecComp)
 	}
 	return nil
 }
 
 func (iface *x11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(x11PermanentSlotAppArmor)
 	}
 	return nil
 }
 
 func (iface *x11Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.TriggerSubsystem("input")
 		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mice"`)
