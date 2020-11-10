@@ -20,7 +20,6 @@
 package devicestate
 
 import (
-	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -247,9 +247,8 @@ func writeMarkers() error {
 		return err
 	}
 
-	markerSecret := make([]byte, 32)
-	// crypto rand is protected against short reads
-	_, err := rand.Read(markerSecret)
+	// generate a secret random marker
+	markerSecret, err := randutil.CryptoTokenBytes(32)
 	if err != nil {
 		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
 	}

@@ -4000,7 +4000,7 @@ recovery_system=20191118
 			"find-state":     "found",
 			"mount-location": boot.InitramfsUbuntuSaveDir,
 		},
-		"error-log": []interface{}{},
+		"error-log": []interface{}{"cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install"},
 	})
 
 	bloader2, err := bootloader.Find("", nil)

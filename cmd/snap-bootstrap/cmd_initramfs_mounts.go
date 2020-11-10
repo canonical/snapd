@@ -679,9 +679,14 @@ func (m *stateMachine) finalize() error {
 	part := m.degradedState.partition("ubuntu-data")
 	if part.MountState == partitionMounted && m.isEncryptedDev {
 		// check that save and data match
+		// We want to avoid a chosen ubuntu-data
+		// (e.g. activated with a recovery key) to get access
+		// via its logins to the secrets in ubuntu-save (in
+		// particular the policy update auth key)
 		trustData, _ := checkDataAndSavaPairing(boot.InitramfsHostWritableDir)
 		if !trustData {
 			part.MountState = partitionMountedUntrusted
+			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
 		}
 	}
 	return nil

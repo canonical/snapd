@@ -475,6 +475,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key"), testutil.FileEquals, reinstallKey[:])
 	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
 	c.Assert(err, IsNil)
+	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 }
 
