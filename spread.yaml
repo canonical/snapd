@@ -103,7 +103,7 @@ backends:
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
             - ubuntu-20.10-64:
-                  workers: 6
+                  workers: 8
                   image: ubuntu-20.10-64
 
             - debian-9-64:
