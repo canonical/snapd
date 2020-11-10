@@ -20,7 +20,7 @@
 package main
 
 import (
-	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -136,7 +136,7 @@ func generateInitramfsMounts() error {
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	if err := generateMountsCommonInstallRecover(mst); err != nil {
+	if _, err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -417,6 +417,9 @@ type stateMachine struct {
 	// the current state is the one that is about to be executed
 	current stateFunc
 
+	// device model
+	model *asserts.Model
+
 	// the disk we have all our partitions on
 	disk disks.Disk
 
@@ -649,8 +652,9 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 	return nil
 }
 
-func newStateMachine(disk disks.Disk) *stateMachine {
+func newStateMachine(model *asserts.Model, disk disks.Disk) *stateMachine {
 	m := &stateMachine{
+		model: model,
 		disk: disk,
 		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
@@ -676,8 +680,11 @@ func (m *stateMachine) execute() (finished bool, err error) {
 
 func (m *stateMachine) finalize() error {
 	// check soundness
+	// the grade check makes sure that if data was mounted unecrypted
+	// but the model is secured it will end up marked as untrusted
+	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
 	part := m.degradedState.partition("ubuntu-data")
-	if part.MountState == partitionMounted && m.isEncryptedDev {
+	if part.MountState == partitionMounted && isEncrypted {
 		// check that save and data match
 		// We want to avoid a chosen ubuntu-data
 		// (e.g. activated with a recovery key) to get access
@@ -929,7 +936,8 @@ func (m *stateMachine) mountSave() (stateFunc, error) {
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	if err := generateMountsCommonInstallRecover(mst); err != nil {
+	model, err := generateMountsCommonInstallRecover(mst)
+	if err != nil {
 		return err
 	}
 
@@ -956,7 +964,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}()
 
 		// first state to execute is to unlock ubuntu-data with the run key
-		machine = newStateMachine(disk)
+		machine = newStateMachine(model, disk)
 		for {
 			finished, err := machine.execute()
 			// TODO: consider whether certain errors are fatal or not
@@ -1062,7 +1070,7 @@ func checkDataAndSavaPairing(rootdir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return bytes.Equal(marker1, marker2), nil
+	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
 // mountPartitionMatchingKernelDisk will select the partition to mount at dir,
@@ -1089,18 +1097,18 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Model, error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
-		return err
+		return nil, err
 	}
 
 	// load model and verified essential snaps metadata
 	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
 	model, essSnaps, err := mst.ReadEssential("", typs)
 	if err != nil {
-		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+		return nil, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
 	}
 
 	// 2.1. measure model
@@ -1110,7 +1118,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		})
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 2.2. (auto) select recovery system and mount seed snaps
@@ -1124,7 +1132,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1147,7 +1155,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// finally get the gadget snap from the essential snaps and use it to
@@ -1173,7 +1181,11 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		TargetRootDir:  boot.InitramfsWritableDir,
 		GadgetSnap:     gadgetSnap,
 	}
-	return sysconfig.ConfigureTargetSystem(configOpts)
+	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
+		return nil, err
+	}
+
+	return model, err
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
