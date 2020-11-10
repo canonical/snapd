@@ -680,7 +680,7 @@ func (m *stateMachine) execute() (finished bool, err error) {
 
 func (m *stateMachine) finalize() error {
 	// check soundness
-	// the grade check makes sure that if data was mounted unecrypted
+	// the grade check makes sure that if data was mounted unencrypted
 	// but the model is secured it will end up marked as untrusted
 	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
 	part := m.degradedState.partition("ubuntu-data")
@@ -1320,6 +1320,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 
 		if isEncryptedDev {
+			// in run mode the path to open an encrypted save is for
+			// data to be encrypted and the save key in it
+			// to be successfully used. This already should stop
+			// allowing to chose ubuntu-data to try to access
+			// save. as safety boot also stops if the keys cannot
+			// be locked.
+			// for symmetry with recover code and extra paranoia
+			// though also check that the markers match.
 			paired, err := checkDataAndSavaPairing(boot.InitramfsWritableDir)
 			if err != nil {
 				return err
