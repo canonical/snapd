@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -41,6 +42,8 @@ type cmdRecovery struct {
 var shortRecoveryHelp = i18n.G("List available recovery systems")
 var longRecoveryHelp = i18n.G(`
 The recovery command lists the available recovery systems.
+
+With --show-keys it displays recovery keys that can be used to unlock the encrypted partitions if the device-specific automatic unlocking does not work.
 `)
 
 func init() {
@@ -50,7 +53,7 @@ func init() {
 	}, colorDescs.also(
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"show-keys": i18n.G("Displays recovery keys that can be used to unlock the encrypted partitions if the device-specific automatic unlocking does not work."),
+			"show-keys": i18n.G("Show recovery keys (if available) to unlock encrypted partitions."),
 		}), nil)
 }
 
@@ -61,7 +64,7 @@ func notesForSystem(sys *client.System) string {
 	return "-"
 }
 
-func (x *cmdRecovery) showKeys() error {
+func (x *cmdRecovery) showKeys(w io.Writer) error {
 	if release.OnClassic {
 		return errors.New(`command "show-keys" is not available on classic systems`)
 	}
@@ -70,8 +73,8 @@ func (x *cmdRecovery) showKeys() error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, "recovery: %s\n", srk.RecoveryKey)
-	fmt.Fprintf(Stdout, "reinstall: %s\n", srk.ReinstallKey)
+	fmt.Fprintf(w, "recovery:\t%s\n", srk.RecoveryKey)
+	fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
 	return nil
 }
 
@@ -80,8 +83,12 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	esc := x.getEscapes()
+	w := tabWriter()
+	defer w.Flush()
+
 	if x.ShowKeys {
-		return x.showKeys()
+		return x.showKeys(w)
 	}
 
 	systems, err := x.client.ListSystems()
@@ -93,9 +100,6 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return nil
 	}
 
-	esc := x.getEscapes()
-	w := tabWriter()
-	defer w.Flush()
 	fmt.Fprintf(w, i18n.G("Label\tBrand\tModel\tNotes\n"))
 	for _, sys := range systems {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s

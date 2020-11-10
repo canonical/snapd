@@ -35,15 +35,16 @@ func (s *SnapSuite) TestRecoveryHelp(c *C) {
 
 The recovery command lists the available recovery systems.
 
+With --show-keys it displays recovery keys that can be used to unlock the
+encrypted partitions if the device-specific automatic unlocking does not work.
+
 [recovery command options]
       --color=[auto|never|always]     Use a little bit of color to highlight
                                       some things. (default: auto)
       --unicode=[auto|never|always]   Use a little bit of Unicode to improve
                                       legibility. (default: auto)
-      --show-keys                     Displays recovery keys that can be used
-                                      to unlock the encrypted partitions if the
-                                      device-specific automatic unlocking does
-                                      not work.
+      --show-keys                     Show recovery keys (if available) to
+                                      unlock encrypted partitions.
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
@@ -185,8 +186,8 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, `recovery: 61665-00531-54469-09783-47273-19035-40077-28287
-reinstall: 1234
+	c.Check(s.Stdout(), Equals, `recovery:   61665-00531-54469-09783-47273-19035-40077-28287
+reinstall:  1234
 `)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
