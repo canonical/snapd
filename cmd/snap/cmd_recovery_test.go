@@ -40,8 +40,10 @@ The recovery command lists the available recovery systems.
                                       some things. (default: auto)
       --unicode=[auto|never|always]   Use a little bit of Unicode to improve
                                       legibility. (default: auto)
-      --show-recovery-keys            Show recovery keys (if available) to
-                                      unlock an encrypted partitions.
+      --show-keys                     Displays recovery keys that can be used
+                                      to unlock the encrypted partitions if the
+                                      device-specific automatic unlocking does
+                                      not work.
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
@@ -158,8 +160,8 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyOnClassicErrors(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("unexpected server call")
 	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-keys"})
-	c.Assert(err, ErrorMatches, `command "show-recovery-keys" is not available on classic systems`)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
+	c.Assert(err, ErrorMatches, `command "show-keys" is not available on classic systems`)
 }
 
 func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
@@ -180,7 +182,7 @@ func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-recovery-keys"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `recovery: 61665-00531-54469-09783-47273-19035-40077-28287
