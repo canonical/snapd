@@ -118,11 +118,8 @@ const x11ConnectedPlugAppArmor = `
 # The X abstraction doesn't check the peer label, but in this case that's
 # ok because x11ConnectedSlotAppArmor will limit which clients can connect
 # to the slot implementation.
-# TODO: expand this and remove ICE sockets or add explicit denials for all ICE communications.
 #include <abstractions/X>
 #include <abstractions/fonts>
-# TODO: check if we need permissions to access the X11 socket provided by a non-implicit slot.
-# Those sockets are /tmp/snap.###SLOT_SNAP_NAME###/tmp/.X11-unix/* from the point of view of apparmor.
 owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
