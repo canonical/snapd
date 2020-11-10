@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -185,6 +186,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
 			return err
 		}
+		// write markers containing a secret to pair data and save
+		if err := writeMarkers(); err != nil {
+			return err
+		}
 	}
 
 	// keep track of the model we installed
@@ -228,6 +233,36 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// request a restart as the last action after a successful install
 	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystemNow)
+
+	return nil
+}
+
+// writeMarkers writes markers containing the same secret to pair data and save.
+func writeMarkers() error {
+	// ensure directory for markers exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
+		return err
+	}
+
+	markerSecret := make([]byte, 32)
+	// crypto rand is protected against short reads
+	_, err := rand.Read(markerSecret)
+	if err != nil {
+		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
+	}
+
+	dataMarker := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	if err := osutil.AtomicWriteFile(dataMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
+
+	saveMarker := filepath.Join(boot.InstallHostFDESaveDir, "marker")
+	if err := osutil.AtomicWriteFile(saveMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
 
 	return nil
 }
