@@ -347,7 +347,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
 // path to the device node is returned.
 // TODO: use UnlockResult here too?
-func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (string, error) {
+func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
@@ -355,16 +355,22 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (st
 	// what we expected
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 	if err != nil {
-		return "", err
+		return UnlockResult{}, err
+	}
+	unlockRes := UnlockResult{
+		IsDecryptedDevice: true,
 	}
 	// we have a device
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	// make up a new name for the mapped device
 	mapperName := name + "-" + randutilRandomKernelUUID()
 	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
-		return "", err
+		return unlockRes, err
 	}
-	return filepath.Join("/dev/mapper", mapperName), nil
+
+	unlockRes.Device = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.UnlockMethod = UnlockedWithKey
+	return unlockRes, nil
 }
 
 // UnlockEncryptedVolumeWithRecoveryKey prompts for the recovery key and uses it

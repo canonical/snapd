@@ -80,7 +80,7 @@ var (
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
-	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (string, error)
+	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockTPMSealedKeys func() error
 
@@ -655,7 +655,7 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 func newStateMachine(model *asserts.Model, disk disks.Disk) *stateMachine {
 	m := &stateMachine{
 		model: model,
-		disk: disk,
+		disk:  disk,
 		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
 		},
@@ -872,13 +872,7 @@ func (m *stateMachine) unlockSaveRunKey() (stateFunc, error) {
 		return m.unlockSaveFallbackKey, nil
 	}
 
-	saveDevice, unlockErr := secbootUnlockEncryptedVolumeUsingKey(m.disk, "ubuntu-save", key)
-	// TODO:UC20: UnlockEncryptedVolumeUsingKey should return an UnlockResult,
-	//            but until then we create our own and pass it along
-	unlockRes := secboot.UnlockResult{
-		Device:            saveDevice,
-		IsDecryptedDevice: true,
-	}
+	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingKey(m.disk, "ubuntu-save", key)
 	if err := m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1203,10 +1197,11 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		if err != nil {
 			return true, err
 		}
-		saveDevice, err = secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
+		unlockRes, err := secbootUnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", key)
 		if err != nil {
 			return true, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
+		saveDevice = unlockRes.Device
 	} else {
 		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
 		if err != nil {
