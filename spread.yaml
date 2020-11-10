@@ -102,6 +102,9 @@ backends:
                   secure-boot: true
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-20.10-64
 
             - debian-9-64:
                   workers: 6
@@ -137,9 +140,6 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
-            - ubuntu-20.10-64:
-                  workers: 6
-                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -865,22 +865,12 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
+            "$TESTSTOOLS"/nested-state prepare
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
-
+            "$TESTSTOOLS"/nested-state remove-vm
+            "$TESTSTOOLS"/nested-state restore
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
-
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
@@ -912,26 +902,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_classic_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image classic
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_classic_vm
+            "$TESTSTOOLS"/nested-state create-vm classic
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -964,27 +944,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image core
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state create-vm core
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1019,29 +988,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image core
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state create-vm core
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
-
+            "$TESTSTOOLS"/nested-state restore
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils

@@ -471,10 +471,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
 	// no connections
-	ts, hasHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 0)
-	c.Check(hasHooks, Equals, false)
+	c.Check(hasInterfaceHooks, Equals, false)
 
 	// two connections
 	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
@@ -484,10 +484,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	// connOpts for cref1 will default to AutoConnect: true
 	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
 
-	ts, hasHooks, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 9)
-	c.Check(hasHooks, Equals, true)
+	c.Check(hasInterfaceHooks, Equals, true)
 
 	// "setup-profiles" task waits for "connect" tasks of both connections
 	setupProfiles := ts.Tasks()[len(ts.Tasks())-1]
@@ -542,12 +542,12 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
 	cref := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer2", Name: "slot"}}
 	conns[cref.ID()] = &cref
 
-	ts, hasHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 2)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "connect")
 	c.Check(ts.Tasks()[1].Kind(), Equals, "setup-profiles")
-	c.Check(hasHooks, Equals, false)
+	c.Check(hasInterfaceHooks, Equals, false)
 }
 
 type interfaceHooksTestData struct {

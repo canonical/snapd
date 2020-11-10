@@ -26,10 +26,11 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 )
 
-type MkfsFunc func(imgFile, label, contentsRootDir string, deviceSize uint64) error
+type MkfsFunc func(imgFile, label, contentsRootDir string, deviceSize quantity.Size) error
 
 var (
 	mkfsHandlers = map[string]MkfsFunc{
@@ -41,14 +42,14 @@ var (
 // Mkfs creates a filesystem of given type and provided label in the device or
 // file. The device size provides hints for additional tuning of the created
 // filesystem.
-func Mkfs(typ, img, label string, deviceSize uint64) error {
+func Mkfs(typ, img, label string, deviceSize quantity.Size) error {
 	return MkfsWithContent(typ, img, label, "", deviceSize)
 }
 
 // Mkfs creates a filesystem of given type and provided label in the device or
 // file. The filesystem is populated with contents of contentRootDir. The device
 // size provides hints for additional tuning of the created filesystem.
-func MkfsWithContent(typ, img, label, contentRootDir string, deviceSize uint64) error {
+func MkfsWithContent(typ, img, label, contentRootDir string, deviceSize quantity.Size) error {
 	h, ok := mkfsHandlers[typ]
 	if !ok {
 		return fmt.Errorf("cannot create unsupported filesystem %q", typ)
@@ -59,13 +60,13 @@ func MkfsWithContent(typ, img, label, contentRootDir string, deviceSize uint64) 
 // mkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func mkfsExt4(img, label, contentsRootDir string, deviceSize uint64) error {
+func mkfsExt4(img, label, contentsRootDir string, deviceSize quantity.Size) error {
 	// Originally taken from ubuntu-image
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
 	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
 	mkfsArgs := []string{"mkfs.ext4"}
-	const size32MiB = 32 * 1024 * 1024
+	const size32MiB = 32 * quantity.SizeMiB
 	if deviceSize != 0 && deviceSize <= size32MiB {
 		// With the default of 4096 bytes, the minimal journal size is
 		// 4M, meaning we loose a lot of usable space. Try to follow the
@@ -105,7 +106,7 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize uint64) error {
 // mkfsVfat creates a VFAT filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func mkfsVfat(img, label, contentsRootDir string, deviceSize uint64) error {
+func mkfsVfat(img, label, contentsRootDir string, deviceSize quantity.Size) error {
 	// taken from ubuntu-image
 	mkfsArgs := []string{
 		// 512B logical sector size

@@ -155,8 +155,6 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	// hardcoded, otherwise we'll see failures for 2 montsh during the year
 	expectedAge := time.Since(time.Now().AddDate(0, -1, 0))
 	ageStr := quantity.FormatDuration(expectedAge.Seconds())
-	// 30d0h (no DST change), 30d1h (summer to winter time), 29d23h (winter to summer time)
-	c.Check(ageStr, Matches, `(30d0h|30d1h|29d23h)`)
 
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
 	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)

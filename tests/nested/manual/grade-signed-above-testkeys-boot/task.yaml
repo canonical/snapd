@@ -101,8 +101,8 @@ prepare: |
   # start fake device svc
   # systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
 
-  nested_create_core_vm
-  nested_start_core_vm
+  "$TESTSTOOLS"/nested-state build-image core
+  "$TESTSTOOLS"/nested-state create-vm core
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then

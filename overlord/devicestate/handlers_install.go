@@ -131,6 +131,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	bopts.Encrypt = useEncryption
 
+	// make sure that gadget is usable for the set up we want to use it in
+	gadgetContaints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
@@ -161,13 +169,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	if trustedInstallObserver != nil {
 		// sanity check
-		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil {
+		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
 			return fmt.Errorf("internal error: system encryption keys are unset")
 		}
 		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
+		saveKeySet := installedSystem.KeysForRoles[gadget.SystemSave]
 
-		// make note of the encryption key
-		trustedInstallObserver.ChosenEncryptionKey(dataKeySet.Key)
+		// make note of the encryption keys
+		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
 
 		// keep track of recovery assets
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
@@ -179,7 +188,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// keep track of the model we installed
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
+	}
+	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}

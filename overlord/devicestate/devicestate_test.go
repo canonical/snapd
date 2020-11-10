@@ -132,7 +132,11 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	err := os.MkdirAll(dirs.SnapRunDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
+	c.Assert(err, IsNil)
 
 	s.AddCleanup(osutil.MockMountInfo(``))
 
@@ -1144,6 +1148,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1151,7 +1156,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	defer cmd.Restore()
 
 	// ubuntu-save not mounted
-	err = s.mgr.StartUp()
+	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
 
@@ -1163,12 +1168,16 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1183,12 +1192,16 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1199,12 +1212,16 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1219,11 +1236,15 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	err := os.RemoveAll(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 	c.Assert(err, IsNil)
+	// create a new manager so that we know it does not see the modeenv
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1234,6 +1255,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// known as not available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
 type startOfOperationTimeSuite struct {
