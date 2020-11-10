@@ -91,6 +91,11 @@ type OnDiskStructure struct {
 
 	// Node identifies the device node of the block device.
 	Node string
+
+	// Size of the on disk structure, which is at least equal to the
+	// LaidOutStructure.Size but may be bigger if the partition was
+	// expanded.
+	Size quantity.Size
 }
 
 // OnDiskVolume holds information about the disk device including its partitioning
@@ -322,6 +327,7 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,
+			Size:             size,
 		})
 	}
 
