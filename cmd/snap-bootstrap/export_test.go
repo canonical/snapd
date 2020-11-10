@@ -41,7 +41,7 @@ type RecoverDegradedState = recoverDegradedState
 type PartitionState = partitionState
 
 func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
-	m := stateMachine{
+	m := recoverModeStateMachine{
 		isEncryptedDev: isEncrypted,
 		degradedState:  r,
 	}
