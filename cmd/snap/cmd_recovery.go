@@ -50,7 +50,7 @@ func init() {
 	}, colorDescs.also(
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"show-recovery-keys": i18n.G("Show recovery keys (if available) to unlock an encrypted partition"),
+			"show-recovery-keys": i18n.G("Show recovery keys (if available) to unlock an encrypted partitions."),
 		}), nil)
 }
 

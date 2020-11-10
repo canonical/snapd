@@ -41,7 +41,7 @@ The recovery command lists the available recovery systems.
       --unicode=[auto|never|always]   Use a little bit of Unicode to improve
                                       legibility. (default: auto)
       --show-recovery-keys            Show recovery keys (if available) to
-                                      unlock an encrypted partition
+                                      unlock an encrypted partitions.
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
