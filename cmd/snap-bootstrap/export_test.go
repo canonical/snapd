@@ -36,6 +36,18 @@ var (
 
 type SystemdMountOptions = systemdMountOptions
 
+type RecoverDegradedState = recoverDegradedState
+
+type PartitionState = partitionState
+
+func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
+	m := recoverModeStateMachine{
+		isEncryptedDev: isEncrypted,
+		degradedState:  r,
+	}
+	return m.degraded()
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
 	timeNow = f
@@ -78,7 +90,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
@@ -86,7 +98,7 @@ func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, na
 	}
 }
 
-func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (string, error)) (restore func()) {
+func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockEncryptedVolumeUsingKey
 	secbootUnlockEncryptedVolumeUsingKey = f
 	return func() {
@@ -107,6 +119,14 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	secbootMeasureSnapModelWhenPossible = f
 	return func() {
 		secbootMeasureSnapModelWhenPossible = old
+	}
+}
+
+func MockSecbootLockTPMSealedKeys(f func() error) (restore func()) {
+	old := secbootLockTPMSealedKeys
+	secbootLockTPMSealedKeys = f
+	return func() {
+		secbootLockTPMSealedKeys = old
 	}
 }
 

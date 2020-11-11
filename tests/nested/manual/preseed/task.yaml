@@ -133,3 +133,18 @@ execute: |
   # wait for postgres to come online
   sleep 10
   nested_exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"
+
+  echo "Checking that mark-seeded task was executed last"
+  # snap debug timings are sorts by read-time, mark-seeded should be last
+  nested_exec "sudo snap debug timings 1" | tail -2 | MATCH "Mark system seeded"
+  # no task should have ready time after mark-seeded
+  # shellcheck disable=SC2046
+  MARK_SEEDED_TIME=$(date -d $(snap change 1 --abs-time | grep "Mark system seeded" | awk '{print $3}') "+%s")
+  for RT in $(snap change 1 --abs-time | grep Done | awk '{print $3}' )
+  do
+    READY_TIME=$(date -d "$RT" "+%s")
+    if [ "$READY_TIME" -gt "$MARK_SEEDED_TIME" ]; then
+      echo "Unexpected ready time greater than mark-seeded ready"
+      snap change 1
+    fi
+  done
