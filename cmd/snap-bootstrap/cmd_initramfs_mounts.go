@@ -655,7 +655,7 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 func newStateMachine(model *asserts.Model, disk disks.Disk) *stateMachine {
 	m := &stateMachine{
 		model: model,
-		disk: disk,
+		disk:  disk,
 		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
 		},
@@ -1065,7 +1065,10 @@ func checkDataAndSavaPairing(rootdir string) (bool, error) {
 		return false, err
 	}
 	// read the secret marker file from ubuntu-save
-	markerFile2 := filepath.Join(dirs.SnapFDEDirUnder(boot.InitramfsUbuntuSaveDir), "marker")
+	// TODO:UC20: this is a bit of an abuse of the Install*Dir variable, we
+	// should really only be using Initramfs*Dir variables since we are in the
+	// initramfs and not in install mode, no?
+	markerFile2 := filepath.Join(boot.InstallHostFDESaveDir, "marker")
 	marker2, err := ioutil.ReadFile(markerFile2)
 	if err != nil {
 		return false, err

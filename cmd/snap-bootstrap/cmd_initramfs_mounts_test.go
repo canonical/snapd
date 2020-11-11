@@ -254,7 +254,7 @@ func (s *initramfsMountsSuite) mockUbuntuSaveKeyAndMarker(c *C, rootDir, key, ma
 }
 
 func (s *initramfsMountsSuite) mockUbuntuSaveMarker(c *C, rootDir, marker string) {
-	markerPath := filepath.Join(dirs.SnapFDEDirUnder(rootDir), "marker")
+	markerPath := filepath.Join(rootDir, "device/fde", "marker")
 	c.Assert(os.MkdirAll(filepath.Dir(markerPath), 0700), IsNil)
 	c.Assert(ioutil.WriteFile(markerPath, []byte(marker), 0600), IsNil)
 }
