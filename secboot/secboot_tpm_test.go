@@ -1145,5 +1145,6 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		IsDecryptedDevice: true,
+		Device:            "/dev/disk/by-partuuid/123-123-123",
 	})
 }
