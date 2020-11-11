@@ -918,22 +918,21 @@ func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
-	if data.MountState == partitionErrMounting {
-		// no point trying to unlock save with the run key, we need data to be
-		// mounted for that and we failed to mount it
-		return m.unlockSaveFallbackKey, nil
-	}
-
-	// next step: try to unlock with run save key if we are encrypted
-	if m.isEncryptedDev {
+	if mountErr == nil && m.isEncryptedDev {
+		// if we succeeded in mounting data and we are encrypted, the next step
+		// is to unlock save with the run key from ubuntu-data
 		return m.unlockSaveRunKey, nil
 	}
 
-	// if we are unencrypted then we shouldn't try to unlock/mount save with the
-	// run key, instead we want to mount it unencrypted, which only works with
-	// the fallback key path which calls
-	// secboot.UnlockVolumeUsingSealedKeyIfEncrypted which works for both
-	// encrypted and unencrypted disks
+	// otherwise we always fall back to unlocking save with the fallback key,
+	// this could be two cases:
+	// 1. we are unencrypted in which case the secboot function used in
+	//    unlockSaveRunKey will fail and then proceed to trying the fallback key
+	//    function anyways which uses a secboot function that is suitable for
+	//    unencrypted data
+	// 2. we are encrypted and we failed to mount data successfully, meaning we
+	//    don't have the bare key from ubuntu-data to use, and need to fall back
+	//    to the sealed key from ubuntu-seed
 	return m.unlockSaveFallbackKey, nil
 }
 
