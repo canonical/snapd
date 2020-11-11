@@ -105,7 +105,13 @@ func generateInitramfsMounts() (err error) {
 	// regardless of mode or early failures.
 	defer func() {
 		if e := secbootLockTPMSealedKeys(); e != nil {
-			err = fmt.Errorf("error locking access to sealed keys: %v", e)
+			e = fmt.Errorf("error locking access to sealed keys: %v", e)
+			if err == nil {
+				err = e
+			} else {
+				// preserve err but log
+				logger.Noticef("%v", e)
+			}
 		}
 	}()
 
