@@ -497,25 +497,26 @@ func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
 	return nil
 }
 
-func (m *recoverModeStateMachine) setFindState(part, partUUID string, err error, logNotFoundErr bool) error {
-	if err == nil {
-		// device was found
-		part := m.degradedState.partition(part)
-		part.FindState = partitionFound
-		part.Device = fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
-		return nil
-	}
-	if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
-		// explicit error that the device was not found
-		m.degradedState.partition(part).FindState = partitionNotFound
-		if logNotFoundErr {
-			m.degradedState.LogErrorf("cannot find %v partition on disk %s", part, m.disk.Dev())
+func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error, logNotFoundErr bool) error {
+	part := m.degradedState.partition(partName)
+	if err != nil {
+		if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+			// explicit error that the device was not found
+			part.FindState = partitionNotFound
+			if logNotFoundErr {
+				m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
+			}
+			return nil
 		}
+		// the error is not "not-found", so we have a real error
+		part.FindState = partitionErrFinding
+		m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
 		return nil
 	}
-	// the error is not "not-found", so we have a real error
-	m.degradedState.partition(part).FindState = partitionErrFinding
-	m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", part, m.disk.Dev(), err)
+
+	// device was found
+	part.FindState = partitionFound
+	part.Device = fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	return nil
 }
 
