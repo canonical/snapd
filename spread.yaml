@@ -136,6 +136,7 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  manual: true
             - centos-8-64:
                   workers: 4
                   storage: preserve-size
