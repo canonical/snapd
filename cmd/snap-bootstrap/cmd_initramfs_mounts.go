@@ -100,9 +100,17 @@ func stampedAction(stamp string, action func() error) error {
 	return ioutil.WriteFile(stampFile, nil, 0644)
 }
 
-func generateInitramfsMounts() error {
+func generateInitramfsMounts() (err error) {
+	// ensure that the last thing we do is to lock access to sealed keys,
+	// regardless of mode or early failures.
+	defer func() {
+		if e := secbootLockTPMSealedKeys(); e != nil {
+			err = fmt.Errorf("error locking access to sealed keys: %v", e)
+		}
+	}()
+
 	// Ensure there is a very early initial measurement
-	err := stampedAction("secboot-epoch-measured", func() error {
+	err = stampedAction("secboot-epoch-measured", func() error {
 		return secbootMeasureSnapSystemEpochWhenPossible()
 	})
 	if err != nil {
@@ -721,9 +729,6 @@ func (m *stateMachine) unlockDataRunKey() (stateFunc, error) {
 		// don't allow using the recovery key to unlock, we only try using the
 		// recovery key after we first try the fallback object
 		AllowRecoveryKey: false,
-		// don't lock keys, we manually do that at the end always, we don't know
-		// if this call to unlock a volume will be the last one or not
-		LockKeysOnFinish: false,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
 	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
@@ -757,9 +762,6 @@ func (m *stateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// using the fallback object is the last chance before we give up trying
 		// to unlock data
 		AllowRecoveryKey: true,
-		// don't lock keys, we manually do that at the end always, we don't know
-		// if this call to unlock a volume will be the last one or not
-		LockKeysOnFinish: false,
 	}
 	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -862,10 +864,6 @@ func (m *stateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 		// using the fallback object is the last chance before we give up trying
 		// to unlock save
 		AllowRecoveryKey: true,
-		// while this is technically always the last call to unlock the volume
-		// if we get here, to keep things simple we just always lock after
-		// running the state machine so don't lock keys here
-		LockKeysOnFinish: false,
 	}
 	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
 	// TODO: this prompts again for a recover key, but really this is the
@@ -917,14 +915,6 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	//    possible transition points
 
 	machine, err := func() (machine *stateMachine, err error) {
-		// ensure that the last thing we do after mounting everything is to lock
-		// access to sealed keys
-		defer func() {
-			if err := secbootLockTPMSealedKeys(); err != nil {
-				logger.Noticef("error locking access to sealed keys: %v", err)
-			}
-		}()
-
 		// first state to execute is to unlock ubuntu-data with the run key
 		machine = newStateMachine(disk)
 		for {
@@ -1210,7 +1200,6 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 3.2. mount Data
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		LockKeysOnFinish: true,
 		AllowRecoveryKey: true,
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)

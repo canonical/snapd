@@ -270,6 +270,13 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 
 	res.Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
 
+	if !res.IsDecryptedDevice {
+		// if we didn't find an encrypted device just return, don't try to
+		// unlock it
+		return res, nil
+	}
+
+	// Obtain a TPM connection.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
 		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
@@ -284,64 +291,29 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// and endorsement hierarchies, but the device will remain visible to the operating system.
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
-	var lockErr error
-	var mapperName string
-	err = func() error {
-		defer func() {
-			if opts.LockKeysOnFinish && tpmDeviceAvailable {
-				// Lock access to the sealed keys. This should be called whenever there
-				// is a TPM device detected, regardless of whether secure boot is enabled
-				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
-				// be called several times during initialization, and if there are multiple
-				// volumes to unlock we should lock access to the sealed keys only after
-				// the last encrypted volume is unlocked, in which case lockKeysOnFinish
-				// should be set to true.
-				//
-				// We should only touch the PCR that we've currently reserved for the kernel
-				// EFI image. Touching others will break the ability to perform any kind of
-				// attestation using the TPM because it will make the log inconsistent.
-				lockErr = sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
-			}
-		}()
+	mapperName := name + "-" + randutilRandomKernelUUID()
+	sourceDevice := res.Device
 
-		if !res.IsDecryptedDevice {
-			// if we didn't find an encrypted device just return, don't try to
-			// unlock it
-			return nil
+	// return the encrypted device if the device we are maybe unlocking is
+	// an encrypted device
+	res.Device = filepath.Join("/dev/mapper", mapperName)
+
+	// if we don't have a tpm, and we allow using a recovery key, do that
+	// directly
+	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
+		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
+			return res, err
 		}
-
-		mapperName = name + "-" + randutilRandomKernelUUID()
-		// if we don't have a tpm, and we allow using a recovery key, do that
-		// directly
-		if !tpmDeviceAvailable && opts.AllowRecoveryKey {
-			err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, res.Device)
-			if err != nil {
-				return err
-			}
-			res.UnlockMethod = UnlockedWithRecoveryKey
-			return nil
-		}
-
-		// otherwise we have a tpm and we should use the sealed key first, but
-		// this method will fallback to using the recovery key if enabled
-		method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, res.Device, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
-		res.UnlockMethod = method
-		return err
-	}()
-	if err != nil {
-		return res, err
-	}
-	if lockErr != nil {
-		return res, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
+		res.UnlockMethod = UnlockedWithRecoveryKey
+		return res, nil
 	}
 
-	if res.IsDecryptedDevice {
-		// return the encrypted device if the device we are maybe unlocking is
-		// an encrypted device
-		res.Device = filepath.Join("/dev/mapper", mapperName)
-	}
+	// otherwise we have a tpm and we should use the sealed key first, but
+	// this method will fallback to using the recovery key if enabled
+	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
+	res.UnlockMethod = method
 
-	return res, nil
+	return res, err
 }
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
