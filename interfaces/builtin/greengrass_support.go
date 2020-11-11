@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -412,8 +410,6 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		// this is the process-mode version, it does not use as much privilege
 		// as the default "container" flavor
 		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
-	default:
-		return fmt.Errorf("cannot add apparmor plug policy: unsupported flavor attribute value %q for greengrass-support interface", flavor)
 	}
 
 	return nil
@@ -428,8 +424,6 @@ func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Spec
 		spec.AddSnippet(greengrassSupportConnectedPlugSeccomp)
 	case "process":
 		// process mode has no additional seccomp available to it
-	default:
-		return fmt.Errorf("cannot add seccomp plug policy: unsupported flavor attribute value %q for greengrass-support interface", flavor)
 	}
 
 	return nil
@@ -444,8 +438,6 @@ func (iface *greengrassSupportInterface) UDevConnectedPlug(spec *udev.Specificat
 		spec.SetControlsDeviceCgroup()
 	case "process":
 		// process mode does not control the device cgroup
-	default:
-		return fmt.Errorf("cannot add udev plug policy: unsupported flavor attribute value %q for greengrass-support interface", flavor)
 	}
 
 	return nil
