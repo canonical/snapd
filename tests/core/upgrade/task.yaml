@@ -43,7 +43,7 @@ execute: |
     # want that on pristine images?
     if [ "$SPREAD_REBOOT" != 0 ]; then
         echo "Waiting for snapd to clean snap_mode"
-        while [ "$(bootenv snap_mode)" != "" ]; do
+        while [ "$("$TESTSTOOLS"/boot-state bootenv snap_mode)" != "" ]; do
             sleep 1
         done
 
