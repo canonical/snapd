@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -176,4 +177,40 @@ func (s *dbusTestSuite) TestRemoveSnapDBusActivationFiles(c *C) {
 	// Files belonging to other snap are left as is
 	c.Check(otherSessionSvc, testutil.FilePresent)
 	c.Check(otherSystemSvc, testutil.FilePresent)
+}
+
+func (s *dbusTestSuite) TestAddSnapDBusActivationFilesInvalidData(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapname
+version: 1.0
+slots:
+  invalid-name:
+    interface: dbus
+    bus: system
+    name: 'invalid bus name'
+  invalid-bus:
+    interface: dbus
+    bus: accessibility
+    name: org.example.Foo
+apps:
+  svc:
+    command: bin/svc
+    daemon: simple
+    activates-on: [invalid-name, invalid-bus]
+`))
+	c.Assert(err, IsNil)
+	// The slots with invalid data have been removed
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.BadInterfaces["invalid-name"], Equals, `invalid DBus bus name: "invalid bus name"`)
+	c.Check(info.BadInterfaces["invalid-bus"], Equals, `bus 'accessibility' must be one of 'session' or 'system'`)
+
+	// No activation files are written out for the invalid slots
+	err = wrappers.AddSnapDBusActivationFiles(info)
+	c.Assert(err, IsNil)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
+	c.Check(err, IsNil)
+	c.Check(matches, HasLen, 0)
+	matches, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
+	c.Check(err, IsNil)
+	c.Check(matches, HasLen, 0)
 }
