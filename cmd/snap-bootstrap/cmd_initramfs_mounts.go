@@ -350,7 +350,7 @@ type partitionState struct {
 	// - successfully decrypted => the decrypted mapper device
 	// - unencrypted => the block device of the partition
 	// - identified as decrypted, but failed to decrypt => empty string
-	decryptRawDevice string
+	decryptedDevice string
 	// rawDevice is always the physical block device of the partition, in the
 	// encrypted case this is the physical encrypted partition.
 	rawDevice string
@@ -550,7 +550,7 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 	part.FindState = partitionFound
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	part.rawDevice = dev
-	part.decryptRawDevice = dev
+	part.decryptedDevice = dev
 	return nil
 }
 
@@ -578,11 +578,11 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 		part.FindState = partitionFound
 		part.rawDevice = unlockRes.Device
 		// if we know the block device, either encrypted or unencrypted, we
-		// start with that as the decryptRawDevice
+		// start with that as the decryptedDevice
 		// if the device was actually encrypted and we decrypted, we will
-		// promote decryptRawDevice to the value of the decrypted mapper further
+		// promote decryptedDevice to the value of the decrypted mapper further
 		// down in this function
-		part.decryptRawDevice = unlockRes.Device
+		part.decryptedDevice = unlockRes.Device
 	} else {
 		part.FindState = partitionNotFound
 	}
@@ -606,9 +606,9 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 	}
 
 	if unlockRes.IsDecryptedDevice {
-		// promote decryptRawDevice to the actual decrypted device so it can be
+		// promote decryptedDevice to the actual decrypted device so it can be
 		// mounted
-		part.decryptRawDevice = unlockRes.DecryptedDevice
+		part.decryptedDevice = unlockRes.DecryptedDevice
 		part.UnlockState = partitionUnlocked
 		part.UnlockKey = keyRun
 	}
@@ -677,7 +677,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 		// Note that in some case this may be redundantly assigning the same
 		// value to rawDevice again.
 		part.rawDevice = unlockRes.Device
-		part.decryptRawDevice = unlockRes.Device
+		part.decryptedDevice = unlockRes.Device
 	}
 
 	if err != nil {
@@ -705,8 +705,8 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	}
 
 	if m.isEncryptedDev {
-		// promote decryptRawDevice to the actual decrypted device now
-		part.decryptRawDevice = unlockRes.DecryptedDevice
+		// promote decryptedDevice to the actual decrypted device now
+		part.decryptedDevice = unlockRes.DecryptedDevice
 		part.UnlockState = partitionUnlocked
 
 		// figure out which key/method we used to unlock the partition
@@ -768,7 +768,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		}
 	}
 
-	// finally, combine the states of rawDevice and decryptRawDevice into the
+	// finally, combine the states of rawDevice and decryptedDevice into the
 	// exported Device field for marshalling
 	// ubuntu-boot is easy - it will always be unencrypted so we just set
 	// Device to rawDevice
@@ -777,17 +777,17 @@ func (m *recoverModeStateMachine) finalize() error {
 	// for ubuntu-data and save, we need to actually look at the states
 	for _, partName := range []string{"ubuntu-data", "ubuntu-save"} {
 		part := m.degradedState.partition(partName)
-		if part.decryptRawDevice == "" {
+		if part.decryptedDevice == "" {
 			// then the device is encrypted, but we failed to decrypt it, so
 			// set Device to the encrypted block device
 			part.Device = part.rawDevice
 		} else {
-			// all other cases, decryptRawDevice is set to what we want to
+			// all other cases, decryptedDevice is set to what we want to
 			// export, either it is set to the decrypted mapper device in the
 			// case it was successfully decrypted, or it is set to the encrypted
 			// block device if we failed to decrypt it, or it was set to the
 			// unencrypted block device if it was unencrypted
-			part.Device = part.decryptRawDevice
+			part.Device = part.decryptedDevice
 		}
 	}
 
@@ -826,7 +826,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	fsckSystemdOpts := &systemdMountOptions{
 		NeedsFsck: true,
 	}
-	mountErr := doSystemdMount(part.decryptRawDevice, boot.InitramfsUbuntuBootDir, fsckSystemdOpts)
+	mountErr := doSystemdMount(part.decryptedDevice, boot.InitramfsUbuntuBootDir, fsckSystemdOpts)
 	if err := m.setMountState("ubuntu-boot", boot.InitramfsUbuntuBootDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -914,7 +914,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 	data := m.degradedState.partition("ubuntu-data")
 	// don't do fsck on the data partition, it could be corrupted
-	mountErr := doSystemdMount(data.decryptRawDevice, boot.InitramfsHostUbuntuDataDir, nil)
+	mountErr := doSystemdMount(data.decryptedDevice, boot.InitramfsHostUbuntuDataDir, nil)
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -993,7 +993,7 @@ func (m *recoverModeStateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	save := m.degradedState.partition("ubuntu-save")
 	// TODO: should we fsck ubuntu-save ?
-	mountErr := doSystemdMount(save.decryptRawDevice, boot.InitramfsUbuntuSaveDir, nil)
+	mountErr := doSystemdMount(save.decryptedDevice, boot.InitramfsUbuntuSaveDir, nil)
 	if err := m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr); err != nil {
 		return nil, err
 	}
