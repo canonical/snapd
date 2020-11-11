@@ -751,8 +751,6 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 // - failed to find data at all -> try to unlock save
 // - unlocked data with run key -> mount data
 func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
-	// TODO: don't allow recovery key at all for this invocation, we only allow
-	// recovery key to be used after we try the fallback key
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		// don't allow using the recovery key to unlock, we only try using the
