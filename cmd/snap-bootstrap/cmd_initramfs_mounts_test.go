@@ -1811,6 +1811,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c 
 func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
 
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return fmt.Errorf("blocking keys failed")
+	})()
+
 	// install and recover mounts are just ubuntu-seed before we fail
 	var restore func()
 	if mode == "run" {
@@ -1873,6 +1880,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	gl, err := filepath.Glob(filepath.Join(dirs.SnapBootstrapRunDir, "*-model-measured"))
 	c.Assert(err, IsNil)
 	c.Assert(gl, HasLen, 0)
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) {
