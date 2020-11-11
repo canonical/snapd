@@ -263,11 +263,14 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		}
 	}
 
-	res.Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
+	res.PartDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 	if !res.IsDecryptedDevice {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it
+		// the filesystem device for the unencrypted case is the same as the
+		// partition device
+		res.FsDevice = res.PartDevice
 		return res, nil
 	}
 
@@ -287,7 +290,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
 	mapperName := name + "-" + randutilRandomKernelUUID()
-	sourceDevice := res.Device
+	sourceDevice := res.PartDevice
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	// if we don't have a tpm, and we allow using a recovery key, do that
@@ -296,7 +299,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
 			return res, err
 		}
-		res.Device = targetDevice
+		res.FsDevice = targetDevice
 		res.UnlockMethod = UnlockedWithRecoveryKey
 		return res, nil
 	}
@@ -306,7 +309,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
-		res.Device = targetDevice
+		res.FsDevice = targetDevice
 	}
 	return res, err
 }
@@ -330,14 +333,14 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	unlockRes.IsDecryptedDevice = true
 	// we have a device
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-	unlockRes.Device = encdev
+	unlockRes.PartDevice = encdev
 	// make up a new name for the mapped device
 	mapperName := name + "-" + randutilRandomKernelUUID()
 	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
 		return unlockRes, err
 	}
 
-	unlockRes.DecryptedDevice = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
 }

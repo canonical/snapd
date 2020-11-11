@@ -524,9 +524,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
-			c.Assert(unlockRes.Device, Equals, devicePath)
+			c.Assert(unlockRes.PartDevice, Equals, devicePath)
 			if tc.hasEncdev {
-				c.Assert(unlockRes.DecryptedDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+			} else {
+				c.Assert(unlockRes.FsDevice, Equals, devicePath)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
@@ -537,9 +539,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// very early, like trying to connect to the tpm
 			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
 			if tc.hasEncdev {
-				c.Check(unlockRes.Device, Equals, devicePath)
+				c.Check(unlockRes.PartDevice, Equals, devicePath)
+				c.Check(unlockRes.FsDevice, Equals, "")
 			} else {
-				c.Check(unlockRes.Device, Equals, "")
+				c.Check(unlockRes.PartDevice, Equals, "")
+				c.Check(unlockRes.FsDevice, Equals, "")
 			}
 		}
 
@@ -1118,8 +1122,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		Device:            "/dev/disk/by-partuuid/123-123-123",
-		DecryptedDevice:   "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		PartDevice:        "/dev/disk/by-partuuid/123-123-123",
+		FsDevice:          "/dev/mapper/ubuntu-save-random-uuid-123-123",
 		IsDecryptedDevice: true,
 		UnlockMethod:      secboot.UnlockedWithKey,
 	})
@@ -1145,6 +1149,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
 		IsDecryptedDevice: true,
-		Device:            "/dev/disk/by-partuuid/123-123-123",
+		PartDevice:        "/dev/disk/by-partuuid/123-123-123",
+		FsDevice:          "",
 	})
 }
