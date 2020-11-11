@@ -20,6 +20,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -135,7 +136,7 @@ func generateInitramfsMounts() error {
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	if err := generateMountsCommonInstallRecover(mst); err != nil {
+	if _, err := generateMountsCommonInstallRecover(mst); err != nil {
 		return err
 	}
 
@@ -292,9 +293,10 @@ const (
 	partitionNotFound   = "not-found"
 	partitionErrFinding = "error-finding"
 	// states for MountState
-	partitionMounted        = "mounted"
-	partitionErrMounting    = "error-mounting"
-	partitionAbsentOptional = "absent-but-optional"
+	partitionMounted          = "mounted"
+	partitionErrMounting      = "error-mounting"
+	partitionAbsentOptional   = "absent-but-optional"
+	partitionMountedUntrusted = "mounted-untrusted"
 	// states for UnlockState
 	partitionUnlocked     = "unlocked"
 	partitionErrUnlocking = "error-unlocking"
@@ -414,6 +416,9 @@ missing from this diagram), and then from "locate unencrypted save" to either
 type stateMachine struct {
 	// the current state is the one that is about to be executed
 	current stateFunc
+
+	// device model
+	model *asserts.Model
 
 	// the disk we have all our partitions on
 	disk disks.Disk
@@ -647,9 +652,10 @@ func (m *stateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes 
 	return nil
 }
 
-func newStateMachine(disk disks.Disk) *stateMachine {
+func newStateMachine(model *asserts.Model, disk disks.Disk) *stateMachine {
 	m := &stateMachine{
-		disk: disk,
+		model: model,
+		disk:  disk,
 		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
 		},
@@ -663,7 +669,38 @@ func newStateMachine(disk disks.Disk) *stateMachine {
 func (m *stateMachine) execute() (finished bool, err error) {
 	next, err := m.current()
 	m.current = next
-	return next == nil, err
+	finished = next == nil
+	if finished && err == nil {
+		if err := m.finalize(); err != nil {
+			return true, err
+		}
+	}
+	return finished, err
+}
+
+func (m *stateMachine) finalize() error {
+	// check soundness
+	// the grade check makes sure that if data was mounted unencrypted
+	// but the model is secured it will end up marked as untrusted
+	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
+	part := m.degradedState.partition("ubuntu-data")
+	if part.MountState == partitionMounted && isEncrypted {
+		// check that save and data match
+		// We want to avoid a chosen ubuntu-data
+		// (e.g. activated with a recovery key) to get access
+		// via its logins to the secrets in ubuntu-save (in
+		// particular the policy update auth key)
+		trustData, _ := checkDataAndSavaPairing(boot.InitramfsHostWritableDir)
+		if !trustData {
+			part.MountState = partitionMountedUntrusted
+			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
+		}
+	}
+	return nil
+}
+
+func (m *stateMachine) trustData() bool {
+	return m.degradedState.partition("ubuntu-data").MountState == partitionMounted
 }
 
 // mountBoot is the first state to execute in the state machine, it can
@@ -899,7 +936,8 @@ func (m *stateMachine) mountSave() (stateFunc, error) {
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	if err := generateMountsCommonInstallRecover(mst); err != nil {
+	model, err := generateMountsCommonInstallRecover(mst)
+	if err != nil {
 		return err
 	}
 
@@ -926,14 +964,14 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}()
 
 		// first state to execute is to unlock ubuntu-data with the run key
-		machine = newStateMachine(disk)
+		machine = newStateMachine(model, disk)
 		for {
-			final, err := machine.execute()
+			finished, err := machine.execute()
 			// TODO: consider whether certain errors are fatal or not
 			if err != nil {
 				return nil, err
 			}
-			if final {
+			if finished {
 				break
 			}
 		}
@@ -971,7 +1009,8 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// if we have the host location, then we were able to successfully mount
 	// ubuntu-data, and as such we can proceed with copying files from there
 	// onto the tmpfs
-	if machine.degradedState.partition("ubuntu-data").MountLocation != "" {
+	// Proceed only if we trust ubuntu-data to be paired with ubuntu-save
+	if machine.trustData() {
 		// TODO: erroring here should fallback to copySafeDefaultData and
 		// proceed on with degraded mode anyways
 		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
@@ -1016,6 +1055,27 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	return nil
 }
 
+// checkDataAndSavaPairing make sure that ubuntu-data and ubuntu-save
+// come from the same install by comparing secret markers in them
+func checkDataAndSavaPairing(rootdir string) (bool, error) {
+	// read the secret marker file from ubuntu-data
+	markerFile1 := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "marker")
+	marker1, err := ioutil.ReadFile(markerFile1)
+	if err != nil {
+		return false, err
+	}
+	// read the secret marker file from ubuntu-save
+	// TODO:UC20: this is a bit of an abuse of the Install*Dir variable, we
+	// should really only be using Initramfs*Dir variables since we are in the
+	// initramfs and not in install mode, no?
+	markerFile2 := filepath.Join(boot.InstallHostFDESaveDir, "marker")
+	marker2, err := ioutil.ReadFile(markerFile2)
+	if err != nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
+}
+
 // mountPartitionMatchingKernelDisk will select the partition to mount at dir,
 // using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
@@ -1040,18 +1100,18 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Model, error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
-		return err
+		return nil, err
 	}
 
 	// load model and verified essential snaps metadata
 	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
 	model, essSnaps, err := mst.ReadEssential("", typs)
 	if err != nil {
-		return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+		return nil, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
 	}
 
 	// 2.1. measure model
@@ -1061,7 +1121,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		})
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 2.2. (auto) select recovery system and mount seed snaps
@@ -1075,7 +1135,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1098,7 +1158,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// finally get the gadget snap from the essential snaps and use it to
@@ -1124,7 +1184,11 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) error {
 		TargetRootDir:  boot.InitramfsWritableDir,
 		GadgetSnap:     gadgetSnap,
 	}
-	return sysconfig.ConfigureTargetSystem(configOpts)
+	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
+		return nil, err
+	}
+
+	return model, err
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
@@ -1223,9 +1287,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err := doSystemdMount(unlockRes.Device, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
+	isEncryptedDev := unlockRes.IsDecryptedDevice
 
 	// 3.3. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, unlockRes.IsDecryptedDevice, fsckSystemdOpts)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, isEncryptedDev, fsckSystemdOpts)
 	if err != nil {
 		return err
 	}
@@ -1255,6 +1320,24 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 		if !matches {
 			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+		}
+
+		if isEncryptedDev {
+			// in run mode the path to open an encrypted save is for
+			// data to be encrypted and the save key in it
+			// to be successfully used. This already should stop
+			// allowing to chose ubuntu-data to try to access
+			// save. as safety boot also stops if the keys cannot
+			// be locked.
+			// for symmetry with recover code and extra paranoia
+			// though also check that the markers match.
+			paired, err := checkDataAndSavaPairing(boot.InitramfsWritableDir)
+			if err != nil {
+				return err
+			}
+			if !paired {
+				return fmt.Errorf("cannot validate boot: ubuntu-save and ubuntu-data are not marked as from the same install")
+			}
 		}
 	}
 
