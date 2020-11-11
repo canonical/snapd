@@ -350,8 +350,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 		}, {
-			// happy case with tpm and encrypted device (lock requested) with
-			// an alternative keyfile
+			// happy case with tpm and encrypted device
+			// with an alternative keyfile
 			tpmEnabled: true, hasEncdev: true,
 			activated:       true,
 			disk:            mockDiskWithEncDev,
