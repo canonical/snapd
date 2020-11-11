@@ -251,10 +251,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
-	var errNotFound disks.FilesystemLabelNotFoundError
 	if err == nil {
 		res.IsDecryptedDevice = true
 	} else {
+		var errNotFound disks.FilesystemLabelNotFoundError
 		if !xerrors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			// TODO: need to defer the connection to the default TPM somehow
