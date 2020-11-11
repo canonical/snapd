@@ -531,8 +531,7 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	m.degradedState.partition(part).MountLocation = where
 
 	if err := m.verifyMountPoint(where, part); err != nil {
-		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v",
-			part, where, err)
+		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v", part, where, err)
 		return err
 	}
 	return nil
@@ -619,7 +618,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	if !unlockRes.IsDecryptedDevice && unlockRes.Device != "" && err != nil {
 		// this case should be impossible to enter, if we have an unencrypted
 		// device and we know what the device is then what is the error?
-		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s", partName)
+		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s: %v", partName, err)
 	}
 
 	if err != nil {
@@ -982,14 +981,12 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 			return err
 		}
 
-		err = os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
-		if err != nil {
+		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
 			return err
 		}
 
 		// leave the information about degraded state at an ephemeral location
-		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644)
-		if err != nil {
+		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
 			return err
 		}
 	}
