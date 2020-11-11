@@ -117,6 +117,9 @@ const (
 	// UnlockedWithRecoveryKey indicates that the device was unlocked by the
 	// user providing the recovery key at the prompt.
 	UnlockedWithRecoveryKey
+	// UnlockedWithKey indicates that the device was unlocked with the provided
+	// key, which is not sealed.
+	UnlockedWithKey
 	// UnlockStatusUnknown indicates that the unlock status of the device is not clear.
 	UnlockStatusUnknown
 )

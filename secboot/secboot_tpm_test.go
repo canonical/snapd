@@ -248,20 +248,25 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 			tpmErr:   fmt.Errorf("failed to connect to tpm"),
 			expError: "cannot lock TPM: failed to connect to tpm",
 		},
-		// tpm is not enabled, no errors
+		// no TPM2 device, shouldn't return an error
+		{
+			tpmErr: sb.ErrNoTPM2Device,
+		},
+		// tpm is not enabled but we can lock it
 		{
 			tpmEnabled: false,
+			lockOk:     true,
 		},
 		// can't lock pcr protection profile
 		{
-			lockOk:     false,
 			tpmEnabled: true,
+			lockOk:     false,
 			expError:   "block failed",
 		},
 		// tpm enabled, we can lock it
 		{
-			lockOk:     true,
 			tpmEnabled: true,
+			lockOk:     true,
 		},
 	}
 
@@ -287,22 +292,16 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 		defer restore()
 
 		err := secboot.LockTPMSealedKeys()
-		if tc.expError != "" {
-			c.Assert(err, ErrorMatches, tc.expError)
-			// if there was not a tpm error, we should have locked it
-			if tc.tpmErr == nil {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
-			} else {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
-			}
-		} else {
+		if tc.expError == "" {
 			c.Assert(err, IsNil)
-			// if the tpm was enabled, we should have locked it
-			if tc.tpmEnabled {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
-			} else {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
-			}
+		} else {
+			c.Assert(err, ErrorMatches, tc.expError)
+		}
+		// if there was no TPM connection error, we should have tried to lock it
+		if tc.tpmErr == nil {
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
+		} else {
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
 		}
 	}
 }
@@ -538,6 +537,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// this is only skipped on some test cases where we get an error
 			// very early, like trying to connect to the tpm
 			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
+			if tc.hasEncdev {
+				c.Check(unlockRes.Device, Equals, devicePath)
+			} else {
+				c.Check(unlockRes.Device, Equals, "")
+			}
 		}
 
 		c.Assert(unlockRes.UnlockMethod, Equals, tc.expUnlockMethod)
@@ -1088,9 +1092,9 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
 	disk := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{},
 	}
-	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
-	c.Check(dev, Equals, "")
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
@@ -1112,9 +1116,13 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 		return nil
 	})
 	defer restore()
-	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
-	c.Check(dev, Equals, "/dev/mapper/ubuntu-save-random-uuid-123-123")
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		Device:            "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		IsDecryptedDevice: true,
+		UnlockMethod:      secboot.UnlockedWithKey,
+	})
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
@@ -1132,7 +1140,10 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		return fmt.Errorf("failed")
 	})
 	defer restore()
-	dev, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, "failed")
-	c.Check(dev, Equals, "")
+	// we would have at least identified that the device is a decrypted one
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		IsDecryptedDevice: true,
+	})
 }

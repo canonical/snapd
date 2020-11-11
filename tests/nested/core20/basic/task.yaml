@@ -31,3 +31,12 @@ execute: |
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
     nested_exec "! snap list test-snapd-sh"
+
+    echo "Ensure 'snap debug show-keys' works as root"
+    nested_exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    nested_exec "sudo snap recovery --show-keys" | MATCH 'reinstall:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    echo "But not as user (normal file permissions prevent this)"
+    if nested_exec "snap recovery --show-key"; then
+        echo "snap recovery --show-key should not work as a user"
+        exit 1
+    fi
