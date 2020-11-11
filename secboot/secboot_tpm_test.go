@@ -248,20 +248,25 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 			tpmErr:   fmt.Errorf("failed to connect to tpm"),
 			expError: "cannot lock TPM: failed to connect to tpm",
 		},
-		// tpm is not enabled, no errors
+		// no TPM2 device, shouldn't return an error
+		{
+			tpmErr: sb.ErrNoTPM2Device,
+		},
+		// tpm is not enabled but we can lock it
 		{
 			tpmEnabled: false,
+			lockOk:     true,
 		},
 		// can't lock pcr protection profile
 		{
-			lockOk:     false,
 			tpmEnabled: true,
+			lockOk:     false,
 			expError:   "block failed",
 		},
 		// tpm enabled, we can lock it
 		{
-			lockOk:     true,
 			tpmEnabled: true,
+			lockOk:     true,
 		},
 	}
 
@@ -287,22 +292,16 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 		defer restore()
 
 		err := secboot.LockTPMSealedKeys()
-		if tc.expError != "" {
-			c.Assert(err, ErrorMatches, tc.expError)
-			// if there was not a tpm error, we should have locked it
-			if tc.tpmErr == nil {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
-			} else {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
-			}
-		} else {
+		if tc.expError == "" {
 			c.Assert(err, IsNil)
-			// if the tpm was enabled, we should have locked it
-			if tc.tpmEnabled {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
-			} else {
-				c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
-			}
+		} else {
+			c.Assert(err, ErrorMatches, tc.expError)
+		}
+		// if there was no TPM connection error, we should have tried to lock it
+		if tc.tpmErr == nil {
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 1)
+		} else {
+			c.Assert(sbBlockPCRProtectionPolicesCalls, Equals, 0)
 		}
 	}
 }
@@ -436,6 +435,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			disk: mockDiskWithEncDev,
 		}, {
 			// tpm disabled, no encrypted device
+			disk: mockDiskWithUnencDev,
+		}, {
+			// tpm disabled, no encrypted device, lock succeeds
+			lockRequest: true, lockOk: true,
 			disk: mockDiskWithUnencDev,
 		}, {
 			// tpm disabled, has encrypted device, unlocked using the recovery key

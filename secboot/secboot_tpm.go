@@ -199,11 +199,6 @@ func LockTPMSealedKeys() error {
 		return fmt.Errorf("cannot lock TPM: %v", tpmErr)
 	}
 	defer tpm.Close()
-	// Also check if the TPM device is enabled. The platform firmware may disable the storage
-	// and endorsement hierarchies, but the device will remain visible to the operating system.
-	if !isTPMEnabled(tpm) {
-		return nil
-	}
 
 	// Lock access to the sealed keys. This should be called whenever there
 	// is a TPM device detected, regardless of whether secure boot is enabled
@@ -288,7 +283,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	var mapperName string
 	err = func() error {
 		defer func() {
-			if opts.LockKeysOnFinish && tpmDeviceAvailable {
+			if opts.LockKeysOnFinish && tpmErr == nil {
 				// Lock access to the sealed keys. This should be called whenever there
 				// is a TPM device detected, regardless of whether secure boot is enabled
 				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
