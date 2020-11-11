@@ -96,7 +96,8 @@ prepare: |
   # TODO: enable this when ready, currently serial assertions requests don't 
   # work with the fakedevicesvc, needs a little bit of work somewhere
   # start fake device svc
-  # systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+  # #shellcheck disable=SC2148
+  #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
   # first boot - legit NoCloud usage
   nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
@@ -114,6 +115,9 @@ restore: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+
+  # stop fake device svc
+  # systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
