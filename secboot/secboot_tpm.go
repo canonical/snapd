@@ -337,7 +337,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 		return unlockRes, err
 	}
 
-	unlockRes.Device = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.DecryptedDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
 }

@@ -126,9 +126,14 @@ const (
 
 // UnlockResult is the result of trying to unlock a volume.
 type UnlockResult struct {
-	// Device is the decrypted device, if encrypted or just the unencrypted
-	// device. Device can be empty when none was found.
+	// Device is the block device, which may be encrypted or unencrypted. Device
+	// can be empty when none was found. If IsDecryptedDevice is true, then
+	// DecryptedDevice represents the decrypted mapper device that most things
+	// should use.
 	Device string
+	// DecryptedDevice is the decrypted mapper device that was unlocked and
+	// created from Device. This will only be set if IsDecryptedDevice is true.
+	DecryptedDevice string
 	// IsDecryptedDevice indicates if Device is a decrypted device or an
 	// unencrypted device.
 	IsDecryptedDevice bool

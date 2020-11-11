@@ -524,10 +524,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
+			c.Assert(unlockRes.Device, Equals, devicePath)
 			if tc.hasEncdev {
-				c.Assert(unlockRes.Device, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
-			} else {
-				c.Assert(unlockRes.Device, Equals, devicePath)
+				c.Assert(unlockRes.DecryptedDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
@@ -1119,7 +1118,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		Device:            "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		Device:            "/dev/disk/by-partuuid/123-123-123",
+		DecryptedDevice:   "/dev/mapper/ubuntu-save-random-uuid-123-123",
 		IsDecryptedDevice: true,
 		UnlockMethod:      secboot.UnlockedWithKey,
 	})
