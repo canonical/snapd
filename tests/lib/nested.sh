@@ -1111,7 +1111,10 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_destroy_unit "$NESTED_VM"
+    # XXX: is this the right way to do this ???
+    systemctl stop "$NESTED_VM"
+    rm -f "/etc/systemd/system/$NESTED_VM.service"
+    rm -rf "/etc/systemd/system/$NESTED_VM.service.d"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
