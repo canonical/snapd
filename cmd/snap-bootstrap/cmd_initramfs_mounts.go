@@ -1113,10 +1113,7 @@ func checkDataAndSavaPairing(rootdir string) (bool, error) {
 		return false, err
 	}
 	// read the secret marker file from ubuntu-save
-	// TODO:UC20: this is a bit of an abuse of the Install*Dir variable, we
-	// should really only be using Initramfs*Dir variables since we are in the
-	// initramfs and not in install mode, no?
-	markerFile2 := filepath.Join(boot.InstallHostFDESaveDir, "marker")
+	markerFile2 := filepath.Join(dirs.SnapFDEDirUnderSave(boot.InitramfsUbuntuSaveDir), "marker")
 	marker2, err := ioutil.ReadFile(markerFile2)
 	if err != nil {
 		return false, err
