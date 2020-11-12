@@ -1111,7 +1111,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_destroy_unit "$NESTED_VM"
+    systemd_stop_and_remove_unit "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
