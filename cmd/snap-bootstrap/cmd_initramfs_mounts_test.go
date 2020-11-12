@@ -236,10 +236,10 @@ func foundUnencrypted(name string) secboot.UnlockResult {
 
 func happyUnlocked(name string, method secboot.UnlockMethod) secboot.UnlockResult {
 	return secboot.UnlockResult{
-		PartDevice:        filepath.Join("/dev/disk/by-partuuid", name+"-enc-partuuid"),
-		FsDevice:          filepath.Join("/dev/mapper", name+"-random"),
-		IsDecryptedDevice: true,
-		UnlockMethod:      method,
+		PartDevice:   filepath.Join("/dev/disk/by-partuuid", name+"-enc-partuuid"),
+		FsDevice:     filepath.Join("/dev/mapper", name+"-random"),
+		IsEncrypted:  true,
+		UnlockMethod: method,
 	}
 }
 
@@ -247,8 +247,8 @@ func foundEncrypted(name string) secboot.UnlockResult {
 	return secboot.UnlockResult{
 		PartDevice: filepath.Join("/dev/disk/by-partuuid", name+"-enc-partuuid"),
 		// FsDevice is empty if we didn't unlock anything
-		FsDevice:          "",
-		IsDecryptedDevice: true,
+		FsDevice:    "",
+		IsEncrypted: true,
 	}
 }
 

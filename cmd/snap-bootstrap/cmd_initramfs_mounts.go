@@ -579,13 +579,13 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 	} else {
 		part.FindState = partitionNotFound
 	}
-	if unlockRes.IsDecryptedDevice {
+	if unlockRes.IsEncrypted {
 		m.isEncryptedDev = true
 	}
 
 	if err != nil {
 		// create different error message for encrypted vs unencrypted
-		if unlockRes.IsDecryptedDevice {
+		if unlockRes.IsEncrypted {
 			// if we know the device is decrypted we must also always know at
 			// least the partDevice (which is the encrypted block device)
 			m.degradedState.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
@@ -598,7 +598,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 		return nil
 	}
 
-	if unlockRes.IsDecryptedDevice {
+	if unlockRes.IsEncrypted {
 		// unlocked successfully
 		part.UnlockState = partitionUnlocked
 		part.UnlockKey = keyRun
@@ -620,7 +620,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 
 	// ensure consistency between encrypted state of the device/disk and what we
 	// may have seen previously
-	if m.isEncryptedDev && !unlockRes.IsDecryptedDevice {
+	if m.isEncryptedDev && !unlockRes.IsEncrypted {
 		// then we previously were able to positively identify an
 		// ubuntu-data-enc but can't anymore, so we have inconsistent results
 		// from inspecting the disk which is suspicious and we should fail
@@ -638,10 +638,10 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	// partition in which case we maybe could still have an encrypted disk that
 	// needs unlocking with the fallback object keys from ubuntu-seed
 	//
-	// As such, if m.isEncryptedDev is false, but unlockRes.IsDecryptedDevice is
+	// As such, if m.isEncryptedDev is false, but unlockRes.IsEncrypted is
 	// true, then it is safe to assign m.isEncryptedDev to true.
-	if !m.isEncryptedDev && unlockRes.IsDecryptedDevice {
-		m.isEncryptedDev = unlockRes.IsDecryptedDevice
+	if !m.isEncryptedDev && unlockRes.IsEncrypted {
+		m.isEncryptedDev = unlockRes.IsEncrypted
 	}
 
 	// Also make sure that if we previously saw a partition device that we see
@@ -843,7 +843,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 	if unlockErr != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
 		// find it in the unencrypted case
-		if unlockRes.IsDecryptedDevice {
+		if unlockRes.IsEncrypted {
 			// we know the device is encrypted, so the next state is to try
 			// unlocking with the fallback key
 			return m.unlockDataFallbackKey, nil
@@ -969,7 +969,7 @@ func (m *recoverModeStateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 	// do a consistency check to make sure that if we mounted data as
 	// unencrypted that we don't also mount ubuntu-save as encrypted
 	data := m.degradedState.partition("ubuntu-data")
-	if unlockRes.IsDecryptedDevice && data.MountState == partitionMounted && data.UnlockState == "" {
+	if unlockRes.IsEncrypted && data.MountState == partitionMounted && data.UnlockState == "" {
 		return nil, fmt.Errorf("inconsistent encryption status for disk %s: ubuntu-data (device %s) was mounted unencrypted but ubuntu-save (device %s) was found to be encrypted", m.disk.Dev(), data.fsDevice, unlockRes.FsDevice)
 	}
 
@@ -1331,7 +1331,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
-	isEncryptedDev := unlockRes.IsDecryptedDevice
+	isEncryptedDev := unlockRes.IsEncrypted
 
 	// 3.3. mount ubuntu-save (if present)
 	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir, isEncryptedDev, fsckSystemdOpts)
@@ -1341,7 +1341,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
 	diskOpts := &disks.Options{}
-	if unlockRes.IsDecryptedDevice {
+	if unlockRes.IsEncrypted {
 		// then we need to specify that the data mountpoint is expected to be a
 		// decrypted device, applies to both ubuntu-data and ubuntu-save
 		diskOpts.IsDecryptedDevice = true

@@ -134,13 +134,12 @@ type UnlockResult struct {
 	// PartDevice is the underlying partition device.
 	// PartDevice can be empty when no device was found.
 	PartDevice string
-	// IsDecryptedDevice indicates if Device is a decrypted device or an
-	// unencrypted device.
-	IsDecryptedDevice bool
+	// IsEncrypted indicates that PartDevice is encrypted.
+	IsEncrypted bool
 	// UnlockMethod is the method used to unlock the device. Valid values are
 	// - NotUnlocked
 	// - UnlockedWithRecoveryKey
 	// - UnlockedWithSealedKey
-	// - UnlockedWithUnsealedKey
+	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }

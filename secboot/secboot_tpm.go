@@ -216,13 +216,12 @@ func LockTPMSealedKeys() error {
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
-// with a corresponding name. The options control whether the access to to the
-// sealed keys will be locked when this function completes and whether
-// activation with the recovery key will be attempted if a prior activation
-// attempt with the sealed key fails.
+// with a corresponding name. The options control activation with the
+// recovery key will be attempted if a prior activation attempt with
+// the sealed key fails.
 //
 // Note that if the function proceeds to the point where it knows definitely
-// whether there is an encrypted device or not, IsDecryptedDevice on the return
+// whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(
@@ -247,7 +246,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// what we expected
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 	if err == nil {
-		res.IsDecryptedDevice = true
+		res.IsEncrypted = true
 	} else {
 		var errNotFound disks.FilesystemLabelNotFoundError
 		if !xerrors.As(err, &errNotFound) {
@@ -265,7 +264,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 
 	res.PartDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 
-	if !res.IsDecryptedDevice {
+	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it
 		// the filesystem device for the unencrypted case is the same as the
@@ -314,9 +313,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	return res, err
 }
 
-// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
-// path to the device node is returned.
-// TODO: use UnlockResult here too?
+// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
@@ -330,7 +327,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	if err != nil {
 		return unlockRes, err
 	}
-	unlockRes.IsDecryptedDevice = true
+	unlockRes.IsEncrypted = true
 	// we have a device
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	unlockRes.PartDevice = encdev
