@@ -746,7 +746,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		// (e.g. activated with a recovery key) to get access
 		// via its logins to the secrets in ubuntu-save (in
 		// particular the policy update auth key)
-		// TODO: we should try to be a bit more specific here in checking that
+		// TODO:UC20: we should try to be a bit more specific here in checking that
 		//       data and save match, and not mark data as untrusted if we
 		//       know that the real save is locked/protected (or doesn't exist
 		//       in the case of bad corruption) because currently this code will
