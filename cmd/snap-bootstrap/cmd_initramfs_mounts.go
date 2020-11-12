@@ -608,8 +608,6 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 }
 
 func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string, unlockRes secboot.UnlockResult, err error, partitionOptional bool) error {
-	part := m.degradedState.partition(partName)
-
 	// first check the result and error for consistency; since we are using udev
 	// there could be inconsistent results at different points in time
 
@@ -618,6 +616,21 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	//       consistency checking as we can code it such that we don't get these
 	//       possible inconsistencies
 
+	// do basic consistency checking on unlockRes to make sure the
+	// result makes sense.
+	if unlockRes.FsDevice != "" && err != nil {
+		// This case should be impossible to enter, we can't
+		// have a filesystem device but an error set
+		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s: %v", partName, err)
+	}
+
+	part := m.degradedState.partition(partName)
+	// Also make sure that if we previously saw a partition device that we see
+	// the same device again.
+	if unlockRes.PartDevice != "" && part.partDevice != "" && unlockRes.PartDevice != part.partDevice {
+		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", partName, part.partDevice, unlockRes.PartDevice)
+	}
+
 	// ensure consistency between encrypted state of the device/disk and what we
 	// may have seen previously
 	if m.isEncryptedDev && !unlockRes.IsEncrypted {
@@ -625,6 +638,15 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 		// ubuntu-data-enc but can't anymore, so we have inconsistent results
 		// from inspecting the disk which is suspicious and we should fail
 		return fmt.Errorf("inconsistent disk encryption status: previous access resulted in encrypted, but now is unencrypted from partition %s", partName)
+	}
+
+	// now actually process the result into the state
+	if unlockRes.PartDevice != "" {
+		part.FindState = partitionFound
+		// Note that in some case this may be redundantly assigning the same
+		// value to partDevice again.
+		part.partDevice = unlockRes.PartDevice
+		part.fsDevice = unlockRes.FsDevice
 	}
 
 	// There are a few cases where this could be the first time that we found a
@@ -642,28 +664,6 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	// true, then it is safe to assign m.isEncryptedDev to true.
 	if !m.isEncryptedDev && unlockRes.IsEncrypted {
 		m.isEncryptedDev = unlockRes.IsEncrypted
-	}
-
-	// Also make sure that if we previously saw a partition device that we see
-	// the same device again.
-	if unlockRes.PartDevice != "" && part.partDevice != "" && unlockRes.PartDevice != part.partDevice {
-		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", partName, part.partDevice, unlockRes.PartDevice)
-	}
-
-	// We do however do consistency checking on unlockRes to make sure the
-	// result makes sense.
-	if unlockRes.FsDevice != "" && err != nil {
-		// This case should be impossible to enter, we can't
-		// have a filesystem device but an error set
-		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s: %v", partName, err)
-	}
-
-	if unlockRes.PartDevice != "" {
-		part.FindState = partitionFound
-		// Note that in some case this may be redundantly assigning the same
-		// value to partDevice again.
-		part.partDevice = unlockRes.PartDevice
-		part.fsDevice = unlockRes.FsDevice
 	}
 
 	if err != nil {
