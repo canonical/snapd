@@ -3866,7 +3866,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, `inconsistent encryption status for disk dataUnencSaveEnc: ubuntu-data \(device /dev/disk/by-partuuid/ubuntu-data-partuuid\) was mounted unencrypted but ubuntu-save \(device /dev/mapper/ubuntu-save-random\) was found to be encrypted`)
+	c.Assert(err, ErrorMatches, `inconsistent encryption status for disk dataUnencSaveEnc: ubuntu-data \(device /dev/disk/by-partuuid/ubuntu-data-partuuid\) was found unencrypted but ubuntu-save \(device /dev/mapper/ubuntu-save-random\) was found to be encrypted`)
 
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)

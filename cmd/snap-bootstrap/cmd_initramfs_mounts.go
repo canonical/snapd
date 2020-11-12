@@ -941,6 +941,10 @@ func (m *recoverModeStateMachine) unlockSaveRunKey() (stateFunc, error) {
 }
 
 func (m *recoverModeStateMachine) unlockSaveFallbackKey() (stateFunc, error) {
+	// remember what we assumed about encryption before looking at
+	// save
+	assumeEncrypted := m.isEncryptedDev
+
 	// try to unlock save with the fallback key on ubuntu-seed, which must have
 	// been mounted at this point
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
@@ -966,11 +970,11 @@ func (m *recoverModeStateMachine) unlockSaveFallbackKey() (stateFunc, error) {
 		return nil, nil
 	}
 
-	// do a consistency check to make sure that if we mounted data as
+	// do a consistency check to make sure that if we found ubuntu-data
 	// unencrypted that we don't also mount ubuntu-save as encrypted
 	data := m.degradedState.partition("ubuntu-data")
-	if unlockRes.IsEncrypted && data.MountState == partitionMounted && data.UnlockState == "" {
-		return nil, fmt.Errorf("inconsistent encryption status for disk %s: ubuntu-data (device %s) was mounted unencrypted but ubuntu-save (device %s) was found to be encrypted", m.disk.Dev(), data.fsDevice, unlockRes.FsDevice)
+	if unlockRes.IsEncrypted && data.FindState == partitionFound && !assumeEncrypted {
+		return nil, fmt.Errorf("inconsistent encryption status for disk %s: ubuntu-data (device %s) was found unencrypted but ubuntu-save (device %s) was found to be encrypted", m.disk.Dev(), data.fsDevice, unlockRes.FsDevice)
 	}
 
 	// otherwise we unlocked it, so go mount it
