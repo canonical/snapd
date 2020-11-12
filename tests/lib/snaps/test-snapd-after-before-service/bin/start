@@ -1,5 +1,7 @@
 #!/bin/sh
 
+echo "$1" >> $SNAP_COMMON/start-log
+
 echo "before notify"
 sleep 5
 echo "notify ready"
