@@ -392,58 +392,10 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 // function (for the next) state or nil if it is the final state.
 type stateFunc func() (stateFunc, error)
 
-// recoverModeStateMachine is a state machine implementing the logic for degraded recover
-// mode. the following state diagram shows the logic for the various states and
-// transitions:
-/**
-
-
-TODO: the state diagram is out-of-date, locate save unencrypted is being
-taken care via unlock save w/ fallback key which also works for
-unencrypted save
-
-
-                         +---------+                    +----------+
-                         | start   |                    | mount    |       fail
-                         |         +------------------->+ boot     +------------------------+
-                         |         |                    |          |                        |
-                         +---------+                    +----+-----+                        |
-                                                             |                              |
-                                                     success |                              |
-                                                             |                              |
-                                                             v                              v
-        fail or        +-------------------+  fail,     +----+------+  fail,       +--------+-------+
-        not needed     |    locate save    |  unencrypt |unlock data|  encrypted   | unlock data w/ |
-        +--------------+    unencrypted    +<-----------+w/ run key +--------------+ fallback key   +-------+
-        |              |                   |            |           |              |                |       |
-        |              +--------+----------+            +-----+-----+              +--------+-------+       |
-        |                       |                             |                             |               |
-        |                       |success                      |success                      |               |
-        |                       |                             |                    success  |        fail   |
-        v                       v                             v                             |               |
-+---+---+           +-------+----+                +-------+----+                            |               |
-|       |           | mount      |       success  | mount data |                            |               |
-| done  +<----------+ save       |      +---------+            +<---------------------------+               |
-|       |           |            |      |         |            |                                            |
-+--+----+           +----+-------+      |         +----------+-+                                            |
-   ^                     ^              |                    |                                              |
-   |                     | success      v                    |                                              |
-   |                     |     +--------+----+   fail        |fail                                          |
-   |                     |     | unlock save +--------+      |                                              |
-   |                     +-----+ w/ run key  |        v      v                                              |
-   |                     ^     +-------------+   +----+------+-----+                                        |
-   |                     |                       | unlock save     |                                        |
-   |                     |                       | w/ fallback key +----------------------------------------+
-   |                     +-----------------------+                 |
-   |                             success         +-------+---------+
-   |                                                     |
-   |                                                     |
-   |                                                     |
-   +-----------------------------------------------------+
-                                                fail
-
-*/
-
+// recoverModeStateMachine is a state machine implementing the logic for
+// degraded recover mode.
+// A full state diagram for the state machine can be found in
+// /cmd/snap-bootstrap/degraded-recover-mode.svg in this repo.
 type recoverModeStateMachine struct {
 	// the current state is the one that is about to be executed
 	current stateFunc
