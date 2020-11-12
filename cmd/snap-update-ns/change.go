@@ -95,10 +95,10 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 
 	// In case we need to create something, some constants.
 	const (
-		mode = 0755
-		uid  = 0
-		gid  = 0
+		uid = 0
+		gid = 0
 	)
+	mode := as.ModeForPath(path)
 
 	// If the element doesn't exist we can attempt to create it.  We will
 	// create the parent directory and then the final element relative to it.

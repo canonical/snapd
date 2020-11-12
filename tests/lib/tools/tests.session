@@ -363,8 +363,9 @@ done
 trap - INT TERM QUIT
 
 # Kill dbus-monitor that otherwise runs until it notices the pipe is no longer
-# connected, which happens after a longer while.
-kill $dbus_monitor_pid || true
+# connected, which happens after a longer while. Redirect stderr to /dev/null
+# to avoid upsetting tests which are sensitive to stderr, e.g. tests/main/document-portal-activation
+kill $dbus_monitor_pid 2>/dev/null || true
 wait $dbus_monitor_pid 2>/dev/null || true
 wait $awk_pid
 

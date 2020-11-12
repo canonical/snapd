@@ -564,14 +564,14 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	}
 
 	// look for auto refresh changes in progress
-	autoRefreshChgs := []*state.Change{}
+	autoRefreshChgsInFlight := []*state.Change{}
 	for _, chg := range m.state.Changes() {
 		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
-			autoRefreshChgs = append(autoRefreshChgs, chg)
+			autoRefreshChgsInFlight = append(autoRefreshChgsInFlight, chg)
 		}
 	}
 
-	return autoRefreshChgs, nil
+	return autoRefreshChgsInFlight, nil
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode

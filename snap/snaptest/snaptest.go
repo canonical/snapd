@@ -131,6 +131,13 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	defer restoreSanitize()
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
+	if snapInfo.InstanceName() == "core" && snapInfo.Type() != snap.TypeOS {
+		panic("core snap must use type: os")
+	}
+	if snapInfo.InstanceName() == "snapd" && snapInfo.Type() != snap.TypeSnapd {
+		panic("snapd snap must use type: snapd")
+	}
+
 	snapInfo.SideInfo = *sideInfo
 	err = snap.Validate(snapInfo)
 	c.Assert(err, check.IsNil)
