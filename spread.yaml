@@ -103,7 +103,7 @@ backends:
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
             - ubuntu-20.10-64:
-                  workers: 6
+                  workers: 8
                   image: ubuntu-20.10-64
 
             - debian-9-64:
@@ -136,6 +136,7 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  manual: true
             - centos-8-64:
                   workers: 4
                   storage: preserve-size
