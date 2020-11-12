@@ -219,6 +219,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		return secboot.UnlockResult{Device: filepath.Join("/dev/disk/by-partuuid", name+"-partuuid")}, nil
 	}))
+	s.AddCleanup(main.MockSecbootLockTPMSealedKeys(func() error {
+		return nil
+	}))
 }
 
 // makeSnapFilesOnEarlyBootUbuntuData creates the snap files on ubuntu-data as
@@ -391,6 +394,13 @@ func (s *initramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []systemdMo
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
@@ -413,6 +423,8 @@ recovery_system=20191118
 `)
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeGadgetDefaultsHappy(c *C) {
@@ -557,7 +569,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 	c.Assert(err, IsNil)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
+func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C) error {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
@@ -598,7 +610,31 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	return err
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	err := s.testInitramfsMountsRunModeNoSaveUnencrypted(c)
 	c.Assert(err, IsNil)
+
+	c.Check(sealedKeysLocked, Equals, true)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLockingUnhappy(c *C) {
+	// have blocking sealed keys fail
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		return fmt.Errorf("blocking keys failed")
+	})()
+
+	err := s.testInitramfsMountsRunModeNoSaveUnencrypted(c)
+	c.Assert(err, ErrorMatches, "error locking access to sealed keys: blocking keys failed")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTimesOutNoMount(c *C) {
@@ -1463,6 +1499,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuBootDir}:                          defaultEncBootDisk,
@@ -1504,7 +1547,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 		c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
-			LockKeysOnFinish: true,
 			AllowRecoveryKey: true,
 		})
 
@@ -1581,6 +1623,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
+	c.Check(sealedKeysLocked, Equals, true)
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
@@ -1672,6 +1715,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnlockSaveFail(c *C) {
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return fmt.Errorf("blocking keys failed")
+	})()
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1742,6 +1792,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, "cannot unlock ubuntu-save volume: ubuntu-save unlock fail")
 	c.Check(dataActivated, Equals, true)
+	// locking sealing keys was attempted, error was only logged
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedNoModel(c *C) {
@@ -1758,6 +1810,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c 
 
 func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockTPMSealedKeys(func() error {
+		sealedKeysLocked = true
+		return fmt.Errorf("blocking keys failed")
+	})()
 
 	// install and recover mounts are just ubuntu-seed before we fail
 	var restore func()
@@ -1821,6 +1880,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	gl, err := filepath.Glob(filepath.Join(dirs.SnapBootstrapRunDir, "*-model-measured"))
 	c.Assert(err, IsNil)
 	c.Assert(gl, HasLen, 0)
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) {

@@ -99,9 +99,6 @@ type ResealKeysParams struct {
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
 // volumes using keys sealed to the TPM.
 type UnlockVolumeUsingSealedKeyOptions struct {
-	// LockKeysOnFinish when true indicates that access to the sealed keys
-	// shall be locked after the operation using the options completes.
-	LockKeysOnFinish bool
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
