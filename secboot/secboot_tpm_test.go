@@ -406,10 +406,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			// tpm disabled, no encrypted device
 			disk: mockDiskWithUnencDev,
 		}, {
-			// tpm disabled, no encrypted device, lock succeeds
-			lockRequest: true, lockOk: true,
-			disk: mockDiskWithUnencDev,
-		}, {
 			// tpm disabled, has encrypted device, unlocked using the recovery key
 			hasEncdev:       true,
 			rkAllow:         true,
