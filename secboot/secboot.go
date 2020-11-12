@@ -99,9 +99,6 @@ type ResealKeysParams struct {
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
 // volumes using keys sealed to the TPM.
 type UnlockVolumeUsingSealedKeyOptions struct {
-	// LockKeysOnFinish when true indicates that access to the sealed keys
-	// shall be locked after the operation using the options completes.
-	LockKeysOnFinish bool
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
@@ -120,22 +117,29 @@ const (
 	// UnlockedWithRecoveryKey indicates that the device was unlocked by the
 	// user providing the recovery key at the prompt.
 	UnlockedWithRecoveryKey
+	// UnlockedWithKey indicates that the device was unlocked with the provided
+	// key, which is not sealed.
+	UnlockedWithKey
 	// UnlockStatusUnknown indicates that the unlock status of the device is not clear.
 	UnlockStatusUnknown
 )
 
 // UnlockResult is the result of trying to unlock a volume.
 type UnlockResult struct {
-	// Device is the decrypted device, if encrypted or just the unencrypted
-	// device. Device can be empty when none was found.
-	Device string
-	// IsDecryptedDevice indicates if Device is a decrypted device or an
-	// unencrypted device.
-	IsDecryptedDevice bool
+	// FsDevice is the device with filesystem ready to mount.
+	// It is the activated device if encrypted or just
+	// the underlying device (same as PartDevice) if non-encrypted.
+	// FsDevice can be empty when none was found.
+	FsDevice string
+	// PartDevice is the underlying partition device.
+	// PartDevice can be empty when no device was found.
+	PartDevice string
+	// IsEncrypted indicates that PartDevice is encrypted.
+	IsEncrypted bool
 	// UnlockMethod is the method used to unlock the device. Valid values are
 	// - NotUnlocked
 	// - UnlockedWithRecoveryKey
 	// - UnlockedWithSealedKey
-	// - UnlockedWithUnsealedKey
+	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }
