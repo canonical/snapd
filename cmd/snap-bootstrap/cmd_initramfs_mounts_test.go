@@ -3520,7 +3520,7 @@ recovery_system=20191118
 
 	// since we didn't mount data at all, we won't have copied in files from
 	// there and instead will copy safe defaults to the ephemeral data
-	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
+	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivationAttempts, Equals, 2)
 	c.Check(saveActivated, Equals, true)
@@ -3712,7 +3712,7 @@ recovery_system=20191118
 
 	// since we didn't mount data at all, we won't have copied in files from
 	// there and instead will copy safe defaults to the ephemeral data
-	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
+	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(saveActivated, Equals, true)
@@ -4061,7 +4061,7 @@ recovery_system=20191118
 
 	// since we didn't mount data at all, we won't have copied in files from
 	// there and instead will copy safe defaults to the ephemeral data
-	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
+	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(saveActivated, Equals, true)
@@ -4256,7 +4256,7 @@ recovery_system=20191118
 
 	// since we didn't mount data at all, we won't have copied in files from
 	// there and instead will copy safe defaults to the ephemeral data
-	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
+	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivationAttempts, Equals, 2)
 	c.Check(saveUnsealActivationAttempted, Equals, true)
@@ -4429,7 +4429,7 @@ recovery_system=20191118
 
 	// since we didn't mount data at all, we won't have copied in files from
 	// there and instead will copy safe defaults to the ephemeral data
-	c.Assert(filepath.Join(boot.InitramfsHostWritableDir, "var/lib/console-conf/complete"), testutil.FilePresent)
+	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivated, Equals, true)
 	c.Check(saveActivated, Equals, true)

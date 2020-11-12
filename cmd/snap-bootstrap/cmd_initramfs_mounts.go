@@ -1078,7 +1078,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		// ubuntu-data doesn't mean that attackers wouldn't be able to if they
 		// could login
 
-		if err := copySafeDefaultData(boot.InitramfsHostUbuntuDataDir); err != nil {
+		if err := copySafeDefaultData(boot.InitramfsDataDir); err != nil {
 			return err
 		}
 	}
