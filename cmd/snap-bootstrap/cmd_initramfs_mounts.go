@@ -398,10 +398,9 @@ type stateFunc func() (stateFunc, error)
 /**
 
 
-TODO: this state diagram actually is missing a state transition from
-"unlock save w/ run key" to "locate unencrypted save" (which is a state that is
-missing from this diagram), and then from "locate unencrypted save" to either
-"done" or "mount save" states
+TODO: the state diagram is out-of-date, locate save unencrypted is being
+taken care via unlock save w/ fallback key which also works for
+unencrypted save
 
 
                          +---------+                    +----------+
@@ -455,6 +454,8 @@ type recoverModeStateMachine struct {
 	// the disk we have all our partitions on
 	disk disks.Disk
 
+	// TODO:UC20: for clarity turn this into into tristate:
+	// unknown|encrypted|unencrypted
 	isEncryptedDev bool
 
 	// state for tracking what happens as we progress through degraded mode of
@@ -663,7 +664,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	// As such, if m.isEncryptedDev is false, but unlockRes.IsEncrypted is
 	// true, then it is safe to assign m.isEncryptedDev to true.
 	if !m.isEncryptedDev && unlockRes.IsEncrypted {
-		m.isEncryptedDev = unlockRes.IsEncrypted
+		m.isEncryptedDev = true
 	}
 
 	if err != nil {
