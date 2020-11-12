@@ -746,6 +746,16 @@ func (m *recoverModeStateMachine) finalize() error {
 		// (e.g. activated with a recovery key) to get access
 		// via its logins to the secrets in ubuntu-save (in
 		// particular the policy update auth key)
+		// TODO: we should try to be a bit more specific here in checking that
+		//       data and save match, and not mark data as untrusted if we
+		//       know that the real save is locked/protected (or doesn't exist
+		//       in the case of bad corruption) because currently this code will
+		//       mark data as untrusted, even if it was unlocked with the run
+		//       object key and we failed to unlock ubuntu-save at all, which is
+		//       undesirable. This effectively means that you need to have both
+		//       ubuntu-data and ubuntu-save unlockable and have matching marker
+		//       files in order to use the files from ubuntu-data to log-in,
+		//       etc.
 		trustData, _ := checkDataAndSavaPairing(boot.InitramfsHostWritableDir)
 		if !trustData {
 			part.MountState = partitionMountedUntrusted
