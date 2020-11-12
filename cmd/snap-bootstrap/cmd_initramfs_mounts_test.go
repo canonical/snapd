@@ -3533,9 +3533,9 @@ recovery_system=20191118
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataSaveUnlockFallbackHappy(c *C) {
-	// test a scenario when data cannot be found but save can be
-	// unlocked using the fallback key
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataSaveFallbackHappy(c *C) {
+	// test a scenario when data cannot be found but unencrypted save can be
+	// mounted
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
@@ -3589,7 +3589,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataS
 			return notFoundPart(), fmt.Errorf("error enumerating to find ubuntu-data")
 
 		case 2:
-			// we can however still unlock ubuntu-save with the recovery key
+			// we can however still mount unecrypted ubuntu-save
 			c.Assert(name, Equals, "ubuntu-save")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUID(name + "-enc")
@@ -3938,7 +3938,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			return notFoundPart(), fmt.Errorf("error enumerating to find ubuntu-data")
 
 		case 2:
-			// we can however still unlock ubuntu-save with the recovery key
+			// we can however still unlock ubuntu-save with the fallback key
 			c.Assert(name, Equals, "ubuntu-save")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			encDevPartUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
@@ -3948,7 +3948,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 				AllowRecoveryKey: true,
 			})
 			saveActivated = true
-			return happyUnlocked("ubuntu-save", secboot.UnlockedWithRecoveryKey), nil
+			return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
 		default:
 			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
 			return secboot.UnlockResult{}, fmt.Errorf("broken test")
@@ -4039,7 +4039,7 @@ recovery_system=20191118
 		},
 		"ubuntu-save": map[string]interface{}{
 			"device":         "/dev/mapper/ubuntu-save-random",
-			"unlock-key":     "recovery",
+			"unlock-key":     "fallback",
 			"unlock-state":   "unlocked",
 			"mount-state":    "mounted",
 			"find-state":     "found",
