@@ -756,6 +756,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"content":          true,
 		"cups":             true,
 		"docker":           true,
+		"fpga":             true,
 		"fwupd":            true,
 		"location-control": true,
 		"location-observe": true,
