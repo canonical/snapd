@@ -599,8 +599,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 	}
 
 	if unlockRes.IsDecryptedDevice {
-		// promote fsDevice to the actual decrypted device so it can be
-		// mounted
+		// unlocked successfully
 		part.UnlockState = partitionUnlocked
 		part.UnlockKey = keyRun
 	}
@@ -651,20 +650,11 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", partName, part.partDevice, unlockRes.PartDevice)
 	}
 
-	// Also also make sure that if we previously saw a FsDevice that it matches
-	// what we currently have.
-	// TODO: how could this happen? If we previously had a FsDevice that's
-	// non-empty wouldn't it have already been decrypted and thus we wouldn't
-	// be in the fallback case?
-	if unlockRes.FsDevice != "" && part.fsDevice != "" && unlockRes.FsDevice != part.fsDevice {
-		return fmt.Errorf("inconsistent partitions found for %s: previously found %s but now found %s", partName, part.fsDevice, unlockRes.FsDevice)
-	}
-
 	// We do however do consistency checking on unlockRes to make sure the
 	// result makes sense.
-	if !unlockRes.IsDecryptedDevice && unlockRes.FsDevice != "" && err != nil {
-		// This case should be impossible to enter, if the device is not
-		// decrypted, then what did we unlock to get a decrypted device?
+	if unlockRes.FsDevice != "" && err != nil {
+		// This case should be impossible to enter, we can't
+		// have a filesystem device but an error set
 		return fmt.Errorf("internal error: inconsistent return values from UnlockVolumeUsingSealedKeyIfEncrypted for partition %s: %v", partName, err)
 	}
 
@@ -700,6 +690,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	}
 
 	if m.isEncryptedDev {
+		// unlocked successfully
 		part.UnlockState = partitionUnlocked
 
 		// figure out which key/method we used to unlock the partition
@@ -862,12 +853,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// been identified as decrypted or unencrypted device, we could have
 		// just entirely lost ubuntu-data-enc, and we could still have an
 		// encrypted device, so instead try to unlock ubuntu-save with the
-		// fallback case, and then if that fails in a specific manner it will
-		// fallback again to locating the unencrypted ubuntu-save
-
-		// not an encrypted device, so nothing to fall back to try and unlock
-		// data, so just mark it as not found and continue on to try and mount
-		// an unencrypted ubuntu-save directly
+		// fallback key, the logic there can also handle an unencrypted ubuntu-save
 		return m.unlockSaveFallbackKey, nil
 	}
 
