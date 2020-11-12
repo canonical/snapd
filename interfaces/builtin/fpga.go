@@ -27,6 +27,7 @@ const fpgaBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-auto-connection: true
+    deny-connection: true
 `
 
 const fpgaConnectedPlugAppArmor = `
@@ -35,18 +36,23 @@ const fpgaConnectedPlugAppArmor = `
 # Devices
 /dev/fpga[0-9]* rw,
 
-# /sys/class/fpga_* specified by the kernel docs
+# /sys/class/fpga_* specified by:
+# https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-class-fpga-manager
+# https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-class-fpga-region
+# https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/sysfs-class-fpga-bridge
 /sys/class/fpga_manager/fpga[0-9]*/{name,state,status} r,
 /sys/class/fpga_region/region[0-9]*/compat_id r,
 /sys/class/fpga_bridge/bridge[0-9]*/{name,state} r,
 
-# Xilinx zynqmp FPGA
+# Xilinx zynqmp FPGA, created by zynqmp_fpga_manager driver
+# https://github.com/torvalds/linux/blob/master/drivers/fpga/zynqmp-fpga.c
 /sys/devices/platform/firmware:zynqmp-firmware/firmware:zynqmp-firmware:pcap/fpga_manager/fpga[0-9]*/{name,state,status} r,
 /sys/devices/platform/firmware:zynqmp-firmware/firmware:zynqmp-firmware:pcap/fpga_manager/fpga[0-9]*/firmware w,
 /sys/devices/platform/firmware:zynqmp-firmware/firmware:zynqmp-firmware:pcap/fpga_manager/fpga[0-9]*/{flags,key} rw,
 /sys/devices/platform/fpga-full/fpga_region/region[0-9]*/compat_id r,
 
-# Xilinx zynqmp module parameters
+# Xilinx zynqmp module parameters (not upstreamed yet)
+# https://github.com/Xilinx/linux-xlnx/blob/master/drivers/fpga/zynqmp-fpga.c#L36
 /sys/module/zynqmp_fpga/parameters/readback_type rw,
 
 # configfs interface
