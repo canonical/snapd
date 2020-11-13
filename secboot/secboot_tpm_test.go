@@ -395,8 +395,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		}, {
 			// tpm error, no encrypted device
 			tpmErr: errors.New("tpm error"),
-			//err:    `cannot unlock encrypted device "name": tpm error`,
-			disk: mockDiskWithUnencDev,
+			disk:   mockDiskWithUnencDev,
 		}, {
 			// tpm error, has encrypted device
 			tpmErr: errors.New("tpm error"), hasEncdev: true,
@@ -523,24 +522,27 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, opts)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
-			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
+			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
+			c.Assert(unlockRes.PartDevice, Equals, devicePath)
 			if tc.hasEncdev {
-				c.Assert(unlockRes.Device, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
+				c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
 			} else {
-				c.Assert(unlockRes.Device, Equals, devicePath)
+				c.Assert(unlockRes.FsDevice, Equals, devicePath)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
-			// also check that the isDecryptDev value matches, this is
+			// also check that the IsEncrypted value matches, this is
 			// important for robust callers to know whether they should try to
 			// unlock using a different method or not
 			// this is only skipped on some test cases where we get an error
 			// very early, like trying to connect to the tpm
-			c.Assert(unlockRes.IsDecryptedDevice, Equals, tc.hasEncdev)
+			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
 			if tc.hasEncdev {
-				c.Check(unlockRes.Device, Equals, devicePath)
+				c.Check(unlockRes.PartDevice, Equals, devicePath)
+				c.Check(unlockRes.FsDevice, Equals, "")
 			} else {
-				c.Check(unlockRes.Device, Equals, "")
+				c.Check(unlockRes.PartDevice, Equals, "")
+				c.Check(unlockRes.FsDevice, Equals, "")
 			}
 		}
 
@@ -1119,9 +1121,10 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		Device:            "/dev/mapper/ubuntu-save-random-uuid-123-123",
-		IsDecryptedDevice: true,
-		UnlockMethod:      secboot.UnlockedWithKey,
+		PartDevice:   "/dev/disk/by-partuuid/123-123-123",
+		FsDevice:     "/dev/mapper/ubuntu-save-random-uuid-123-123",
+		IsEncrypted:  true,
+		UnlockMethod: secboot.UnlockedWithKey,
 	})
 }
 
@@ -1144,6 +1147,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	c.Assert(err, ErrorMatches, "failed")
 	// we would have at least identified that the device is a decrypted one
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
-		IsDecryptedDevice: true,
+		IsEncrypted: true,
+		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		FsDevice:    "",
 	})
 }

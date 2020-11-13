@@ -216,13 +216,12 @@ func LockTPMSealedKeys() error {
 
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
-// with a corresponding name. The options control whether the access to to the
-// sealed keys will be locked when this function completes and whether
-// activation with the recovery key will be attempted if a prior activation
-// attempt with the sealed key fails.
+// with a corresponding name. The options control activation with the
+// recovery key will be attempted if a prior activation attempt with
+// the sealed key fails.
 //
 // Note that if the function proceeds to the point where it knows definitely
-// whether there is an encrypted device or not, IsDecryptedDevice on the return
+// whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(
@@ -247,7 +246,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// what we expected
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 	if err == nil {
-		res.IsDecryptedDevice = true
+		res.IsEncrypted = true
 	} else {
 		var errNotFound disks.FilesystemLabelNotFoundError
 		if !xerrors.As(err, &errNotFound) {
@@ -263,11 +262,14 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		}
 	}
 
-	res.Device = filepath.Join("/dev/disk/by-partuuid", partUUID)
+	res.PartDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
 
-	if !res.IsDecryptedDevice {
+	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it
+		// the filesystem device for the unencrypted case is the same as the
+		// partition device
+		res.FsDevice = res.PartDevice
 		return res, nil
 	}
 
@@ -287,7 +289,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
 	mapperName := name + "-" + randutilRandomKernelUUID()
-	sourceDevice := res.Device
+	sourceDevice := res.PartDevice
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	// if we don't have a tpm, and we allow using a recovery key, do that
@@ -296,7 +298,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
 			return res, err
 		}
-		res.Device = targetDevice
+		res.FsDevice = targetDevice
 		res.UnlockMethod = UnlockedWithRecoveryKey
 		return res, nil
 	}
@@ -306,15 +308,16 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
-		res.Device = targetDevice
+		res.FsDevice = targetDevice
 	}
 	return res, err
 }
 
-// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key. The
-// path to the device node is returned.
-// TODO: use UnlockResult here too?
+// UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	unlockRes := UnlockResult{
+		UnlockMethod: NotUnlocked,
+	}
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
@@ -322,20 +325,19 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	// what we expected
 	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
 	if err != nil {
-		return UnlockResult{}, err
+		return unlockRes, err
 	}
-	unlockRes := UnlockResult{
-		IsDecryptedDevice: true,
-	}
+	unlockRes.IsEncrypted = true
 	// we have a device
 	encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	unlockRes.PartDevice = encdev
 	// make up a new name for the mapped device
 	mapperName := name + "-" + randutilRandomKernelUUID()
 	if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
 		return unlockRes, err
 	}
 
-	unlockRes.Device = filepath.Join("/dev/mapper/", mapperName)
+	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
 }
