@@ -424,7 +424,8 @@ nested_get_model() {
 
 nested_ensure_ubuntu_save() {
     local GADGET_DIR="$1"
-    "$TESTSLIB"/ensure_ubuntu_save.py "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
+    shift
+    "$TESTSLIB"/ensure_ubuntu_save.py "$@" "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
     if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
         mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
     else
@@ -511,13 +512,17 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
-                        # lands there is no ubuntu-save in the gadget, make sure we have one
-                        nested_ensure_ubuntu_save pc-gadget
+                        if [ "$NESTED_ENABLE_TPM" = "true" ] || [ "$NESTED_ADD_UBUNTU_SAVE" = "true" ]; then
+                            # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
+                            # lands there is no ubuntu-save in the gadget, make sure we have one
+                            nested_ensure_ubuntu_save pc-gadget --add
+                        else
+                            nested_ensure_ubuntu_save pc-gadget --remove
+                        fi
 
-                        # also make logging persistent for easier debugging of 
-                        # test failures, otherwise we have no way to see what 
-                        # happened during a failed nested VM boot where we 
+                        # also make logging persistent for easier debugging of
+                        # test failures, otherwise we have no way to see what
+                        # happened during a failed nested VM boot where we
                         # weren't able to login to a device
                         cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
