@@ -397,7 +397,7 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", "container":
+	case "", "legacy-container":
 		// default, legacy version of the interface
 		if release.OnClassic {
 			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor)
@@ -406,9 +406,9 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		}
 		// greengrass needs to use ptrace for controlling it's containers
 		spec.SetUsesPtraceTrace()
-	case "process":
-		// this is the process-mode version, it does not use as much privilege
-		// as the default "container" flavor
+	case "no-container":
+		// this is the no-container version, it does not use as much privilege
+		// as the default "legacy-container" flavor
 		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
 	}
 
@@ -420,10 +420,10 @@ func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Spec
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", "container":
+	case "", "legacy-container":
 		spec.AddSnippet(greengrassSupportConnectedPlugSeccomp)
-	case "process":
-		// process mode has no additional seccomp available to it
+	case "no-container":
+		// no-container has no additional seccomp available to it
 	}
 
 	return nil
@@ -433,11 +433,11 @@ func (iface *greengrassSupportInterface) UDevConnectedPlug(spec *udev.Specificat
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", "container":
+	case "", "legacy-container":
 		// default containerization controls the device cgroup
 		spec.SetControlsDeviceCgroup()
-	case "process":
-		// process mode does not control the device cgroup
+	case "no-container":
+		// no-container does not control the device cgroup
 	}
 
 	return nil
