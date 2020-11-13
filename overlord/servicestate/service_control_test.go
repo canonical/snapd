@@ -734,6 +734,41 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 	})
 }
 
+func (s *serviceControlSuite) TestRestartAllServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "restart",
+		Services: []string{"abc", "foo", "bar"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"stop", "snap.test-snap.foo.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.foo.service"},
+		{"stop", "snap.test-snap.bar.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.bar.service"},
+		{"stop", "snap.test-snap.abc.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.abc.service"},
+		{"start", "snap.test-snap.abc.service"},
+	})
+}
+
 func (s *serviceControlSuite) TestReloadServices(c *C) {
 	st := s.state
 	st.Lock()
@@ -758,6 +793,35 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"reload-or-restart", "snap.test-snap.foo.service"},
+	})
+}
+
+func (s *serviceControlSuite) TestReloadAllServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "reload-or-restart",
+		Services: []string{"foo", "abc", "bar"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "snap.test-snap.foo.service"},
+		{"reload-or-restart", "snap.test-snap.bar.service"},
+		{"reload-or-restart", "snap.test-snap.abc.service"},
 	})
 }
 
@@ -796,13 +860,13 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed: false,
 		},
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  true,
 		},
 		// enable again does nothing
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  false,
 		},
@@ -812,7 +876,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed:                   true,
 		},
 		{
-			enable: []string{"a", "c"},
+			enable:                   []string{"a", "c"},
 			expectedSnapstateEnabled: []string{"a", "c"},
 			changed:                  true,
 		},
