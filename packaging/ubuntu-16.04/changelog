@@ -1,3 +1,10 @@
+snapd (2.48~pre1) xenial; urgency=medium
+
+  * New upstream release, LP: #1904098
+    - first pre-release 2.48
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Nov 2020 07:00:54 +0100
+
 snapd (2.47.1) xenial; urgency=medium
 
   * New upstream release, LP: #1895929
