@@ -89,6 +89,14 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 
 	meter := snapstate.NewTaskProgressAdapterLocked(t)
 
+	var startupOrdered []*snap.AppInfo
+	if sc.Action != "stop" {
+		startupOrdered, err = snap.SortServices(services)
+		if err != nil {
+			return err
+		}
+	}
+
 	switch sc.Action {
 	case "stop":
 		disable := sc.ActionModifier == "disable"
@@ -108,10 +116,6 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	case "start":
-		startupOrdered, err := snap.SortServices(services)
-		if err != nil {
-			return err
-		}
 		enable := sc.ActionModifier == "enable"
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
@@ -129,10 +133,10 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	case "restart":
-		return wrappers.RestartServices(services, nil, meter, perfTimings)
+		return wrappers.RestartServices(startupOrdered, nil, meter, perfTimings)
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
-		return wrappers.RestartServices(services, flags, meter, perfTimings)
+		return wrappers.RestartServices(startupOrdered, flags, meter, perfTimings)
 	default:
 		return fmt.Errorf("unhandled service action: %q", sc.Action)
 	}

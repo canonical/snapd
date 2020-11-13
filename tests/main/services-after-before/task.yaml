@@ -42,4 +42,3 @@ execute: |
     snap restart test-snapd-after-before-service
 
     check_order
-
