@@ -59,6 +59,20 @@ nested_wait_for_reboot() {
     [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
+nested_uc20_transition_to_system_mode() {
+    local recovery_system="$1"
+    local mode="$2"
+    local current_boot_id
+    current_boot_id=$(nested_get_boot_id)
+    nested_exec "sudo snap reboot --$mode $recovery_system"
+    nested_wait_for_reboot "$current_boot_id"
+
+    # verify we are now in the requested mode
+    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+        return 1
+    fi
+}
+
 nested_retry_while_success() {
     local retry="$1"
     local wait="$2"
