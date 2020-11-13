@@ -45,7 +45,24 @@ var (
 	secbootResealKeys = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
+
+	// HasFdeSetupHook,FdeSetupHookRunner will be set by the
+	// devicestate code
+	HasFdeSetupHook    func(*BootableSet) bool
+	FdeSetupHookRunner func(string, *FdeSetupHookParams) error
 )
+
+// FdeSetupHookParams contains the inputs for the fde-setup hook
+type FdeSetupHookParams struct {
+	Key     secboot.EncryptionKey
+	KeyName string
+
+	KernelInfo *snap.Info
+	Model      *asserts.Model
+
+	//TODO:UC20: provide bootchains and a way to track measured
+	//boot-assets
+}
 
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
@@ -58,7 +75,23 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+	if HasFdeSetupHook != nil && HasFdeSetupHook(bootWith) {
+		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, bootWith, modeenv)
+	}
+
+	return sealKeyToModeenvUsingSecboot(key, saveKey, model, bootWith, modeenv)
+}
+
+func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+	if FdeSetupHookRunner == nil {
+		return fmt.Errorf("internal error: FdeSetupHookRunner not set")
+	}
+
+	return fmt.Errorf("cannot use fde-setup hook yet")
+}
+
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
