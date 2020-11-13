@@ -60,6 +60,9 @@ version: 1.0
 apps:
   someapp:
     command: cmd
+  abc:
+    daemon: simple
+    after: [bar]
   foo:
     daemon: simple
   bar:
@@ -552,6 +555,7 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.abc.service"},
 	})
 }
 
@@ -636,8 +640,10 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"enable", "snap.test-snap.foo.service"},
 		{"enable", "snap.test-snap.bar.service"},
+		{"enable", "snap.test-snap.abc.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.abc.service"},
 	})
 }
 
