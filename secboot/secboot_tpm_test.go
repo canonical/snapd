@@ -395,8 +395,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		}, {
 			// tpm error, no encrypted device
 			tpmErr: errors.New("tpm error"),
-			//err:    `cannot unlock encrypted device "name": tpm error`,
-			disk: mockDiskWithUnencDev,
+			disk:   mockDiskWithUnencDev,
 		}, {
 			// tpm error, has encrypted device
 			tpmErr: errors.New("tpm error"), hasEncdev: true,
