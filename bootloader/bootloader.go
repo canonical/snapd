@@ -98,7 +98,7 @@ type Bootloader interface {
 	// InstallBootConfig will try to install the boot config in the
 	// given gadgetDir to rootdir. If no boot config for this bootloader
 	// is found ok is false.
-	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
+	InstallBootConfig(gadgetDir string, opts *Options) error
 
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap.
 	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
@@ -198,25 +198,22 @@ type TrustedAssetsBootloader interface {
 	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
-func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
-	if !osutil.FileExists(gadgetFile) {
-		return false, nil
-	}
+func genericInstallBootConfig(gadgetFile, systemFile string) error {
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
-		return true, err
+		return err
 	}
-	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+	return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
-func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+func genericSetBootConfigFromAsset(systemFile, assetName string) error {
 	bootConfig := assets.Internal(assetName)
 	if bootConfig == nil {
-		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+		return fmt.Errorf("internal error: no boot asset for %q", assetName)
 	}
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
-		return true, err
+		return err
 	}
-	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
+	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
 }
 
 func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
@@ -249,16 +246,11 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 	if err := opts.validate(); err != nil {
 		return err
 	}
-	// TODO:UC20 use ForGadget() to obtain the right bootloader
-	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
-		bl.setRootDir(rootDir)
-		ok, err := bl.InstallBootConfig(gadgetDir, opts)
-		if ok {
-			return err
-		}
+	bl, err := ForGadget(gadgetDir, rootDir, opts)
+	if err != nil {
+		return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 	}
-
-	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
+	return bl.InstallBootConfig(gadgetDir, opts)
 }
 
 type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
@@ -368,8 +360,9 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	}
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
+		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
 		// do we have a marker file?
-		if osutil.FileExists(filepath.Join(gadgetDir, bl.Name()+".conf")) {
+		if osutil.FileExists(markerConf) {
 			return bl, nil
 		}
 	}
