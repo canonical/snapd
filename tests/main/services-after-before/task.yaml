@@ -3,8 +3,6 @@ summary: Check that snap after/before ordering works
 execute: |
     echo "When the service snap is installed"
 
-    cursor=$("$TESTSTOOLS"/journal-state get-last-cursor)
-
     # we are using systemd-notify indicate the service is active, this is
     # currently not allowed by daemon-notify interface, so we may as well just
     # install in devmode
