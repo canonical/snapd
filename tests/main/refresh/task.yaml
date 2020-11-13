@@ -133,7 +133,7 @@ execute: |
     fi
 
     echo "When the snap is refreshed"
-    snap refresh --channel=edge "$SNAP_NAME"
+    snap refresh --ignore-running --channel=edge "$SNAP_NAME"
 
     if [ -f /tmp/inhibit.events ]; then
       echo "During the refresh process, the inhibition lock was established and released"
