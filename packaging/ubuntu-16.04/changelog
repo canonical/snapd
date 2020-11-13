@@ -166,7 +166,7 @@ snapd (2.48) UNRELEASED; urgency=medium
     - overlord/snapstate: inhibit startup while unlinked
     - seed/seedwriter/writer.go: check DevModeConfinement for dangerous
       features
-    - tests/main/sudo-env: snap bin is avaialble on Fedora
+    - tests/main/sudo-env: snap bin is available on Fedora
     - boot, overlord/devicestate: list trusted and managed assets
       upfront
     - gadget, gadget/install: support for ubuntu-save, create one during
