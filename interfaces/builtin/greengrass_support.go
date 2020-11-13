@@ -392,19 +392,12 @@ mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
 
-// XXX: decide on the final names and adjust tests too
-const (
-	flavorAttrStr   = "flavor"
-	flavorContainer = "container"
-	falvorProcess   = "process"
-)
-
 func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// check the flavor
 	var flavor string
-	_ = plug.Attr(flavorAttrStr, &flavor)
+	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", flavorContainer:
+	case "", "legacy-container":
 		// default, legacy version of the interface
 		if release.OnClassic {
 			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor)
@@ -413,9 +406,9 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		}
 		// greengrass needs to use ptrace for controlling it's containers
 		spec.SetUsesPtraceTrace()
-	case falvorProcess:
-		// this is the process-mode version, it does not use as much privilege
-		// as the default flavorContainer flavor
+	case "no-container":
+		// this is the no-container version, it does not use as much privilege
+		// as the default "legacy-container" flavor
 		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
 	}
 
@@ -425,12 +418,12 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// check the flavor
 	var flavor string
-	_ = plug.Attr(flavorAttrStr, &flavor)
+	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", flavorContainer:
+	case "", "legacy-container":
 		spec.AddSnippet(greengrassSupportConnectedPlugSeccomp)
-	case falvorProcess:
-		// process mode has no additional seccomp available to it
+	case "no-container":
+		// no-container has no additional seccomp available to it
 	}
 
 	return nil
@@ -438,13 +431,13 @@ func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Spec
 
 func (iface *greengrassSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var flavor string
-	_ = plug.Attr(flavorAttrStr, &flavor)
+	_ = plug.Attr("flavor", &flavor)
 	switch flavor {
-	case "", flavorContainer:
+	case "", "legacy-container":
 		// default containerization controls the device cgroup
 		spec.SetControlsDeviceCgroup()
-	case falvorProcess:
-		// process mode does not control the device cgroup
+	case "no-container":
+		// no-container does not control the device cgroup
 	}
 
 	return nil
