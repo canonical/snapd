@@ -46,4 +46,4 @@ execute: |
 
   echo "Check degraded.json exists and has the unlock-key for ubuntu-data as the fallback key"
   nested_exec "test -f $DEGRADED_JSON"
-  test "$(nested_exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-save" | ."unlock-key"')" = fallback
+  test "$(nested_exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-data" | ."unlock-key"')" = fallback
