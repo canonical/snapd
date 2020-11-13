@@ -2,17 +2,17 @@ name: test-snapd-after-before-service
 version: 1.0
 apps:
   before-middle:
-    command: bin/start before-middle
+    command: bin/start
     daemon: notify
     before:
       - middle
     plugs: [daemon-notify]
   middle:
-    command: bin/start middle
+    command: bin/start
     daemon: notify
     plugs: [daemon-notify]
   after-middle:
-    command: bin/start after-middle
+    command: bin/start
     daemon: notify
     after:
       - middle

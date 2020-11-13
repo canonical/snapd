@@ -23,11 +23,16 @@ execute: |
     systemctl list-dependencies --plain --before snap.test-snapd-after-before-service.middle.service | \
         MATCH '\s*snap.test-snapd-after-before-service.after-middle.service'
 
-    START_LOG=/var/snap/test-snapd-after-before-service/common/start-log
+    function service_start_time {
+        systemctl show --property=ExecMainStartTimestampMonotonic "$1" | awk -F"=" '{print $2}'
+    }
+
     function check_order() {
-        tr '\n' ',' < "$START_LOG" | \
-            MATCH "before-middle,middle,after-middle"
-        rm "$START_LOG"
+        BEFORE=$(service_start_time snap.test-snapd-after-before-service.before-middle)
+        MIDDLE=$(service_start_time snap.test-snapd-after-before-service.middle)
+        AFTER=$(service_start_time snap.test-snapd-after-before-service.after-middle)
+        test "$MIDDLE" -gt "$BEFORE"
+        test "$AFTER" -gt "$MIDDLE"
     }
 
     check_order
