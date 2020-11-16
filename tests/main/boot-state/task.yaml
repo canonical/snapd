@@ -1,5 +1,10 @@
 summary: smoke test for the boot-state tool
 
+# ARM devices are not supported on ubuntu-core-18 due to fw_printenv/setenv are
+# not provided by the system and as the devices boot with uboot so it is not
+# possible to get any grub information as it is done with non arm devices.
+systems: [-ubuntu-core-*-arm-*]
+
 execute: |
 
     # Check help
