@@ -62,25 +62,25 @@ slots:
 const ggMockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
- greengrass-support-container-mode:
+ greengrass-support-legacy-container:
   interface: greengrass-support
-  flavor: container
+  flavor: legacy-container
 apps:
  app2:
   command: foo
-  plugs: [greengrass-support-container-mode, greengrass-support, network-control]
+  plugs: [greengrass-support-legacy-container, greengrass-support, network-control]
 `
 
 const ggProcessModeMockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
- greengrass-support-process-mode:
+ greengrass-support-no-container:
   interface: greengrass-support
-  flavor: process
+  flavor: no-container
 apps:
  app2:
   command: foo
-  plugs: [greengrass-support-process-mode, network-control]
+  plugs: [greengrass-support-no-container, network-control]
 `
 
 var _ = Suite(&GreengrassSupportInterfaceSuite{
@@ -93,9 +93,9 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 	s.extraPlug, s.extraPlugInfo = MockConnectedPlug(c, ggMockPlugSnapInfoYaml, nil, "network-control")
 	s.extraSlot, s.extraSlotInfo = MockConnectedSlot(c, coreSlotYaml, nil, "network-control")
 
-	s.processModePlug, s.processModePlugInfo = MockConnectedPlug(c, ggProcessModeMockPlugSnapInfoYaml, nil, "greengrass-support-process-mode")
+	s.processModePlug, s.processModePlugInfo = MockConnectedPlug(c, ggProcessModeMockPlugSnapInfoYaml, nil, "greengrass-support-no-container")
 
-	s.containerModePlug, s.containerModePlugInfo = MockConnectedPlug(c, ggMockPlugSnapInfoYaml, nil, "greengrass-support-container-mode")
+	s.containerModePlug, s.containerModePlugInfo = MockConnectedPlug(c, ggMockPlugSnapInfoYaml, nil, "greengrass-support-legacy-container")
 
 }
 
