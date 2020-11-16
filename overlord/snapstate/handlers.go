@@ -1716,6 +1716,33 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// installModeDisabledServices returns what services with
+// "install-mode: disabled" should be disabled.
+//
+// This is done by checking if the service is new in this
+// snap revision and if it is, it is auto-disabled.
+func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (svcsToDisable []string, err error) {
+	prevCurrentSvcs := map[string]bool{}
+
+	if psi := snapst.previousSideInfo(); psi != nil {
+		var prevCurrentInfo *snap.Info
+		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
+			for _, prevSvc := range prevCurrentInfo.Services() {
+				prevCurrentSvcs[prevSvc.Name] = true
+			}
+		}
+	}
+
+	for _, svc := range currentInfo.Services() {
+		if svc.InstallMode == "disable" {
+			if !prevCurrentSvcs[svc.Name] {
+				svcsToDisable = append(svcsToDisable, svc.Name)
+			}
+		}
+	}
+	return svcsToDisable, nil
+}
+
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1752,6 +1779,13 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// check what services with "InstallMode: disable" need to be disabled
+	svcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo)
+	if err != nil {
+		return err
+	}
+	svcsToDisable = append(svcsToDisable, svcsToDisableFromInstallMode...)
 
 	// append services that were disabled by hooks (they should not get re-enabled)
 	svcsToDisable = append(svcsToDisable, snapst.ServicesDisabledByHooks...)

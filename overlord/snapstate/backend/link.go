@@ -188,18 +188,6 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
-	// XXX: the below code is wrong, instead of first-time we need
-	// to check if the service was there before so that the behavior
-	// is correct for refreshes too
-	if linkCtx.FirstInstall {
-		for _, app := range s.Apps {
-			// XXX: make this a proper type instead of a string
-			if app.InstallMode == "disable" {
-				disabledSvcs = append(disabledSvcs, app.Name)
-			}
-		}
-	}
-
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
 		Preseeding:   b.preseed,
