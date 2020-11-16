@@ -32,7 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/desktop/notification"

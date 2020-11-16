@@ -35,7 +35,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"

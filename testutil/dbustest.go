@@ -25,7 +25,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 
 	. "gopkg.in/check.v1"
 )
