@@ -24,7 +24,12 @@ import (
 	"regexp"
 )
 
-var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+// validSeedSystemLabel is the regex describing a valid system label. Typically
+// system labels are expected to be date based, eg. 20201116, but for
+// completeness follow the same rule as model names (incl. one letter model
+// names and thus system labels), with the exception that uppercase letters are
+// not allowed, as the systems will often be stored in a FAT filesystem.
+var validSeedSystemLabel = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
 
 // ValidateSeedSystemLabel checks whether the string is a valid UC20 seed system
 // label.

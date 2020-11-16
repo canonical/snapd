@@ -40,8 +40,6 @@ func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 		"a-a-a",
 		"20191119",
 		"foobar",
-		"MYSYSTEM",
-		"mySystem",
 		"my-system",
 		"brand-system-date-1234",
 	}
@@ -59,6 +57,8 @@ func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 		"日本語",
 		"-invalid",
 		"invalid-",
+		"MYSYSTEM",
+		"mySystem",
 	}
 	for _, label := range invalid {
 		c.Logf("trying invalid label: %q", label)
