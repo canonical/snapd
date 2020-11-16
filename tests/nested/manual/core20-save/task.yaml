@@ -29,6 +29,15 @@ prepare: |
     # NESTED_ENABLE_TPM is used by create-vm
     "$TESTSTOOLS"/nested-state create-vm core
 
+debug: |
+    cat pc-gadget/meta/gadget.yaml || true
+    ls "$PWD" || true
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap || true)
+    unsquashfs -d unpacked-pc-gadget "$GADGET_SNAP" || true
+    cat unpacked-pc-gadget/meta/gadget.yaml || true
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

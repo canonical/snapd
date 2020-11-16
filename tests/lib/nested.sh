@@ -522,8 +522,10 @@ nested_create_core_vm() {
                             # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
                             # lands there is no ubuntu-save in the gadget, make sure we have one
                             nested_ensure_ubuntu_save pc-gadget --add
+                            touch ubuntu-save-added
                         else
                             nested_ensure_ubuntu_save pc-gadget --remove
+                            touch ubuntu-save-removed
                         fi
 
                         # also make logging persistent for easier debugging of
