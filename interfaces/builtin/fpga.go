@@ -21,13 +21,18 @@ package builtin
 
 const fpgaSummary = `allows access to the FPGA subsystem`
 
+const fpgaBaseDeclarationPlugs = `
+  fpga:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const fpgaBaseDeclarationSlots = `
   fpga:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
-    deny-connection: true
 `
 
 const fpgaConnectedPlugAppArmor = `
@@ -70,6 +75,7 @@ func init() {
 		summary:               fpgaSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  fpgaBaseDeclarationPlugs,
 		baseDeclarationSlots:  fpgaBaseDeclarationSlots,
 		connectedPlugAppArmor: fpgaConnectedPlugAppArmor,
 		connectedPlugUDev:     fpgaConnectedPlugUDev,
