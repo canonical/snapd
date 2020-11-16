@@ -671,7 +671,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
 		}
 		if _, ok := assert.headers["storage-safety"]; ok {
-			return nil, fmt.Errorf("cannot specify a storage-safety for model without the extended snaps header")
+			return nil, fmt.Errorf("cannot specify storage-safety for model without the extended snaps header")
 		}
 	}
 
