@@ -3,6 +3,9 @@ summary: Check that revert of a snap in devmode restores devmode
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-14.04*]
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}

@@ -9,7 +9,6 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -38,9 +37,6 @@ type TrackingOptions struct {
 // Scope names must be unique, a randomly generated UUID is appended to the
 // security tag, further suffixed with the string ".scope".
 func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) error {
-	if !features.RefreshAppAwareness.IsEnabled() {
-		return nil
-	}
 	if opts == nil {
 		// Retain original semantics when not explicitly configured otherwise.
 		opts = &TrackingOptions{AllowSessionBus: true}
