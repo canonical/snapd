@@ -43,7 +43,6 @@ type MockBootloader struct {
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 
 	InstallBootConfigCalled []string
-	InstallBootConfigResult bool
 	InstallBootConfigErr    error
 
 	enabledKernel    snap.PlaceInfo
@@ -138,9 +137,9 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 
 // InstallBootConfig installs the boot config in the gadget directory to the
 // mock bootloader's root directory.
-func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) (bool, error) {
+func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
-	return b.InstallBootConfigResult, b.InstallBootConfigErr
+	return b.InstallBootConfigErr
 }
 
 // MockRecoveryAwareBootloader mocks a bootloader implementing the
