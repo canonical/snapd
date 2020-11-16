@@ -897,7 +897,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
 		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
 		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be encrypted\|prefer-encrypted\|prefer-unencrypted, not "foo"`},
-		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `"grade: secured" cannot have "storage-safety: prefer-unencrypted"`},
+		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `"grade: secured" must have "storage-safety: encrypted"`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
