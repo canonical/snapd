@@ -339,24 +339,24 @@ const (
 	ModelDangerous ModelGrade = "dangerous"
 )
 
-// ModelStorageSafety characterizes the requested storage safety of
+// StorageSafety characterizes the requested storage safety of
 // the model which then controls what encryption is used
-type ModelStorageSafety string
+type StorageSafety string
 
 const (
-	ModelStorageSafetyUnset ModelStorageSafety = "unset"
-	// ModelStorageSafetyEncrypted implies mandatory full disk encryption.
-	ModelStorageSafetyEncrypted ModelStorageSafety = "encrypted"
-	// ModelStorageSafetyPreferEncrypted implies full disk
+	StorageSafetyUnset StorageSafety = "unset"
+	// StorageSafetyEncrypted implies mandatory full disk encryption.
+	StorageSafetyEncrypted StorageSafety = "encrypted"
+	// StorageSafetyPreferEncrypted implies full disk
 	// encryption when the system supports it.
-	ModelStorageSafetyPreferEncrypted ModelStorageSafety = "prefer-encrypted"
-	// ModelStorageSafetyPreferUnencrypted implies no full disk
+	StorageSafetyPreferEncrypted StorageSafety = "prefer-encrypted"
+	// StorageSafetyPreferUnencrypted implies no full disk
 	// encryption by default even if the system supports
 	// encryption.
-	ModelStorageSafetyPreferUnencrypted ModelStorageSafety = "prefer-unencrypted"
+	StorageSafetyPreferUnencrypted StorageSafety = "prefer-unencrypted"
 )
 
-var validStorageSafeties = []string{string(ModelStorageSafetyEncrypted), string(ModelStorageSafetyPreferEncrypted), string(ModelStorageSafetyPreferUnencrypted)}
+var validStorageSafeties = []string{string(StorageSafetyEncrypted), string(StorageSafetyPreferEncrypted), string(StorageSafetyPreferUnencrypted)}
 
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
@@ -393,7 +393,7 @@ type Model struct {
 
 	grade ModelGrade
 
-	storageSafety ModelStorageSafety
+	storageSafety StorageSafety
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -449,7 +449,7 @@ func (mod *Model) Grade() ModelGrade {
 
 // StorageSafety returns the storage safety for the model. Will be
 // StorageSafetyUnset for Core 16/18 models.
-func (mod *Model) StorageSafety() ModelStorageSafety {
+func (mod *Model) StorageSafety() StorageSafety {
 	return mod.storageSafety
 }
 
@@ -724,7 +724,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	var modSnaps *modelSnaps
 	grade := ModelGradeUnset
-	storageSafety := ModelStorageSafetyUnset
+	storageSafety := StorageSafetyUnset
 	if extended {
 		gradeStr, err := checkOptionalString(assert.headers, "grade")
 		if err != nil {
@@ -746,9 +746,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf("storage-safety for model must be %s, not %q", strings.Join(validStorageSafeties, "|"), storageSafetyStr)
 		}
 		if storageSafetyStr != "" {
-			storageSafety = ModelStorageSafety(storageSafetyStr)
+			storageSafety = StorageSafety(storageSafetyStr)
 		}
-		if grade == ModelSecured && storageSafety == ModelStorageSafetyPreferUnencrypted {
+		if grade == ModelSecured && storageSafety == StorageSafetyPreferUnencrypted {
 			return nil, fmt.Errorf(`"grade: secured" cannot have "storage-safety: prefer-unencrypted"`)
 		}
 
