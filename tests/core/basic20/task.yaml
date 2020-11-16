@@ -26,12 +26,14 @@ execute: |
     echo "Ensure passwd/group is available for snaps"
     test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-20-arm-* ]]; then
+        #shellcheck source=tests/lib/names.sh
+        . "$TESTSLIB"/names.sh
 
-    echo "Ensure extracted kernel.efi exists"
-    test -e /boot/grub/"$kernel_name"*/kernel.efi
-    test -e /boot/grub/kernel.efi
+        echo "Ensure extracted kernel.efi exists"
+        test -e /boot/grub/"$kernel_name"*/kernel.efi
+        test -e /boot/grub/kernel.efi
+    fi
 
     echo "Ensure that model was written to ubuntu-boot"
     test -e /run/mnt/ubuntu-boot/device/model
