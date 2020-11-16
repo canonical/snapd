@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,20 @@
  *
  */
 
-package seed
+package internal
 
 import (
-	"github.com/snapcore/snapd/seed/internal"
+	"fmt"
+	"regexp"
 )
 
-type InternalSnap16 = internal.Snap16
+var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
 
-var (
-	LoadAssertions = loadAssertions
-)
+// ValidateSeedSystemLabel checks whether the string is a valid UC20 seed system
+// label.
+func ValidateUC20SeedSystemLabel(label string) error {
+	if !validSeedSystemLabel.MatchString(label) {
+		return fmt.Errorf("invalid seed system label: %q", label)
+	}
+	return nil
+}
