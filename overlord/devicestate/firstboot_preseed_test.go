@@ -195,16 +195,20 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		var hsup hookstate.HookSetup
 		c.Assert(hookEdgeTask.Get("hook-setup", &hsup), IsNil)
 		c.Check(hsup.Hook, Equals, "install")
-		if hsup.Snap != "core" && hsup.Snap != "core18" && hsup.Snap != "snapd" {
+		switch hsup.Snap {
+		case "core", "core18", "snapd":
+			// ignore
+		default:
+			// snaps other than core/core18/snapd
 			var waitsForMarkPreseeded, waitsForPreviousSnapHook, waitsForPreviousSnap bool
 			for _, wt := range hookEdgeTask.WaitTasks() {
 				switch wt.Kind() {
 				case "setup-aliases":
 					continue
 				case "run-hook":
-					var hsup hookstate.HookSetup
-					c.Assert(wt.Get("hook-setup", &hsup), IsNil)
-					c.Check(hsup.Snap, Equals, snaps[matched-1])
+					var wtsup hookstate.HookSetup
+					c.Assert(wt.Get("hook-setup", &wtsup), IsNil)
+					c.Check(wtsup.Snap, Equals, snaps[matched-1])
 					waitsForPreviousSnapHook = true
 				case "mark-preseeded":
 					waitsForMarkPreseeded = true

@@ -332,11 +332,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 			return err
 		}
 	} else {
-		// TODO:UC20: should we make this more explicit with a new
-		//            bootloader interface that is checked for first before
-		//            ExtractedRunKernelImageBootloader the same way we do with
-		//            ExtractedRecoveryKernelImageBootloader?
-
 		// the bootloader does not support additional handling of
 		// extracted kernel images, we must name the kernel to be used
 		// explicitly in bootloader variables
