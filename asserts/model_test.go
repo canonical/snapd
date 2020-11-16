@@ -858,6 +858,33 @@ func (mods *modelSuite) TestCore20ValidStorageSafety(c *C) {
 	}
 }
 
+func (mods *modelSuite) TestCore20DefaultStorageSafetySecured(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	ex := strings.Replace(encoded, "storage-safety: encrypted\n", "", 1)
+
+	a, err := asserts.Decode([]byte(ex))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
+}
+
+func (mods *modelSuite) TestCore20DefaultStorageSafetySignedDangerous(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "storage-safety: encrypted\n", "", 1)
+
+	for _, grade := range []string{"dangerous", "signed"} {
+		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
+		a, err := asserts.Decode([]byte(ex))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyPreferEncrypted)
+	}
+}
+
 func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 
