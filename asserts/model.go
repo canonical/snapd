@@ -748,8 +748,15 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if storageSafetyStr != "" {
 			storageSafety = StorageSafety(storageSafetyStr)
 		}
-		if grade == ModelSecured && storageSafety != StorageSafetyEncrypted {
+		if grade == ModelSecured && storageSafety != StorageSafetyUnset && storageSafety != StorageSafetyEncrypted {
 			return nil, fmt.Errorf(`"grade: secured" must have "storage-safety: encrypted"`)
+		}
+		if storageSafety == StorageSafetyUnset {
+			if grade == ModelSecured {
+				storageSafety = StorageSafetyEncrypted
+			} else {
+				storageSafety = StorageSafetyPreferEncrypted
+			}
 		}
 
 		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
