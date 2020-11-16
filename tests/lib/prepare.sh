@@ -343,12 +343,12 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_core20_snap_with_tweaks() {
-    local CORE20SNAP="$1"
+repack_core_snap_with_tweaks() {
+    local CORESNAP="$1"
     local TARGET="$2"
 
-    local UNPACK_DIR="/tmp/core20-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+    local UNPACK_DIR="/tmp/core-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf

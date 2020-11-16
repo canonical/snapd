@@ -58,6 +58,8 @@ var (
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
 
+	SnapdMaintenanceFile string
+
 	SnapdStoreSSLCertsDir string
 
 	SnapSeedDir   string
@@ -102,6 +104,7 @@ var (
 	SnapBootAssetsDir string
 	SnapFDEDir        string
 	SnapSaveDir       string
+	SnapDeviceSaveDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -273,6 +276,12 @@ func SnapSaveDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "save")
 }
 
+// SnapFDEDirUnderSave returns the path to full disk encryption state directory
+// inside the given save tree dir.
+func SnapFDEDirUnderSave(savedir string) string {
+	return filepath.Join(savedir, "device/fde")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -293,6 +302,7 @@ func SetRootDir(rootdir string) {
 		"arch",
 		"archlinux",
 		"fedora",
+		"gentoo",
 		"manjaro",
 		"manjaro-arm",
 	}
@@ -314,6 +324,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
@@ -353,6 +364,7 @@ func SetRootDir(rootdir string) {
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
 	SnapSaveDir = SnapSaveDirUnder(rootdir)
+	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")

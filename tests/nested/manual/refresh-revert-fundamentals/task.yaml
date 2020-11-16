@@ -11,8 +11,11 @@ environment:
     NESTED_CORE_REFRESH_CHANNEL: edge
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
     NESTED_USE_CLOUD_INIT: true
-    NESTED_ENABLE_SECURE_BOOT: true
-    NESTED_ENABLE_TPM: true
+    # TODO:UC20: temporarily disable secure boot and encryption support. The
+    # location of encryption keys has changed, thus the nested VM will not boot
+    # until the kernel snap is rebuilt with snapd 2.48.
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_ENABLE_TPM: false
 
     SNAP/kernel: pc-kernel
     TRACK/kernel: 20
@@ -39,8 +42,8 @@ prepare: |
         exit
     fi
 
-    nested_create_core_vm
-    nested_start_core_vm
+    "$TESTSTOOLS"/nested-state build-image core
+    "$TESTSTOOLS"/nested-state create-vm core
 
 restore: |
     if [ -f skip.test ]; then

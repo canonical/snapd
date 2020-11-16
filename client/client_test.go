@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -143,6 +144,42 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.Body, Equals, reqBody)
 	c.Check(cs.req.URL.Path, Equals, "/this")
+}
+
+func makeMaintenanceFile(c *C, b []byte) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+}
+
+func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
+	// write a maintenance.json that says snapd is down for a restart
+	maintErr := &client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	}
+	b, err := json.Marshal(maintErr)
+	c.Assert(err, IsNil)
+	makeMaintenanceFile(c, b)
+
+	// now after a Do(), we will have maintenance set to what we wrote
+	// originally
+	_, err = cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	c.Check(err, IsNil)
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, DeepEquals, maintErr)
+}
+
+func (cs *clientSuite) TestClientIgnoresGarbageMaintenanceJSON(c *C) {
+	// write a garbage maintenance.json that can't be unmarshalled
+	makeMaintenanceFile(c, []byte("blah blah blah not json"))
+
+	// after a Do(), no maintenance set and also no error returned from Do()
+	_, err := cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	c.Check(err, IsNil)
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, IsNil)
 }
 
 func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
@@ -591,4 +628,16 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 
 	_, err = cli.Do("POST", "/", nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
+}
+
+func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
+	cs.rsp = `{"type":"sync", "result":{"recovery-key":"42"}}`
+
+	var key client.SystemRecoveryKeysResponse
+	err := cs.cli.SystemRecoveryKeys(&key)
+	c.Assert(err, IsNil)
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "GET")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/system-recovery-keys")
+	c.Check(key.RecoveryKey, Equals, "42")
 }
