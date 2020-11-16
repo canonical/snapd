@@ -1,12 +1,15 @@
 summary: the boot base provides essential fsck programs
+
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies that
   the boot process is capable of detecting unclean vfat and fixing it before
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
+
 prepare: |
   tests.cleanup prepare
+
 execute: |
   unmount_vfat() {
     if os.query is-core16; then
@@ -31,7 +34,11 @@ execute: |
       # unset RecoverySystem in the modeenv, and it's not necessary for
       # seeding anymore
       if mountpoint /run/mnt/snapd >/dev/null; then
-        umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+        if [[ "$SPREAD_SYSTEM" != ubuntu-core-20-arm-* ]]; then
+          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+        else
+          umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
+        fi
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed
@@ -83,5 +90,3 @@ execute: |
       REBOOT
       ;;
   esac
-restore: |
-  tests.cleanup restore
