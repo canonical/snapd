@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -79,6 +80,7 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 }
 
 func (s *makeBootableSuite) TestMakeBootable(c *C) {
+	bootloader.Force(nil)
 	model := boottest.MakeMockModel()
 
 	grubCfg := []byte("#grub cfg")
@@ -117,14 +119,11 @@ version: 4.0
 	c.Assert(err, IsNil)
 
 	// check the bootloader config
-	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core", "snap_menuentry")
-	c.Assert(err, IsNil)
-	c.Check(m["snap_kernel"], Equals, "pc-kernel_5.snap")
-	c.Check(m["snap_core"], Equals, "core18_3.snap")
-	c.Check(m["snap_menuentry"], Equals, "My Model")
-
-	// kernel was extracted as needed
-	c.Check(s.bootloader.ExtractKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernelInfo})
+	seedGenv := grubenv.NewEnv(filepath.Join(s.rootdir, "boot/grub/grubenv"))
+	c.Assert(seedGenv.Load(), IsNil)
+	c.Check(seedGenv.Get("snap_kernel"), Equals, "pc-kernel_5.snap")
+	c.Check(seedGenv.Get("snap_core"), Equals, "core18_3.snap")
+	c.Check(seedGenv.Get("snap_menuentry"), Equals, "My Model")
 
 	// check symlinks from snap blob dir
 	kernelBlob := filepath.Join(dirs.SnapBlobDirUnder(s.rootdir), kernelInfo.Filename())
@@ -173,6 +172,7 @@ func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20(c *C) {
+	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -228,7 +228,8 @@ version: 5.0
 	// ensure only a single file got copied (the grub.cfg)
 	files, err := filepath.Glob(filepath.Join(s.rootdir, "EFI/ubuntu/*"))
 	c.Assert(err, IsNil)
-	c.Check(files, HasLen, 1)
+	// grub.cfg and grubenv
+	c.Check(files, HasLen, 2)
 	// check that the recovery bootloader configuration was installed with
 	// the correct content
 	c.Check(filepath.Join(s.rootdir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryCfgAsset)
@@ -237,13 +238,13 @@ version: 5.0
 	c.Check(filepath.Join(s.rootdir, "boot"), testutil.FileAbsent)
 
 	// ensure the correct recovery system configuration was set
-	c.Check(s.bootloader.RecoverySystemDir, Equals, recoverySystemDir)
-	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
-	})
-	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snapd_recovery_system": label,
-	})
+	seedGenv := grubenv.NewEnv(filepath.Join(s.rootdir, "EFI/ubuntu/grubenv"))
+	c.Assert(seedGenv.Load(), IsNil)
+	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, label)
+
+	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
+	c.Assert(systemGenv.Load(), IsNil)
+	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
@@ -802,6 +803,7 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
+	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -849,7 +851,7 @@ version: 5.0
 
 	// TODO:UC20: enable this use case
 	err = boot.MakeBootable(model, s.rootdir, bootWith, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find boot config in %q", unpackedGadgetDir))
+	c.Assert(err, ErrorMatches, "non-empty uboot.env not supported on UC20 yet")
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20BootScr(c *C) {
