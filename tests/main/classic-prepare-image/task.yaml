@@ -1,6 +1,7 @@
 summary: Check that prepare-image --classic works.
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04*]
 
 backends: [-autopkgtest]
 
@@ -40,18 +41,15 @@ prepare: |
     cp -ar "$ROOT/$SEED_DIR" "$SEED_DIR"
 
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+    #shellcheck disable=SC2148
+    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    systemctl stop snapd.service snapd.socket
-    systemd_stop_and_destroy_unit fakedevicesvc
+    systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
     systemctl start snapd.socket snapd.service

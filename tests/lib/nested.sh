@@ -59,6 +59,20 @@ nested_wait_for_reboot() {
     [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
+nested_uc20_transition_to_system_mode() {
+    local recovery_system="$1"
+    local mode="$2"
+    local current_boot_id
+    current_boot_id=$(nested_get_boot_id)
+    nested_exec "sudo snap reboot --$mode $recovery_system"
+    nested_wait_for_reboot "$current_boot_id"
+
+    # verify we are now in the requested mode
+    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+        return 1
+    fi
+}
+
 nested_retry_while_success() {
     local retry="$1"
     local wait="$2"
@@ -218,9 +232,15 @@ nested_get_cdimage_current_image_url() {
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
-    # This should be executed on remote system but as nested architecture is the same than the
-    # host then the snap info is executed in the host
-    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+
+    curl -s \
+         -H "Snap-Device-Architecture: ${NESTED_ARCHITECTURE:-amd64}" \
+         -H "Snap-Device-Series: 16" \
+         -X POST \
+         -H "Content-Type: application/json" \
+         --data "{\"context\": [], \"actions\": [{\"action\": \"install\", \"name\": \"$SNAP\", \"channel\": \"$CHANNEL\", \"instance-key\": \"1\"}]}" \
+         https://api.snapcraft.io/v2/snaps/refresh | \
+        jq '.results[0].snap.revision'
 }
 
 nested_is_nested_system() {
@@ -454,6 +474,16 @@ nested_create_core_vm() {
                     repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
+                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                    fi
+
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -524,7 +554,7 @@ EOF
 
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
                     # sign the snapd snap with fakestore if requested
@@ -1101,7 +1131,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_destroy_unit "$NESTED_VM"
+    systemd_stop_and_remove_unit "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 

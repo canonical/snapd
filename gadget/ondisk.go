@@ -40,8 +40,6 @@ const (
 	ubuntuSaveLabel = "ubuntu-save"
 
 	sectorSize quantity.Size = 512
-
-	createdPartitionAttr = "59"
 )
 
 var createdPartitionGUID = []string{
@@ -85,38 +83,6 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
-	switch sfdiskLabel {
-	case "gpt":
-		// the created partitions use specific GPT GUID types and set a
-		// specific bit in partition attributes
-		if !creationSupported(p.Type) {
-			return false
-		}
-		for _, a := range strings.Fields(p.Attrs) {
-			if !strings.HasPrefix(a, "GUID:") {
-				continue
-			}
-			attrs := strings.Split(a[5:], ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) {
-				return true
-			}
-		}
-	case "dos":
-		// we have no similar type/bit attribute setting for MBR, on top
-		// of that MBR does not support partition names, fall back to
-		// reasonable assumption that only partitions carrying
-		// ubuntu-boot and ubuntu-data labels are created during
-		// install, everything else was part of factory image
-
-		// TODO:UC20 consider using gadget layout information to build a
-		// mapping of partition start offset to label/name
-		createdDuringInstall := []string{ubuntuBootLabel, ubuntuSaveLabel, ubuntuDataLabel}
-		return strutil.ListContains(createdDuringInstall, fs.Label)
-	}
-	return false
-}
-
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
 
 // OnDiskStructure represents a gadget structure laid on a block device.
@@ -125,9 +91,11 @@ type OnDiskStructure struct {
 
 	// Node identifies the device node of the block device.
 	Node string
-	// CreatedDuringInstall is true when the structure has properties indicating
-	// it was created based on the gadget description during installation.
-	CreatedDuringInstall bool
+
+	// Size of the on disk structure, which is at least equal to the
+	// LaidOutStructure.Size but may be bigger if the partition was
+	// expanded.
+	Size quantity.Size
 }
 
 // OnDiskVolume holds information about the disk device including its partitioning
@@ -147,7 +115,7 @@ type OnDiskVolume struct {
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
+	output, err := exec.Command("sfdisk", "--json", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
@@ -240,8 +208,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 				StartOffset:     quantity.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node:                 p.Node,
-			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
+			Node: p.Node,
 		}
 	}
 
@@ -342,8 +309,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, pIndex)
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
+		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
+			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name)
 
 		// Set expected labels based on role
 		switch s.Role {
@@ -358,9 +325,9 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		}
 
 		toBeCreated = append(toBeCreated, OnDiskStructure{
-			LaidOutStructure:     p,
-			Node:                 node,
-			CreatedDuringInstall: true,
+			LaidOutStructure: p,
+			Node:             node,
+			Size:             size,
 		})
 	}
 
@@ -382,18 +349,6 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	dl.partitionTable = layout.partitionTable
 
 	return nil
-}
-
-// CreatedDuringInstall returns a list of partitions created during the
-// install process.
-func CreatedDuringInstall(layout *OnDiskVolume) (created []string) {
-	created = make([]string, 0, len(layout.Structure))
-	for _, s := range layout.Structure {
-		if s.CreatedDuringInstall {
-			created = append(created, s.Node)
-		}
-	}
-	return created
 }
 
 func partitionType(label, ptype string) string {

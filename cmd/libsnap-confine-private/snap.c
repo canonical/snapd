@@ -28,8 +28,12 @@
 #include "string-utils.h"
 #include "cleanup-funcs.h"
 
-bool verify_security_tag(const char *security_tag, const char *snap_name)
+bool sc_security_tag_validate(const char *security_tag, const char *snap_name)
 {
+	/* Don't even check overly long tags. */
+	if (strlen(security_tag) > SNAP_SECURITY_TAG_MAX_LEN) {
+		return false;
+	}
 	const char *whitelist_re =
 	    "^snap\\.([a-z0-9](-?[a-z0-9])*(_[a-z0-9]{1,10})?)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z0-9])*)$";
 	regex_t re;

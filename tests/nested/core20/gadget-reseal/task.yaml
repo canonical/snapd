@@ -5,7 +5,7 @@ systems: [ubuntu-20.04-64]
 execute: |
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     # Install new (unasserted) gadget without changes and wait for change without reboot
     boot_id="$( nested_get_boot_id )"
@@ -14,7 +14,7 @@ execute: |
     nested_exec sudo snap watch "${REMOTE_CHG_ID}"
   
     # nothing in the gadget has changed so no reseal was needed
-    SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
     RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
@@ -50,7 +50,7 @@ execute: |
     nested_exec sudo grep -q -a "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
 
     # the gadget has changed, we should see resealing
-    SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-seed/device/fde/ubuntu-data.sealed-key)"
+    SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
     RESEAL_COUNT_3="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     test "$RESEAL_COUNT_3" -gt "1"

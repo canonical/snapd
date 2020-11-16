@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -91,7 +92,8 @@ func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
 		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
-		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/usr/lib/snapd/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"%s/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"",
+			tag, dirs.DistroLibExecDir, tag), tag)
 	}
 }
 
