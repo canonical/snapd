@@ -436,6 +436,8 @@ func addHotplugSlot(st *state.State, repo *interfaces.Repository, stateSlots map
 	return nil
 }
 
+// connState holds properties of a connection.
+// Changes to connState should be reflected in cmd_debug_state.go.
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	ByGadget  bool   `json:"by-gadget,omitempty"`
