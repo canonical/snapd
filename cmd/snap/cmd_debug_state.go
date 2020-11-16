@@ -294,35 +294,35 @@ func parseConnID(connID string) (plugSnap, plugName, slotSnap, slotName string, 
 	if len(p) != 2 {
 		return "", "", "", "", fmt.Errorf("cannot parse connection ID %q", connID)
 	}
-	plugSnap, plugName, err = parsePlugOrSlot(p[0])
-	if err != nil {
+	var plug, slot SnapAndName
+	if err := plug.UnmarshalFlag(p[0]); err != nil {
 		return "", "", "", "", err
 	}
-	slotSnap, slotName, err = parsePlugOrSlot(p[1])
+	if err := slot.UnmarshalFlag(p[1]); err != nil {
+
+	}
 	if err != nil {
 		return "", "", "", "", err
 	}
 
-	return plugSnap, plugName, slotSnap, slotName, nil
+	return plug.Snap, plug.Name, slot.Snap, slot.Name, nil
 }
 
 func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var plugSnapMatch, plugNameMatch, slotSnapMatch, slotNameMatch string
 	p := strings.FieldsFunc(connArg, func(r rune) bool {
 		return r == ' ' || r == ','
 	})
 
-	plugSnapMatch, plugNameMatch, err := parsePlugOrSlot(p[0])
-	if err != nil {
+	var plugMatch, slotMatch SnapAndName
+	if err := plugMatch.UnmarshalFlag(p[0]); err != nil {
 		return err
 	}
 
 	if len(p) > 1 {
-		slotSnapMatch, slotNameMatch, err = parsePlugOrSlot(p[1])
-		if err != nil {
+		if err := slotMatch.UnmarshalFlag(p[1]); err != nil {
 			return err
 		}
 	}
@@ -345,24 +345,24 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 			return err
 		}
 
-		if slotSnapMatch != "" && slotSnap != slotSnapMatch {
+		if slotMatch.Snap != "" && slotSnap != slotMatch.Snap {
 			continue
 		}
-		if slotNameMatch != "" && slotName != slotNameMatch {
+		if slotMatch.Name != "" && slotName != slotMatch.Name {
 			continue
 		}
-		if plugNameMatch != "" && plugName != plugNameMatch {
+		if plugMatch.Name != "" && plugName != plugMatch.Name {
 			continue
 		}
 
 		// support single snap name argument to match either plug or slot snap
-		if plugSnapMatch != "" && slotSnapMatch == "" {
-			if !(plugSnap == plugSnapMatch || slotSnap == plugSnapMatch) {
+		if plugMatch.Snap != "" && slotMatch.Name == "" {
+			if !(plugSnap == plugMatch.Snap || slotSnap == plugMatch.Snap) {
 				continue
 			}
 		}
 
-		if plugSnapMatch != "" && (slotSnapMatch != "" || slotNameMatch != "") && plugSnapMatch != plugSnap {
+		if plugMatch.Snap != "" && (slotMatch.Snap != "" || slotMatch.Name != "") && plugMatch.Snap != plugSnap {
 			continue
 		}
 
