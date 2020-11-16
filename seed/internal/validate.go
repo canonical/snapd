@@ -24,7 +24,7 @@ import (
 	"regexp"
 )
 
-var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
+var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 // ValidateSeedSystemLabel checks whether the string is a valid UC20 seed system
 // label.

@@ -33,7 +33,11 @@ var _ = Suite(&validateSuite{})
 
 func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 	valid := []string{
+		"a",
 		"ab",
+		"a-a",
+		"a-123",
+		"a-a-a",
 		"20191119",
 		"foobar",
 		"MYSYSTEM",
@@ -49,7 +53,6 @@ func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 
 	invalid := []string{
 		"",
-		"a", // too short
 		"/bin",
 		"../../bin/bar",
 		":invalid:",
