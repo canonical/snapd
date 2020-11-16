@@ -24,9 +24,6 @@ environment:
   NESTED_ADD_UBUNTU_SAVE/plain: false
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # NESTED_ENABLE_TPM and NESTED_ADD_UBUNTU_SAVE are used by build-image
     "$TESTSTOOLS"/nested-state build-image core
     # NESTED_ENABLE_TPM is used by create-vm
@@ -37,7 +34,7 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     if [ "$NESTED_ADD_UBUNTU_SAVE" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]; then
-        # no ubuntu-save, make sure the system is up
+        # no ubuntu-save, make sure one isn't mounted
         nested_exec "! mountpoint /run/mnt/ubuntu-save"
         nested_exec "! mountpoint /var/lib/snapd/save"
     else
@@ -54,7 +51,7 @@ execute: |
             echo "$save_out" | MATCH '^/dev/vda[0-9]\s+'
         fi
         save_size="$(echo "$save_out" | awk '{print $4}')"
-        echo "check  there is at least 6MB of free space available on ubuntu-save"
+        echo "check that there is at least 6MB of free space available on ubuntu-save"
         test "$save_size" -gt "$((6*1024*1024))"
 
         # leave a canary
