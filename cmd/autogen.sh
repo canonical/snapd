@@ -32,6 +32,9 @@ case "$ID" in
 	debian)
 		extra_opts="--libexecdir=/usr/lib/snapd"
 		;;
+	gentoo)
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-apparmor --enable-nvidia-biarch --enable-merged-usr"
+		;;
 	ubuntu)
 		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 		if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
