@@ -179,7 +179,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelGradeUnset)
-	c.Check(model.StorageSafety(), Equals, asserts.ModelStorageSafetyUnset)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyUnset)
 	essentialSnaps := model.EssentialSnaps()
 	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
@@ -667,7 +667,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelSecured)
-	c.Check(model.StorageSafety(), Equals, asserts.ModelStorageSafetyEncrypted)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
 	essentialSnaps := model.EssentialSnaps()
 	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
