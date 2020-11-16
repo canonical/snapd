@@ -32,6 +32,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 type cmdDebugState struct {
@@ -276,38 +277,6 @@ func (c byPlug) Less(i, j int) bool {
 	return false
 }
 
-func parsePlugOrSlot(plugOrSlot string) (snap, name string, err error) {
-	p := strings.Split(plugOrSlot, ":")
-	switch len(p) {
-	case 2:
-		snap, name = p[0], p[1]
-	case 1:
-		snap = p[0]
-	default:
-		return "", "", fmt.Errorf("cannot parse %q", plugOrSlot)
-	}
-	return snap, name, nil
-}
-
-func parseConnID(connID string) (plugSnap, plugName, slotSnap, slotName string, err error) {
-	p := strings.Split(connID, " ")
-	if len(p) != 2 {
-		return "", "", "", "", fmt.Errorf("cannot parse connection ID %q", connID)
-	}
-	var plug, slot SnapAndName
-	if err := plug.UnmarshalFlag(p[0]); err != nil {
-		return "", "", "", "", err
-	}
-	if err := slot.UnmarshalFlag(p[1]); err != nil {
-
-	}
-	if err != nil {
-		return "", "", "", "", err
-	}
-
-	return plug.Snap, plug.Name, slot.Snap, slot.Name, nil
-}
-
 func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) error {
 	st.Lock()
 	defer st.Unlock()
@@ -340,29 +309,29 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 	sort.Strings(connIDs)
 
 	for _, connID := range connIDs {
-		plugSnap, plugName, slotSnap, slotName, err := parseConnID(connID)
+		connRef, err := interfaces.ParseConnRef(connID)
 		if err != nil {
 			return err
 		}
 
-		if slotMatch.Snap != "" && slotSnap != slotMatch.Snap {
+		if slotMatch.Snap != "" && connRef.SlotRef.Snap != slotMatch.Snap {
 			continue
 		}
-		if slotMatch.Name != "" && slotName != slotMatch.Name {
+		if slotMatch.Name != "" && connRef.SlotRef.Name != slotMatch.Name {
 			continue
 		}
-		if plugMatch.Name != "" && plugName != plugMatch.Name {
+		if plugMatch.Name != "" && connRef.PlugRef.Name != plugMatch.Name {
 			continue
 		}
 
 		// support single snap name argument to match either plug or slot snap
 		if plugMatch.Snap != "" && slotMatch.Name == "" {
-			if !(plugSnap == plugMatch.Snap || slotSnap == plugMatch.Snap) {
+			if !(connRef.PlugRef.Snap == plugMatch.Snap || connRef.SlotRef.Snap == plugMatch.Snap) {
 				continue
 			}
 		}
 
-		if plugMatch.Snap != "" && (slotMatch.Snap != "" || slotMatch.Name != "") && plugMatch.Snap != plugSnap {
+		if plugMatch.Snap != "" && (slotMatch.Snap != "" || slotMatch.Name != "") && plugMatch.Snap != connRef.PlugRef.Snap {
 			continue
 		}
 
