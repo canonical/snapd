@@ -2645,7 +2645,8 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	grubRecoveryCfgAsset := assets.Internal("grub-recovery.cfg")
 	c.Assert(grubRecoveryCfgAsset, NotNil)
 	c.Check(grubCfg, testutil.FileEquals, string(grubRecoveryCfgAsset))
-	// make sure that grub.cfg is the only file present inside the directory
+	// make sure that grub.cfg and grubenv are the only files present inside
+	// the directory
 	gl, err := filepath.Glob(filepath.Join(prepareDir, "system-seed/EFI/ubuntu/*"))
 	c.Assert(err, IsNil)
 	c.Check(gl, DeepEquals, []string{

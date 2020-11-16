@@ -96,8 +96,7 @@ type Bootloader interface {
 	ConfigFile() string
 
 	// InstallBootConfig will try to install the boot config in the
-	// given gadgetDir to rootdir. If no boot config for this bootloader
-	// is found ok is false.
+	// given gadgetDir to rootdir.
 	InstallBootConfig(gadgetDir string, opts *Options) error
 
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap.
