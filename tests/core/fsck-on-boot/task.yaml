@@ -61,7 +61,11 @@ execute: |
       # Use offset 65 as FAT32 kicks in for devices larger than 32MB
       printf "\x01" > one
       tests.cleanup defer rm -f one
-      dd if=one of=/dev/sda2 seek=65 bs=1 count=1 conv=notrunc
+      if os.query is-core16 || os.query is-core18; then
+        dd if=/dev/disk/by-label/system-boot of=dirty skip=65 bs=1 count=1 conv=notrunc
+      elif os.query is-core20; then
+        dd if=/dev/disk/by-label/ubuntu-seed of=dirty skip=65 bs=1 count=1 conv=notrunc
+      fi
       tests.cleanup pop
 
       # Reboot to give the early boot process a chance to fix the corruption.
@@ -83,7 +87,11 @@ execute: |
       # chain.
       unmount_vfat
       cat /proc/self/mountinfo >boot1-after-umount.log
-      dd if=/dev/sda2 of=dirty skip=65 bs=1 count=1 conv=notrunc
+      if os.query is-core16 || os.query is-core18; then
+        dd if=/dev/disk/by-label/system-boot of=dirty skip=65 bs=1 count=1 conv=notrunc
+      elif os.query is-core20; then
+        dd if=/dev/disk/by-label/ubuntu-seed of=dirty skip=65 bs=1 count=1 conv=notrunc
+      fi
       test "$(od -t x1 -A n dirty)" = " 00"  # NOTE: the leading space is relevant
 
       # Reboot to restore mount points.
