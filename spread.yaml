@@ -192,8 +192,6 @@ backends:
                   password: ubuntu
 
     qemu:
-        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
-        memory: 2G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu

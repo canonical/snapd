@@ -20,6 +20,9 @@ execute: |
 
     echo "Disabling DNS queries"
     iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    if systemctl is-active systemd-resolved; then
+        resolvectl flush-caches
+    fi
 
     systemctl start snapd.{socket,service}
 
