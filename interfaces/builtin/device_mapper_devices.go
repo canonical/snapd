@@ -47,8 +47,8 @@ const deviceMapperDevicesConnectedPlugAppArmor = `
 /sys/block/ r,
 /sys/devices/**/block/** r,
 
-# Access to LVM logical volume devices
-/dev/dm-[0-9]{,[0-9],[0-9][0-9]} rwk,                   # LVM LV (up to 1000 devices)
+# Access to Device Mapper devices (including LVM logical volume devices)
+/dev/dm-[0-9]{,[0-9],[0-9][0-9]} rwk,                   # Device Mapper (up to 1000 devices)
 
 # SCSI device commands, et al
 capability sys_rawio,
