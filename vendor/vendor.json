@@ -37,16 +37,22 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
-			"path": "github.com/godbus/dbus",
-			"revision": "4481cbc300e2df0c0b3cecc18b6c16c6c0bb885d",
-			"revisionTime": "2019-07-26T02:52:47Z"
+			"checksumSHA1": "jQQKj5dG39gCFtDVwRqEG68z9IM=",
+			"origin": "github.com/godbus/dbus",
+			"path": "github.com/godbus/dbus/v5",
+			"revision": "37bf87eef99d69c4f1d3528bd66e3a87dc201472",
+			"revisionTime": "2019-09-30T11:59:46Z",
+			"version": "v5",
+			"versionExact": "v5.0.3"
 		},
 		{
-			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
-			"path": "github.com/godbus/dbus/introspect",
-			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
-			"revisionTime": "2017-08-22T15:24:03Z"
+			"checksumSHA1": "yNlQEFab/eKtCaenRxBGP0QW9dQ=",
+			"origin": "github.com/godbus/dbus/introspect",
+			"path": "github.com/godbus/dbus/v5/introspect",
+			"revision": "37bf87eef99d69c4f1d3528bd66e3a87dc201472",
+			"revisionTime": "2019-09-30T11:59:46Z",
+			"version": "v5",
+			"versionExact": "v5.0.3"
 		},
 		{
 			"checksumSHA1": "2Iy16w6c+4oMD8TtobbO0qsCrDo=",
