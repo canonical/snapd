@@ -33,6 +33,9 @@ execute: |
     test -e /boot/grub/"$kernel_name"*/kernel.efi
     test -e /boot/grub/kernel.efi
 
+    echo "Ensure that model was written to ubuntu-boot"
+    test -e /run/mnt/ubuntu-boot/device/model
+
     echo "Ensure we are using managed boot assets"
     MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
     MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg

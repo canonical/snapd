@@ -29,11 +29,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -130,9 +132,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	bopts.Encrypt = useEncryption
 
+	// make sure that gadget is usable for the set up we want to use it in
+	gadgetContaints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
-	var installObserver install.SystemInstallObserver
+	var installObserver gadget.ContentObserver
 	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset install observer: %v", err)
@@ -146,25 +156,48 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts, installObserver)
+		installedSystem, err = installRun(gadgetDir, "", bopts, installObserver)
 	}()
 	if err != nil {
-		return fmt.Errorf("cannot create partitions: %v", err)
+		return fmt.Errorf("cannot install system: %v", err)
 	}
 
 	if trustedInstallObserver != nil {
+		// sanity check
+		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
+			return fmt.Errorf("internal error: system encryption keys are unset")
+		}
+		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
+		saveKeySet := installedSystem.KeysForRoles[gadget.SystemSave]
+
+		// make note of the encryption keys
+		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
+
+		// keep track of recovery assets
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
+		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+			return err
+		}
+		// write markers containing a secret to pair data and save
+		if err := writeMarkers(); err != nil {
+			return err
 		}
 	}
 
 	// keep track of the model we installed
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
+	}
+	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -201,6 +234,67 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystemNow)
 
+	return nil
+}
+
+// writeMarkers writes markers containing the same secret to pair data and save.
+func writeMarkers() error {
+	// ensure directory for markers exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
+		return err
+	}
+
+	// generate a secret random marker
+	markerSecret, err := randutil.CryptoTokenBytes(32)
+	if err != nil {
+		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
+	}
+
+	dataMarker := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	if err := osutil.AtomicWriteFile(dataMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
+
+	saveMarker := filepath.Join(boot.InstallHostFDESaveDir, "marker")
+	if err := osutil.AtomicWriteFile(saveMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
+	dataKeySet := keysForRoles[gadget.SystemData]
+
+	// ensure directory for keys exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
+	}
+
+	// Write the recovery key
+	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
+	if err := dataKeySet.RecoveryKey.Save(recoveryKeyFile); err != nil {
+		return fmt.Errorf("cannot store recovery key: %v", err)
+	}
+
+	saveKeySet := keysForRoles[gadget.SystemSave]
+	if saveKeySet == nil {
+		// no system-save support
+		return nil
+	}
+
+	saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
+	reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
+
+	if err := saveKeySet.Key.Save(saveKey); err != nil {
+		return fmt.Errorf("cannot store system save key: %v", err)
+	}
+	if err := saveKeySet.RecoveryKey.Save(reinstallSaveKey); err != nil {
+		return fmt.Errorf("cannot store reinstall key: %v", err)
+	}
 	return nil
 }
 

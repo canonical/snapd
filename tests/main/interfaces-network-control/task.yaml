@@ -1,6 +1,7 @@
 summary: Ensure that the network-control interface works.
 
-systems: [-fedora-*, -opensuse-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
 
 details: |
     The network-control interface allows a snap to configure networking.
@@ -15,7 +16,6 @@ details: |
 
 environment:
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
     ARP_ENTRY_ADDR: "30.30.30.30"
 
@@ -26,16 +26,13 @@ prepare: |
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
 
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    systemctl stop "$SERVICE_NAME"
     arp -d "$ARP_ENTRY_ADDR" -i "$(get_default_iface)" || true
 
     ip netns delete test-ns || true
