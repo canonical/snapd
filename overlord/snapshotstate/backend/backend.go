@@ -599,7 +599,7 @@ func (t *importTransaction) unlock() error {
 }
 
 // CleanupAbandondedImports will clean any import that is in progress.
-// This is meant to be call at startup of snapd before any real imports
+// This is meant to be called at startup of snapd before any real imports
 // happen.
 //
 // The amount of snapshots cleaned is returned or an error
