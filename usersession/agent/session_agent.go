@@ -216,8 +216,8 @@ func (s *SessionAgent) Init() error {
 	return nil
 }
 
-func (s *SessionAgent) tryConnectSessionBus() error {
-	bus, err := dbusSessionBus()
+func (s *SessionAgent) tryConnectSessionBus() (err error) {
+	s.bus, err = dbusSessionBus()
 	if err != nil {
 		// ssh sessions on Ubuntu 16.04 may have a user
 		// instance of systemd but no D-Bus session bus.  So
@@ -225,23 +225,20 @@ func (s *SessionAgent) tryConnectSessionBus() error {
 		logger.Noticef("Could not connect to session bus: %v", err)
 		return nil
 	}
-
 	defer func() {
-		if bus != nil {
-			bus.Close()
+		if err != nil {
+			s.bus.Close()
+			s.bus = nil
 		}
 	}()
 
-	reply, err := bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
+	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
 	if err != nil {
 		return err
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
 	}
-
-	s.bus = bus
-	bus = nil
 	return nil
 }
 

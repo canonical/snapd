@@ -369,8 +369,6 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain/joke")
 	c.Assert(err, IsNil)
@@ -386,8 +384,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain")
 	c.Assert(err, IsNil)
@@ -403,8 +399,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "application/json; charset=EBCDIC")
 	c.Assert(err, IsNil)
@@ -420,8 +414,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":syntaxerror}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -444,8 +436,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":"pkg"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -482,9 +472,6 @@ func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *cl
 	c.Assert(err, IsNil)
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
-
-	_, err = agent.New()
-	c.Assert(err, IsNil)
 
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
@@ -630,9 +617,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C)
 	c.Assert(err, IsNil)
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
-
-	_, err = agent.New()
-	c.Assert(err, IsNil)
 
 	refreshInfo := &client.PendingSnapRefreshInfo{
 		InstanceName: "pkg",
