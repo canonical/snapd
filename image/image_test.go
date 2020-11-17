@@ -2663,6 +2663,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	})
 	c.Check(bl.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": filepath.Base(systems[0]),
+		"snapd_recovery_mode":   "install",
 	})
 
 	// check the downloads
@@ -2769,6 +2770,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	env, err := ubootenv.Open(bootSel)
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
+	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
