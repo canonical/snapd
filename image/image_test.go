@@ -2662,6 +2662,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	seedGenv := grubenv.NewEnv(seedGrubenv)
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, filepath.Base(systems[0]))
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
 
 	c.Check(s.stderr.String(), Equals, "")
 
@@ -2773,6 +2774,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	env, err := ubootenv.Open(bootSel)
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
+	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
