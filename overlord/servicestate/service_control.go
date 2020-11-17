@@ -103,6 +103,10 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		if disable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
 			changed, err := updateSnapstateServices(&snapst, nil, services)
 			if err != nil {
 				return err
@@ -127,6 +131,10 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		if enable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
 			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil)
 			if err != nil {
 				return err
