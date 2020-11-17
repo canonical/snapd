@@ -26,17 +26,23 @@ execute: |
     echo "Ensure passwd/group is available for snaps"
     test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-20-arm-* ]]; then
-        #shellcheck source=tests/lib/names.sh
-        . "$TESTSLIB"/names.sh
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
 
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-20-64 ]]; then
         echo "Ensure extracted kernel.efi exists"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
-        test -e /boot/grub/kernel.efi
+
+        echo "Ensure kernel.efi is a symlink"
+        test -L /boot/grub/kernel.efi
 
         echo "Ensure we are using managed boot assets"
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
+    else
+        echo "Ensure extracted {kernel,initrd}.img exists"
+        test -e /run/mnt/ubuntu-seed/systems/*/kernel/kernel.img
+        test -e /run/mnt/ubuntu-seed/systems/*/kernel/initrd.img
     fi
 
     echo "Ensure that model was written to ubuntu-boot"
