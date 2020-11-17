@@ -320,5 +320,16 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 		return false, nil
 	}
 
+	// encryption is available but some models may prefer to not
+	// use it
+	// TODO: provide way to select via install chooser menu
+	// if the install is unencrypted or encrypted
+	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
+		logger.Noticef(`installing system unencrypted because of "storage-safety: prefer-unencrypted"`)
+		return false, nil
+	}
+
+	// encrypt if it's supported and the user/model did not express
+	// other preferences
 	return true, nil
 }
