@@ -87,12 +87,13 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
+const (
+	pcSnapID       = "pcididididididididididididididid"
+	pcKernelSnapID = "pckernelidididididididididididid"
+	core20SnapID   = "core20ididididididididididididid"
+)
+
 func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
-	const (
-		pcSnapID       = "pcididididididididididididididid"
-		pcKernelSnapID = "pckernelidididididididididididid"
-		core20SnapID   = "core20ididididididididididididid"
-	)
 	si := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(1),
@@ -796,4 +797,56 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(s.restartRequests, HasLen, 1)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	var testCases = []struct {
+		grade, storageSafety string
+
+		expectedEncryption bool
+	}{
+		// we don't test unset here because the assertion assembly
+		// will ensure it has a default
+		{"dangerous", "prefer-unencrypted", false},
+		{"dangerous", "prefer-encrypted", true},
+		{"dangerous", "encrypted", true},
+		{"signed", "prefer-unencrypted", false},
+		{"signed", "prefer-encrypted", true},
+		{"signed", "encrypted", true},
+		// secured+prefer-{,un}encrypted is an error at the
+		// assertion level already so cannot be tested here
+		{"secured", "encrypted", true},
+	}
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+
+		encrypt, err := devicestate.CheckEncryption(mockModel)
+		c.Assert(err, IsNil)
+		c.Check(encrypt, Equals, tc.expectedEncryption)
+	}
 }
