@@ -848,13 +848,20 @@ func (mods *modelSuite) TestCore20ValidStorageSafety(c *C) {
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "grade: secured\n", "grade: signed\n", 1)
 
-	for _, sss := range []string{"prefer-encrypted", "prefer-unencrypted", "encrypted"} {
-		ex := strings.Replace(encoded, "storage-safety: encrypted\n", fmt.Sprintf("storage-safety: %s\n", sss), 1)
+	for _, tc := range []struct {
+		ss  asserts.StorageSafety
+		sss string
+	}{
+		{asserts.StorageSafetyPreferEncrypted, "prefer-encrypted"},
+		{asserts.StorageSafetyPreferUnencrypted, "prefer-unencrypted"},
+		{asserts.StorageSafetyEncrypted, "encrypted"},
+	} {
+		ex := strings.Replace(encoded, "storage-safety: encrypted\n", fmt.Sprintf("storage-safety: %s\n", tc.sss), 1)
 		a, err := asserts.Decode([]byte(ex))
 		c.Assert(err, IsNil)
 		c.Check(a.Type(), Equals, asserts.ModelType)
 		model := a.(*asserts.Model)
-		c.Check(string(model.StorageSafety()), Equals, sss)
+		c.Check(model.StorageSafety(), Equals, tc.ss)
 	}
 }
 
