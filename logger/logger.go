@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/osutil"
@@ -172,6 +171,6 @@ func debugEnabledOnKernelCmdline() bool {
 	if err != nil {
 		return false
 	}
-	l, _ := strutil.KernelCommandLineSplit(strings.TrimSpace(string(buf)))
-	return strutil.ListContains(l, "snapd.debug=1")
+	val, _ := strutil.GetKernelCommandLineKeyValue(string(buf), "snapd.debug")
+	return val == "1"
 }
