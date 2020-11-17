@@ -31,3 +31,6 @@ execute: |
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
     nested_exec "! snap list test-snapd-sh"
+
+    # check that we go the install log after the transition to run mode
+    nested_exec "test -e /var/log/install-mode.log"
