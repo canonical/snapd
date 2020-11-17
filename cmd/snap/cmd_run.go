@@ -1015,6 +1015,17 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
 	}
+	// kernels have no explicit base, we use the boot base
+	if info.Type() == snap.TypeKernel && info.Base == "" {
+		modelAssertion, err := x.client.CurrentModelAssertion()
+		if err != nil {
+			return err
+		}
+		modelBase := modelAssertion.Base()
+		if modelBase != "" {
+			cmd = append(cmd, "--base", modelBase)
+		}
+	}
 	cmd = append(cmd, securityTag)
 
 	// when under confinement, snap-exec is run from 'core' snap rootfs
