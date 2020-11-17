@@ -89,6 +89,52 @@ func (s *diskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
+func (s *diskSuite) TestDiskFromNameHappy(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":   "1",
+			"MINOR":   "2",
+			"DEVTYPE": "disk",
+		}, nil
+	})
+	defer restore()
+
+	d, err := disks.DiskFromName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "1:2")
+}
+
+func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		c.Assert(dev, Equals, "sda1")
+		return map[string]string{
+			"MAJOR":   "1",
+			"MINOR":   "3",
+			"DEVTYPE": "partition",
+		}, nil
+	})
+	defer restore()
+
+	_, err := disks.DiskFromName("sda1")
+	c.Assert(err, ErrorMatches, "device \"sda1\" is not a disk, it has DEVTYPE of \"partition\"")
+}
+
+func (s *diskSuite) TestDiskFromNameUnhappyBadUdevOutput(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		c.Assert(dev, Equals, "sda")
+		// udev should always return the major/minor but if it doesn't we should
+		// fail
+		return map[string]string{
+			"MAJOR": "blah blah blah",
+		}, nil
+	})
+	defer restore()
+
+	_, err := disks.DiskFromName("sda")
+	c.Assert(err, ErrorMatches, "cannot find disk with name \"sda\": malformed udev output")
+}
+
 func (s *diskSuite) TestDiskFromMountPointUnhappyMissingMountpoint(c *C) {
 	// no mount points
 	restore := osutil.MockMountInfo(``)
