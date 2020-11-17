@@ -10,7 +10,7 @@ execute: |
     . "$TESTSLIB/systems.sh"
 
     TARGET_SNAP=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP=core18
     fi
 

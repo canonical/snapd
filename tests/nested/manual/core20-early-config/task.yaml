@@ -23,6 +23,9 @@ prepare: |
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
+    # ensure ubuntu-save is there
+    nested_ensure_ubuntu_save pc-gadget
+
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml
     mkdir -p pc-gadget/meta/hooks
     cp install pc-gadget/meta/hooks/
@@ -32,8 +35,8 @@ prepare: |
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-    nested_create_core_vm
-    nested_start_core_vm
+    "$TESTSTOOLS"/nested-state build-image core
+    "$TESTSTOOLS"/nested-state create-vm core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

@@ -332,11 +332,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 			return err
 		}
 	} else {
-		// TODO:UC20: should we make this more explicit with a new
-		//            bootloader interface that is checked for first before
-		//            ExtractedRunKernelImageBootloader the same way we do with
-		//            ExtractedRecoveryKernelImageBootloader?
-
 		// the bootloader does not support additional handling of
 		// extracted kernel images, we must name the kernel to be used
 		// explicitly in bootloader variables
@@ -356,18 +351,14 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 		// installing boot config must be performed after the boot
 		// partition has been populated with gadget data
-		ok, err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts)
-		if err != nil {
+		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
-		}
-		if !ok {
-			return fmt.Errorf("cannot install boot config with a mismatched gadget")
 		}
 	}
 
 	if sealer != nil {
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.encryptionKey, model, modeenv); err != nil {
+		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv); err != nil {
 			return err
 		}
 	}

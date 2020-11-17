@@ -39,9 +39,6 @@ type LinkContext struct {
 	// FirstInstall indicates whether this is the first time given snap is
 	// installed
 	FirstInstall bool
-	// PrevDisabledServices is a list snap services that were manually
-	// disable in the previous revisions of this snap
-	PrevDisabledServices []string
 
 	// VitalityRank is used to hint how much the services should be
 	// protected from the OOM killer
@@ -160,8 +157,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 	return reboot, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, nil, nil, meter, tm)
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+	flags := &wrappers.StartServicesFlags{Enable: true}
+	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
@@ -179,10 +177,9 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		}
 	}()
 
-	disabledSvcs := linkCtx.PrevDisabledServices
 	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
-		return generateSnapdWrappers(s)
+		return GenerateSnapdWrappers(s)
 	}
 
 	// add the CLI apps from the snap.yaml
@@ -196,7 +193,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		Preseeding:   b.preseed,
 		VitalityRank: linkCtx.VitalityRank,
 	}
-	if err = wrappers.AddSnapServices(s, disabledSvcs, opts, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
@@ -246,7 +243,7 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 	return firstErr(err1, err2, err3, err4)
 }
 
-func generateSnapdWrappers(s *snap.Info) error {
+func GenerateSnapdWrappers(s *snap.Info) error {
 	// snapd services are handled separately via an explicit helper
 	return wrappers.AddSnapdSnapServices(s, progress.Null)
 }

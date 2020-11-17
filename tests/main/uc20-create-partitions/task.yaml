@@ -61,12 +61,6 @@ execute: |
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
-    echo "Check if attribute bits were set for new partitions"
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p1.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p2.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p3.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p4.*attrs=\"GUID:59\""
-
     echo "Check that the filesystems were not auto-mounted"
     mount | not MATCH /run/mnt/ubuntu-seed
     mount | not MATCH /run/mnt/ubuntu-boot
