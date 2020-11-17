@@ -87,7 +87,7 @@ execute: |
       # Use offset 65 as FAT32 kicks in for devices larger than 32MB
       printf "\x01" > one
       tests.cleanup defer rm -f one
-      dd if="/dev/disk/by-label/$LABEL" of=dirty skip=65 bs=1 count=1 conv=notrunc
+      dd if=one of="/dev/disk/by-label/$LABEL" skip=65 bs=1 count=1 conv=notrunc
       tests.cleanup pop
 
       # Reboot to give the early boot process a chance to fix the corruption.
