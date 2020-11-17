@@ -907,16 +907,15 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	oldHasFdeSetupHook := boot.HasFdeSetupHook
-	defer func() { boot.HasFdeSetupHook = oldHasFdeSetupHook }()
-	boot.HasFdeSetupHook = func(bootWith *boot.BootableSet) bool {
+	oldHasFDESetupHook := boot.HasFDESetupHook
+	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
+	boot.HasFDESetupHook = func(bootWith *boot.BootableSet) bool {
 		c.Assert(bootWith.Kernel.SuggestedName, Equals, "mock-kernel")
-		//bootWith.Kernel.Hooks["fde-setup"]
 		return true
 	}
-	oldFdeSetupHookRunner := boot.FdeSetupHookRunner
-	defer func() { boot.FdeSetupHookRunner = oldFdeSetupHookRunner }()
-	boot.FdeSetupHookRunner = func(string, *boot.FdeSetupHookParams) error {
+	oldRunFDESetupHook := boot.RunFDESetupHook
+	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
+	boot.RunFDESetupHook = func(string, *boot.FdeSetupHookParams) error {
 		c.Fatalf("hook runner should not be called yet")
 		return nil
 	}
@@ -932,7 +931,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 		Kernel: &snap.Info{
 			SuggestedName: "mock-kernel",
 			Hooks: map[string]*snap.HookInfo{
-				"fde-setup": &snap.HookInfo{
+				"fde-setup": {
 					Name: "fde-setup",
 				},
 			},
