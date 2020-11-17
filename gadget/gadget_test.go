@@ -250,6 +250,125 @@ volumes:
         role: system-data
 `)
 
+var gadgetYamlLkUC20 = []byte(`
+device-tree-origin: kernel
+volumes:
+  dragonboard:
+    schema: gpt
+    bootloader: lk
+    structure:
+      - name: cdt
+        offset: 17408
+        size: 2048
+        type: A19F205F-CCD8-4B6D-8F1E-2D9BC24CFFB1
+        content:
+            - image: blobs/sbc_1.0_8016.bin
+      - name: sbl1
+        offset: 19456
+        size: 1048576
+        content:
+            - image: blobs/sbl1.mbn
+        type: DEA0BA2C-CBDD-4805-B4F9-F428251C3E98
+      - name: rpm
+        offset: 1068032
+        size: 1048576
+        content:
+            - image: blobs/rpm.mbn
+        type: 098DF793-D712-413D-9D4E-89D711772228
+      - name: tz
+        offset: 2116608
+        size: 1048576
+        content:
+            - image: blobs/tz.mbn
+        type: A053AA7F-40B8-4B1C-BA08-2F68AC71A4F4
+      - name: hyp
+        offset: 3165184
+        size: 1048576
+        content:
+            - image: blobs/hyp.mbn
+        type: E1A6A689-0C8D-4CC6-B4E8-55A4320FBD8A
+      - name: sec
+        offset: 5242880
+        size: 1048576
+        type: 303E6AC3-AF15-4C54-9E9B-D9A8FBECF401
+      - name: aboot
+        offset: 6291456
+        size: 2097152
+        content:
+            - image: blobs/emmc_appsboot.mbn
+        type: 400FFDCD-22E0-47E7-9A23-F16ED9382388
+      - name: snaprecoverysel
+        offset: 8388608
+        size: 131072
+        passthrough:
+          role: system-recovery-select
+        content:
+            - image: snaprecoverysel.bin
+        type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
+      - name: snaprecoveryselbak
+        offset: 8519680
+        size: 131072
+        passthrough:
+          role: system-recovery-select
+        content:
+            - image: snaprecoverysel.bin
+        type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
+      - name: snapbootsel
+        offset: 8650752
+        size: 131072
+        role: system-boot-select
+        content:
+            - image: blobs/snapbootsel.bin
+        type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
+      - name: snapbootselbak
+        offset: 8781824
+        size: 131072
+        role: system-boot-select
+        content:
+            - image: blobs/snapbootsel.bin
+        type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
+      - name: boot_ra
+        offset: 9437184
+        size: 31457280
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        passthrough:
+          role: system-recovery-image
+      - name: boot_rb
+        offset: 40894464
+        size: 31457280
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        passthrough:
+          role: system-recovery-image
+      - name: boot_a
+        offset: 72351744
+        size: 31457280
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        role: system-boot-image
+      - name: boot_b
+        offset: 103809024
+        size: 31457280
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        role: system-boot-image
+      - name: ubuntu-boot
+        offset: 135266304
+        filesystem: ext4
+        size: 10485760
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-seed
+        offset: 145752064
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-data
+        offset: 670040064
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
 var gadgetYamlLkLegacy = []byte(`
 volumes:
   volumename:
@@ -748,6 +867,19 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
 		_, err = gadget.ReadInfo(s.dir, constraints)
 		c.Assert(err, IsNil)
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkUC20, 0644)
+	c.Assert(err, IsNil)
+
+	uc20Model := &modelConstraints{
+		systemSeed: true,
+		classic:    false,
+	}
+
+	_, err = gadget.ReadInfo(s.dir, uc20Model)
+	c.Assert(err, IsNil)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkLegacyHappy(c *C) {
