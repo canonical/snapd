@@ -96,6 +96,8 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
+	// TODO: this should maybe read individual parameters from
+	// strutil.KernelCommandLineSplit and parse key value pairs from that?
 	cmdline, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return "", "", err
