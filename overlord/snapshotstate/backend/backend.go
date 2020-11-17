@@ -475,6 +475,12 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
+var (
+	importingFnRegexp = regexp.MustCompile("^([0-9]+)_importing$")
+	importingFnGlob   = "*_importing"
+	importingFnFmt    = "%d_importing"
+)
+
 // importInProgressFor return true if the given snapshot id has an import
 // that is in progress.
 func importInProgressFor(setID uint64) bool {
@@ -501,7 +507,7 @@ type importTransaction struct {
 // snapshot id.
 func newImportTransaction(setID uint64) *importTransaction {
 	return &importTransaction{
-		flockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID)),
+		flockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingFnFmt, setID)),
 		id:        setID,
 	}
 }
@@ -510,8 +516,7 @@ func newImportTransaction(setID uint64) *importTransaction {
 // for the given import file path. It may return an error if an
 // invalid file was specified.
 func newImportTransactionFromImportFile(p string) (*importTransaction, error) {
-	m := regexp.MustCompile("^([0-9]+)_importing$")
-	parts := m.FindStringSubmatch(path.Base(p))
+	parts := importingFnRegexp.FindStringSubmatch(path.Base(p))
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("cannot determine snapshot id from %q", p)
 	}
@@ -604,7 +609,7 @@ func (t *importTransaction) unlock() error {
 //
 // The amount of snapshots cleaned is returned or an error
 func CleanupAbandondedImports() (cleaned int, err error) {
-	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, "*_importing"))
+	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
 		return 0, err
 	}
