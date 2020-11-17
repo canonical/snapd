@@ -13,15 +13,25 @@ prepare: |
 execute: |
   unmount_vfat() {
     if os.query is-core16; then
-      # Refer to the core 16 PC gadget for details:
+      # Refer to the core 16 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
-      umount /boot/efi
-      umount /boot/grub
+      # https://github.com/snapcore/pi2-gadget/blob/master/gadget.yaml
+      if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-arm-* ]]; then
+        umount /boot/uboot
+      else
+        umount /boot/efi
+        umount /boot/grub
+      fi
     elif os.query is-core18; then
-      # Refer to the core 18 PC gadget for details:
+      # Refer to the core 18 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/18/gadget.yaml
-      umount /boot/efi
-      umount /boot/grub
+      # https://github.com/snapcore/pi2-gadget/blob/18/gadget.yaml
+      if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-arm-* ]]; then
+        umount /boot/uboot
+      else
+        umount /boot/efi
+        umount /boot/grub
+      fi
     elif os.query is-core20; then
       # TODO:UC20 The property of having to keep a mounted vfat at all time
       # is not the most fortunate. Any power loss will result in a dirty
@@ -34,10 +44,10 @@ execute: |
       # unset RecoverySystem in the modeenv, and it's not necessary for
       # seeding anymore
       if mountpoint /run/mnt/snapd >/dev/null; then
-        if [[ "$SPREAD_SYSTEM" != ubuntu-core-20-arm-* ]]; then
-          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
-        else
+        if [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
           umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
+        else
+          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
         fi
       fi
       umount /var/lib/snapd/seed
