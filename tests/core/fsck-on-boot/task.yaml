@@ -10,6 +10,9 @@ details: |
 prepare: |
   tests.cleanup prepare
 
+restore: |
+  tests.cleanup restore
+
 execute: |
   unmount_vfat() {
     if os.query is-core16; then
@@ -43,6 +46,10 @@ execute: |
       # on the first boot - subsequent boots do not mount it, because we will
       # unset RecoverySystem in the modeenv, and it's not necessary for
       # seeding anymore
+
+      # Refer to the core 20 gadgets for details:
+      # https://github.com/snapcore/pc-amd64-gadget/blob/20/gadget.yaml
+      # https://github.com/snapcore/pi-gadget/blob/20-arm64/gadget.yaml
       if mountpoint /run/mnt/snapd >/dev/null; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
           umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
@@ -58,6 +65,15 @@ execute: |
     fi
   }
 
+  if os.query is-core16 || os.query is-core18; then
+    LABEL=system-boot
+  elif os.query is-core20; then
+    LABEL=ubuntu-seed
+  else
+    echo "unknown core system, please update test"
+    exit 1
+  fi
+
   case "$SPREAD_REBOOT" in
     0)
       echo "We can corrupt the boot partition"
@@ -71,11 +87,7 @@ execute: |
       # Use offset 65 as FAT32 kicks in for devices larger than 32MB
       printf "\x01" > one
       tests.cleanup defer rm -f one
-      if os.query is-core16 || os.query is-core18; then
-        dd if=/dev/disk/by-label/system-boot of=dirty skip=65 bs=1 count=1 conv=notrunc
-      elif os.query is-core20; then
-        dd if=/dev/disk/by-label/ubuntu-seed of=dirty skip=65 bs=1 count=1 conv=notrunc
-      fi
+      dd if="/dev/disk/by-label/$LABEL" of=dirty skip=65 bs=1 count=1 conv=notrunc
       tests.cleanup pop
 
       # Reboot to give the early boot process a chance to fix the corruption.
@@ -97,11 +109,7 @@ execute: |
       # chain.
       unmount_vfat
       cat /proc/self/mountinfo >boot1-after-umount.log
-      if os.query is-core16 || os.query is-core18; then
-        dd if=/dev/disk/by-label/system-boot of=dirty skip=65 bs=1 count=1 conv=notrunc
-      elif os.query is-core20; then
-        dd if=/dev/disk/by-label/ubuntu-seed of=dirty skip=65 bs=1 count=1 conv=notrunc
-      fi
+      dd if="/dev/disk/by-label/$LABEL" of=dirty skip=65 bs=1 count=1 conv=notrunc
       test "$(od -t x1 -A n dirty)" = " 00"  # NOTE: the leading space is relevant
 
       # Reboot to restore mount points.
