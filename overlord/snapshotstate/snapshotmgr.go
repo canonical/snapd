@@ -60,7 +60,6 @@ type SnapshotManager struct {
 	state *state.State
 
 	lastForgetExpiredSnapshotTime time.Time
-	cleanupAbandondedImportsRan   bool
 }
 
 // Manager returns a new SnapshotManager

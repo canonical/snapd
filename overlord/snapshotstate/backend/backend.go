@@ -573,11 +573,17 @@ func (t *importTransaction) Cancel() error {
 
 // Commit will commit a given transaction
 func (t *importTransaction) Commit() error {
+	if err := t.unlock(); err != nil {
+		return err
+	}
 	t.committed = true
-	return t.unlock()
+	return nil
 }
 
 func (t *importTransaction) lock() error {
+	if t.flock != nil {
+		return fmt.Errorf("internal error: import snapshot lock called twice")
+	}
 	flock, err := osutil.NewFileLock(t.flockPath)
 	if err != nil {
 		return err
@@ -607,7 +613,8 @@ func (t *importTransaction) unlock() error {
 // This is meant to be called at startup of snapd before any real imports
 // happen.
 //
-// The amount of snapshots cleaned is returned or an error
+// The amount of snapshots cleaned is returned and an error if one or
+// more cleanups did not succeed.
 func CleanupAbandondedImports() (cleaned int, err error) {
 	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
@@ -626,15 +633,22 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 		}
 		if err := tr.Cancel(); err != nil {
 			errs = append(errs, err)
+		} else {
+			cleaned++
 		}
-		cleaned++
 	}
 	if len(errs) > 0 {
 		buf := bytes.NewBuffer(nil)
 		for _, err := range errs {
 			fmt.Fprintf(buf, " - %v\n", err)
 		}
-		return cleaned, fmt.Errorf("cannot cleanup imports:\n%s", buf.String())
+		var prefixFmt string
+		if cleaned == 0 {
+			prefixFmt = "cannot cleanup imports:\n%s"
+		} else {
+			prefixFmt = "cannot cleanup some imports:\n%s"
+		}
+		return cleaned, fmt.Errorf(prefixFmt, buf.String())
 	}
 	return cleaned, nil
 }
