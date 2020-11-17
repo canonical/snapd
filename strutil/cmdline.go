@@ -22,6 +22,7 @@ package strutil
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // KernelCommandLineSplit tries to split the string comprising full or a part
@@ -156,4 +157,30 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 		return nil, errUnbalancedQUote
 	}
 	return out, nil
+}
+
+// GetKernelCommandLineKeyValue splits the given kernel command line string into
+// individual parameters using KernelCommandLineSplit, then matches for key
+// value pairs and returns the value of the specified key.
+func GetKernelCommandLineKeyValue(s string, key string) (string, error) {
+	params, err := KernelCommandLineSplit(strings.TrimSpace(s))
+	if err != nil {
+		return "", err
+	}
+
+	// iterate in reverse order so we use the last one defined on the kernel
+	// command line if the same key is defined multiple times
+	for i := len(params) - 1; i >= 0; i-- {
+		param := params[i]
+		if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
+			res := strings.SplitN(param, "=", 2)
+			if len(res) == 2 {
+				return res[1], nil
+			}
+			// length not of N means the empty string was passed, so just return
+			// that
+			return "", nil
+		}
+	}
+	return "", nil
 }

@@ -89,3 +89,75 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		}
 	}
 }
+
+func (s *cmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
+	for _, t := range []struct {
+		cmdline string
+		key     string
+		exp     string
+		err     string
+		comment string
+	}{
+		{
+			cmdline: "",
+			comment: "empty cmdline",
+			key:     "foo",
+			exp:     "",
+		},
+		{
+			cmdline: "foo",
+			comment: "cmdline non-key-value",
+			key:     "foo",
+			exp:     "",
+		},
+		{
+			cmdline: "foo=1",
+			comment: "key-value pair",
+			key:     "foo",
+			exp:     "1",
+		},
+		{
+			cmdline: "foo=",
+			comment: "empty value in key-value pair",
+			key:     "foo",
+			exp:     "",
+		},
+		{
+			cmdline: "foo=1 foo=2",
+			comment: "duplicated key-value pair uses last one",
+			key:     "foo",
+			exp:     "2",
+		},
+		{
+			cmdline: "foo=1 foo foo2=other",
+			comment: "cmdline key-value pair and non-key-value",
+			key:     "foo",
+			exp:     "1",
+		},
+		{
+			cmdline: "foo=a=1",
+			comment: "key-value pair with = in value",
+			key:     "foo",
+			exp:     "a=1",
+		},
+		{
+			cmdline: "=foo",
+			comment: "missing key",
+			key:     "foo",
+			exp:     "",
+		},
+		{
+			cmdline: `"foo`,
+			comment: "invalid kernel cmdline",
+			key:     "foo",
+			err:     "unexpected quoting",
+		},
+	} {
+		val, err := strutil.GetKernelCommandLineKeyValue(t.cmdline, t.key)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
+		} else {
+			c.Assert(val, Equals, t.exp, Commentf(t.comment))
+		}
+	}
+}
