@@ -52,7 +52,7 @@ func (a *androidboot) dir() string {
 	return filepath.Join(a.rootdir, "/boot/androidboot")
 }
 
-func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, a.Name()+".conf")
 	systemFile := a.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
