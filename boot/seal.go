@@ -47,14 +47,16 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
-// Hook function setup by devicestate to support device-specific full
+// Hook functions setup by devicestate to support device-specific full
 // disk encryption implementations.
-var HasFDESetupHook = func(*BootableSet) bool {
-	return false
-}
-var RunFDESetupHook = func(op string, params *FdeSetupHookParams) error {
-	return fmt.Errorf("internal error: RunFDESetupHook not set yet")
-}
+var (
+	HasFDESetupHook = func(*BootableSet) bool {
+		return false
+	}
+	RunFDESetupHook = func(op string, params *FdeSetupHookParams) error {
+		return fmt.Errorf("internal error: RunFDESetupHook not set yet")
+	}
+)
 
 // FdeSetupHookParams contains the inputs for the fde-setup hook
 type FdeSetupHookParams struct {
