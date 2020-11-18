@@ -53,13 +53,14 @@ execute: |
       if mountpoint /run/mnt/snapd >/dev/null; then
         if [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
           umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
+          umount /boot/uboot
         else
           umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
+          umount /boot/efi
         fi
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed
-      umount /boot/efi
     else
       echo "Please adjust the test to support this core system"
       false
