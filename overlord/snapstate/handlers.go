@@ -1720,9 +1720,13 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 // "install-mode: disabled" should be disabled. Only services
 // seen for the first time are considered.
 func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (svcsToDisable []string, err error) {
-	prevCurrentSvcs := map[string]bool{}
+	enabledByHookSvcs := map[string]bool{}
+	for _, svcName := range snapst.ServicesEnabledByHooks {
+		enabledByHookSvcs[svcName] = true
+	}
 
 	// find what servies the previous snap had
+	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
 		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
@@ -1738,7 +1742,7 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	// do not need special handling. They are either still disabled
 	// or soemthing has enabled them and then they should stay enabled.
 	for _, svc := range currentInfo.Services() {
-		if svc.InstallMode == "disable" {
+		if svc.InstallMode == "disable" && !enabledByHookSvcs[svc.Name] {
 			if !prevCurrentSvcs[svc.Name] {
 				svcsToDisable = append(svcsToDisable, svc.Name)
 			}
