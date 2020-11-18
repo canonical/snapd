@@ -412,9 +412,6 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		cli := s.newHTTPClient(nil)
 		resp, finalErr = s.doRequest(downloadCtx, cli, reqOptions, user)
 		if cancelled(downloadCtx) {
-			if finalErr == nil {
-				resp.Body.Close()
-			}
 			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
 		}
 		if finalErr != nil {
