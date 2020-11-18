@@ -9,23 +9,10 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
     sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
 fi
 
-# wait until we can do a DNS lookup on ubuntu.com before doing any apt 
-# operations, as the lxd container sometimes sees really weird errors about the 
-# apt sources.list such as:
-#
-# Reading package lists...
-# E: Type 'ubuntu' is not known on line 50 in source list /etc/apt/sources.list
-# E: The list of sources could not be read.
-#
-# waiting like this seems to resolve the race condition wherever it is in apt 
-
-#shellcheck disable=2034
-for i in $(seq 1 60); do
-    if  nslookup -timeout=1 archive.ubuntu.com; then
-        break
-    fi
-    sleep 0.1
-done
+# wait for cloud-init to finish before doing any apt operations, since it will
+# re-write the apt sources.list file and we will be racing with the re-write 
+# trying to do apt operations before cloud-init is done
+cloud-init status --wait
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
