@@ -10,13 +10,10 @@ restore: |
     rm -f default.out uc20.out run.out recovery.out
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     # does not outright fail
     snap debug boot-vars  > default.out
 
-    if is_core20_system; then
+    if os.query is-core20; then
         # boot-vars default output is for the run mode bootloader, make sure its
         # output looks sane (though we don't expect any of the variables to be
         # set)

@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: boot.sh has side-effects
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
 # XXX: dirs.sh has side-effects
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -24,9 +20,6 @@ set -e
 
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 
 ###
@@ -247,7 +240,7 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
-    if [ "$(bootenv snap_mode)" = "try" ]; then
+    if [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
@@ -548,7 +541,7 @@ prepare_project() {
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         disable_journald_rate_limiting
@@ -566,7 +559,7 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if is_core_system; then
+    if os.query is-core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -616,7 +609,7 @@ prepare_suite_each() {
 
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
-        if is_classic_system; then
+        if os.query is-classic; then
             prepare_each_classic
         fi
     fi
@@ -682,7 +675,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd

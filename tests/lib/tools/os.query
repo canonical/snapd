@@ -15,19 +15,19 @@ show_help() {
 }
 
 is_core() {
-    grep -qFx 'NAME="Ubuntu Core"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
 }
 
 is_core16() {
-    grep -qFx 'PRETTY_NAME="Ubuntu Core 16"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
 }
 
 is_core18() {
-    grep -qFx 'PRETTY_NAME="Ubuntu Core 18"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
 }
 
 is_core20() {
-    grep -qFx 'PRETTY_NAME="Ubuntu Core 20"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
 }
 
 is_classic() {
@@ -35,7 +35,7 @@ is_classic() {
 }
 
 is_trusty() {
-    grep -qFx 'UBUNTU_CODENAME=trusty' /etc/os-release
+    grep -qFx 'ID=ubuntu' /etc/os-release && grep -qFx 'VERSION_ID="14.04"' /etc/os-release
 }
 
 is_xenial() {

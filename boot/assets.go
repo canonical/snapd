@@ -263,7 +263,8 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
 
-	encryptionKey secboot.EncryptionKey
+	dataEncryptionKey secboot.EncryptionKey
+	saveEncryptionKey secboot.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -338,8 +339,9 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+	o.dataEncryptionKey = key
+	o.saveEncryptionKey = saveKey
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
