@@ -327,8 +327,6 @@ func (w *TransferSpeedMonitoringWriter) Monitor() (quit chan bool) {
 	go func() {
 		for {
 			select {
-			case <-w.ctx.Done():
-				return
 			case <-time.After(w.measureTimeWindow):
 				if !w.checkSpeed(downloadSpeedMin) {
 					w.cancel()
