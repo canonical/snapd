@@ -910,6 +910,7 @@ version: 5.0
 
 	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": label,
+		"snapd_recovery_mode":   "install",
 	})
 
 	// ensure the correct recovery system configuration was set
