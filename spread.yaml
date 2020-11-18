@@ -579,6 +579,14 @@ prepare: |
         yum install -y epel-release
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # make sure unattended-upgrades does no get in the way
+        if systemctl is-enabled unattended-upgrades.service; then
+            systemctl stop unattended-upgrades.service
+            systemctl mask unattended-upgrades.service
+        fi
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
