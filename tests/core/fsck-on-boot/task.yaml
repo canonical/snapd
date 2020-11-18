@@ -35,6 +35,7 @@ execute: |
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed
+      umount /boot/efi
     else
       echo "Please adjust the test to support this core system"
       false
