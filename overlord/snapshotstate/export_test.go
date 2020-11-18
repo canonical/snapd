@@ -184,6 +184,6 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 }
 
 // For testing only
-func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 	mgr.lastForgetExpiredSnapshotTime = t
 }

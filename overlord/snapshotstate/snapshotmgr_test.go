@@ -159,7 +159,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	// pretend we haven't run for a while
 	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
 	c.Assert(err, check.IsNil)
-	mgr.SetLastForgetExpiredSnapshotTime(t)
+	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 	c.Assert(mgr.Ensure(), check.IsNil)
 	c.Check(backendIterCalls, check.Equals, 2)
 
@@ -213,7 +213,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	// pretend we haven't run for a while
 	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
 	c.Assert(err, check.IsNil)
-	mgr.SetLastForgetExpiredSnapshotTime(t)
+	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 
 	st.Unlock()
 	c.Assert(mgr.Ensure(), check.IsNil)
