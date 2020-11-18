@@ -57,8 +57,3 @@ apps:
         daemon: simple
         stop-command: bin/stop 60
         stop-timeout: 10s
-    test-snapd-service-install-mode-disable:
-        command: bin/start
-        stop-command: bin/stop
-        daemon: simple
-        install-mode: disable
