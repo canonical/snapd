@@ -730,6 +730,9 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return info, f.emptyContainer, nil
 }
 
+// XXX: this is now something that is overriden by tests that need a
+//      different service setup so it should be configurable and part
+//      of the fakeSnappyBackend?
 var servicesSnapYaml = `name: services-snap
 apps:
   svc1:
