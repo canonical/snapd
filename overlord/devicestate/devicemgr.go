@@ -142,6 +142,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
+	// add FDE hook support to boot
+	boot.HasFDESetupHook = hasFDESetupHook
+
 	return m, nil
 }
 
@@ -1352,4 +1355,12 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func hasFDESetupHook(bootWith *boot.BootableSet) bool {
+	if bootWith == nil || bootWith.Kernel == nil {
+		return false
+	}
+	_, ok := bootWith.Kernel.Hooks["fde-setup"]
+	return ok
 }
