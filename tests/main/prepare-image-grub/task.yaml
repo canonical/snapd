@@ -1,7 +1,12 @@
 summary: Check that prepare-image works for grub-systems
 
 # ubuntu-14.04: systemd-run not supported
-systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-14.04*]
+# ubuntu-core-*: building images is not explicitly supported
+# fedora-*: building images is not explicitly supported
+# centos-*: building images is not explicitly supported
+# arch-*: building images is not explicitly supported
+# amazon-*: building images is not explicitly supported
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04*]
 
 backends: [-autopkgtest]
 
