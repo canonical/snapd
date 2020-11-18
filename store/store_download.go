@@ -288,8 +288,8 @@ func (e *downloadTimeoutError) Error() string {
 
 // implements io.Writer interface
 // XXX: move to osutil?
-type WriterWithTimeout struct {
-	m sync.Mutex
+type TransferSpeedMonitoringWriter struct {
+	mu sync.Mutex
 
 	measureTimeWindow   time.Duration
 	minDownloadSpeedBps float64
@@ -301,15 +301,18 @@ type WriterWithTimeout struct {
 	written int
 	cancel  func()
 	err     error
+
+	// for testing
+	measuredWindows int
 }
 
-// NewWriterWithTimeoutAndContext returns an io.Writer that measures write speed
+// NewTransferSpeedMonitoringWriterAndContext returns an io.Writer that measures write speed
 // in measureTimeWindow windows an cancels the operation if minDownloadSeepdBps
 // is not achieved.
-// Measure() must be called to start actual measurement.
-func NewWriterWithTimeoutAndContext(origCtx context.Context, measureTimeWindow time.Duration, minDownloadSpeedBps float64) (*WriterWithTimeout, context.Context) {
+// Monitor() must be called to start actual measurement.
+func NewTransferSpeedMonitoringWriterAndContext(origCtx context.Context, measureTimeWindow time.Duration, minDownloadSpeedBps float64) (*TransferSpeedMonitoringWriter, context.Context) {
 	ctx, cancel := context.WithCancel(origCtx)
-	w := &WriterWithTimeout{
+	w := &TransferSpeedMonitoringWriter{
 		measureTimeWindow:   measureTimeWindow,
 		minDownloadSpeedBps: minDownloadSpeedBps,
 		ctx:                 ctx,
@@ -318,16 +321,17 @@ func NewWriterWithTimeoutAndContext(origCtx context.Context, measureTimeWindow t
 	return w, ctx
 }
 
-func (w *WriterWithTimeout) reset() {
-	w.m.Lock()
-	defer w.m.Unlock()
+func (w *TransferSpeedMonitoringWriter) reset() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.written = 0
 	w.start = time.Now()
+	w.measuredWindows++
 }
 
-func (w *WriterWithTimeout) checkSpeed(min float64) bool {
-	w.m.Lock()
-	defer w.m.Unlock()
+func (w *TransferSpeedMonitoringWriter) checkSpeed(min float64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	d := time.Now().Sub(w.start)
 	s := float64(w.written) / d.Seconds()
 	ok := s >= min
@@ -337,16 +341,14 @@ func (w *WriterWithTimeout) checkSpeed(min float64) bool {
 	return ok
 }
 
-// Measure starts a new measurement for write operations and returns a quit
+// Monitor starts a new measurement for write operations and returns a quit
 // channel that should be closed by the caller to finish the measurement.
-func (w *WriterWithTimeout) Measure() (quit chan bool) {
+func (w *TransferSpeedMonitoringWriter) Monitor() (quit chan bool) {
 	quit = make(chan bool)
 	w.reset()
 	go func() {
 		for {
 			select {
-			case <-w.ctx.Done():
-				return
 			case <-time.After(w.measureTimeWindow):
 				if !w.checkSpeed(downloadSpeedMin) {
 					w.cancel()
@@ -366,15 +368,15 @@ func (w *WriterWithTimeout) Measure() (quit chan bool) {
 	return quit
 }
 
-func (w *WriterWithTimeout) Write(p []byte) (n int, err error) {
-	w.m.Lock()
-	defer w.m.Unlock()
+func (w *TransferSpeedMonitoringWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.written += len(p)
 	return len(p), nil
 }
 
 // Err returns the downloadTimeoutError if encountered when measurement was run.
-func (w *WriterWithTimeout) Err() error {
+func (w *TransferSpeedMonitoringWriter) Err() error {
 	return w.err
 }
 
@@ -398,10 +400,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		return err
 	}
 
-	downloadCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	tc, downloadCtx := NewWriterWithTimeoutAndContext(ctx, downloadSpeedMeasureWindow, downloadSpeedMin)
+	tc, downloadCtx := NewTransferSpeedMonitoringWriterAndContext(ctx, downloadSpeedMeasureWindow, downloadSpeedMin)
 
 	var finalErr error
 	var dlSize float64
@@ -435,9 +434,6 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		cli := s.newHTTPClient(nil)
 		resp, finalErr = s.doRequest(downloadCtx, cli, reqOptions, user)
 		if cancelled(downloadCtx) {
-			if finalErr == nil {
-				resp.Body.Close()
-			}
 			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
 		}
 		if finalErr != nil {
@@ -483,7 +479,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			limiter = ratelimitReader(resp.Body, bucket)
 		}
 
-		finish := tc.Measure()
+		finish := tc.Monitor()
 		_, finalErr = io.Copy(mw, limiter)
 		close(finish)
 		pbar.Finished()

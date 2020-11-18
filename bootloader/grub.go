@@ -87,29 +87,19 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
-func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) (bool, error) {
-	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
-	if !osutil.FileExists(gadgetGrubCfg) {
-		// gadget does not use grub bootloader
-		return false, nil
-	}
+func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) error {
 	assetName := g.Name() + "-recovery.cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
-	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
-	if !osutil.FileExists(gadgetGrubCfg) {
-		// gadget does not use grub bootloader
-		return false, nil
-	}
+func (g *grub) installManagedBootConfig(gadgetDir string) error {
 	assetName := g.Name() + ".cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) error {
 	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
 		return g.installManagedRecoveryBootConfig(gadgetDir)
