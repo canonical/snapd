@@ -59,7 +59,7 @@ var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 var downloadSpeedMeasureWindow = 5 * time.Minute
 
 // minimum average download speed (bytes/sec), measured over downloadSpeedMeasureWindow.
-var downloadSpeedMin = float64(256)
+var downloadSpeedMin = float64(4096)
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
@@ -332,7 +332,7 @@ func (w *TransferSpeedMonitoringWriter) Monitor() (quit chan bool) {
 		for {
 			select {
 			case <-time.After(w.measureTimeWindow):
-				if !w.checkSpeed(downloadSpeedMin) {
+				if !w.checkSpeed(w.minDownloadSpeedBps) {
 					w.cancel()
 					return
 				}

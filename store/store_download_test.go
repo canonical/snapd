@@ -1020,7 +1020,7 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 	origCtx := context.TODO()
-	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 100)
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
 
 	data := []byte{0}
 	quit := w.Monitor()
