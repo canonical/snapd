@@ -54,16 +54,8 @@ execute: |
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-    # for now we need to fix the pi-gadget's uboot.conf manually until 
-    # https://github.com/snapcore/pi-gadget/pull/41 is merged
-    # TODO:UC20: when the PR is merged let prepare-image download the snap
-    UBUNTU_STORE_ARCH=arm64 snap download pi --channel=20/edge --basename=pi-gadget-upstream
-    unsquashfs -d pi-gadget pi-gadget-upstream.snap
-    truncate -s 0 pi-gadget/uboot.conf
-    snap pack pi-gadget --filename=pi-gadget.snap
-
     echo Running prepare-image as a user
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap pi-gadget.snap $ROOT/model.assertion $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge $ROOT/model.assertion $ROOT" test
 
     systemid="$(date +%Y%m%d)"
 
