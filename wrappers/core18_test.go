@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -225,6 +227,39 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
+}
+
+func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restoreEnsureDirState := wrappers.MockEnsureDirState(func(dir string, glob string, content map[string]osutil.FileState) (changed, removed []string, err error) {
+		return nil, nil, &os.PathError{Err: syscall.EROFS}
+	})
+	defer restoreEnsureDirState()
+
+	info := makeMockSnapdSnap(c)
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+
+	// add the snapd service
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+
+	// didn't fail despite of read-only SnapDBusSessionPolicyDir
+	c.Assert(err, IsNil)
+
+	// check that snapd services were *not* created
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
+
+	c.Assert(logBuf.String(), testutil.Contains, "/etc/dbus-1/session.d appears to be read-only, could not write snapd dbus config files")
 }
 
 func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {

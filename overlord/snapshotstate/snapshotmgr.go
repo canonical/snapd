@@ -44,6 +44,7 @@ var (
 	configSetSnapConfig  = config.SetSnapConfig
 	backendOpen          = backend.Open
 	backendSave          = backend.Save
+	backendImport        = backend.Import
 	backendRestore       = (*backend.Reader).Restore // TODO: look into using an interface instead
 	backendCheck         = (*backend.Reader).Check
 	backendRevert        = (*backend.RestoreState).Revert // ditto

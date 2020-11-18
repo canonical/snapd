@@ -80,8 +80,24 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
-func KeypairManager(m *DeviceManager) asserts.KeypairManager {
-	return m.keypairMgr
+func KeypairManager(m *DeviceManager) (keypairMgr asserts.KeypairManager) {
+	// XXX expose the with... method at some point
+	err := m.withKeypairMgr(func(km asserts.KeypairManager) error {
+		keypairMgr = km
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return keypairMgr
+}
+
+func SaveAvailable(m *DeviceManager) bool {
+	return m.saveAvailable
+}
+
+func SetSaveAvailable(m *DeviceManager, avail bool) {
+	m.saveAvailable = avail
 }
 
 func EnsureOperationalShouldBackoff(m *DeviceManager, now time.Time) bool {
@@ -248,7 +264,7 @@ func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer install.SystemInstallObserver) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

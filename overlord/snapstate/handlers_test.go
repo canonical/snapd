@@ -20,11 +20,15 @@
 package snapstate_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type handlersSuite struct {
@@ -211,9 +215,71 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 	} {
 		info := &snap.Info{Apps: tt.apps}
 
-		missing, found, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
+		found, missing, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
 		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
 		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
 	}
+}
+
+type testLinkParticipant struct {
+	callCount      int
+	instanceNames  []string
+	linkageChanged func(st *state.State, instanceName string) error
+}
+
+func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
+	lp.callCount++
+	lp.instanceNames = append(lp.instanceNames, instanceName)
+	if lp.linkageChanged != nil {
+		return lp.linkageChanged(st, instanceName)
+	}
+	return nil
+}
+
+func (s *handlersSuite) TestAddLinkParticipant(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Mock link snap participants. This ensures we can add a participant
+	// without affecting the other tests, as the original list will be
+	// restored.
+	restore := snapstate.MockLinkSnapParticipants(nil)
+	defer restore()
+
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			c.Assert(st, NotNil)
+			c.Check(instanceName, Equals, "snap-name")
+			return nil
+		},
+	}
+	snapstate.AddLinkSnapParticipant(lp)
+
+	t := s.state.NewTask("link-snap", "test")
+	snapstate.NotifyLinkParticipants(t, "snap-name")
+	c.Assert(lp.callCount, Equals, 1)
+}
+
+func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// See comment in TestAddLinkParticipant for details.
+	restore := snapstate.MockLinkSnapParticipants(nil)
+	defer restore()
+
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			return fmt.Errorf("something failed")
+		},
+	}
+	snapstate.AddLinkSnapParticipant(lp)
+
+	t := s.state.NewTask("link-snap", "test")
+	snapstate.NotifyLinkParticipants(t, "snap-name")
+	c.Assert(lp.callCount, Equals, 1)
+	logs := t.Log()
+	c.Assert(logs, HasLen, 1)
+	c.Check(logs[0], testutil.Contains, "ERROR something failed")
 }

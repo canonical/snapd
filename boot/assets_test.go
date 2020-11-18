@@ -54,7 +54,7 @@ func (s *assetsSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error { return nil })
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
 }
 
@@ -176,12 +176,14 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	err := os.Chmod(cacheDir, 0000)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
-	c.Assert(err, IsNil)
-	// cannot create bootloader subdirectory
-	ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/grub: permission denied")
-	c.Check(ta, IsNil)
+	if os.Geteuid() != 0 {
+		err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
+		c.Assert(err, IsNil)
+		// cannot create bootloader subdirectory
+		ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+		c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/grub: permission denied")
+		c.Check(ta, IsNil)
+	}
 
 	// fix it now
 	err = os.Chmod(cacheDir, 0755)
@@ -190,13 +192,15 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	_, err = cache.Add(filepath.Join(d, "no-file"), "grub", "grubx64.efi")
 	c.Assert(err, ErrorMatches, "cannot open asset file: open .*/no-file: no such file or directory")
 
-	blDir := filepath.Join(cacheDir, "grub")
-	defer os.Chmod(blDir, 0755)
-	err = os.Chmod(blDir, 0000)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		blDir := filepath.Join(cacheDir, "grub")
+		defer os.Chmod(blDir, 0755)
+		err = os.Chmod(blDir, 0000)
+		c.Assert(err, IsNil)
 
-	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
-	c.Assert(err, ErrorMatches, `cannot create temporary cache file: open .*/grub/grubx64\.efi\.temp\.[a-zA-Z0-9]+~: permission denied`)
+		_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
+		c.Assert(err, ErrorMatches, `cannot create temporary cache file: open .*/grub/grubx64\.efi\.temp\.[a-zA-Z0-9]+~: permission denied`)
+	}
 }
 
 func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
@@ -472,8 +476,9 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -492,8 +497,9 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKey(secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -775,7 +781,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 
 	// everything is set up, trigger a reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -880,7 +886,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 
 	// everything is set up, trigger reseal
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1636,7 +1642,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		"shim":  {shimHash},
 	})
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1790,7 +1796,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1935,6 +1941,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) {
 	// make sure that trying to remove the file from cache will not break
 	// the cancellation
+
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()
@@ -2268,6 +2278,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	// call to observe successful boot
 
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
 	s.bootloaderWithTrustedAssets(c, []string{"asset"})
 
 	data := []byte("foobar")
@@ -2339,6 +2353,11 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	syscall.Mkfifo(p, 0644)
 	err := boot.CopyBootAssetsCacheToRoot(newRoot)
 	c.Assert(err, ErrorMatches, `unsupported non-file entry "fifo" mode prw-.*`)
+
+	if os.Geteuid() == 0 {
+		// the rest of the test cannot be executed by root user
+		return
+	}
 
 	// non-writable root
 	newRoot = c.MkDir()
@@ -2484,7 +2503,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		runKernelBf,
 	}
 
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2493,25 +2512,38 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf)),
-				secboot.NewLoadChain(beforeAssetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
 
 	err = obs.BeforeWrite()
 	c.Assert(err, IsNil)
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
@@ -2606,7 +2638,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	}
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
@@ -2614,14 +2646,25 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
@@ -2641,7 +2684,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-shimhash"),
 	})
 
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
@@ -2706,7 +2749,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// make sure that no reseal is triggered
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
