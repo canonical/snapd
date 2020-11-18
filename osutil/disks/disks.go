@@ -147,27 +147,27 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 
 // DiskFromName finds a matching Disk using the specified name, such as vda, or
 // mmcblk0, etc.
-func DiskFromName(name string) (Disk, error) {
+func DiskFromDeviceName(deviceName string) (Disk, error) {
 	// query for the disk props using udev
-	props, err := udevProperties(name)
+	props, err := udevProperties(deviceName)
 	if err != nil {
 		return nil, err
 	}
 
 	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", name)
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
 	}
 	minor, err := strconv.Atoi(props["MINOR"])
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", name)
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
 	}
 
 	// ensure that the device has DEVTYPE=disk, if not then we were not given a
 	// disk name
 	devType := props["DEVTYPE"]
 	if devType != "disk" {
-		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", name, devType)
+		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceName, devType)
 	}
 
 	// TODO: should we try to introspect the device more to find out if it has

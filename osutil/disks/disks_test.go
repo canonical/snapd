@@ -100,7 +100,7 @@ func (s *diskSuite) TestDiskFromNameHappy(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.DiskFromName("sda")
+	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "1:2")
 }
@@ -116,7 +116,7 @@ func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromName("sda1")
+	_, err := disks.DiskFromDeviceName("sda1")
 	c.Assert(err, ErrorMatches, "device \"sda1\" is not a disk, it has DEVTYPE of \"partition\"")
 }
 
@@ -131,7 +131,7 @@ func (s *diskSuite) TestDiskFromNameUnhappyBadUdevOutput(c *C) {
 	})
 	defer restore()
 
-	_, err := disks.DiskFromName("sda")
+	_, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, ErrorMatches, "cannot find disk with name \"sda\": malformed udev output")
 }
 
