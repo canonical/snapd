@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -2568,10 +2569,8 @@ func (s *imageSuite) makeUC20Model(extraHeaders map[string]interface{}) *asserts
 	return s.Brands.Model("my-brand", "my-model", headers)
 }
 
-func (s *imageSuite) TestSetupSeedCore20(c *C) {
-	bl := bootloadertest.Mock("grub", c.MkDir()).RecoveryAware()
-	bootloader.Force(bl)
-
+func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
+	bootloader.Force(nil)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -2642,28 +2641,34 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 
 	// check boot config
 	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
+	seedGrubenv := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grubenv")
 	grubRecoveryCfgAsset := assets.Internal("grub-recovery.cfg")
 	c.Assert(grubRecoveryCfgAsset, NotNil)
 	c.Check(grubCfg, testutil.FileEquals, string(grubRecoveryCfgAsset))
-	// make sure that grub.cfg is the only file present inside the directory
+	// make sure that grub.cfg and grubenv are the only files present inside
+	// the directory
 	gl, err := filepath.Glob(filepath.Join(prepareDir, "system-seed/EFI/ubuntu/*"))
 	c.Assert(err, IsNil)
-	c.Check(gl, DeepEquals, []string{grubCfg})
-
-	c.Check(s.stderr.String(), Equals, "")
+	c.Check(gl, DeepEquals, []string{
+		grubCfg,
+		seedGrubenv,
+	})
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(systems, HasLen, 1)
 
-	c.Check(bl.RecoverySystemDir, Equals, fmt.Sprintf("/systems/%s", filepath.Base(systems[0])))
-	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
-		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
-	})
-	c.Check(bl.BootVars, DeepEquals, map[string]string{
-		"snapd_recovery_system": filepath.Base(systems[0]),
-	})
+	seedGenv := grubenv.NewEnv(seedGrubenv)
+	c.Assert(seedGenv.Load(), IsNil)
+	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, filepath.Base(systems[0]))
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
+
+	c.Check(s.stderr.String(), Equals, "")
+
+	systemGenv := grubenv.NewEnv(filepath.Join(systems[0], "grubenv"))
+	c.Assert(systemGenv.Load(), IsNil)
+	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_1.snap")
 
 	// check the downloads
 	c.Check(s.storeActions, HasLen, 5)
@@ -2769,6 +2774,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	env, err := ubootenv.Open(bootSel)
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
+	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
