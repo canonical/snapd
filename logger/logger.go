@@ -29,7 +29,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -171,6 +170,6 @@ func debugEnabledOnKernelCmdline() bool {
 	if err != nil {
 		return false
 	}
-	val, _ := strutil.GetKernelCommandLineKeyValue(string(buf), "snapd.debug")
+	val, _ := osutil.GetKernelCommandLineKeyValue(string(buf), "snapd.debug")
 	return val == "1"
 }

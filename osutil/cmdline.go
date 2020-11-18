@@ -17,7 +17,7 @@
  *
  */
 
-package strutil
+package osutil
 
 import (
 	"bytes"

@@ -17,12 +17,12 @@
  *
  */
 
-package strutil_test
+package osutil_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdlineTestSuite struct{}
@@ -79,7 +79,7 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo ==a`, errStr: "unexpected assignment"},
 	} {
 		c.Logf("%v: cmd: %q", idx, tc.cmd)
-		out, err := strutil.KernelCommandLineSplit(tc.cmd)
+		out, err := osutil.KernelCommandLineSplit(tc.cmd)
 		if tc.errStr != "" {
 			c.Assert(err, ErrorMatches, tc.errStr)
 			c.Check(out, IsNil)
@@ -153,7 +153,7 @@ func (s *cmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 			err:     "unexpected quoting",
 		},
 	} {
-		val, err := strutil.GetKernelCommandLineKeyValue(t.cmdline, t.key)
+		val, err := osutil.GetKernelCommandLineKeyValue(t.cmdline, t.key)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
 		} else {
