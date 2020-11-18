@@ -126,7 +126,10 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	}
 
 	if info.SnapType == snap.TypeGadget {
-		if err := gadget.Validate(sourceDir, nil); err != nil {
+		// TODO:UC20: optionally pass model
+		// TODO:UC20: pass validation constraints which indicate intent
+		//            to have data encrypted
+		if err := gadget.Validate(sourceDir, nil, nil); err != nil {
 			return nil, err
 		}
 	}

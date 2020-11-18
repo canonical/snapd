@@ -1405,9 +1405,6 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},

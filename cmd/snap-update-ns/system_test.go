@@ -52,12 +52,19 @@ func (s *systemSuite) TestAssumptions(c *C) {
 	// Non-instances can access /tmp, /var/snap and /snap/$SNAP_NAME
 	upCtx := update.NewSystemProfileUpdateContext("foo", false)
 	as := upCtx.Assumptions()
-	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo"})
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo", "/var/lib/snapd/hostfs/tmp"})
+	c.Check(as.ModeForPath("/stuff"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/tmp"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server"), Equals, os.FileMode(0700))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp"), Equals, os.FileMode(1777))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/foo"), Equals, os.FileMode(0755))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp/.X11-unix"), Equals, os.FileMode(1777))
 
 	// Instances can, in addition, access /snap/$SNAP_INSTANCE_NAME
 	upCtx = update.NewSystemProfileUpdateContext("foo_instance", false)
 	as = upCtx.Assumptions()
-	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo_instance", "/snap/foo"})
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo_instance", "/snap/foo", "/var/lib/snapd/hostfs/tmp"})
 }
 
 func (s *systemSuite) TestLoadDesiredProfile(c *C) {

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -288,7 +289,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 				Image: "pc-core.img",
 			},
 			StartOffset: 2,
-			Size:        gadget.Size(len("pc-core.img content")),
+			Size:        quantity.Size(len("pc-core.img content")),
 		},
 	}
 
