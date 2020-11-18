@@ -42,7 +42,7 @@ type cmdValidate struct {
 	colorMixin
 }
 
-var shortValidateHelp = i18n.G("List or set snap validations")
+var shortValidateHelp = i18n.G("List or apply validation sets")
 var longValidateHelp = i18n.G(`
 The validate command lists validation sets or sets validations
 `)
@@ -103,9 +103,9 @@ func fmtValid(res *client.ValidationSetResult) string {
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
-	// check that only one flag is used at a time
-	var validateFlag string
-	for _, flag := range []struct {
+	// check that only one mode is used at a time
+	var validateMode string
+	for _, mode := range []struct {
 		name string
 		set  bool
 	}{
@@ -113,15 +113,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		{"enforce", cmd.Enforce},
 		{"forget", cmd.Forget},
 	} {
-		if flag.set {
-			if validateFlag != "" {
-				return fmt.Errorf("cannot use --%s and --%s together", validateFlag, flag.name)
+		if mode.set {
+			if validateMode != "" {
+				return fmt.Errorf("cannot use --%s and --%s together", validateMode, mode.name)
 			}
-			validateFlag = flag.name
+			validateMode = mode.name
 		}
 	}
 
-	if cmd.Positional.ValidationSet == "" && validateFlag != "" {
+	if cmd.Positional.ValidationSet == "" && validateMode != "" {
 		return fmt.Errorf("missing validation set argument")
 	}
 
@@ -135,10 +135,10 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 	}
 
-	if validateFlag != "" {
+	if validateMode != "" {
 		// apply
 		opts := &client.ValidateApplyOptions{
-			Flag:  validateFlag,
+			Mode:  validateMode,
 			PinAt: seq,
 		}
 		return cmd.client.ApplyValidationSet(account, name, opts)

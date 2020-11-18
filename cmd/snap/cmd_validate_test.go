@@ -36,7 +36,7 @@ type validateSuite struct {
 
 var _ = check.Suite(&validateSuite{})
 
-func makeFakeValidateHandler(c *check.C, body string, flag string, pinned int) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidateHandler(c *check.C, body string, mode string, pinned int) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -51,9 +51,9 @@ func makeFakeValidateHandler(c *check.C, body string, flag string, pinned int) f
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q,\"pin-at\":%d}\n", flag, pinned))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
 		} else {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q}\n", flag))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q}\n", mode))
 		}
 
 		c.Check(r.Method, check.Equals, "POST")

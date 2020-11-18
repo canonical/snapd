@@ -30,7 +30,7 @@ import (
 
 // ValidateApplyOptions carries options for ApplyValidationSet.
 type ValidateApplyOptions struct {
-	Flag  string
+	Mode  string
 	PinAt int
 }
 
@@ -48,10 +48,10 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	q := url.Values{}
 	q.Set("validation-set", fmt.Sprintf("%s/%s", account, name))
 	var postData struct {
-		Flag  string `json:"flag"`
+		Mode  string `json:"mode"`
 		PinAt int    `json:"pin-at,omitempty"`
 	}
-	postData.Flag = opts.Flag
+	postData.Mode = opts.Mode
 	if opts.PinAt != 0 {
 		postData.PinAt = opts.PinAt
 	}
