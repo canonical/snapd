@@ -580,7 +580,7 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # make sure unattended-upgrades does no get in the way
+        # make sure unattended-upgrades does not get in the way
         if systemctl is-enabled unattended-upgrades.service; then
             systemctl stop unattended-upgrades.service
             systemctl mask unattended-upgrades.service
