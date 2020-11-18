@@ -59,14 +59,14 @@ func (u *uboot) processBlOpts(blOpts *Options) {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(rootdir string, blOpts *Options) Bootloader {
+func newUboot(rootdir string, blOpts *Options) (Bootloader, error) {
 	u := &uboot{
 		rootdir: rootdir,
 	}
 	u.setDefaults()
 	u.processBlOpts(blOpts)
 
-	return u
+	return u, nil
 }
 
 func (u *uboot) Name() string {
@@ -131,12 +131,12 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		return fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
 	}
 
-	systemFile := u.ConfigFile()
+	systemFile, _ := u.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (u *uboot) ConfigFile() string {
-	return u.envFile()
+func (u *uboot) ConfigFile() (string, error) {
+	return u.envFile(), nil
 }
 
 func (u *uboot) envFile() string {

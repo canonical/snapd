@@ -93,7 +93,7 @@ type Bootloader interface {
 	Name() string
 
 	// ConfigFile returns the name of the config file.
-	ConfigFile() string
+	ConfigFile() (string, error)
 
 	// InstallBootConfig will try to install the boot config in the
 	// given gadgetDir to rootdir.
@@ -252,7 +252,7 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 	return bl.InstallBootConfig(gadgetDir, opts)
 }
 
-type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
+type bootloaderNewFunc func(rootdir string, opts *Options) (Bootloader, error)
 
 var (
 	//  bootloaders list all possible bootloaders by their constructor
@@ -292,8 +292,15 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	for _, blNew := range bootloaders {
-		bl := blNew(rootdir, opts)
-		if osutil.FileExists(bl.ConfigFile()) {
+		bl, err := blNew(rootdir, opts)
+		if err != nil {
+			continue
+		}
+		f, err := bl.ConfigFile()
+		if err != nil {
+			continue
+		}
+		if osutil.FileExists(f) {
 			return bl, nil
 		}
 	}
@@ -351,6 +358,10 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 // ForGadget returns a bootloader matching a given gadget by inspecting the
 // contents of gadget directory or an error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
+	// TODO: this function should just inspect gadget.yaml directly to get the
+	// specified bootloader from the gadget.yaml and if that fails then we just
+	// give up rather than loop over all possible bootloaders
+
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
@@ -358,7 +369,10 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 		return forcedBootloader, forcedError
 	}
 	for _, blNew := range bootloaders {
-		bl := blNew(rootDir, opts)
+		bl, err := blNew(rootDir, opts)
+		if err != nil {
+			continue
+		}
 		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
 		// do we have a marker file?
 		if osutil.FileExists(markerConf) {

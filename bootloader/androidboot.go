@@ -32,9 +32,9 @@ type androidboot struct {
 }
 
 // newAndroidboot creates a new Androidboot bootloader object
-func newAndroidBoot(rootdir string, _ *Options) Bootloader {
+func newAndroidBoot(rootdir string, _ *Options) (Bootloader, error) {
 	a := &androidboot{rootdir: rootdir}
-	return a
+	return a, nil
 }
 
 func (a *androidboot) Name() string {
@@ -54,16 +54,17 @@ func (a *androidboot) dir() string {
 
 func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, a.Name()+".conf")
-	systemFile := a.ConfigFile()
+	systemFile, _ := a.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (a *androidboot) ConfigFile() string {
-	return filepath.Join(a.dir(), "androidboot.env")
+func (a *androidboot) ConfigFile() (string, error) {
+	return filepath.Join(a.dir(), "androidboot.env"), nil
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
-	env := androidbootenv.NewEnv(a.ConfigFile())
+	f, _ := a.ConfigFile()
+	env := androidbootenv.NewEnv(f)
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -77,7 +78,8 @@ func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (a *androidboot) SetBootVars(values map[string]string) error {
-	env := androidbootenv.NewEnv(a.ConfigFile())
+	f, _ := a.ConfigFile()
+	env := androidbootenv.NewEnv(f)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -89,7 +91,6 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 
 func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	return nil
-
 }
 
 func (a *androidboot) RemoveKernelAssets(s snap.PlaceInfo) error {

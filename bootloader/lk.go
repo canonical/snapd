@@ -37,7 +37,7 @@ type lk struct {
 }
 
 // newLk create a new lk bootloader object
-func newLk(rootdir string, opts *Options) Bootloader {
+func newLk(rootdir string, opts *Options) (Bootloader, error) {
 	l := &lk{rootdir: rootdir}
 
 	if opts != nil {
@@ -51,7 +51,7 @@ func newLk(rootdir string, opts *Options) Bootloader {
 		l.inRuntimeMode = !opts.PrepareImageTime
 	}
 
-	return l
+	return l, nil
 }
 
 func (l *lk) setRootDir(rootdir string) {
@@ -74,12 +74,12 @@ func (l *lk) dir() string {
 
 func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
-	systemFile := l.ConfigFile()
+	systemFile, _ := l.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (l *lk) ConfigFile() string {
-	return l.envFile()
+func (l *lk) ConfigFile() (string, error) {
+	return l.envFile(), nil
 }
 
 func (l *lk) envFile() string {

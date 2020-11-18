@@ -44,10 +44,13 @@ var _ = Suite(&lkTestSuite{})
 
 func (s *lkTestSuite) TestNewLk(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
-	l := bootloader.NewLk(s.rootdir, nil)
+	l, err := bootloader.NewLk(s.rootdir, nil)
+	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, true)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
+	f, err := l.ConfigFile()
+	c.Assert(err, IsNil)
+	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
 }
 
 func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
@@ -55,15 +58,19 @@ func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
 		PrepareImageTime: true,
 	}
 	bootloader.MockLkFiles(c, s.rootdir, opts)
-	l := bootloader.NewLk(s.rootdir, opts)
+	l, err := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, false)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
+	f, err := l.ConfigFile()
+	c.Assert(err, IsNil)
+	c.Check(f, Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
 }
 
 func (s *lkTestSuite) TestSetGetBootVar(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
-	l := bootloader.NewLk(s.rootdir, nil)
+	l, err := bootloader.NewLk(s.rootdir, nil)
+	c.Assert(err, IsNil)
 	bootVars := map[string]string{"snap_mode": boot.TryStatus}
 	l.SetBootVars(bootVars)
 
@@ -78,7 +85,8 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 		PrepareImageTime: true,
 	}
 	bootloader.MockLkFiles(c, s.rootdir, opts)
-	l := bootloader.NewLk(s.rootdir, opts)
+	l, err := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(err, IsNil)
 
 	c.Assert(l, NotNil)
 
@@ -122,15 +130,17 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 		PrepareImageTime: true,
 	}
 	bootloader.MockLkFiles(c, s.rootdir, opts)
-	l := bootloader.NewLk(s.rootdir, opts)
-
+	l, err := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 
 	// first configure custom boot image file name
-	env := lkenv.NewEnv(l.ConfigFile())
+	f, err := l.ConfigFile()
+	c.Assert(err, IsNil)
+	env := lkenv.NewEnv(f)
 	env.Load()
 	env.ConfigureBootimgName("boot-2.img")
-	err := env.Save()
+	err = env.Save()
 	c.Assert(err, IsNil)
 
 	files := [][]string{
@@ -163,7 +173,8 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
-	lk := bootloader.NewLk(s.rootdir, nil)
+	lk, err := bootloader.NewLk(s.rootdir, nil)
+	c.Assert(err, IsNil)
 	c.Assert(lk, NotNil)
 
 	// create mock bootsel, boot_a, boot_b partitions
@@ -178,7 +189,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
 	lkenv := lkenv.NewEnv(bootselPartition)
 	lkenv.ConfigureBootPartitions("boot_a", "boot_b")
-	err := lkenv.Save()
+	err = lkenv.Save()
 	c.Assert(err, IsNil)
 
 	// mock a kernel snap that has a boot.img

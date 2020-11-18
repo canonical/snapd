@@ -52,7 +52,7 @@ type grub struct {
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub(rootdir string, opts *Options) Bootloader {
+func newGrub(rootdir string, opts *Options) (Bootloader, error) {
 	g := &grub{rootdir: rootdir}
 	if opts != nil {
 		// Set the flag to extract the run kernel, only
@@ -69,7 +69,7 @@ func newGrub(rootdir string, opts *Options) Bootloader {
 		g.basedir = "boot/grub"
 	}
 
-	return g
+	return g, nil
 }
 
 func (g *grub) Name() string {
@@ -144,8 +144,8 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 	return genv.Get(key), nil
 }
 
-func (g *grub) ConfigFile() string {
-	return filepath.Join(g.dir(), "grub.cfg")
+func (g *grub) ConfigFile() (string, error) {
+	return filepath.Join(g.dir(), "grub.cfg"), nil
 }
 
 func (g *grub) envFile() string {

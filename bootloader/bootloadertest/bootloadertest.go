@@ -99,8 +99,8 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
-func (b *MockBootloader) ConfigFile() string {
-	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+func (b *MockBootloader) ConfigFile() (string, error) {
+	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg"), nil
 }
 
 func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
