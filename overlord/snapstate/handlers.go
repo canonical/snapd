@@ -1717,13 +1717,12 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // installModeDisabledServices returns what services with
-// "install-mode: disabled" should be disabled.
-//
-// This is done by checking if the service is new in this
-// snap revision and if it is, it is auto-disabled.
+// "install-mode: disabled" should be disabled. Only services
+// seen for the first time are considered.
 func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (svcsToDisable []string, err error) {
 	prevCurrentSvcs := map[string]bool{}
 
+	// find what servies the previous snap had
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
 		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
@@ -1732,7 +1731,12 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 			}
 		}
 	}
-
+	// and deal with "install-mode: disable" for all new services
+	// (i.e. not present in previous snap).
+	//
+	// Services that are not new but have "install-mode: disable"
+	// do not need special handling. They are either still disabled
+	// or soemthing has enabled them and then they should stay enabled.
 	for _, svc := range currentInfo.Services() {
 		if svc.InstallMode == "disable" {
 			if !prevCurrentSvcs[svc.Name] {
