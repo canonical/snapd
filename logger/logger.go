@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -161,15 +160,17 @@ func SimpleSetup() error {
 	return err
 }
 
-var procCmdline = "/proc/cmdline"
+// used to force testing of the kernel command line parsing
+var procCmdlineMustMockInTests = true
 
 // TODO: consider generalizing this to snapdenv and having it used by
 // other places that consider SNAPD_DEBUG
 func debugEnabledOnKernelCmdline() bool {
-	buf, err := ioutil.ReadFile(procCmdline)
-	if err != nil {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineMustMockInTests {
 		return false
 	}
-	val, _ := osutil.GetKernelCommandLineKeyValue(string(buf), "snapd.debug")
-	return val == "1"
+	m, _ := osutil.KernelCommandLineKeyValue("snapd.debug")
+	return m != nil && m["snapd.debug"] == "1"
 }

@@ -22,8 +22,23 @@ package osutil
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"strings"
 )
+
+var (
+	procCmdline = "/proc/cmdline"
+)
+
+// MockProcCmdline overrides the path to /proc/cmdline. For use in tests.
+func MockProcCmdline(newPath string) (restore func()) {
+	MustBeTestBinary("mocking can only be done from tests")
+	oldProcCmdline := procCmdline
+	procCmdline = newPath
+	return func() {
+		procCmdline = oldProcCmdline
+	}
+}
 
 // KernelCommandLineSplit tries to split the string comprising full or a part
 // of a kernel command line into a list of individual arguments. Returns an
@@ -159,28 +174,37 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 	return out, nil
 }
 
-// GetKernelCommandLineKeyValue splits the given kernel command line string into
-// individual parameters using KernelCommandLineSplit, then matches for key
-// value pairs and returns the value of the specified key.
-func GetKernelCommandLineKeyValue(s string, key string) (string, error) {
-	params, err := KernelCommandLineSplit(strings.TrimSpace(s))
+// KernelCommandLineKeyValue returns a map of the specified keys to the values
+// set for them in the kernel command line. If the value is missing from the
+// kernel command line, the key is omitted from the returned map.
+func KernelCommandLineKeyValue(keys ...string) (map[string]string, error) {
+	buf, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	params, err := KernelCommandLineSplit(strings.TrimSpace(string(buf)))
+	if err != nil {
+		return nil, err
 	}
 
-	// iterate in reverse order so we use the last one defined on the kernel
-	// command line if the same key is defined multiple times
-	for i := len(params) - 1; i >= 0; i-- {
-		param := params[i]
-		if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
-			res := strings.SplitN(param, "=", 2)
-			if len(res) == 2 {
-				return res[1], nil
+	m := make(map[string]string, len(keys))
+
+	for _, param := range params {
+		for _, key := range keys {
+			if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
+				res := strings.SplitN(param, "=", 2)
+				if len(res) == 2 {
+					m[key] = res[1]
+				} else {
+					// length not of N means the empty string was passed, so set
+					// that, so that callers can tell whether a parameter was not
+					// set at all (by checking if the key is in the returned map)
+					// or if it was literally set to the empty string (it's there
+					// and set to the empty string)
+					m[key] = ""
+				}
 			}
-			// length not of N means the empty string was passed, so just return
-			// that
-			return "", nil
 		}
 	}
-	return "", nil
+	return m, nil
 }

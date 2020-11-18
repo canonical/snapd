@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,7 +48,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755)
 	c.Assert(err, IsNil)
-	restore := boot.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
+	restore := osutil.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 }
 
@@ -85,13 +86,16 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd: "snapd_recovery_mode=install foo=bar",
 		err: `cannot specify install mode without system label`,
 	}, {
-		// boot scripts couldn't decide on mode
-		cmd: "snapd_recovery_mode=install snapd_recovery_system=1234 snapd_recovery_mode=run",
-		err: "cannot specify mode more than once",
+		// multiple kernel command line params end up using the last one - this
+		// effectively matches the kernel handling too
+		cmd:  "snapd_recovery_mode=install snapd_recovery_system=1234 snapd_recovery_mode=run",
+		mode: "run",
+		// label gets unset because it's not used for run mode
+		label: "",
 	}, {
-		// boot scripts couldn't decide which system to use
-		cmd: "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
-		err: "cannot specify recovery system label more than once",
+		cmd:   "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
+		mode:  "install",
+		label: "1234",
 	}} {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)

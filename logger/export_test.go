@@ -35,10 +35,10 @@ func GetLoggerFlags() int {
 	return log.log.Flags()
 }
 
-func MockProcCmdline(new string) (restore func()) {
-	old := procCmdline
-	procCmdline = new
+func ProcCmdlineMustMock(new bool) (restore func()) {
+	old := procCmdlineMustMockInTests
+	procCmdlineMustMockInTests = new
 	return func() {
-		procCmdline = old
+		procCmdlineMustMockInTests = old
 	}
 }

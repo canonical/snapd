@@ -20,16 +20,13 @@
 package boot
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -45,40 +42,31 @@ const (
 )
 
 var (
-	// the kernel commandline - can be overridden in tests
-	procCmdline = "/proc/cmdline"
-
 	validModes = []string{ModeInstall, ModeRecover, ModeRun}
 )
 
-func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, err error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
-	scanner.Split(bufio.ScanWords)
-
-	for scanner.Scan() {
-		w := scanner.Text()
-		if strings.HasPrefix(w, "snapd_recovery_mode=") {
-			if mode != "" {
-				return "", "", fmt.Errorf("cannot specify mode more than once")
-			}
-			mode = strings.SplitN(w, "=", 2)[1]
-			if mode == "" {
-				mode = ModeInstall
-			}
-			if !strutil.ListContains(validModes, mode) {
-				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
-			}
-		}
-		if strings.HasPrefix(w, "snapd_recovery_system=") {
-			if sysLabel != "" {
-				return "", "", fmt.Errorf("cannot specify recovery system label more than once")
-			}
-			sysLabel = strings.SplitN(w, "=", 2)[1]
-		}
-	}
-	if err := scanner.Err(); err != nil {
+// ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
+// and the recovery system label as passed in the kernel command line by the
+// bootloader.
+func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
+	m, err := osutil.KernelCommandLineKeyValue("snapd_recovery_mode", "snapd_recovery_system")
+	if err != nil {
 		return "", "", err
 	}
+	var modeOk bool
+	mode, modeOk = m["snapd_recovery_mode"]
+
+	// no mode specified gets interpreted as install
+	if modeOk {
+		if mode == "" {
+			mode = ModeInstall
+		} else if !strutil.ListContains(validModes, mode) {
+			return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
+		}
+	}
+
+	sysLabel = m["snapd_recovery_system"]
+
 	switch {
 	case mode == "" && sysLabel == "":
 		return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
@@ -90,28 +78,6 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 		sysLabel = ""
 	}
 	return mode, sysLabel, nil
-}
-
-// ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
-// and the recovery system label as passed in the kernel command line by the
-// bootloader.
-func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
-	// TODO: this should maybe read individual parameters from
-	// osutil.KernelCommandLineSplit and parse key value pairs from that?
-	cmdline, err := ioutil.ReadFile(procCmdline)
-	if err != nil {
-		return "", "", err
-	}
-	return whichModeAndRecoverySystem(cmdline)
-}
-
-// MockProcCmdline overrides the path to /proc/cmdline. For use in tests.
-func MockProcCmdline(newPath string) (restore func()) {
-	oldProcCmdline := procCmdline
-	procCmdline = newPath
-	return func() {
-		procCmdline = oldProcCmdline
-	}
 }
 
 var errBootConfigNotManaged = errors.New("boot config is not managed")
