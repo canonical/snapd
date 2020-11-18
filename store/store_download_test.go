@@ -994,3 +994,43 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 	close(quit)
 	defer mockServer.Close()
 }
+
+func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
+	origCtx := context.TODO()
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1)
+
+	data := []byte{0, 0, 0, 0, 0}
+	quit := w.Monitor()
+
+	// write a few bytes every ~5ms, this should satisfy >=1 speed in 50ms
+	// measure windows defined above; 100 iterations ensures we hit a few
+	// measurement windows.
+	for i := 0; i < 100; i++ {
+		n, err := w.Write(data)
+		c.Assert(err, IsNil)
+		c.Assert(n, Equals, len(data))
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(quit)
+	c.Check(store.Cancelled(ctx), Equals, false)
+
+	// we should hit at least 100*5/50 = 10 measurement windows
+	c.Assert(w.MeasuredWindowsCount() >= 10, Equals, true, Commentf("%d", w.MeasuredWindowsCount()))
+}
+
+func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
+	origCtx := context.TODO()
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 100)
+
+	data := []byte{0}
+	quit := w.Monitor()
+
+	for i := 0; i < 100; i++ {
+		n, err := w.Write(data)
+		c.Assert(err, IsNil)
+		c.Assert(n, Equals, len(data))
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(quit)
+	c.Check(store.Cancelled(ctx), Equals, true)
+}

@@ -59,6 +59,8 @@ var (
 
 	JsonContentType  = jsonContentType
 	SnapActionFields = snapActionFields
+
+	Cancelled = cancelled
 )
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
@@ -103,6 +105,10 @@ func IsDownloadTimeoutError(err error) (ok bool, speed float64) {
 		return false, 0
 	}
 	return true, de.Speed
+}
+
+func (w *TransferSpeedMonitoringWriter) MeasuredWindowsCount() int {
+	return w.measuredWindows
 }
 
 func (cm *CacheManager) CacheDir() string {

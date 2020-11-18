@@ -283,6 +283,9 @@ type TransferSpeedMonitoringWriter struct {
 	written int
 	cancel  func()
 	err     error
+
+	// for testing
+	measuredWindows int
 }
 
 // NewTransferSpeedMonitoringWriterAndContext returns an io.Writer that measures write speed
@@ -305,6 +308,7 @@ func (w *TransferSpeedMonitoringWriter) reset() {
 	defer w.mu.Unlock()
 	w.written = 0
 	w.start = time.Now()
+	w.measuredWindows++
 }
 
 func (w *TransferSpeedMonitoringWriter) checkSpeed(min float64) bool {
