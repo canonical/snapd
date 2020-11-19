@@ -366,12 +366,11 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}
-	for _, blNew := range bootloaders {
-		bl := blNew(rootDir, opts)
-		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
+	for name, blNew := range bootloaders {
+		markerConf := filepath.Join(gadgetDir, name+".conf")
 		// do we have a marker file?
 		if osutil.FileExists(markerConf) {
-			return bl, nil
+			return blNew(rootDir, opts), nil
 		}
 	}
 	return nil, ErrBootloader
