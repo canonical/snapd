@@ -39,7 +39,7 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	f := &androidboot{rootdir: rootdir}
 	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
+	err = ioutil.WriteFile(f.configFile(), nil, mode)
 	c.Assert(err, IsNil)
 }
 
@@ -79,6 +79,16 @@ func NewLk(rootdir string, opts *Options) Bootloader {
 	return newLk(rootdir, opts)
 }
 
+func LkConfigFile(b Bootloader) string {
+	lk := b.(*lk)
+	return lk.envFile()
+}
+
+func UbootConfigFile(b Bootloader) string {
+	u := b.(*uboot)
+	return u.envFile()
+}
+
 func MockLkFiles(c *C, rootdir string, opts *Options) {
 	if opts == nil {
 		opts = &Options{}
@@ -101,6 +111,13 @@ func MockLkFiles(c *C, rootdir string, opts *Options) {
 func LkRuntimeMode(b Bootloader) bool {
 	lk := b.(*lk)
 	return lk.inRuntimeMode
+}
+
+func MockAddBootloaderToFind(name string, blConstructor func(string, *Options) Bootloader) (restore func()) {
+	bootloaders[name] = blConstructor
+	return func() {
+		delete(bootloaders, name)
+	}
 }
 
 var (

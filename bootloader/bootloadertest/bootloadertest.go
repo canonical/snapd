@@ -21,7 +21,6 @@ package bootloadertest
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -31,6 +30,9 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
+	MockedPresent bool
+	PresentErr    error
+
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
@@ -99,8 +101,8 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
-func (b *MockBootloader) ConfigFile() string {
-	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+func (b *MockBootloader) Present() (bool, error) {
+	return b.MockedPresent, b.PresentErr
 }
 
 func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {

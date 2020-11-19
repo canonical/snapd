@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -74,12 +75,12 @@ func (l *lk) dir() string {
 
 func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
-	systemFile := l.ConfigFile()
+	systemFile := l.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (l *lk) ConfigFile() string {
-	return l.envFile()
+func (l *lk) Present() (bool, error) {
+	return osutil.FileExists(l.envFile()), nil
 }
 
 func (l *lk) envFile() string {

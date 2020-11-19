@@ -92,8 +92,12 @@ type Bootloader interface {
 	// Name returns the bootloader name.
 	Name() string
 
-	// ConfigFile returns the name of the config file.
-	ConfigFile() string
+	// Present returns whether the bootloader is currently present on the
+	// system - in other words whether this bootloader has been installed to the
+	// current system. Implementations should only return non-nil error if they
+	// can positively identify that the bootloader is installed, but there is
+	// actually an error with the installation.
+	Present() (bool, error)
 
 	// InstallBootConfig will try to install the boot config in the
 	// given gadgetDir to rootdir.
@@ -257,11 +261,11 @@ type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 var (
 	//  bootloaders list all possible bootloaders by their constructor
 	//  function.
-	bootloaders = []bootloaderNewFunc{
-		newUboot,
-		newGrub,
-		newAndroidBoot,
-		newLk,
+	bootloaders = map[string]bootloaderNewFunc{
+		"uboot":       newUboot,
+		"grub":        newGrub,
+		"androidboot": newAndroidBoot,
+		"lk":          newLk,
 	}
 )
 
@@ -291,9 +295,14 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 		opts = &Options{}
 	}
 
-	for _, blNew := range bootloaders {
+	// note that the order of this is not deterministic
+	for name, blNew := range bootloaders {
 		bl := blNew(rootdir, opts)
-		if osutil.FileExists(bl.ConfigFile()) {
+		present, err := bl.Present()
+		if err != nil {
+			return nil, fmt.Errorf("bootloader %q found but not usable: %v", name, err)
+		}
+		if present {
 			return bl, nil
 		}
 	}
