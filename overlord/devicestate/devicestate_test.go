@@ -1285,10 +1285,20 @@ hooks:
  fde-setup:
 `
 
-func (s *deviceMgrSuite) TestHadFdeSetupHook(c *C) {
+func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
 
 	for _, tc := range []struct {
 		kernelYaml      string
@@ -1298,15 +1308,6 @@ func (s *deviceMgrSuite) TestHadFdeSetupHook(c *C) {
 		{kernelYamlWithFdeSetup, true},
 	} {
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
-		s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
-			"architecture": "amd64",
-			"kernel":       "pc-kernel",
-			"gadget":       "pc",
-		})
-		devicestatetest.SetDevice(s.state, &auth.DeviceState{
-			Brand: "canonical",
-			Model: "pc",
-		})
 
 		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
 		c.Assert(err, IsNil)
