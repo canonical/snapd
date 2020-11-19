@@ -36,9 +36,9 @@ func GetLoggerFlags() int {
 }
 
 func ProcCmdlineMustMock(new bool) (restore func()) {
-	old := procCmdlineMustMockInTests
-	procCmdlineMustMockInTests = new
+	old := procCmdlineUseDefaultMockInTests
+	procCmdlineUseDefaultMockInTests = new
 	return func() {
-		procCmdlineMustMockInTests = old
+		procCmdlineUseDefaultMockInTests = old
 	}
 }

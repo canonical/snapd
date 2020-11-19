@@ -161,16 +161,16 @@ func SimpleSetup() error {
 }
 
 // used to force testing of the kernel command line parsing
-var procCmdlineMustMockInTests = true
+var procCmdlineUseDefaultMockInTests = true
 
 // TODO: consider generalizing this to snapdenv and having it used by
 // other places that consider SNAPD_DEBUG
 func debugEnabledOnKernelCmdline() bool {
 	// if this is called during tests, always ignore it so we don't have to mock
 	// the /proc/cmdline for every test that ends up using a logger
-	if osutil.IsTestBinary() && procCmdlineMustMockInTests {
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
 		return false
 	}
 	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
-	return m != nil && m["snapd.debug"] == "1"
+	return m["snapd.debug"] == "1"
 }
