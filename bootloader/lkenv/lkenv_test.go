@@ -22,6 +22,7 @@ package lkenv_test
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"path/filepath"
@@ -31,6 +32,8 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -64,21 +67,6 @@ func unpackTestData(data []byte) (resData []byte, err error) {
 	return env.Bytes(), nil
 }
 
-func (l *lkenvTestSuite) TestSet(c *C) {
-	env := lkenv.NewEnv(l.envPath)
-	c.Check(env, NotNil)
-
-	env.Set("snap_mode", boot.TryStatus)
-	c.Check(env.Get("snap_mode"), Equals, boot.TryStatus)
-}
-
-func (l *lkenvTestSuite) TestSave(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPathbak, buf, 0644)
-	c.Assert(err, IsNil)
-	l.TestSaveNoBak(c)
-}
-
 func (l *lkenvTestSuite) TestCtoGoString(c *C) {
 	for _, t := range []struct {
 		input    []byte
@@ -96,7 +84,6 @@ func (l *lkenvTestSuite) TestCtoGoString(c *C) {
 	} {
 		c.Check(lkenv.CToGoString(t.input), Equals, t.expected)
 	}
-
 }
 
 func (l *lkenvTestSuite) TestCopyStringHappy(c *C) {
@@ -131,56 +118,165 @@ func (l *lkenvTestSuite) TestCopyStringNoPanic(c *C) {
 	c.Assert(recover(), IsNil)
 }
 
-func (l *lkenvTestSuite) TestSaveNoBak(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
-
-	env := lkenv.NewEnv(l.envPath)
-	c.Check(env, NotNil)
-
-	env.Set("snap_mode", "trying")
-	env.Set("snap_kernel", "kernel-1")
-	env.Set("snap_try_kernel", "kernel-2")
-	env.Set("snap_core", "core-1")
-	env.Set("snap_try_core", "core-2")
-	env.Set("snap_gadget", "gadget-1")
-	env.Set("snap_try_gadget", "gadget-2")
-	env.Set("bootimg_file_name", "boot.img")
-
-	err = env.Save()
-	c.Assert(err, IsNil)
-
-	env2 := lkenv.NewEnv(l.envPath)
-	err = env2.Load()
-	c.Assert(err, IsNil)
-	c.Check(env2.Get("snap_mode"), Equals, "trying")
-	c.Check(env2.Get("snap_kernel"), Equals, "kernel-1")
-	c.Check(env2.Get("snap_try_kernel"), Equals, "kernel-2")
-	c.Check(env2.Get("snap_core"), Equals, "core-1")
-	c.Check(env2.Get("snap_try_core"), Equals, "core-2")
-	c.Check(env2.Get("snap_gadget"), Equals, "gadget-1")
-	c.Check(env2.Get("snap_try_gadget"), Equals, "gadget-2")
-	c.Check(env2.Get("bootimg_file_name"), Equals, "boot.img")
+func (l *lkenvTestSuite) TestSet(c *C) {
+	tt := []struct {
+		version lkenv.Version
+		key     string
+		val     string
+	}{
+		{
+			lkenv.V1,
+			"snap_mode",
+			boot.TryStatus,
+		},
+		{
+			lkenv.V2Run,
+			"kernel_status",
+			boot.TryingStatus,
+		},
+		{
+			lkenv.V2Recovery,
+			"snapd_recovery_mode",
+			"recover",
+		},
+	}
+	for _, t := range tt {
+		env := lkenv.NewEnv(l.envPath, t.version)
+		c.Check(env, NotNil)
+		env.Set(t.key, t.val)
+		c.Check(env.Get(t.key), Equals, t.val)
+	}
 }
 
-func (l *lkenvTestSuite) TestFailedCRC(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPathbak, buf, 0644)
-	c.Assert(err, IsNil)
-	l.TestFailedCRCNoBak(c)
+func (l *lkenvTestSuite) TestSave(c *C) {
+
+	tt := []struct {
+		version       lkenv.Version
+		keyValuePairs map[string]string
+	}{
+		{
+			lkenv.V1,
+			map[string]string{
+				"snap_mode":         boot.TryingStatus,
+				"snap_kernel":       "kernel-1",
+				"snap_try_kernel":   "kernel-2",
+				"snap_core":         "core-1",
+				"snap_try_core":     "core-2",
+				"snap_gadget":       "gadget-1",
+				"snap_try_gadget":   "gadget-2",
+				"bootimg_file_name": "boot.img",
+			},
+		},
+		{
+			lkenv.V2Run,
+			map[string]string{
+				"kernel_status":     boot.TryStatus,
+				"snap_kernel":       "kernel-1",
+				"snap_try_kernel":   "kernel-2",
+				"snap_gadget":       "gadget-1",
+				"snap_try_gadget":   "gadget-2",
+				"bootimg_file_name": "boot.img",
+			},
+		},
+		{
+			lkenv.V2Recovery,
+			map[string]string{
+				"snapd_recovery_mode":   "recover",
+				"snapd_recovery_system": "11192020",
+				"bootimg_file_name":     "boot.img",
+			},
+		},
+	}
+	for _, t := range tt {
+		for _, makeBackup := range []bool{true, false} {
+			// make unique files per test case
+			testFile := filepath.Join(c.MkDir(), "lk.bin")
+			testFileBackup := testFile + "bak"
+			if makeBackup {
+				// create the backup file too
+				buf := make([]byte, 4096)
+				err := ioutil.WriteFile(testFileBackup, buf, 0644)
+				c.Assert(err, IsNil)
+			}
+
+			buf := make([]byte, 4096)
+			err := ioutil.WriteFile(testFile, buf, 0644)
+			c.Assert(err, IsNil)
+
+			env := lkenv.NewEnv(testFile, t.version)
+			c.Check(env, NotNil)
+
+			for k, v := range t.keyValuePairs {
+				env.Set(k, v)
+			}
+
+			err = env.Save()
+			c.Assert(err, IsNil)
+
+			env2 := lkenv.NewEnv(testFile, t.version)
+			err = env2.Load()
+			c.Assert(err, IsNil)
+
+			for k, v := range t.keyValuePairs {
+				c.Check(env2.Get(k), Equals, v)
+			}
+
+			// check the backup too
+			if makeBackup {
+				env3 := lkenv.NewEnv(testFileBackup, t.version)
+				err := env3.Load()
+				c.Assert(err, IsNil)
+
+				for k, v := range t.keyValuePairs {
+					c.Check(env3.Get(k), Equals, v)
+				}
+			}
+		}
+	}
 }
 
-func (l *lkenvTestSuite) TestFailedCRCNoBak(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
+func (l *lkenvTestSuite) TestLoad(c *C) {
 
-	env := lkenv.NewEnv(l.envPath)
-	c.Check(env, NotNil)
+	for _, version := range []lkenv.Version{lkenv.V1, lkenv.V2Run, lkenv.V2Recovery} {
+		for _, makeBackup := range []bool{true, false} {
+			loggerBuf, restore := logger.MockLogger()
+			defer restore()
+			// make unique files per test case
+			testFile := filepath.Join(c.MkDir(), "lk.bin")
+			testFileBackup := testFile + "bak"
+			if makeBackup {
+				buf := make([]byte, 100000)
+				err := ioutil.WriteFile(testFileBackup, buf, 0644)
+				c.Assert(err, IsNil)
+			}
 
-	err = env.Load()
-	c.Assert(err, NotNil)
+			buf := make([]byte, 100000)
+			err := ioutil.WriteFile(testFile, buf, 0644)
+			c.Assert(err, IsNil)
+
+			// create an env for this file and try to load it
+			env := lkenv.NewEnv(testFile, version)
+			c.Check(env, NotNil)
+
+			err = env.Load()
+			// possible error messages could be "cannot open LK env file: ..."
+			// or "cannot read LK env from file: ..."
+			// c.Assert(err, ErrorMatches, "cannot .* LK env .*")
+			if makeBackup {
+				// here we will read the backup file which exists but like the
+				// primary file is corrupted
+				errValidatePattern := `cannot validate %s: got version of .* \(expected .*\), got signature of .* \(expected .*\)`
+				c.Assert(err, ErrorMatches, fmt.Sprintf(errValidatePattern, testFileBackup))
+			} else {
+				// here we fail to read the normal file, and automatically try
+				// to read the backup, but fail because it doesn't exist
+				c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open LK env file: open %s: no such file or directory", testFileBackup))
+			}
+
+			c.Assert(loggerBuf.String(), testutil.Contains, fmt.Sprintf("cannot load primary bootloader environment: cannot validate %s:", testFile))
+			c.Assert(loggerBuf.String(), testutil.Contains, "attempting to load backup bootloader environment")
+		}
+	}
 }
 
 func (l *lkenvTestSuite) TestFailedCRCFallBack(c *C) {
@@ -190,23 +286,23 @@ func (l *lkenvTestSuite) TestFailedCRCFallBack(c *C) {
 	err = ioutil.WriteFile(l.envPathbak, buf, 0644)
 	c.Assert(err, IsNil)
 
-	env := lkenv.NewEnv(l.envPath)
+	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Check(env, NotNil)
 
-	env.Set("snap_mode", "trying")
+	env.Set("snap_mode", boot.TryingStatus)
 	env.Set("snap_kernel", "kernel-1")
 	env.Set("snap_try_kernel", "kernel-2")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	// break main  env file
+	// break main env file
 	err = ioutil.WriteFile(l.envPath, buf, 0644)
 	c.Assert(err, IsNil)
 
-	env2 := lkenv.NewEnv(l.envPath)
+	env2 := lkenv.NewEnv(l.envPath, lkenv.V1)
 	err = env2.Load()
 	c.Assert(err, IsNil)
-	c.Check(env2.Get("snap_mode"), Equals, "trying")
+	c.Check(env2.Get("snap_mode"), Equals, boot.TryingStatus)
 	c.Check(env2.Get("snap_kernel"), Equals, "kernel-1")
 	c.Check(env2.Get("snap_try_kernel"), Equals, "kernel-2")
 }
@@ -216,7 +312,7 @@ func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
 	err := ioutil.WriteFile(l.envPath, buf, 0644)
 	c.Assert(err, IsNil)
 
-	env := lkenv.NewEnv(l.envPath)
+	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Assert(err, IsNil)
 	env.ConfigureBootPartitions("boot_a", "boot_b")
 	// test no boot partition used
@@ -245,7 +341,7 @@ func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 	err := ioutil.WriteFile(l.envPath, buf, 0644)
 	c.Assert(err, IsNil)
 
-	env := lkenv.NewEnv(l.envPath)
+	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Assert(err, IsNil)
 	env.ConfigureBootPartitions("boot_a", "boot_b")
 	// test no boot partition used
@@ -285,10 +381,10 @@ func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 
 func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	// test data is generated with gadget build helper tool:
-	// $ parts/snap-boot-sel-env/build/lk-boot-env -w test.bin
-	//   --snap-mode="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2"
-	//   --snap-core="core-1" --snap-try-core="core-2" --reboot-reason=""
-	//   --boot-0-part="boot_a" --boot-1-part="boot_b" --boot-0-snap="kernel-1"
+	// $ parts/snap-boot-sel-env/build/lk-boot-env -w test.bin \
+	//   --snap-mode="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2" \
+	//   --snap-core="core-1" --snap-try-core="core-2" --reboot-reason="" \
+	//   --boot-0-part="boot_a" --boot-1-part="boot_b" --boot-0-snap="kernel-1" \
 	//   --boot-1-snap="kernel-3" --bootimg-file="boot.img"
 	// $ cat test.bin | gzip | xxd -i
 	gzipedData := []byte{
@@ -314,11 +410,11 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
 	c.Assert(err, IsNil)
 
-	env := lkenv.NewEnv(l.envPath)
+	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Check(env, NotNil)
 	err = env.Load()
 	c.Assert(err, IsNil)
-	c.Check(env.Get("snap_mode"), Equals, "trying")
+	c.Check(env.Get("snap_mode"), Equals, boot.TryingStatus)
 	c.Check(env.Get("snap_kernel"), Equals, "kernel-1")
 	c.Check(env.Get("snap_try_kernel"), Equals, "kernel-2")
 	c.Check(env.Get("snap_core"), Equals, "core-1")
