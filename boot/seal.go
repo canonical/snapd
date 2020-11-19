@@ -84,7 +84,7 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
-		return fmt.Errorf("cannot get fde-setup hook %v", err)
+		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
 		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, modeenv)
