@@ -174,10 +174,10 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 	return out, nil
 }
 
-// KernelCommandLineKeyValue returns a map of the specified keys to the values
+// KernelCommandLineKeyValues returns a map of the specified keys to the values
 // set for them in the kernel command line. If the value is missing from the
 // kernel command line, the key is omitted from the returned map.
-func KernelCommandLineKeyValue(keys ...string) (map[string]string, error) {
+func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 	buf, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return nil, err

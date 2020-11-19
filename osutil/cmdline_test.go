@@ -178,7 +178,7 @@ func (s *cmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		c.Assert(err, IsNil)
 		r := osutil.MockProcCmdline(cmdlineFile)
 		defer r()
-		res, err := osutil.KernelCommandLineKeyValue(t.keys...)
+		res, err := osutil.KernelCommandLineKeyValues(t.keys...)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
 		} else {

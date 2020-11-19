@@ -171,6 +171,6 @@ func debugEnabledOnKernelCmdline() bool {
 	if osutil.IsTestBinary() && procCmdlineMustMockInTests {
 		return false
 	}
-	m, _ := osutil.KernelCommandLineKeyValue("snapd.debug")
+	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
 	return m != nil && m["snapd.debug"] == "1"
 }
