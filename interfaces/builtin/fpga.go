@@ -27,7 +27,6 @@ const fpgaBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-auto-connection: true
-    deny-connection: true
 `
 
 const fpgaConnectedPlugAppArmor = `
@@ -54,10 +53,6 @@ const fpgaConnectedPlugAppArmor = `
 # Xilinx zynqmp module parameters (not upstreamed yet)
 # https://github.com/Xilinx/linux-xlnx/blob/master/drivers/fpga/zynqmp-fpga.c#L36
 /sys/module/zynqmp_fpga/parameters/readback_type rw,
-
-# configfs interface
-/sys/kernel/config/device-tree/overlays/full{,1}/ rw,
-/sys/kernel/config/device-tree/overlays/full{,1}/path rw,
 `
 
 var fpgaConnectedPlugUDev = []string{
