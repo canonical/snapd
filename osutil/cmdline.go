@@ -193,16 +193,10 @@ func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 		for _, key := range keys {
 			if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
 				res := strings.SplitN(param, "=", 2)
-				if len(res) == 2 {
-					m[key] = res[1]
-				} else {
-					// length not of N means the empty string was passed, so set
-					// that, so that callers can tell whether a parameter was not
-					// set at all (by checking if the key is in the returned map)
-					// or if it was literally set to the empty string (it's there
-					// and set to the empty string)
-					m[key] = ""
-				}
+				// we have confirmed key= prefix, thus len(res)
+				// is always 2
+				m[key] = res[1]
+				break
 			}
 		}
 	}
