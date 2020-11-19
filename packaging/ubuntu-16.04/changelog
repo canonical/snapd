@@ -1,6 +1,17 @@
-snapd (2.48) UNRELEASED; urgency=medium
+snapd (2.48) xenial; urgency=medium
 
   * New upstream release, LP: #1904098
+    - osutil: add KernelCommandLineKeyValue
+    - devicestate: implement boot.HasFDESetupHook
+    - boot/makebootable.go: set snapd_recovery_mode=install at image-
+      build time
+    - bootloader: use ForGadget when installing boot config
+    - interfaces/raw_usb: allow read access to /proc/tty/drivers
+    - boot: add scaffolding for "fde-setup" hook support for sealing
+    - tests: fix basic20 test on arm devices
+    - seed: make a shared seed system label validation helper
+    - snap: add new "fde-setup" hooktype
+    - cmd/snap-bootstrap, secboot, tests: misc cleanups, add spread test
     - secboot,cmd/snap-bootstrap: fix degraded mode cases with better
       device handling
     - boot,dirs,c/snap-bootstrap: avoid InstallHost* at the cost of some
@@ -100,8 +111,7 @@ snapd (2.48) UNRELEASED; urgency=medium
     - secboot: version bump, unlock volume with key
     - tests/snap-advise-command: re-enable test
     - cmd/snap, snapmgr, tests: cleanups after #9418
-    - interfaces: deny connected x11 plugs access to ICEFixes:
-      https://bugs.launchpad.net/snapd/+bug/1901489
+    - interfaces: deny connected x11 plugs access to ICE
     - daemon,client: write and read a maintenance.json file for when
       snapd is shut down
     - many: update to secboot v1 (part 1)
@@ -304,7 +314,7 @@ snapd (2.48) UNRELEASED; urgency=medium
     - tests/lib/cla_check: default to Python 3, tweaks, formatting
     - tests/lib/cl_check.py: use python3 compatible code
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Nov 2020 07:00:54 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 Nov 2020 17:51:02 +0100
 
 snapd (2.47.1) xenial; urgency=medium
 
