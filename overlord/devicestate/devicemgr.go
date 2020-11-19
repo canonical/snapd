@@ -142,7 +142,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
-	// add FDE hook support to boot
+	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
 
 	return m, nil
@@ -1362,12 +1362,12 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
-		return false, fmt.Errorf("cannto find device context: %v", err)
+		return false, fmt.Errorf("cannot get device context: %v", err)
 	}
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
-		return false, fmt.Errorf("cannot find kernel: %v", err)
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
 	}
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok, nil
