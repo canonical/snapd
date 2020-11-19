@@ -303,8 +303,10 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device.
 func checkEncryption(model *asserts.Model) (res bool, err error) {
-	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
+	// models with "grade: secured" always have "storage-safety: encrypted"
+	// so there is no need for a separate check
+	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
@@ -314,18 +316,16 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// encryption is required in secured devices and optional in other grades
 	if err := secbootCheckKeySealingSupported(); err != nil {
-		if secured {
+		if encrypted {
 			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
 		}
 		return false, nil
 	}
 
-	// encryption is available but some models may prefer to not
-	// use it
 	// TODO: provide way to select via install chooser menu
 	// if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
-		logger.Noticef(`installing system unencrypted because of "storage-safety: prefer-unencrypted"`)
+		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
 		return false, nil
 	}
 
