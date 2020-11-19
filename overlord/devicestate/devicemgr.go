@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -1357,6 +1358,11 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	st := m.state
 
@@ -1369,6 +1375,5 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("cannot get kernel info: %v", err)
 	}
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok, nil
+	return hasFDESetupHookInKernel(kernelInfo), nil
 }

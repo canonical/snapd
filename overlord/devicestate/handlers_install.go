@@ -126,7 +126,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := checkEncryption(deviceCtx.Model())
+	useEncryption, err := checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
@@ -302,7 +302,8 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device.
-func checkEncryption(model *asserts.Model) (res bool, err error) {
+func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 
@@ -310,6 +311,15 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		return false, nil
+	}
+
+	// check if kernel has fde-setup hook based encryption support
+	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
+		// XXX: should we run the fde-setup hook with
+		//      "op":"available" or similar now?
+		if hasFDESetupHookInKernel(kernelInfo) {
+			return true, nil
+		}
 	}
 
 	// encryption is required in secured devices and optional in other grades

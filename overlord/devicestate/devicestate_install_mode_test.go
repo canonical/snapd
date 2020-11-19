@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -87,12 +88,13 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
+const (
+	pcSnapID       = "pcididididididididididididididid"
+	pcKernelSnapID = "pckernelidididididididididididid"
+	core20SnapID   = "core20ididididididididididididid"
+)
+
 func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
-	const (
-		pcSnapID       = "pcididididididididididididididid"
-		pcKernelSnapID = "pckernelidididididididididididid"
-		core20SnapID   = "core20ididididididididididididid"
-	)
 	si := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(1),
@@ -796,4 +798,31 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(s.restartRequests, HasLen, 1)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+
+	for _, tc := range []struct {
+		kernelYaml string
+		encrypt    bool
+	}{
+		{kernelYamlNoFdeSetup, false},
+		{kernelYamlWithFdeSetup, true},
+	} {
+		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
+
+		encrypt, err := devicestate.CheckEncryption(st, deviceCtx)
+		c.Assert(err, IsNil)
+		c.Check(encrypt, Equals, tc.encrypt)
+	}
 }
