@@ -197,7 +197,7 @@ func (s *validateSuite) TestValidateQueryAll(c *check.C) {
 	defer restore()
 
 	s.RedirectClientToTestServer(makeFakeValidateQueryHandler(c, `{"type": "sync", "status-code": 200, "result": [
-		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true,"notes":["model","other"]},
+		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true},
 		{"validation-set":"foo/baz","mode":"enforce","seq":1,"valid":false}
 	]}`, true))
 
@@ -206,7 +206,7 @@ func (s *validateSuite) TestValidateQueryAll(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current       Notes\n"+
-		"foo/bar     monitor  3    valid    model,other\n"+
+		"foo/bar     monitor  3    valid    \n"+
 		"foo/baz     enforce  1    invalid  \n"+
 		"\n")
 }

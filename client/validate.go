@@ -40,7 +40,7 @@ type ValidationSetResult struct {
 	Mode          string   `json:"mode"`
 	Seq           int      `json:"seq,omitempty"`
 	Valid         bool     `json:"valid"`
-	Notes         []string `json:"notes,omitempty"`
+	// TODO: flags/states for notes column
 }
 
 // ApplyValidationSet applies or forgets the given validation set identified by account and name.

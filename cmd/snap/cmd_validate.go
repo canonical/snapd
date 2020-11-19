@@ -44,7 +44,7 @@ type cmdValidate struct {
 
 var shortValidateHelp = i18n.G("List or apply validation sets")
 var longValidateHelp = i18n.G(`
-The validate command lists validation sets or sets validations
+The validate command lists or applies validations sets
 `)
 
 func init() {
@@ -161,13 +161,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
 		fmt.Fprintf(w, i18n.G("Validation\tMode\tSeq\tCurrent\t%s\tNotes\n"), fillerPublisher(esc))
 		for _, res := range vsets {
+			// TODO: fill notes when've clarity about them
+			var notes string
 			// doing it this way because otherwise it's a sea of %s\t%s\t%s
 			line := []string{
 				res.ValidationSet,
 				res.Mode,
 				fmt.Sprintf("%d", res.Seq),
 				fmtValid(res),
-				strings.Join(res.Notes, ","),
+				notes,
 			}
 			fmt.Fprintln(w, strings.Join(line, "\t"))
 		}
