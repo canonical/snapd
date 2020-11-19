@@ -113,6 +113,8 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	routineConsoleConfStartCmd,
+	systemRecoveryKeysCmd,
 }
 
 var servicestateControl = servicestate.Control
@@ -796,6 +798,7 @@ type snapInstruction struct {
 	JailMode         bool `json:"jailmode"`
 	Classic          bool `json:"classic"`
 	IgnoreValidation bool `json:"ignore-validation"`
+	IgnoreRunning    bool `json:"ignore-running"`
 	Unaliased        bool `json:"unaliased"`
 	Purge            bool `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
@@ -831,6 +834,10 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.Unaliased {
 		flags.Unaliased = true
 	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
+	}
+
 	return flags, nil
 }
 
@@ -884,6 +891,7 @@ var (
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
 	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1024,6 +1032,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.IgnoreRunning {
+		flags.IgnoreRunning = true
 	}
 	if inst.Amend {
 		flags.Amend = true
@@ -1423,6 +1434,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	flags.RemoveSnapPath = true
 
 	flags.Unaliased = isTrue(form, "unaliased")
+	flags.IgnoreRunning = isTrue(form, "ignore-running")
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -2449,7 +2461,12 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	tss, err := servicestateControl(st, appInfos, &inst, nil)
+	// do not pass flags - only create service-control tasks, do not create
+	// exec-command tasks for old snapd. These are not needed since we are
+	// handling momentary snap service commands.
+	st.Lock()
+	defer st.Unlock()
+	tss, err := servicestateControl(st, appInfos, &inst, nil, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
@@ -2457,8 +2474,6 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return BadRequest(err.Error())
 	}
-	st.Lock()
-	defer st.Unlock()
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))

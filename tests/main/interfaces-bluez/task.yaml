@@ -4,7 +4,7 @@ details: |
     The bluez interface allows the bluez service to run and clients to
     communicate with it.
 
-    This test verifies the the bluez snap from the store installs and
+    This test verifies that the bluez snap from the store installs and
     we can connect its slot and plug.
 
 environment:

@@ -244,6 +244,10 @@ type Systemd interface {
 	Mask(service string) error
 	// Unmask the given service.
 	Unmask(service string) error
+	// Mount requests a mount of what under where with options.
+	Mount(what, where string, options ...string) error
+	// Umount requests a mount from what or at where to be unmounted.
+	Umount(whatOrWhere string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -296,7 +300,7 @@ func NewEmulationMode(rootDir string) Systemd {
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
-// refers to the the instance launched to manage the user's desktop
+// refers to the instance launched to manage the user's desktop
 // session.  GlobalUserMode controls configuration respected by all
 // user instances on the system.
 //
@@ -909,4 +913,23 @@ func (s *systemd) ReloadOrRestart(serviceName string) error {
 	}
 	_, err := s.systemctl("reload-or-restart", serviceName)
 	return err
+}
+
+func (s *systemd) Mount(what, where string, options ...string) error {
+	args := make([]string, 0, 2+len(options))
+	if len(options) > 0 {
+		args = append(args, options...)
+	}
+	args = append(args, what, where)
+	if output, err := exec.Command("systemd-mount", args...).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func (s *systemd) Umount(whatOrWhere string) error {
+	if output, err := exec.Command("systemd-mount", "--umount", whatOrWhere).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }

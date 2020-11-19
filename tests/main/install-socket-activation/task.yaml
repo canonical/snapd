@@ -4,9 +4,7 @@ details: |
     This installs a snap which define sockets for systemd socket activation.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local socket-activation
+    "$TESTSTOOLS"/snaps-state install-local socket-activation
 
 restore: |
     systemctl daemon-reload

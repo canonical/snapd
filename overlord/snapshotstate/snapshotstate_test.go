@@ -20,10 +20,13 @@
 package snapshotstate_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -60,6 +63,7 @@ func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 }
 
 func (snapshotSuite) TearDownTest(c *check.C) {
@@ -70,13 +74,43 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	// Disk last set id unset, state set id unset, use 1
 	sid, err := snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
 
+	var stateSetID uint64
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(1))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 9 > state set id 1, use 9++ = 10
 	sid, err = snapshotstate.NewSnapshotSetID(st)
 	c.Assert(err, check.IsNil)
-	c.Check(sid, check.Equals, uint64(2))
+	c.Check(sid, check.Equals, uint64(10))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(10))
+
+	// Disk last set id 9 < state set id 10, use 10++ = 11
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(11))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(11))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+
+	// Disk last set id 88 > state set id 11, use 88++ = 89
+	sid, err = snapshotstate.NewSnapshotSetID(st)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(89))
+
+	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
+	c.Check(stateSetID, check.Equals, uint64(89))
 }
 
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
@@ -1004,7 +1038,6 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -1042,6 +1075,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	c.Assert(o.Settle(5*time.Second), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.IsNil)
+	defer st.Unlock()
 
 	// the three restores warn about the missing home (but no errors, no panics)
 	for _, task := range change.Tasks() {
@@ -1083,7 +1117,6 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -1120,6 +1153,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	c.Assert(o.Settle(5*time.Second), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.NotNil)
+	defer st.Unlock()
 
 	tasks := change.Tasks()
 	c.Check(tasks, check.HasLen, 3)
@@ -1480,6 +1514,41 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 	c.Assert(du, check.Equals, time.Duration(0))
 }
 
+func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
+	st := state.New(nil)
+
+	fakeSnapNames := []string{"baz", "bar", "foo"}
+	fakeSnapshotData := "fake-import-data"
+
+	buf := bytes.NewBufferString(fakeSnapshotData)
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		d, err := ioutil.ReadAll(r)
+		c.Assert(err, check.IsNil)
+		c.Check(fakeSnapshotData, check.Equals, string(d))
+		return fakeSnapNames, nil
+	})
+	defer restore()
+
+	sid, names, err := snapshotstate.Import(context.TODO(), st, buf)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(1))
+	c.Check(names, check.DeepEquals, fakeSnapNames)
+}
+
+func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
+	st := state.New(nil)
+
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		return nil, errors.New("some-error")
+	})
+	defer restore()
+
+	r := bytes.NewBufferString("faked-import-data")
+	sid, _, err := snapshotstate.Import(context.TODO(), st, r)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "some-error")
+	c.Check(sid, check.Equals, uint64(0))
+}
 func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	st := state.New(nil)
 	st.Lock()

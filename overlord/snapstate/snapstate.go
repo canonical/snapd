@@ -174,10 +174,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
-		if experimentalRefreshAppAwareness {
-			// Note that because we are modifying the snap state this block
-			// must be located after the conflict check done above.
-			if err := inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck); err != nil {
+		if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+			// Note that because we are modifying the snap state inside
+			// softCheckNothingRunningForRefresh, this block must be located
+			// after the conflict check done above.
+			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
@@ -464,19 +465,42 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-// WaitRestart will return a Retry error if there is a pending restart
+var generateSnapdWrappers = backend.GenerateSnapdWrappers
+
+// FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
-// restarts)
-func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+// restarts).
+// For snapd snap updates this will also rerun wrappers generation to fully
+// catch up with any change.
+func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
 	}
 
-	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
-		return fmt.Errorf("there was a snapd rollback across the restart")
+	if snapsup.Type == snap.TypeSnapd {
+		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+			return fmt.Errorf("there was a snapd rollback across the restart")
+		}
+
+		// if we have restarted and snapd was refreshed, then we need to generate
+		// snapd wrappers again with current snapd, as the logic of generating
+		// wrappers may have changed between previous and new snapd code.
+		if !release.OnClassic {
+			snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
+			if err != nil {
+				return fmt.Errorf("cannot get current snapd snap info: %v", err)
+			}
+			// TODO: if future changes to wrappers need one more snapd restart,
+			// then it should be handled here as well.
+			if err := generateSnapdWrappers(snapdInfo); err != nil {
+				return err
+			}
+		}
 	}
+
+	// consider kernel and base
 
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)
 	if err != nil {
@@ -2131,9 +2155,17 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 	if removeAll {
 		seq := snapst.Sequence
+		currentIndex := snapst.LastIndex(snapst.Current)
 		for i := len(seq) - 1; i >= 0; i-- {
-			si := seq[i]
-			addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+			if i != currentIndex {
+				si := seq[i]
+				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+			}
+		}
+		// add tasks for removing the current revision last,
+		// this is then also when common data will be removed
+		if currentIndex >= 0 {
+			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
 		}
 	} else {
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
@@ -2417,6 +2449,9 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 	if !ok {
 		return state.ErrNoState
 	}
+
+	// XXX: &snapst pointer isn't needed here but it is likely historical
+	// (a bug in old JSON marshaling probably).
 	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal snap state: %v", err)

@@ -24,7 +24,9 @@ import (
 	"os/user"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -67,7 +69,7 @@ func MockDirNames(newDirNames func(*os.File, int) ([]string, error)) func() {
 	}
 }
 
-func MockOpen(newOpen func(string) (*Reader, error)) func() {
+func MockOpen(newOpen func(string, uint64) (*Reader, error)) func() {
 	oldOpen := backendOpen
 	backendOpen = newOpen
 	return func() {
@@ -112,5 +114,19 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	timeNow = f
 	return func() {
 		timeNow = oldTimeNow
+	}
+}
+
+func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size int64, shaSums map[string]string) *client.Snapshot {
+	return &client.Snapshot{
+		SetID:    setID,
+		Snap:     snapName,
+		SnapID:   "id",
+		Revision: revision,
+		Version:  "1.0",
+		Epoch:    snap.Epoch{},
+		Time:     timeNow(),
+		SHA3_384: shaSums,
+		Size:     size,
 	}
 }

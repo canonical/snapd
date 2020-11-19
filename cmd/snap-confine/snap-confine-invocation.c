@@ -38,7 +38,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
      * in agreement with snap instance name and must be a valid security
      * tag. */
     const char *security_tag = sc_args_security_tag(args);
-    if (!verify_security_tag(security_tag, snap_instance)) {
+    if (!sc_security_tag_validate(security_tag, snap_instance)) {
         die("security tag %s not allowed", security_tag);
     }
 

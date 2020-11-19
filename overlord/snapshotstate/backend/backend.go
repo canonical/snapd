@@ -22,12 +22,14 @@ package backend
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -73,6 +75,40 @@ type Flags struct {
 	Auto bool
 }
 
+// LastSnapshotSetID returns the highest set id number for the snapshots stored
+// in snapshots directory; set ids are inferred from the filenames.
+func LastSnapshotSetID() (uint64, error) {
+	dir, err := osOpen(dirs.SnapshotsDir)
+	if err != nil {
+		if osutil.IsDirNotExist(err) {
+			// no snapshots
+			return 0, nil
+		}
+		return 0, fmt.Errorf("cannot open snapshots directory: %v", err)
+	}
+	defer dir.Close()
+
+	var maxSetID uint64
+
+	var readErr error
+	for readErr == nil {
+		var names []string
+		// note os.Readdirnames can return a non-empty names and a non-nil err
+		names, readErr = dirNames(dir, 100)
+		for _, name := range names {
+			if ok, setID := isSnapshotFilename(name); ok {
+				if setID > maxSetID {
+					maxSetID = setID
+				}
+			}
+		}
+	}
+	if readErr != nil && readErr != io.EOF {
+		return 0, readErr
+	}
+	return maxSetID, nil
+}
+
 // Iter loops over all snapshots in the snapshots directory, applying the given
 // function to each. The snapshot will be closed after the function returns. If
 // the function returns an error, iteration is stopped (and if the error isn't
@@ -92,6 +128,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 	}
 	defer dir.Close()
 
+	importsInProgress := map[uint64]bool{}
 	var names []string
 	var readErr error
 	for readErr == nil && err == nil {
@@ -107,20 +144,36 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			if !ok {
 				continue
 			}
+			// keep track of in-progress in a map as well
+			// to avoid races. E.g.:
+			// 1. The dirNnames() are read
+			// 2. 99_some-snap_1.0_x1.zip is returned
+			// 3. the code checks if 99_importing is there,
+			//    it is so 99_some-snap is skipped
+			// 4. other snapshots are examined
+			// 5. in-parallel 99_importing finishes
+			// 7. 99_other-snap_1.0_x1.zip is now examined
+			// 8. code checks if 99_importing is there, but it
+			//    is no longer there because import
+			//    finished in the meantime. We still
+			//    want to not call the callback with
+			//    99_other-snap or the callback would get
+			//    an incomplete view about 99_snapshot.
+			if importsInProgress[setID] {
+				continue
+			}
+			if importInProgressFor(setID) {
+				importsInProgress[setID] = true
+				continue
+			}
+
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			reader, openError := backendOpen(filename)
+			reader, openError := backendOpen(filename, setID)
 			// reader can be non-nil even when openError is not nil (in
 			// which case reader.Broken will have a reason). f can
 			// check and either ignore or return an error when
 			// finding a broken snapshot.
 			if reader != nil {
-				if reader.SetID != setID && openError == nil {
-					// ignore snapshots where set id of the filename disagree
-					// with internal set id. This may be the case in the future
-					// with new enhanced snapshot format.
-					logger.Noticef("Snapshot %q ignored, internal set-id %d disagrees with filename", name, reader.SetID)
-					continue
-				}
 				err = f(reader)
 			} else {
 				// TODO: use warnings instead
@@ -178,7 +231,11 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
-func isSnapshotFilename(fname string) (ok bool, setID uint64) {
+// isSnapshotFilename checks if the given filePath is a snapshot file name, i.e.
+// if it starts with a numeric set id and ends with .zip extension;
+// filePath can be just a file name, or a full path.
+func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
+	fname := filepath.Base(filePath)
 	// XXX: we could use a regexp here to match very precisely all the elements
 	// of the filename following Filename() above, but perhaps it's better no to
 	// go overboard with it in case the format evolves in the future. Only check
@@ -347,6 +404,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	tarArgs := []string{
 		"--create",
 		"--sparse", "--gzip",
+		"--format", "gnu",
 		"--directory", parent,
 	}
 
@@ -413,6 +471,188 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	snapshot.Size += sz.Size()
 
 	return nil
+}
+
+var ErrCannotCancel = errors.New("cannot cancel: import already finished")
+
+// importTransaction keeps track of the given snapshot ID import and
+// ensures it can be committed/cancelled in an atomic way.
+//
+// Start() must be called before the first data is imported. When the
+// import is successful Commit() should be called.
+//
+// Cancel() will cancel the given import and cleanup. It's always safe
+// to defer a Cancel() it will just return a "ErrCannotCancel" after
+// a commit.
+type importTransaction struct {
+	id        uint64
+	committed bool
+}
+
+func newImportTransaction(setID uint64) *importTransaction {
+	return &importTransaction{id: setID}
+}
+
+func (t *importTransaction) importInProgressFilesGlob() string {
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
+}
+
+// Start marks the start of a snapshot import
+func (t *importTransaction) Start() error {
+	return ioutil.WriteFile(importInProgressFilepath(t.id), nil, 0644)
+}
+
+// InProgress returns true if there is an import for this transactions
+// snapshot ID already.
+func (t *importTransaction) InProgress() bool {
+	return osutil.FileExists(importInProgressFilepath(t.id))
+}
+
+func importInProgressFilepath(setID uint64) string {
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID))
+}
+
+func importInProgressFor(setID uint64) bool {
+	return osutil.FileExists(importInProgressFilepath(setID))
+}
+
+// Cancel cancels a snapshot import and cleanups any files on disk belonging
+// to this snapshot ID.
+func (t *importTransaction) Cancel() error {
+	if t.committed {
+		return ErrCannotCancel
+	}
+	inProgressImports, err := filepath.Glob(t.importInProgressFilesGlob())
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, p := range inProgressImports {
+		if err := os.Remove(p); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		buf := bytes.NewBuffer(nil)
+		for _, err := range errs {
+			fmt.Fprintf(buf, " - %v\n", err)
+		}
+		return fmt.Errorf("cannot cancel import for set id %d:\n%s", t.id, buf.String())
+	}
+	return nil
+}
+
+// Commit will commit a given transaction
+func (t *importTransaction) Commit() error {
+	if err := os.Remove(importInProgressFilepath(t.id)); err != nil {
+		return err
+	}
+	t.committed = true
+	return nil
+}
+
+// Import a snapshot from the export file format
+func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, err error) {
+	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
+
+	tr := newImportTransaction(id)
+	if tr.InProgress() {
+		return nil, fmt.Errorf("%s: already in progress for this set id", errPrefix)
+	}
+	if err := tr.Start(); err != nil {
+		return nil, err
+	}
+	// Cancel once Committed is a NOP
+	defer tr.Cancel()
+
+	// Unpack and validate the streamed data
+	snapNames, err = unpackVerifySnapshotImport(r, id)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	if err := tr.Commit(); err != nil {
+		return nil, err
+	}
+
+	return snapNames, nil
+}
+
+func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
+	t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
+	}
+	defer t.Close()
+
+	if _, err := io.Copy(t, tr); err != nil {
+		return fmt.Errorf("cannot write snapshot file %q: %v", targetPath, err)
+	}
+	return nil
+}
+
+func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
+	var exportFound bool
+
+	tr := tar.NewReader(r)
+	var tarErr error
+	var header *tar.Header
+
+	for tarErr == nil {
+		header, tarErr = tr.Next()
+		if tarErr == io.EOF {
+			break
+		}
+		switch {
+		case tarErr != nil:
+			return nil, fmt.Errorf("cannot read snapshot import: %v", tarErr)
+		case header == nil:
+			// should not happen
+			return nil, fmt.Errorf("tar header not found")
+		case header.Typeflag == tar.TypeDir:
+			return nil, errors.New("unexpected directory in import file")
+		}
+
+		if header.Name == "export.json" {
+			// XXX: read into memory and validate once we
+			// hashes in export.json
+			exportFound = true
+			continue
+		}
+
+		// Format of the snapshot import is:
+		//     $setID_.....
+		// But because the setID is local this will not be correct
+		// for our system and we need to discard this setID.
+		//
+		// So chop off the incorrect (old) setID and just use
+		// the rest that is still valid.
+		l := strings.SplitN(header.Name, "_", 2)
+		if len(l) != 2 {
+			return nil, fmt.Errorf("unexpected filename in import stream: %v", header.Name)
+		}
+		targetPath := path.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s", realSetID, l[1]))
+		if err := writeOneSnapshotFile(targetPath, tr); err != nil {
+			return snapNames, err
+		}
+
+		r, err := backendOpen(targetPath, realSetID)
+		if err != nil {
+			return snapNames, fmt.Errorf("cannot open snapshot: %v", err)
+		}
+		err = r.Check(context.TODO(), nil)
+		r.Close()
+		snapNames = append(snapNames, r.Snap)
+		if err != nil {
+			return snapNames, fmt.Errorf("validation failed for %q: %v", targetPath, err)
+		}
+	}
+
+	if !exportFound {
+		return nil, fmt.Errorf("no export.json file in uploaded data")
+	}
+	// XXX: validate using the unmarshalled export.json hashes here
+
+	return snapNames, nil
 }
 
 type exportMetadata struct {

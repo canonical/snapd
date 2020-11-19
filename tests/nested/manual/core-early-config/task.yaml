@@ -28,7 +28,7 @@ prepare: |
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     mv "$KERNEL_SNAP" extra-snaps/
 
-    nested_create_core_vm
+    "$TESTSTOOLS"/nested-state build-image core 
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use
@@ -43,7 +43,7 @@ prepare: |
     kpartx -d "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     rmdir "$tmp"
 
-    nested_start_core_vm
+    "$TESTSTOOLS"/nested-state create-vm core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

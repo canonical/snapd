@@ -29,15 +29,11 @@ import (
 
 // FindUid returns the identifier of the given UNIX user name. It will
 // automatically fallback to use "getent" if needed.
-func FindUid(username string) (uint64, error) {
-	return findUid(username)
-}
+var FindUid = findUid
 
 // FindGid returns the identifier of the given UNIX group name. It will
 // automatically fallback to use "getent" if needed.
-func FindGid(groupname string) (uint64, error) {
-	return findGid(groupname)
-}
+var FindGid = findGid
 
 // getent returns the identifier of the given UNIX user or group name as
 // determined by the specified database
@@ -75,6 +71,18 @@ func getent(database, name string) (uint64, error) {
 
 	return strconv.ParseUint(string(parts[2]), 10, 64)
 }
+
+// TODO: both findUidNoGetentFallback and findGidNoGetentFallback should return
+//       a more qualified default value than uint64, because currently the
+//       default return value for findUid is "0" as per Go conventions, which is
+//       unfortunately also the uid of root, so if a caller ignored the error
+//       from this function and used that to perform access authorization, then
+//       the caller would accidentally provide the same access level as root in
+//       the error case. This is excaberated by the fact that the error case is
+//       very difficult to positively identify correctly as "not found", see the
+//       comments inside the functions for more details.
+// Note: there is a similar implementation in overlord/snapshotstate which
+//       should be similarly adjusted when resolving the above TODO.
 
 var findUidNoGetentFallback = func(username string) (uint64, error) {
 	myuser, err := user.Lookup(username)
