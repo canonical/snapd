@@ -59,6 +59,20 @@ nested_wait_for_reboot() {
     [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
+nested_uc20_transition_to_system_mode() {
+    local recovery_system="$1"
+    local mode="$2"
+    local current_boot_id
+    current_boot_id=$(nested_get_boot_id)
+    nested_exec "sudo snap reboot --$mode $recovery_system"
+    nested_wait_for_reboot "$current_boot_id"
+
+    # verify we are now in the requested mode
+    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+        return 1
+    fi
+}
+
 nested_retry_while_success() {
     local retry="$1"
     local wait="$2"
@@ -218,9 +232,15 @@ nested_get_cdimage_current_image_url() {
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
-    # This should be executed on remote system but as nested architecture is the same than the
-    # host then the snap info is executed in the host
-    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+
+    curl -s \
+         -H "Snap-Device-Architecture: ${NESTED_ARCHITECTURE:-amd64}" \
+         -H "Snap-Device-Series: 16" \
+         -X POST \
+         -H "Content-Type: application/json" \
+         --data "{\"context\": [], \"actions\": [{\"action\": \"install\", \"name\": \"$SNAP\", \"channel\": \"$CHANNEL\", \"instance-key\": \"1\"}]}" \
+         https://api.snapcraft.io/v2/snaps/refresh | \
+        jq '.results[0].snap.revision'
 }
 
 nested_is_nested_system() {

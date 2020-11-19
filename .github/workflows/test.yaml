@@ -201,8 +201,8 @@ jobs:
         - centos-8-64
         - debian-9-64
         - debian-sid-64
-        - fedora-31-64
         - fedora-32-64
+        - fedora-33-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64

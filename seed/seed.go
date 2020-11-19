@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -126,7 +127,7 @@ type EssentialMetaLoaderSeed interface {
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
-		if err := validateUC20SeedSystemLabel(label); err != nil {
+		if err := internal.ValidateUC20SeedSystemLabel(label); err != nil {
 			return nil, err
 		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil

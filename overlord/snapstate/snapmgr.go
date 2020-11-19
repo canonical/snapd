@@ -93,11 +93,6 @@ type SnapSetup struct {
 
 	SnapPath string `json:"snap-path,omitempty"`
 
-	// LastActiveDisabledServices is a list of services that were disabled right
-	// before the snap was unlinked to be used for re-disabling those services
-	// right after re-linking a different revision
-	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
-
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 	auxStoreInfo
@@ -437,7 +432,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddCleanup("copy-snap-data", m.cleanupCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
-	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
+	runner.AddHandler("start-snap-services", m.startSnapServices, m.undoStartSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
@@ -447,7 +442,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 
 	// remove related
-	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
+	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, m.undoUnlinkSnap)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
