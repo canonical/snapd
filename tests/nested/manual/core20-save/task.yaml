@@ -30,6 +30,7 @@ prepare: |
     "$TESTSTOOLS"/nested-state create-vm core
 
 debug: |
+    env | sort | grep NESTED_ || true
     cat pc-gadget/meta/gadget.yaml || true
     ls "$PWD" || true
     #shellcheck source=tests/lib/nested.sh
