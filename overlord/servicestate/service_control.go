@@ -87,18 +87,26 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	meter := snapstate.NewTaskProgressAdapterLocked(t)
+	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
 
+	// Note - state must be unlocked when calling wrappers below.
 	switch sc.Action {
 	case "stop":
 		disable := sc.ActionModifier == "disable"
 		flags := &wrappers.StopServicesFlags{
 			Disable: disable,
 		}
-		if err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings); err != nil {
+		st.Unlock()
+		err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings)
+		st.Lock()
+		if err != nil {
 			return err
 		}
 		if disable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
 			changed, err := updateSnapstateServices(&snapst, nil, services)
 			if err != nil {
 				return err
@@ -116,10 +124,17 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
 		}
-		if err := wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings); err != nil {
+		st.Unlock()
+		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		st.Lock()
+		if err != nil {
 			return err
 		}
 		if enable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
 			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil)
 			if err != nil {
 				return err
@@ -129,10 +144,16 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	case "restart":
-		return wrappers.RestartServices(services, nil, meter, perfTimings)
+		st.Unlock()
+		err := wrappers.RestartServices(services, nil, meter, perfTimings)
+		st.Lock()
+		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
-		return wrappers.RestartServices(services, flags, meter, perfTimings)
+		st.Unlock()
+		err := wrappers.RestartServices(services, flags, meter, perfTimings)
+		st.Lock()
+		return err
 	default:
 		return fmt.Errorf("unhandled service action: %q", sc.Action)
 	}
