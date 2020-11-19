@@ -1359,17 +1359,15 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	st := m.state
-	st.Lock()
-	defer st.Unlock()
 
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannto find device context: %v", err)
 	}
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannot find kernel: %v", err)
 	}
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok, nil

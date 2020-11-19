@@ -949,6 +949,19 @@ func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
 	return info11
 }
 
+func makeInstalledMockKernelSnap(c *C, st *state.State, yml string) *snap.Info {
+	sideInfo11 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(11), SnapID: "pc-kernel-id"}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11},
+		Current:  sideInfo11.Revision,
+		SnapType: "kernel",
+	})
+	info11 := snaptest.MockSnap(c, yml, sideInfo11)
+
+	return info11
+}
+
 func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.Info, ifname string) {
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
@@ -1260,11 +1273,45 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
 }
 
+var kernelYamlNoFdeSetup = `name: pc-kernel
+version: 1.0
+type: kernel
+`
+
+var kernelYamlWithFdeSetup = `name: pc-kernel
+version: 1.0
+type: kernel
+hooks:
+ fde-setup:
+`
+
 func (s *deviceMgrSuite) TestHadFdeSetupHook(c *C) {
-	// XXX: more real tests
-	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
-	c.Check(hasHook, Equals, false)
-	c.Check(err, Equals, state.ErrNoState)
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	for _, tc := range []struct {
+		kernelYaml      string
+		hasFdeSetupHook bool
+	}{
+		{kernelYamlNoFdeSetup, false},
+		{kernelYamlWithFdeSetup, true},
+	} {
+		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
+		s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+			"architecture": "amd64",
+			"kernel":       "pc-kernel",
+			"gadget":       "pc",
+		})
+		devicestatetest.SetDevice(s.state, &auth.DeviceState{
+			Brand: "canonical",
+			Model: "pc",
+		})
+
+		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
+		c.Assert(err, IsNil)
+		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
+	}
 }
 
 type startOfOperationTimeSuite struct {
