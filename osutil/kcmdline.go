@@ -17,12 +17,28 @@
  *
  */
 
-package strutil
+package osutil
 
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"strings"
 )
+
+var (
+	procCmdline = "/proc/cmdline"
+)
+
+// MockProcCmdline overrides the path to /proc/cmdline. For use in tests.
+func MockProcCmdline(newPath string) (restore func()) {
+	MustBeTestBinary("mocking can only be done from tests")
+	oldProcCmdline := procCmdline
+	procCmdline = newPath
+	return func() {
+		procCmdline = oldProcCmdline
+	}
+}
 
 // KernelCommandLineSplit tries to split the string comprising full or a part
 // of a kernel command line into a list of individual arguments. Returns an
@@ -156,4 +172,34 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 		return nil, errUnbalancedQUote
 	}
 	return out, nil
+}
+
+// KernelCommandLineKeyValues returns a map of the specified keys to the values
+// set for them in the kernel command line (eg. panic=-1). If the value is
+// missing from the kernel command line or it has no value (eg. quiet), the key
+// is omitted from the returned map.
+func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
+	buf, err := ioutil.ReadFile(procCmdline)
+	if err != nil {
+		return nil, err
+	}
+	params, err := KernelCommandLineSplit(strings.TrimSpace(string(buf)))
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[string]string, len(keys))
+
+	for _, param := range params {
+		for _, key := range keys {
+			if strings.HasPrefix(param, fmt.Sprintf("%s=", key)) {
+				res := strings.SplitN(param, "=", 2)
+				// we have confirmed key= prefix, thus len(res)
+				// is always 2
+				m[key] = res[1]
+				break
+			}
+		}
+	}
+	return m, nil
 }
