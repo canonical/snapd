@@ -690,7 +690,7 @@ func (m *recoverModeStateMachine) finalize() error {
 	// check soundness
 	// the grade check makes sure that if data was mounted unencrypted
 	// but the model is secured it will end up marked as untrusted
-	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
+	isEncrypted := m.isEncryptedDev || m.model.StorageSafety() == asserts.StorageSafetyEncrypted
 	part := m.degradedState.partition("ubuntu-data")
 	if part.MountState == partitionMounted && isEncrypted {
 		// check that save and data match
