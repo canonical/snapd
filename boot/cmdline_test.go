@@ -86,6 +86,9 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd: "snapd_recovery_mode=install foo=bar",
 		err: `cannot specify install mode without system label`,
 	}, {
+		cmd: "snapd_recovery_system=1234",
+		err: `cannot specify system label without a mode`,
+	}, {
 		// multiple kernel command line params end up using the last one - this
 		// effectively matches the kernel handling too
 		cmd:  "snapd_recovery_mode=install snapd_recovery_system=1234 snapd_recovery_mode=run",

@@ -70,6 +70,8 @@ func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err er
 	switch {
 	case mode == "" && sysLabel == "":
 		return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
+	case mode == "" && sysLabel != "":
+		return "", "", fmt.Errorf("cannot specify system label without a mode")
 	case mode == ModeInstall && sysLabel == "":
 		return "", "", fmt.Errorf("cannot specify install mode without system label")
 	case mode == ModeRun && sysLabel != "":
