@@ -28,11 +28,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type cmdlineTestSuite struct{}
+type kcmdlineTestSuite struct{}
 
-var _ = Suite(&cmdlineTestSuite{})
+var _ = Suite(&kcmdlineTestSuite{})
 
-func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
+func (s *kcmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 	for idx, tc := range []struct {
 		cmd    string
 		exp    []string
@@ -93,7 +93,7 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 	}
 }
 
-func (s *cmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
+func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 	for _, t := range []struct {
 		cmdline string
 		keys    []string
