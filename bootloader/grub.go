@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // sanity - grub implements the required interfaces
@@ -372,7 +371,7 @@ func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs
 		assetName = "grub-recovery.cfg"
 	}
 	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
+	args, err := osutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
