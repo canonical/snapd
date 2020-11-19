@@ -409,7 +409,7 @@ func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
 	return b.ManagedAssetsList
 }
 
-func (b *MockTrustedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) (bool, error) {
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	b.UpdateCalls++
 	return b.Updated, b.UpdateErr
 }

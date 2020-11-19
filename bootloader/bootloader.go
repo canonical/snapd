@@ -172,7 +172,7 @@ type TrustedAssetsBootloader interface {
 	ManagedAssets() []string
 	// UpdateBootConfig attempts to update the boot config assets used by
 	// the bootloader. Returns true when assets were updated.
-	UpdateBootConfig(*Options) (bool, error)
+	UpdateBootConfig() (bool, error)
 	// CommandLine returns the kernel command line composed of mode and
 	// system arguments, built-in bootloader specific static arguments
 	// corresponding to the on-disk boot asset edition, followed by any

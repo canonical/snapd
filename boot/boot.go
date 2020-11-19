@@ -405,10 +405,10 @@ func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	mbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// bootloader assets are not managed
 		return false, nil
 	}
-	return mbl.UpdateBootConfig(nil)
+	return tbl.UpdateBootConfig()
 }
