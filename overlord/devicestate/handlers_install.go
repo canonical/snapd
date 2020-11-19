@@ -303,9 +303,8 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device.
 func checkEncryption(model *asserts.Model) (res bool, err error) {
+	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
-	// models with "grade: secured" always have "storage-safety: encrypted"
-	// so there is no need for a separate check
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	// check if we should disable encryption non-secured devices
@@ -316,8 +315,11 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// encryption is required in secured devices and optional in other grades
 	if err := secbootCheckKeySealingSupported(); err != nil {
+		if secured {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
+		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
 		}
 		return false, nil
 	}
