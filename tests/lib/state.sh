@@ -8,9 +8,6 @@ SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -35,7 +32,7 @@ is_snapd_state_saved() {
 
 save_snapd_state() {
     if os.query is-core; then
-        boot_path="$(get_boot_path)"
+        boot_path="$("$TESTSTOOLS"/boot-state boot-path)"
         test -n "$boot_path" || return 1
 
         mkdir -p "$SNAPD_STATE_PATH"/system-units
@@ -89,7 +86,7 @@ restore_snapd_state() {
     if os.query is-core; then
         # we need to ensure that we also restore the boot environment
         # fully for tests that break it
-        boot_path="$(get_boot_path)"
+        boot_path="$("$TESTSTOOLS"/boot-state boot-path)"
         test -n "$boot_path" || return 1
 
         restore_snapd_lib
