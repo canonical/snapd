@@ -499,6 +499,10 @@ func importInProgressFor(setID uint64) bool {
 type importTransaction struct {
 	id        uint64
 	flockPath string
+	// flock is a file lock associated with the import, the logic
+	// using it prevents potentially cleaning up/cancelling a
+	// still in progress import in case we started allowing
+	// cleaning and imports to happen concurrently
 	flock     *osutil.FileLock
 	committed bool
 }
