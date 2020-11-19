@@ -143,7 +143,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	// add FDE hook support to boot
-	boot.HasFDESetupHook = hasFDESetupHook
+	boot.HasFDESetupHook = m.hasFDESetupHook
 
 	return m, nil
 }
@@ -1357,10 +1357,20 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
-func hasFDESetupHook(bootWith *boot.BootableSet) bool {
-	if bootWith == nil || bootWith.Kernel == nil {
-		return false
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return false, err
 	}
-	_, ok := bootWith.Kernel.Hooks["fde-setup"]
-	return ok
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, err
+	}
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok, nil
 }

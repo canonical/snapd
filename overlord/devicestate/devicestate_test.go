@@ -1261,24 +1261,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 }
 
 func (s *deviceMgrSuite) TestHadFdeSetupHook(c *C) {
-	// no hook
-	c.Check(devicestate.HasFDESetupHook(nil), Equals, false)
-	c.Check(devicestate.HasFDESetupHook(&boot.BootableSet{}), Equals, false)
-	c.Check(devicestate.HasFDESetupHook(&boot.BootableSet{Kernel: &snap.Info{}}), Equals, false)
-	// not the right hook
-	mockKernelWithOtherHook := &snap.Info{
-		Hooks: map[string]*snap.HookInfo{
-			"other-hook": &snap.HookInfo{},
-		},
-	}
-	c.Check(devicestate.HasFDESetupHook(&boot.BootableSet{Kernel: mockKernelWithOtherHook}), Equals, false)
-	// happy hook
-	mockKernel := &snap.Info{
-		Hooks: map[string]*snap.HookInfo{
-			"fde-setup": &snap.HookInfo{},
-		},
-	}
-	c.Check(devicestate.HasFDESetupHook(&boot.BootableSet{Kernel: mockKernel}), Equals, true)
+	// XXX: more real tests
+	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
+	c.Check(hasHook, Equals, false)
+	c.Check(err, Equals, state.ErrNoState)
 }
 
 type startOfOperationTimeSuite struct {

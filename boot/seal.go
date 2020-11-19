@@ -50,8 +50,8 @@ var (
 // Hook functions setup by devicestate to support device-specific full
 // disk encryption implementations.
 var (
-	HasFDESetupHook = func(*BootableSet) bool {
-		return false
+	HasFDESetupHook = func() (bool, error) {
+		return false, nil
 	}
 	RunFDESetupHook = func(op string, params *FdeSetupHookParams) error {
 		return fmt.Errorf("internal error: RunFDESetupHook not set yet")
@@ -82,7 +82,11 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
-	if HasFDESetupHook(bootWith) {
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot get fde-setup hook %v", err)
+	}
+	if hasHook {
 		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, bootWith, modeenv)
 	}
 

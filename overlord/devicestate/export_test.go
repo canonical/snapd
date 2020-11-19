@@ -214,8 +214,6 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
-
-	HasFDESetupHook = hasFDESetupHook
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
@@ -288,4 +286,8 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	return func() {
 		restrictCloudInit = old
 	}
+}
+
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
+	return mgr.hasFDESetupHook()
 }

@@ -909,9 +909,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 
 	oldHasFDESetupHook := boot.HasFDESetupHook
 	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
-	boot.HasFDESetupHook = func(bootWith *boot.BootableSet) bool {
-		c.Assert(bootWith.Kernel.SuggestedName, Equals, "mock-kernel")
-		return true
+	boot.HasFDESetupHook = func() (bool, error) {
+		return true, nil
 	}
 	oldRunFDESetupHook := boot.RunFDESetupHook
 	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
