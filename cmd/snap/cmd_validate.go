@@ -144,13 +144,12 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		return cmd.client.ApplyValidationSet(account, name, opts)
 	}
 
-	// validate
-	vsets, err := cmd.client.QueryValidationSet(account, name, seq)
-	if err != nil {
-		return err
-	}
 	// no validation set argument, print list with extended info
 	if cmd.Positional.ValidationSet == "" {
+		vsets, err := cmd.client.ListValidationsSets()
+		if err != nil {
+			return err
+		}
 		if len(vsets) == 0 {
 			return nil
 		}
@@ -177,8 +176,11 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		fmt.Fprintln(Stdout)
 
 	} else {
-		// specific validation set was queried, so we expect exactly one result.
-		fmt.Fprintf(Stdout, fmtValid(vsets[0]))
+		vset, err := cmd.client.ValidationSet(account, name, seq)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stdout, fmtValid(vset))
 		// XXX: exit status 1 if invalid?
 	}
 

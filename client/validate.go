@@ -36,10 +36,10 @@ type ValidateApplyOptions struct {
 
 // ValidationSetResult holds information about a single validation set.
 type ValidationSetResult struct {
-	ValidationSet string   `json:"validation-set,omitempty"`
-	Mode          string   `json:"mode"`
-	Seq           int      `json:"seq,omitempty"`
-	Valid         bool     `json:"valid"`
+	ValidationSet string `json:"validation-set,omitempty"`
+	Mode          string `json:"mode"`
+	Seq           int    `json:"seq,omitempty"`
+	Valid         bool   `json:"valid"`
 	// TODO: flags/states for notes column
 }
 
@@ -66,22 +66,33 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	return nil
 }
 
-// QueryValidationSet queries the given validation set identified by account/name, or all validation
-// sets if account/name are not provided.
-func (client *Client) QueryValidationSet(account, name string, pinnedAt int) ([]*ValidationSetResult, error) {
-	q := url.Values{}
-
-	if account != "" && name != "" {
-		q.Set("validation-set", fmt.Sprintf("%s/%s", account, name))
-		if pinnedAt != 0 {
-			q.Set("pin-at", fmt.Sprintf("%d", pinnedAt))
-		}
-	}
-
+// ListValidationsSets queries all validation sets.
+func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
-	_, err := client.doSync("GET", "/v2/validation-sets", q, nil, nil, &res)
+	_, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot get validation sets: %v", err)
+	}
+	return res, nil
+}
+
+// ValidationSet queries the given validation set identified by account/name.
+func (client *Client) ValidationSet(account, name string, pinnedAt int) (*ValidationSetResult, error) {
+	q := url.Values{}
+
+	if account == "" || name == "" {
+		return nil, xerrors.Errorf("cannot get validation set without account and name")
+	}
+
+	q.Set("validation-set", fmt.Sprintf("%s/%s", account, name))
+	if pinnedAt != 0 {
+		q.Set("pin-at", fmt.Sprintf("%d", pinnedAt))
+	}
+
+	var res *ValidationSetResult
+	_, err := client.doSync("GET", "/v2/validation-set", q, nil, nil, &res)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot get validation set: %v", err)
 	}
 	return res, nil
 }
