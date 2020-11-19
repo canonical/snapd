@@ -301,7 +301,7 @@ volumes:
         offset: 8388608
         size: 131072
         passthrough:
-          role: system-recovery-select
+          role: system-seed-select
         content:
             - image: snaprecoverysel.bin
         type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
@@ -309,7 +309,7 @@ volumes:
         offset: 8519680
         size: 131072
         passthrough:
-          role: system-recovery-select
+          role: system-seed-select
         content:
             - image: snaprecoverysel.bin
         type: B214D5E4-D442-45E6-B8C6-01BDCD82D396
@@ -332,13 +332,13 @@ volumes:
         size: 31457280
         type: 20117F86-E985-4357-B9EE-374BC1D8487D
         passthrough:
-          role: system-recovery-image
+          role: system-seed-image
       - name: boot_rb
         offset: 40894464
         size: 31457280
         type: 20117F86-E985-4357-B9EE-374BC1D8487D
         passthrough:
-          role: system-recovery-image
+          role: system-seed-image
       - name: boot_a
         offset: 72351744
         size: 31457280

@@ -56,7 +56,7 @@ const (
 	bootImage = "system-boot-image"
 
 	// extracted kernels for recovery kernels for uc20 specifically
-	recoveryBootImage = "system-recovery-image"
+	seedBootImage = "system-seed-image"
 
 	// bootloader specific partition which stores bootloader environment vars
 	// for purposes of booting normal run mode on uc20 and all modes on
@@ -65,7 +65,7 @@ const (
 
 	// bootloader specific partition which stores bootloader environment vars
 	// for purposes of booting recovery systems on uc20, i.e. recover or install
-	recoveryBootSelect = "system-recovery-select"
+	seedBootSelect = "system-seed-select"
 
 	// implicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
@@ -806,7 +806,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, bootImage, bootSelect, recoveryBootSelect, recoveryBootImage, "":
+	case SystemBoot, bootImage, bootSelect, seedBootSelect, seedBootImage, "":
 		// noop
 	case legacyBootImage, legacyBootSelect:
 		// noop
