@@ -107,6 +107,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		model := boottest.MakeMockUC20Model()
+		bootWith := &boot.BootableSet{}
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -130,10 +131,16 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			switch sealKeysCalls {
 			case 1:
 				// the run object seals only the ubuntu-data key
+				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
+				c.Check(params.TPMLockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}})
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
+				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
+				c.Check(params.TPMLockoutAuthFile, Equals, "")
+
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}, {Key: myKey2, KeyFile: saveKeyFile}})
@@ -185,7 +192,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
+		err = boot.SealKeyToModeenv(myKey, myKey2, model, bootWith, modeenv)
 		if tc.sealErr != nil {
 			c.Assert(sealKeysCalls, Equals, 1)
 		} else {
@@ -378,6 +385,8 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		// set mock key resealing
 		resealKeysCalls := 0
 		restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+			c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"))
+
 			resealKeysCalls++
 			c.Assert(params.ModelParams, HasLen, 1)
 
@@ -891,4 +900,44 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
+}
+
+func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	oldHasFDESetupHook := boot.HasFDESetupHook
+	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
+	boot.HasFDESetupHook = func(bootWith *boot.BootableSet) bool {
+		c.Assert(bootWith.Kernel.SuggestedName, Equals, "mock-kernel")
+		return true
+	}
+	oldRunFDESetupHook := boot.RunFDESetupHook
+	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
+	boot.RunFDESetupHook = func(string, *boot.FdeSetupHookParams) error {
+		c.Fatalf("hook runner should not be called yet")
+		return nil
+	}
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+	myKey := secboot.EncryptionKey{}
+	myKey2 := secboot.EncryptionKey{}
+
+	model := boottest.MakeMockUC20Model()
+	bootWith := &boot.BootableSet{
+		Kernel: &snap.Info{
+			SuggestedName: "mock-kernel",
+			Hooks: map[string]*snap.HookInfo{
+				"fde-setup": {
+					Name: "fde-setup",
+				},
+			},
+		},
+	}
+
+	err := boot.SealKeyToModeenv(myKey, myKey2, model, bootWith, modeenv)
+	c.Assert(err, ErrorMatches, "cannot use fde-setup hook yet")
 }

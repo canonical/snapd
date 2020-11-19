@@ -47,6 +47,29 @@ var (
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
 
+// Hook functions setup by devicestate to support device-specific full
+// disk encryption implementations.
+var (
+	HasFDESetupHook = func(*BootableSet) bool {
+		return false
+	}
+	RunFDESetupHook = func(op string, params *FdeSetupHookParams) error {
+		return fmt.Errorf("internal error: RunFDESetupHook not set yet")
+	}
+)
+
+// FdeSetupHookParams contains the inputs for the fde-setup hook
+type FdeSetupHookParams struct {
+	Key     secboot.EncryptionKey
+	KeyName string
+
+	KernelInfo *snap.Info
+	Model      *asserts.Model
+
+	//TODO:UC20: provide bootchains and a way to track measured
+	//boot-assets
+}
+
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
@@ -58,7 +81,19 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+	if HasFDESetupHook(bootWith) {
+		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, bootWith, modeenv)
+	}
+
+	return sealKeyToModeenvUsingSecboot(key, saveKey, model, bootWith, modeenv)
+}
+
+func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+	return fmt.Errorf("cannot use fde-setup hook yet")
+}
+
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -294,7 +329,8 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	authKeyFile := filepath.Join(dirs.SnapSaveFDEDirUnder(rootdir), "tpm-policy-auth-key")
+	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
 	if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
 		return err
 	}

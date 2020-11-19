@@ -121,7 +121,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadge
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
-		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
+		{"meta/gadget.yaml", uc20gadgetYamlWithSave + gadgetDefaultsYaml},
 	})
 
 	si = &snap.SideInfo{
@@ -473,6 +473,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, saveKey[:])
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key"), testutil.FileEquals, reinstallKey[:])
+	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
+	c.Assert(err, IsNil)
+	c.Check(marker, HasLen, 32)
+	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
@@ -725,4 +729,71 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
+}
+
+func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
+	info, err := snapstate.CurrentInfo(s.state, "pc")
+	c.Assert(err, IsNil)
+	// replace gadget yaml with one that has no ubuntu-save
+	c.Assert(uc20gadgetYaml, Not(testutil.Contains), "ubuntu-save")
+	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(uc20gadgetYaml), 0644)
+	c.Assert(err, IsNil)
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	// pretend we have a TPM
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	s.testInstallGadgetNoSave(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
+- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: volume "pc" has no structure with system-save role\)`)
+	// no restart request on failure
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetWithoutSaveHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	// pretend we have a TPM
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
+	defer restore()
+
+	s.testInstallGadgetNoSave(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(s.restartRequests, HasLen, 1)
 }

@@ -110,7 +110,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			}
 
 			opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
-			if err := wrappers.AddSnapServices(info, disabledSvcs, opts, progress.Null); err != nil {
+			if err := wrappers.AddSnapServices(info, opts, progress.Null); err != nil {
 				return err
 			}
 		}
@@ -120,8 +120,9 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		if err != nil {
 			return err
 		}
+		flags := &wrappers.StartServicesFlags{Enable: true}
 		tm := timings.New(nil)
-		if err = wrappers.StartServices(startupOrdered, nil, nil, progress.Null, tm); err != nil {
+		if err = wrappers.StartServices(startupOrdered, disabledSvcs, flags, progress.Null, tm); err != nil {
 			return err
 		}
 	}
