@@ -72,7 +72,7 @@ func (l *lk) dir() string {
 	return filepath.Join(l.rootdir, "/boot/lk/")
 }
 
-func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
 	systemFile := l.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)

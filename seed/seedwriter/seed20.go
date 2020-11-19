@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/seed/internal"
@@ -33,15 +32,6 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 )
-
-var validSystemLabel = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
-
-func validateSystemLabel(label string) error {
-	if !validSystemLabel.MatchString(label) {
-		return fmt.Errorf("system label contains invalid characters: %s", label)
-	}
-	return nil
-}
 
 type policy20 struct {
 	model *asserts.Model
