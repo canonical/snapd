@@ -2629,7 +2629,7 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 type bootConfigSuite struct {
 	baseBootenvSuite
 
-	bootloader *bootloadertest.MockManagedAssetsBootloader
+	bootloader *bootloadertest.MockTrustedAssetsBootloader
 }
 
 var _ = Suite(&bootConfigSuite{})
@@ -2637,16 +2637,13 @@ var _ = Suite(&bootConfigSuite{})
 func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
-	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	s.forceBootloader(s.bootloader)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateHappy(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
-
-	// pretend the boot config is managed
-	s.bootloader.IsManaged = true
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, IsNil)
@@ -2657,13 +2654,6 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappy(c *C) {
 	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	c.Check(s.bootloader.UpdateCalls, Equals, 2)
-
-	// no longer managed
-	s.bootloader.IsManaged = false
-	updated, err = boot.UpdateManagedBootConfigs(coreDev)
-	c.Assert(err, IsNil)
-	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 2)
 }
 
@@ -2679,14 +2669,6 @@ func (s *bootConfigSuite) TestBootConfigUpdateErrors(c *C) {
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 
-	s.bootloader.IsManagedErr = errors.New("foo")
-	updated, err = boot.UpdateManagedBootConfigs(coreDev)
-	c.Assert(err, ErrorMatches, "foo")
-	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
-
-	s.bootloader.IsManagedErr = nil
-	s.bootloader.IsManaged = true
 	s.bootloader.UpdateErr = errors.New("update fail")
 	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, ErrorMatches, "update fail")

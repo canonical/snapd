@@ -5962,11 +5962,9 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 }
 
 func (s *mgrsSuite) TestUC20SnapdUpdatesManagedBootConfig(c *C) {
-	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(mabloader)
 	defer bootloader.Force(nil)
-
-	mabloader.IsManaged = true
 
 	const snapdSnap = `
 name: snapd
@@ -5980,31 +5978,10 @@ type: snapd`
 	c.Check(mabloader.UpdateCalls, Equals, 1)
 }
 
-func (s *mgrsSuite) TestUC20SnapdNoUpdateNotManagedBootConfig(c *C) {
-	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mabloader)
-	defer bootloader.Force(nil)
-
-	// not managed
-	mabloader.IsManaged = false
-
-	const snapdSnap = `
-name: snapd
-version: 1.0
-type: snapd`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
-	si := &snap.SideInfo{RealName: "snapd"}
-
-	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
-	c.Check(mabloader.UpdateCalls, Equals, 0)
-}
-
 func (s *mgrsSuite) TestUC20CoreDoesNotUpdateManagedBootConfig(c *C) {
-	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(mabloader)
 	defer bootloader.Force(nil)
-
-	mabloader.IsManaged = true
 
 	const coreSnap = `
 name: core
@@ -6104,12 +6081,9 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 }
 
 func (s *mgrsSuite) TestNonUC20DoesNotUpdateManagedBootConfig(c *C) {
-	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(mabloader)
 	defer bootloader.Force(nil)
-
-	// managed
-	mabloader.IsManaged = true
 
 	const coreSnap = `
 name: core
@@ -6123,12 +6097,9 @@ type: base`
 }
 
 func (s *mgrsSuite) TestNonUC20SnapdNoUpdateNotManagedBootConfig(c *C) {
-	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(mabloader)
 	defer bootloader.Force(nil)
-
-	// managed
-	mabloader.IsManaged = true
 
 	const snapdSnap = `
 name: snapd

@@ -39,7 +39,7 @@ import (
 type deviceMgrBootconfigSuite struct {
 	deviceMgrBaseSuite
 
-	managedbl *bootloadertest.MockManagedAssetsBootloader
+	managedbl *bootloadertest.MockTrustedAssetsBootloader
 }
 
 var _ = Suite(&deviceMgrBootconfigSuite{})
@@ -47,7 +47,7 @@ var _ = Suite(&deviceMgrBootconfigSuite{})
 func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
-	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(s.managedbl)
 
 	s.state.Lock()
@@ -118,7 +118,6 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	s.setupUC20Model(c)
 	s.state.Unlock()
 
-	s.managedbl.IsManaged = true
 	s.managedbl.Updated = true
 
 	updateAttempted := true
@@ -131,7 +130,6 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 	s.setupUC20Model(c)
 	s.state.Unlock()
 
-	s.managedbl.IsManaged = true
 	s.managedbl.Updated = false
 
 	updateAttempted := true
@@ -139,37 +137,11 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
 }
 
-func (s *deviceMgrBootconfigSuite) TestBootConfigNoUpdateWhenNotManaged(c *C) {
-	s.state.Lock()
-	s.setupUC20Model(c)
-	s.state.Unlock()
-
-	s.managedbl.IsManaged = false
-
-	updateAttempted := false
-	updateApplied := false
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
-}
-
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateIsManagedErr(c *C) {
-	s.state.Lock()
-	s.setupUC20Model(c)
-	s.state.Unlock()
-
-	s.managedbl.IsManagedErr = errors.New("is-managed fail")
-
-	updateAttempted := false
-	updateApplied := false
-	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied,
-		`(?ms).*cannot update boot config assets: is-managed fail\)`)
-}
-
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateUpdateErr(c *C) {
 	s.state.Lock()
 	s.setupUC20Model(c)
 	s.state.Unlock()
 
-	s.managedbl.IsManaged = true
 	s.managedbl.UpdateErr = errors.New("update fail")
 	// actually tried to update
 	updateAttempted := true

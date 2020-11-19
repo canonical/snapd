@@ -400,23 +400,14 @@ func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
 		// only UC20 devices use managed boot config
 		return false, ErrUnsupportedSystemMode
 	}
-	// TODO:UC20 update recovery boot config
 
 	bl, err := bootloader.Find("", nil)
 	if err != nil {
 		return false, err
 	}
-	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	mbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		// bootloader assets are not managed
-		return false, nil
-	}
-	managed, err := mbl.IsCurrentlyManaged()
-	if err != nil {
-		return false, err
-	}
-	if !managed {
-		// assets are not managed
 		return false, nil
 	}
 	return mbl.UpdateBootConfig(nil)
