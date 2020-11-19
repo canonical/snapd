@@ -81,23 +81,23 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
 		return fmt.Errorf("cannot get fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, bootWith, modeenv)
+		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, modeenv)
 	}
 
-	return sealKeyToModeenvUsingSecboot(key, saveKey, model, bootWith, modeenv)
+	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
 }
 
-func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	return fmt.Errorf("cannot use fde-setup hook yet")
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, bootWith *BootableSet, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
