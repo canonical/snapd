@@ -2001,6 +2001,7 @@ func (s *ValidateSuite) TestAppInstallMode(c *C) {
 		// good
 		{"", true},
 		{"disable", true},
+		{"enable", true},
 		// bad
 		{"invalid-thing", false},
 	} {

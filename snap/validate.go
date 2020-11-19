@@ -785,7 +785,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 	// validate install-mode
 	switch app.InstallMode {
-	case "", "disable":
+	case "", "enable", "disable":
 		// valid
 	default:
 		return fmt.Errorf(`"install-mode" field contains invalid value %q`, app.InstallMode)
