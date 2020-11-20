@@ -145,6 +145,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// or gadget snaps. There are no further changes to the boot assets,
 	// unless a new gadget update is deployed.
 	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+	// There is no undo handler for successful boot config update. The
+	// config assets are assumed to be always backwards compatible.
+	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
