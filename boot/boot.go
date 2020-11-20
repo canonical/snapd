@@ -395,3 +395,24 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 	}
 	return bl.SetBootVars(m)
 }
+
+// UpdateManagedBootConfigs updates managed boot config assets if those are
+// present for the ubuntu-boot bootloader. Returns true when an update was
+// carried out.
+func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
+	if !dev.HasModeenv() {
+		// only UC20 devices use managed boot config
+		return false, ErrUnsupportedSystemMode
+	}
+
+	bl, err := bootloader.Find("", nil)
+	if err != nil {
+		return false, err
+	}
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// bootloader assets are not managed
+		return false, nil
+	}
+	return tbl.UpdateBootConfig()
+}

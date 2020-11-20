@@ -2841,3 +2841,53 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 		"snapd_recovery_mode":   "install",
 	})
 }
+
+type bootConfigSuite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockTrustedAssetsBootloader
+}
+
+var _ = Suite(&bootConfigSuite{})
+
+func (s *bootConfigSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	s.forceBootloader(s.bootloader)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateHappy(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+
+	s.bootloader.Updated = true
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, true)
+	c.Check(s.bootloader.UpdateCalls, Equals, 2)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateErrors(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	nonUC20coreDev := boottest.MockDevice("pc-kernel")
+	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
+
+	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev)
+	c.Assert(err, Equals, boot.ErrUnsupportedSystemMode)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+
+	s.bootloader.UpdateErr = errors.New("update fail")
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, ErrorMatches, "update fail")
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+}
