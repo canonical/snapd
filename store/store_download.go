@@ -259,13 +259,12 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 	return &reqOptions
 }
 
-type downloadTimeoutError struct {
-	// for testing, to inspect speed
+type transferSpeedError struct {
 	Speed float64
 }
 
-func (e *downloadTimeoutError) Error() string {
-	return fmt.Sprintf("download timed out")
+func (e *transferSpeedError) Error() string {
+	return fmt.Sprintf("download too slow: %.2f bytes/sec", e.Speed)
 }
 
 // implements io.Writer interface
@@ -311,14 +310,20 @@ func (w *TransferSpeedMonitoringWriter) reset() {
 	w.measuredWindows++
 }
 
+// checkSpeed measures the transfer rate since last reset() call.
+// The caller must call reset() over the desired time windows.
 func (w *TransferSpeedMonitoringWriter) checkSpeed(min float64) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	d := time.Now().Sub(w.start)
+	// should never happen since checkSpeed is done after measureTimeWindow
+	if d.Seconds() == 0 {
+		return true
+	}
 	s := float64(w.written) / d.Seconds()
 	ok := s >= min
 	if !ok {
-		w.err = &downloadTimeoutError{Speed: s}
+		w.err = &transferSpeedError{Speed: s}
 	}
 	return ok
 }
@@ -337,7 +342,7 @@ func (w *TransferSpeedMonitoringWriter) Monitor() (quit chan bool) {
 					return
 				}
 				// reset the measurement every downloadSpeedMeasureWindow,
-				// we want average speed per second over short period,
+				// we want average speed per second over the mesure time window,
 				// otherwise a large download with initial good download
 				// speed could get stuck at the end of the download, and it
 				// would take long time for overall average to "catch up".
@@ -357,7 +362,7 @@ func (w *TransferSpeedMonitoringWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// Err returns the downloadTimeoutError if encountered when measurement was run.
+// Err returns the transferSpeedError if encountered when measurement was run.
 func (w *TransferSpeedMonitoringWriter) Err() error {
 	return w.err
 }
@@ -461,15 +466,17 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			limiter = ratelimitReader(resp.Body, bucket)
 		}
 
-		finish := tc.Monitor()
+		stopMonitorCh := tc.Monitor()
 		_, finalErr = io.Copy(mw, limiter)
-		close(finish)
+		close(stopMonitorCh)
 		pbar.Finished()
 
+		if err := tc.Err(); err != nil {
+			return err
+		}
 		if cancelled(downloadCtx) {
-			if err := tc.Err(); err != nil {
-				return err
-			}
+			// cancelled for other reason that download timeout (which would
+			// be caught by tc.Err() above).
 			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
 		}
 

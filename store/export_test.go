@@ -99,8 +99,8 @@ func MockDownloadSpeedParams(measureWindow time.Duration, minSpeed float64) (res
 	}
 }
 
-func IsDownloadTimeoutError(err error) (ok bool, speed float64) {
-	de, ok := err.(*downloadTimeoutError)
+func IsTransferSpeedError(err error) (ok bool, speed float64) {
+	de, ok := err.(*transferSpeedError)
 	if !ok {
 		return false, 0
 	}
