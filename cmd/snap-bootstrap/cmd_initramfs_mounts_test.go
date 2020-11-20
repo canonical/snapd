@@ -273,7 +273,7 @@ func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
 	c.Assert(err, IsNil)
-	restore := boot.MockProcCmdline(mockProcCmdline)
+	restore := osutil.MockProcCmdline(mockProcCmdline)
 	s.AddCleanup(restore)
 }
 

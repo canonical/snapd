@@ -52,8 +52,20 @@ const (
 	SystemSeed = "system-seed"
 	SystemSave = "system-save"
 
-	bootImage  = "system-boot-image"
+	// extracted kernels for all uc systems
+	bootImage = "system-boot-image"
+
+	// extracted kernels for recovery kernels for uc20 specifically
+	seedBootImage = "system-seed-image"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting normal run mode on uc20 and all modes on
+	// uc16 and uc18
 	bootSelect = "system-boot-select"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting recovery systems on uc20, i.e. recover or install
+	seedBootSelect = "system-seed-select"
 
 	// implicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
@@ -125,7 +137,7 @@ type VolumeStructure struct {
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of
 	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
-	// 'system-boot-select'. Structures of type 'mbr', must have a
+	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -426,6 +438,9 @@ func validateVolume(name string, vol *Volume, model Model) error {
 
 	state := &validationState{}
 	previousEnd := quantity.Size(0)
+	// TODO: should we also validate that if there is a system-recovery-select
+	// role there should also be at least 2 system-recovery-image roles and
+	// same for system-boot-select and at least 2 system-boot-image roles?
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
@@ -517,6 +532,10 @@ func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 }
 
 func ensureVolumeConsistencyWithConstraints(state *validationState, model Model) error {
+	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
+	//       roles too? they should only be used on uc20 systems, so models that
+	//       have a grade set and are not classic
+
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
 		if wantsSystemSeed(model) {
@@ -787,7 +806,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, bootImage, bootSelect, "":
+	case SystemBoot, bootImage, bootSelect, seedBootSelect, seedBootImage, "":
 		// noop
 	case legacyBootImage, legacyBootSelect:
 		// noop
