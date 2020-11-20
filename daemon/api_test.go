@@ -774,6 +774,35 @@ func (s *apiSuite) TestSysInfoSystemModeRecover(c *check.C) {
 func (s *apiSuite) TestSysInfoSystemModeInstall(c *check.C) {
 	s.testSysInfoSystemMode(c, "install")
 }
+func (s *apiSuite) TestSysInfoIsManaged(c *check.C) {
+	s.daemon(c)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
+}
+
+func (s *apiSuite) TestSysInfoWorksDegraded(c *check.C) {
+	s.daemon(c)
+
+	s.d.SetDegradedMode(fmt.Errorf("some error"))
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+}
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
 	d := s.daemon(c)
@@ -2548,9 +2577,9 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	// add the assertions first
 	st := d.overlord.State()
 
-	dev1Acct := assertstest.NewAccount(s.storeSigning, "devel1", nil, "")
+	dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "x-id",
 		"snap-name":    "x",
@@ -2559,7 +2588,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": "YK0GWATaZf09g_fvspYPqm_qtaiqf-KjaNj5uMEQCjQpuXWPjqQbeBINL5H_A0Lo",
 		"snap-size":     "5",
 		"snap-id":       "x-id",
@@ -2572,7 +2601,7 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	func() {
 		st.Lock()
 		defer st.Unlock()
-		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
+		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
 	}()
 
 	body := "" +

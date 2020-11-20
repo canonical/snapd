@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gorilla/mux"
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -60,6 +61,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+// TODO: as we split api_test.go and move more tests to live in daemon_test
+// instead of daemon, split out functionality from APIBaseSuite
+// to only the relevant suite when possible
+
 type APIBaseSuite struct {
 	storetest.Store
 
@@ -78,8 +83,8 @@ type APIBaseSuite struct {
 
 	restoreRelease func()
 
-	storeSigning *assertstest.StoreStack
-	brands       *assertstest.SigningAccounts
+	StoreSigning *assertstest.StoreStack
+	Brands       *assertstest.SigningAccounts
 
 	systemctlRestorer func()
 	sysctlBufs        [][]byte
@@ -109,7 +114,7 @@ type serviceControlArgs struct {
 	names   []string
 }
 
-func (s *APIBaseSuite) pokeStateLock() {
+func (s *APIBaseSuite) PokeStateLock() {
 	// the store should be called without the state lock held. Try
 	// to acquire it.
 	st := s.d.overlord.State()
@@ -118,7 +123,7 @@ func (s *APIBaseSuite) pokeStateLock() {
 }
 
 func (s *APIBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 	s.user = user
 	s.ctx = ctx
 	if len(s.rsnaps) > 0 {
@@ -128,7 +133,7 @@ func (s *APIBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *
 }
 
 func (s *APIBaseSuite) Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	s.storeSearch = *search
 	s.user = user
@@ -138,7 +143,7 @@ func (s *APIBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 }
 
 func (s *APIBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 	if assertQuery != nil {
 		toResolve, err := assertQuery.ToResolve()
 		if err != nil {
@@ -164,13 +169,13 @@ func (s *APIBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 }
 
 func (s *APIBaseSuite) SuggestedCurrency() string {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	return s.suggestedCurrency
 }
 
 func (s *APIBaseSuite) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	s.buyOptions = options
 	s.user = user
@@ -178,20 +183,20 @@ func (s *APIBaseSuite) Buy(options *client.BuyOptions, user *auth.UserState) (*c
 }
 
 func (s *APIBaseSuite) ReadyToBuy(user *auth.UserState) error {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	s.user = user
 	return s.err
 }
 
 func (s *APIBaseSuite) ConnectivityCheck() (map[string]bool, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	return s.connectivityResult, s.err
 }
 
 func (s *APIBaseSuite) LoginUser(username, password, otp string) (string, string, error) {
-	s.pokeStateLock()
+	s.PokeStateLock()
 
 	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
 }
@@ -240,7 +245,7 @@ func (s *APIBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.Read
 }
 
 var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
+	BrandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
 func (s *APIBaseSuite) SetUpTest(c *check.C) {
@@ -277,11 +282,11 @@ func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	s.buyOptions = nil
 	s.buyResult = nil
 
-	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
+	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
 
-	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, nil)
+	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
+	s.Brands.Register("my-brand", BrandPrivKey, nil)
 
 	assertstateRefreshSnapDeclarations = nil
 	snapstateInstall = nil
@@ -368,7 +373,7 @@ func (s *APIBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppI
 func (s *APIBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
-		model = s.brands.Model("can0nical", "pc", modelDefaults)
+		model = s.Brands.Model("can0nical", "pc", modelDefaults)
 	}
 
 	snapstate.DeviceCtx = devicestate.DeviceCtx
@@ -541,7 +546,7 @@ version: %s
 		return snapInfo
 	}
 
-	devAcct := assertstest.NewAccount(s.storeSigning, developer, map[string]interface{}{
+	devAcct := assertstest.NewAccount(s.StoreSigning, developer, map[string]interface{}{
 		"account-id": developer + "-id",
 	}, "")
 
@@ -552,7 +557,7 @@ version: %s
 		Validation:  devAcct.Validation(),
 	}
 
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
@@ -566,7 +571,7 @@ version: %s
 	h := sha3.Sum384(content)
 	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
 	c.Assert(err, check.IsNil)
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": string(dgst),
 		"snap-size":     "999",
 		"snap-id":       snapID,
@@ -576,7 +581,31 @@ version: %s
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), devAcct, snapDecl, snapRev)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), devAcct, snapDecl, snapRev)
 
 	return snapInfo
+}
+
+func handlerCommand(c *check.C, d *Daemon, req *http.Request) (cmd *Command, vars map[string]string) {
+	m := &mux.RouteMatch{}
+	if !d.router.Match(req, m) {
+		c.Fatalf("no command for URL %q", req.URL)
+	}
+	cmd, ok := m.Handler.(*Command)
+	if !ok {
+		c.Fatalf("no command for URL %q", req.URL)
+	}
+	return cmd, m.Vars
+}
+
+func (s *APIBaseSuite) GetReq(c *check.C, req *http.Request, u *auth.UserState) Response {
+	cmd, vars := handlerCommand(c, s.d, req)
+	s.vars = vars
+	return cmd.GET(cmd, req, u)
+}
+
+func (s *APIBaseSuite) PostReq(c *check.C, req *http.Request, u *auth.UserState) Response {
+	cmd, vars := handlerCommand(c, s.d, req)
+	s.vars = vars
+	return cmd.POST(cmd, req, u)
 }
