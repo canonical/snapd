@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 // creates a new Androidboot bootloader object
@@ -72,14 +74,16 @@ func MockGrubFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewLk(rootdir string, opts *Options) Bootloader {
+func NewLk(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootloader {
 	if opts == nil {
-		opts = &Options{}
+		opts = &Options{
+			Role: RoleSole,
+		}
 	}
-	return newLk(rootdir, opts)
+	return newLk(rootdir, opts).(ExtractedRecoveryKernelImageBootloader)
 }
 
-func LkConfigFile(b Bootloader) string {
+func LkConfigFile(b Bootloader) (string, error) {
 	lk := b.(*lk)
 	return lk.envFile()
 }
@@ -89,23 +93,98 @@ func UbootConfigFile(b Bootloader) string {
 	return u.envFile()
 }
 
-func MockLkFiles(c *C, rootdir string, opts *Options) {
+func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
+	var cleanups []func()
 	if opts == nil {
-		opts = &Options{}
+		// default to v1, uc16/uc18 version for test simplicity
+		opts = &Options{
+			Role: RoleSole,
+		}
 	}
-	l := &lk{rootdir: rootdir, inRuntimeMode: !opts.PrepareImageTime}
-	err := os.MkdirAll(l.dir(), 0755)
+
+	l := &lk{
+		rootdir:       rootdir,
+		inRuntimeMode: !opts.PrepareImageTime,
+		role:          opts.Role,
+	}
+
+	var version lkenv.Version
+	switch opts.Role {
+	case RoleSole:
+		version = lkenv.V1
+	case RoleRunMode:
+		version = lkenv.V2Run
+	case RoleRecovery:
+		version = lkenv.V2Recovery
+	}
+
+	// setup some role specific things
+	if opts.Role == RoleRunMode || opts.Role == RoleRecovery {
+		// then we need to setup some additional files - namely the kernel
+		// command line and a mock disk for that
+		lkBootDisk := &disks.MockDiskMapping{
+			FilesystemLabelToPartUUID: map[string]string{
+				"snapbootsel":        "snapbootsel-partuuid",
+				"snapbootselbak":     "snapbootselbak-partuuid",
+				"snaprecoverysel":    "snaprecoverysel-partuuid",
+				"snaprecoveryselbak": "snaprecoveryselbak-partuuid",
+				"boot_a":             "boot-a-partuuid",
+				"boot_b":             "boot-b-partuuid",
+			},
+			DiskHasPartitions: true,
+			DevNum:            "lk-boot-disk-dev-num",
+		}
+
+		m := map[string]*disks.MockDiskMapping{
+			"lk-boot-disk": lkBootDisk,
+		}
+
+		// mock the disk
+		r := disks.MockDeviceNameDisksToPartitionMapping(m)
+		cleanups = append(cleanups, r)
+
+		// create the disk files so they exist for
+
+		// now mock the kernel command line
+		cmdLine := filepath.Join(c.MkDir(), "cmdline")
+		ioutil.WriteFile(cmdLine, []byte("snapd_lk_boot_disk=lk-boot-disk"), 0644)
+		r = osutil.MockProcCmdline(cmdLine)
+		cleanups = append(cleanups, r)
+	}
+
+	// next create empty env file
+	buf := make([]byte, 4096)
+	f, err := l.envFile()
 	c.Assert(err, IsNil)
 
-	// first create empty env file
-	buf := make([]byte, 4096)
-	err = ioutil.WriteFile(l.envFile(), buf, 0660)
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+	err = ioutil.WriteFile(f, buf, 0660)
 	c.Assert(err, IsNil)
+
 	// now write env in it with correct crc
-	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env := lkenv.NewEnv(f, version)
 	env.InitializeBootPartitions("boot_a", "boot_b")
 	err = env.Save()
 	c.Assert(err, IsNil)
+
+	// also make the empty files for the boot_a and boot_b partitions for uc20
+	// roles
+	if opts.Role == RoleRunMode || opts.Role == RoleRecovery {
+		for _, label := range []string{"boot_a", "boot_b"} {
+			disk, err := disks.DiskFromDeviceName("lk-boot-disk")
+			c.Assert(err, IsNil)
+			partUUID, err := disk.FindMatchingPartitionUUID(label)
+			c.Assert(err, IsNil)
+			bootFile := filepath.Join(rootdir, "/dev/disk/by-partuuid", partUUID)
+			c.Assert(os.MkdirAll(filepath.Dir(bootFile), 0755), IsNil)
+			c.Assert(ioutil.WriteFile(bootFile, nil, 0755), IsNil)
+		}
+	}
+	return func() {
+		for _, r := range cleanups {
+			r()
+		}
+	}
 }
 
 func LkRuntimeMode(b Bootloader) bool {
