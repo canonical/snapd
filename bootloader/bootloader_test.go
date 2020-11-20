@@ -236,7 +236,7 @@ func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
 	rootdir := c.MkDir()
 	// add a mock bootloader to the list of bootloaders that Find() uses
 	mockBl := bootloadertest.Mock("mock", rootdir)
-	restore := bootloader.MockAddBootloaderToFind("mock", func(dir string, opts *bootloader.Options) bootloader.Bootloader {
+	restore := bootloader.MockAddBootloaderToFind(func(dir string, opts *bootloader.Options) bootloader.Bootloader {
 		c.Assert(dir, Equals, rootdir)
 		return mockBl
 	})

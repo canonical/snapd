@@ -113,10 +113,11 @@ func LkRuntimeMode(b Bootloader) bool {
 	return lk.inRuntimeMode
 }
 
-func MockAddBootloaderToFind(name string, blConstructor func(string, *Options) Bootloader) (restore func()) {
-	bootloaders[name] = blConstructor
+func MockAddBootloaderToFind(blConstructor func(string, *Options) Bootloader) (restore func()) {
+	oldLen := len(bootloaders)
+	bootloaders = append(bootloaders, blConstructor)
 	return func() {
-		delete(bootloaders, name)
+		bootloaders = bootloaders[:oldLen]
 	}
 }
 
