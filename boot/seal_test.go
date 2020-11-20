@@ -107,7 +107,6 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		model := boottest.MakeMockUC20Model()
-		bootWith := &boot.BootableSet{}
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -192,7 +191,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, bootWith, modeenv)
+		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
 		if tc.sealErr != nil {
 			c.Assert(sealKeysCalls, Equals, 1)
 		} else {
@@ -909,9 +908,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 
 	oldHasFDESetupHook := boot.HasFDESetupHook
 	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
-	boot.HasFDESetupHook = func(bootWith *boot.BootableSet) bool {
-		c.Assert(bootWith.Kernel.SuggestedName, Equals, "mock-kernel")
-		return true
+	boot.HasFDESetupHook = func() (bool, error) {
+		return true, nil
 	}
 	oldRunFDESetupHook := boot.RunFDESetupHook
 	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
@@ -927,17 +925,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	myKey2 := secboot.EncryptionKey{}
 
 	model := boottest.MakeMockUC20Model()
-	bootWith := &boot.BootableSet{
-		Kernel: &snap.Info{
-			SuggestedName: "mock-kernel",
-			Hooks: map[string]*snap.HookInfo{
-				"fde-setup": {
-					Name: "fde-setup",
-				},
-			},
-		},
-	}
-
-	err := boot.SealKeyToModeenv(myKey, myKey2, model, bootWith, modeenv)
+	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
 	c.Assert(err, ErrorMatches, "cannot use fde-setup hook yet")
 }
