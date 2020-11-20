@@ -46,19 +46,32 @@ var _ = check.Suite(&userSuite{})
 // TODO: move to daemon_test package
 
 type userSuite struct {
-	apiBaseSuite
+	APIBaseSuite
+
+	userInfoResult        *store.User
+	userInfoExpectedEmail string
 
 	mockUserHome   string
 	restoreClassic func()
 	oldUserAdmin   bool
 }
 
+func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
+	s.pokeStateLock()
+
+	if s.userInfoExpectedEmail != email {
+		panic(fmt.Sprintf("%q != %q", s.userInfoExpectedEmail, email))
+	}
+	return s.userInfoResult, s.err
+}
+
 func (s *userSuite) SetUpTest(c *check.C) {
-	s.apiBaseSuite.SetUpTest(c)
+	s.APIBaseSuite.SetUpTest(c)
 
 	s.restoreClassic = release.MockOnClassic(false)
 
-	s.daemon(c)
+	s.DaemonWithStore(c, s)
+
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
 	s.oldUserAdmin = hasUserAdmin
@@ -76,7 +89,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 }
 
 func (s *userSuite) TearDownTest(c *check.C) {
-	s.apiBaseSuite.TearDownTest(c)
+	s.APIBaseSuite.TearDownTest(c)
 
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
@@ -359,7 +372,6 @@ func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateK
 }
 
 var (
-	brandPrivKey, _   = assertstest.GenerateKey(752)
 	partnerPrivKey, _ = assertstest.GenerateKey(752)
 	unknownPrivKey, _ = assertstest.GenerateKey(752)
 )
