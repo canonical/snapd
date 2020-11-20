@@ -1380,8 +1380,8 @@ func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
 
 func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
 	// TODO: run the fde-setup hook with "op":"features".  If the
-	//       hooks returns {"features":[]} we consider the
+	//       hooks returns any {"features":} reply we consider the
 	//       hardware supported. If the hook errors or if it
-	//       returns {"error":"hardware unsupported"} we don't.
+	//       returns {"error":"hardware-unsupported"} we don't.
 	return nil
 }

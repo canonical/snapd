@@ -324,6 +324,11 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 				return true, nil
 			}
 			logger.Noticef("cannot use fde-setup hook: %v", err)
+			// Stop here if there is a fde-setup hook. We
+			// could fallthrough to the tpm check but
+			// there is no use-case right now for
+			// fde-setup hooks on generic TPM devices
+			return false, nil
 		}
 	}
 
