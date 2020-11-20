@@ -1358,11 +1358,6 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
-}
-
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	st := m.state
 
@@ -1376,4 +1371,17 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 		return false, fmt.Errorf("cannot get kernel info: %v", err)
 	}
 	return hasFDESetupHookInKernel(kernelInfo), nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
+func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
+	// TODO: run the fde-setup hook with "op":"features".  If the
+	//       hooks returns {"features":[]} we consider the
+	//       hardware supported. If the hook errors or if it
+	//       returns {"error":"hardware unsupported"} we don't.
+	return nil
 }

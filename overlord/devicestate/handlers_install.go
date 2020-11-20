@@ -301,7 +301,8 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device.
+// model grade and the availability of a TPM device or a fde-setup hook
+// in the kernel.
 func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
@@ -315,10 +316,14 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 
 	// check if kernel has fde-setup hook based encryption support
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		// XXX: should we run the fde-setup hook with
-		//      "op":"available" or similar now?
 		if hasFDESetupHookInKernel(kernelInfo) {
-			return true, nil
+			// run the hook with "op":"features", only use hook
+			// if that is successful
+			err := checkFDEFeatures(st, kernelInfo)
+			if err == nil {
+				return true, nil
+			}
+			logger.Noticef("cannot use fde-setup hook: %v", err)
 		}
 	}
 
