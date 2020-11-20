@@ -287,3 +287,7 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 		restrictCloudInit = old
 	}
 }
+
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
+	return mgr.hasFDESetupHook()
+}
