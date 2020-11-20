@@ -1980,6 +1980,44 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	})
 }
 
+var minimalMockGadgetYamlBootloaderFmt = `
+volumes:
+ pc:
+  bootloader: %q
+`
+
+func (s *gadgetYamlTestSuite) TestRequiredBootloaderSimple(c *C) {
+	for _, blName := range []string{
+		"grub", "uboot", "androidboot", "lk",
+	} {
+		gadgetRoot := c.MkDir()
+		c.Assert(os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755), IsNil)
+		meta := fmt.Sprintf(minimalMockGadgetYamlBootloaderFmt, blName)
+		err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta/gadget.yaml"), []byte(meta), 0644)
+		c.Assert(err, IsNil)
+
+		blReq, err := gadget.RequiredBootloader(gadgetRoot)
+		c.Assert(err, IsNil)
+		c.Check(blReq, Equals, blName)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestRequiredBootloaderErr(c *C) {
+	gadgetRoot := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755), IsNil)
+
+	blReq, err := gadget.RequiredBootloader(gadgetRoot)
+	c.Assert(err, ErrorMatches, "open .*/meta/gadget.yaml: no such file or directory")
+	c.Check(blReq, Equals, "")
+
+	err = ioutil.WriteFile(filepath.Join(gadgetRoot, "meta/gadget.yaml"), []byte(`invalid`), 0644)
+	c.Assert(err, IsNil)
+
+	blReq, err = gadget.RequiredBootloader(gadgetRoot)
+	c.Assert(err, ErrorMatches, "(?m)cannot parse gadget metadata: .*")
+	c.Check(blReq, Equals, "")
+}
+
 type gadgetCompatibilityTestSuite struct{}
 
 var _ = Suite(&gadgetCompatibilityTestSuite{})

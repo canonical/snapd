@@ -1012,3 +1012,32 @@ func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string
 	}
 	return nil
 }
+
+// RequiredBootloader returns the name of the booloader required by this gadget.
+// It may return empty string when there no bootloader declared. Note that this
+// call does not perform full validation of the gadget, thus it should only be
+// used once it is certain that the gadget is valid.
+func RequiredBootloader(gadgetRootDir string) (string, error) {
+	type thinVolume struct {
+		// Bootloader names the bootloader used by the volume
+		Bootloader string `yaml:"bootloader"`
+	}
+	type thinInfo struct {
+		Volumes map[string]thinVolume `yaml:"volumes,omitempty"`
+	}
+	gadgetYaml, err := ioutil.ReadFile(filepath.Join(gadgetRootDir, "meta/gadget.yaml"))
+	if err != nil {
+		return "", err
+	}
+	var ti thinInfo
+	if err := yaml.Unmarshal(gadgetYaml, &ti); err != nil {
+		return "", fmt.Errorf("cannot parse gadget metadata: %v", err)
+	}
+	// find the first bootloader, validation pass ensures there is at most 1
+	for _, v := range ti.Volumes {
+		if v.Bootloader != "" {
+			return v.Bootloader, nil
+		}
+	}
+	return "", nil
+}
