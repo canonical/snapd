@@ -111,12 +111,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-30-64:
-                  workers: 6
-                  manual: true
-            - fedora-31-64:
-                  workers: 6
             - fedora-32-64:
+                  workers: 6
+            - fedora-33-64:
                   workers: 6
 
             - arch-linux-64:
@@ -577,6 +574,14 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
         # make sure EPEL is enabled
         yum install -y epel-release
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # make sure unattended-upgrades does not get in the way
+        if systemctl is-enabled unattended-upgrades.service; then
+            systemctl stop unattended-upgrades.service
+            systemctl mask unattended-upgrades.service
+        fi
     fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).

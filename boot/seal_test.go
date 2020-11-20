@@ -900,3 +900,31 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
 }
+
+func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	oldHasFDESetupHook := boot.HasFDESetupHook
+	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
+	boot.HasFDESetupHook = func() (bool, error) {
+		return true, nil
+	}
+	oldRunFDESetupHook := boot.RunFDESetupHook
+	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
+	boot.RunFDESetupHook = func(string, *boot.FdeSetupHookParams) error {
+		c.Fatalf("hook runner should not be called yet")
+		return nil
+	}
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+	myKey := secboot.EncryptionKey{}
+	myKey2 := secboot.EncryptionKey{}
+
+	model := boottest.MakeMockUC20Model()
+	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
+	c.Assert(err, ErrorMatches, "cannot use fde-setup hook yet")
+}

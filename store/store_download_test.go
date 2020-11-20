@@ -986,7 +986,7 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
-	ok, speed := store.IsDownloadTimeoutError(err)
+	ok, speed := store.IsTransferSpeedError(err)
 	c.Assert(ok, Equals, true)
 	// in reality speed can be 0, but here it's an extra sanity check.
 	c.Check(speed > 1, Equals, true)
@@ -1013,6 +1013,7 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 	}
 	close(quit)
 	c.Check(store.Cancelled(ctx), Equals, false)
+	c.Check(w.Err(), IsNil)
 
 	// we should hit at least 100*5/50 = 10 measurement windows
 	c.Assert(w.MeasuredWindowsCount() >= 10, Equals, true, Commentf("%d", w.MeasuredWindowsCount()))
@@ -1020,11 +1021,13 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 	origCtx := context.TODO()
-	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 100)
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
 
 	data := []byte{0}
 	quit := w.Monitor()
 
+	// write just one byte every ~5ms, this will trigger download timeout
+	// since the writer expects 1000 bytes per 50ms as defined above.
 	for i := 0; i < 100; i++ {
 		n, err := w.Write(data)
 		c.Assert(err, IsNil)
@@ -1033,4 +1036,7 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 	}
 	close(quit)
 	c.Check(store.Cancelled(ctx), Equals, true)
+	terr, _ := store.IsTransferSpeedError(w.Err())
+	c.Assert(terr, Equals, true)
+	c.Check(w.Err(), ErrorMatches, "download too slow: .* bytes/sec")
 }
