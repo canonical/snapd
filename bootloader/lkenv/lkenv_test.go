@@ -149,10 +149,10 @@ func (l *lkenvTestSuite) TestSet(c *C) {
 }
 
 func (l *lkenvTestSuite) TestSave(c *C) {
-
 	tt := []struct {
 		version       lkenv.Version
 		keyValuePairs map[string]string
+		comment       string
 	}{
 		{
 			lkenv.V1,
@@ -166,6 +166,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				"snap_try_gadget":   "gadget-2",
 				"bootimg_file_name": "boot.img",
 			},
+			"lkenv v1",
 		},
 		{
 			lkenv.V2Run,
@@ -177,6 +178,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				"snap_try_gadget":   "gadget-2",
 				"bootimg_file_name": "boot.img",
 			},
+			"lkenv v2 run",
 		},
 		{
 			lkenv.V2Recovery,
@@ -185,10 +187,18 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				"snapd_recovery_system": "11192020",
 				"bootimg_file_name":     "boot.img",
 			},
+			"lkenv v2 recovery",
 		},
 	}
 	for _, t := range tt {
 		for _, makeBackup := range []bool{true, false} {
+			var comment CommentInterface
+			if makeBackup {
+				comment = Commentf("testcase %s with backup", t.comment)
+			} else {
+				comment = Commentf("testcase %s without backup", t.comment)
+			}
+
 			// make unique files per test case
 			testFile := filepath.Join(c.MkDir(), "lk.bin")
 			testFileBackup := testFile + "bak"
@@ -196,39 +206,39 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				// create the backup file too
 				buf := make([]byte, 4096)
 				err := ioutil.WriteFile(testFileBackup, buf, 0644)
-				c.Assert(err, IsNil)
+				c.Assert(err, IsNil, comment)
 			}
 
 			buf := make([]byte, 4096)
 			err := ioutil.WriteFile(testFile, buf, 0644)
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			env := lkenv.NewEnv(testFile, t.version)
-			c.Check(env, NotNil)
+			c.Check(env, NotNil, comment)
 
 			for k, v := range t.keyValuePairs {
 				env.Set(k, v)
 			}
 
 			err = env.Save()
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			env2 := lkenv.NewEnv(testFile, t.version)
 			err = env2.Load()
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			for k, v := range t.keyValuePairs {
-				c.Check(env2.Get(k), Equals, v)
+				c.Check(env2.Get(k), Equals, v, comment)
 			}
 
 			// check the backup too
 			if makeBackup {
 				env3 := lkenv.NewEnv(testFileBackup, t.version)
 				err := env3.Load()
-				c.Assert(err, IsNil)
+				c.Assert(err, IsNil, comment)
 
 				for k, v := range t.keyValuePairs {
-					c.Check(env3.Get(k), Equals, v)
+					c.Check(env3.Get(k), Equals, v, comment)
 				}
 			}
 		}

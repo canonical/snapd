@@ -19,6 +19,10 @@
 
 package lkenv
 
+import (
+	"fmt"
+)
+
 /**
  * Following structure has to be kept in sync with c structure defined by
  * include/lk/snappy-boot_v2.h
@@ -126,6 +130,113 @@ type SnapBootSelect_v2_recovery struct {
 	Crc32 uint32
 }
 
+func (v2recovery *SnapBootSelect_v2_recovery) crc32() uint32 {
+	return v2recovery.Crc32
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) version() uint32 {
+	return v2recovery.Version
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) signature() uint32 {
+	return v2recovery.Signature
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) setup() error {
+	return nil
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) get(key string) string {
+	switch key {
+	case "snapd_recovery_mode":
+		return cToGoString(v2recovery.Snapd_recovery_mode[:])
+	case "snapd_recovery_system":
+		return cToGoString(v2recovery.Snapd_recovery_system[:])
+	case "bootimg_file_name":
+		return cToGoString(v2recovery.Bootimg_file_name[:])
+	}
+	return ""
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) set(key, value string) {
+	switch key {
+	case "snapd_recovery_mode":
+		copyString(v2recovery.Snapd_recovery_mode[:], value)
+	case "snapd_recovery_system":
+		copyString(v2recovery.Snapd_recovery_system[:], value)
+	case "bootimg_file_name":
+		copyString(v2recovery.Bootimg_file_name[:], value)
+	}
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) configureBootPartitions(bootPartLabels []string) error {
+	numBootPartLabels := len(bootPartLabels)
+
+	// too many
+	if numBootPartLabels > SNAP_RECOVER_BOOTIMG_PART_NUM {
+		return fmt.Errorf("too many (%d) boot partition labels for v2 lkenv run mode, expected no more than %d", numBootPartLabels, SNAP_RECOVER_BOOTIMG_PART_NUM)
+	}
+	// too few
+	if numBootPartLabels < SNAP_BOOTIMG_PART_NUM {
+		return fmt.Errorf("too few (%d) boot partition labels for v2 lkenv run mode, expected at least %d", numBootPartLabels, SNAP_BOOTIMG_PART_NUM)
+	}
+
+	// TODO: implement this for tests
+
+	return nil
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) load(path string) error {
+	return commonLoad(path, v2recovery, SNAP_BOOTSELECT_VERSION_V2, SNAP_BOOTSELECT_SIGNATURE)
+}
+
+// TODO: the following two implementations are very similar to the kernel bootimg
+// matrix implementations, but they operate on a differently sized array, perhaps
+// we could do something inefficient like copy to a slice of any size and pass
+// that to a helper which operates on slices? would be ugly but kind of nice
+func (v2recovery *SnapBootSelect_v2_recovery) setRecoveryBootPartition(bootpart string, recoverySystem string) error {
+	for x := range v2recovery.Bootimg_matrix {
+		if bootpart == cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
+			copyString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_RECOVERY_SYSTEM][:], recoverySystem)
+			return nil
+		}
+	}
+	return fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) findFreeRecoveryPartition(recoverySystem string) (string, error) {
+	for x := range v2recovery.Bootimg_matrix {
+		bp := cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:])
+		if bp != "" {
+			sys := cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_RECOVERY_SYSTEM][:])
+			// return this one if it's the exact specified recovery system or if
+			// it's empty
+			if sys == recoverySystem || sys == "" {
+				return cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("cannot find free partition for recovery system")
+}
+
+// unimplemented for v2 recovery
+
+func (v2recovery *SnapBootSelect_v2_recovery) removeKernelFromBootPart(kernel string) error {
+	return fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) setBootPartition(bootpart, kernel string) error {
+	return fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) findFreeBootPartition(kernel string) (string, error) {
+	return "", fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
+}
+
+func (v2recovery *SnapBootSelect_v2_recovery) getBootPartition(kernel string) (string, error) {
+	return "", fmt.Errorf("test function unimplemented for non-v1")
+}
+
 type SnapBootSelect_v2_run struct {
 	/* Contains value BOOTSELECT_SIGNATURE defined above */
 	Signature uint32
@@ -231,4 +342,104 @@ type SnapBootSelect_v2_run struct {
 
 	/* crc32 value for structure */
 	Crc32 uint32
+}
+
+func (v2run *SnapBootSelect_v2_run) crc32() uint32 {
+	return v2run.Crc32
+}
+
+func (v2run *SnapBootSelect_v2_run) version() uint32 {
+	return v2run.Version
+}
+
+func (v2run *SnapBootSelect_v2_run) signature() uint32 {
+	return v2run.Signature
+}
+
+func (v2run *SnapBootSelect_v2_run) setup() error {
+	return nil
+}
+
+func (v2run *SnapBootSelect_v2_run) get(key string) string {
+	switch key {
+	case "kernel_status":
+		return cToGoString(v2run.Kernel_status[:])
+	case "snap_kernel":
+		return cToGoString(v2run.Snap_kernel[:])
+	case "snap_try_kernel":
+		return cToGoString(v2run.Snap_try_kernel[:])
+	case "snap_gadget":
+		return cToGoString(v2run.Snap_gadget[:])
+	case "snap_try_gadget":
+		return cToGoString(v2run.Snap_try_gadget[:])
+	case "bootimg_file_name":
+		return cToGoString(v2run.Bootimg_file_name[:])
+	}
+	return ""
+}
+
+func (v2run *SnapBootSelect_v2_run) set(key, value string) {
+	switch key {
+	case "kernel_status":
+		copyString(v2run.Kernel_status[:], value)
+	case "snap_kernel":
+		copyString(v2run.Snap_kernel[:], value)
+	case "snap_try_kernel":
+		copyString(v2run.Snap_try_kernel[:], value)
+	case "snap_gadget":
+		copyString(v2run.Snap_gadget[:], value)
+	case "snap_try_gadget":
+		copyString(v2run.Snap_try_gadget[:], value)
+	case "bootimg_file_name":
+		copyString(v2run.Bootimg_file_name[:], value)
+	}
+}
+
+func (v2run *SnapBootSelect_v2_run) configureBootPartitions(bootPartLabels []string) error {
+	matr, err := commonConfigureBootPartitions(v2run.Bootimg_matrix, bootPartLabels)
+	if err != nil {
+		return err
+	}
+	v2run.Bootimg_matrix = matr
+	return nil
+}
+
+func (v2run *SnapBootSelect_v2_run) load(path string) error {
+	return commonLoad(path, v2run, SNAP_BOOTSELECT_VERSION_V2, SNAP_BOOTSELECT_SIGNATURE)
+}
+
+func (v2run *SnapBootSelect_v2_run) removeKernelFromBootPart(kernel string) error {
+	matr, err := commonRemoveKernelFromBootPart(v2run.Bootimg_matrix, kernel)
+	if err != nil {
+		return err
+	}
+	v2run.Bootimg_matrix = matr
+	return nil
+}
+
+func (v2run *SnapBootSelect_v2_run) setBootPartition(bootpart, kernel string) error {
+	matr, err := commonSetBootPartition(v2run.Bootimg_matrix, bootpart, kernel)
+	if err != nil {
+		return err
+	}
+	v2run.Bootimg_matrix = matr
+	return nil
+}
+
+func (v2run *SnapBootSelect_v2_run) findFreeBootPartition(kernel string) (string, error) {
+	return commonFindFreeBootPartition(v2run, v2run.Bootimg_matrix, kernel)
+}
+
+func (v2run *SnapBootSelect_v2_run) getBootPartition(kernel string) (string, error) {
+	return commonGetBootPartition(v2run.Bootimg_matrix, kernel)
+}
+
+// unimplemented for v2 run
+
+func (v2run *SnapBootSelect_v2_run) setRecoveryBootPartition(string, string) error {
+	return fmt.Errorf("internal error: cannot set recovery system boot partition on non-recovery lkenv")
+}
+
+func (v2run *SnapBootSelect_v2_run) findFreeRecoveryPartition(string) (string, error) {
+	return "", fmt.Errorf("internal error: cannot find recovery system boot partition on non-recovery lkenv")
 }

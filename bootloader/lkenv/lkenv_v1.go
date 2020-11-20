@@ -19,6 +19,10 @@
 
 package lkenv
 
+import (
+	"fmt"
+)
+
 /**
  * Following structure has to be kept in sync with c structure defined by
  * include/lk/snappy-boot_v1.h
@@ -145,4 +149,116 @@ type SnapBootSelect_v1 struct {
 
 	/* crc32 value for structure */
 	Crc32 uint32
+}
+
+func (v1 *SnapBootSelect_v1) crc32() uint32 {
+	return v1.Crc32
+}
+
+func (v1 *SnapBootSelect_v1) signature() uint32 {
+	return v1.Signature
+}
+
+func (v1 *SnapBootSelect_v1) version() uint32 {
+	return v1.Version
+}
+
+func (v1 *SnapBootSelect_v1) setup() error {
+	return nil
+}
+
+func (v1 *SnapBootSelect_v1) get(key string) string {
+	switch key {
+	case "snap_mode":
+		return cToGoString(v1.Snap_mode[:])
+	case "snap_kernel":
+		return cToGoString(v1.Snap_kernel[:])
+	case "snap_try_kernel":
+		return cToGoString(v1.Snap_try_kernel[:])
+	case "snap_core":
+		return cToGoString(v1.Snap_core[:])
+	case "snap_try_core":
+		return cToGoString(v1.Snap_try_core[:])
+	case "snap_gadget":
+		return cToGoString(v1.Snap_gadget[:])
+	case "snap_try_gadget":
+		return cToGoString(v1.Snap_try_gadget[:])
+	case "reboot_reason":
+		return cToGoString(v1.Reboot_reason[:])
+	case "bootimg_file_name":
+		return cToGoString(v1.Bootimg_file_name[:])
+	}
+	return ""
+}
+
+func (v1 *SnapBootSelect_v1) set(key, value string) {
+	switch key {
+	case "snap_mode":
+		copyString(v1.Snap_mode[:], value)
+	case "snap_kernel":
+		copyString(v1.Snap_kernel[:], value)
+	case "snap_try_kernel":
+		copyString(v1.Snap_try_kernel[:], value)
+	case "snap_core":
+		copyString(v1.Snap_core[:], value)
+	case "snap_try_core":
+		copyString(v1.Snap_try_core[:], value)
+	case "snap_gadget":
+		copyString(v1.Snap_gadget[:], value)
+	case "snap_try_gadget":
+		copyString(v1.Snap_try_gadget[:], value)
+	case "reboot_reason":
+		copyString(v1.Reboot_reason[:], value)
+	case "bootimg_file_name":
+		copyString(v1.Bootimg_file_name[:], value)
+	}
+}
+
+func (v1 *SnapBootSelect_v1) configureBootPartitions(bootPartLabels []string) error {
+	matr, err := commonConfigureBootPartitions(v1.Bootimg_matrix, bootPartLabels)
+	if err != nil {
+		return err
+	}
+	v1.Bootimg_matrix = matr
+	return nil
+}
+
+func (v1 *SnapBootSelect_v1) load(path string) error {
+	return commonLoad(path, v1, SNAP_BOOTSELECT_VERSION_V1, SNAP_BOOTSELECT_SIGNATURE)
+}
+
+func (v1 *SnapBootSelect_v1) removeKernelFromBootPart(kernel string) error {
+	matr, err := commonRemoveKernelFromBootPart(v1.Bootimg_matrix, kernel)
+	if err != nil {
+		return err
+	}
+	v1.Bootimg_matrix = matr
+	return nil
+}
+
+func (v1 *SnapBootSelect_v1) setBootPartition(bootpart, kernel string) error {
+	matr, err := commonSetBootPartition(v1.Bootimg_matrix, bootpart, kernel)
+	if err != nil {
+		return err
+	}
+	v1.Bootimg_matrix = matr
+	return nil
+}
+
+func (v1 *SnapBootSelect_v1) findFreeBootPartition(kernel string) (string, error) {
+	return commonFindFreeBootPartition(v1, v1.Bootimg_matrix, kernel)
+}
+
+func (v1 *SnapBootSelect_v1) getBootPartition(kernel string) (string, error) {
+	return commonGetBootPartition(v1.Bootimg_matrix, kernel)
+}
+
+// unimplemented for v1
+
+func (v1 *SnapBootSelect_v1) setRecoveryBootPartition(string, string) error {
+	return fmt.Errorf("internal error: cannot set recovery system boot partition on non-recovery lkenv")
+}
+
+func (v1 *SnapBootSelect_v1) findFreeRecoveryPartition(string) (string, error) {
+	return "", fmt.Errorf("internal error: cannot find recovery system boot partition on non-recovery lkenv")
 }
