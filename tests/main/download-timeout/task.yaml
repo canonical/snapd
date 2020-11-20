@@ -21,8 +21,12 @@ execute: |
   tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
   tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
 
-  snap install lxd 2>&1 | MATCH "download timed out"
-  
+  echo "Installing a large snap fails if connection is very slow"
+  snap install lxd 2>&1 | MATCH "download too slow:"
+
+  echo "Downloading a large snap fails too"
+  SNAP_MIN_DOWNLOAD_SPEED=99000 SNAP_DOWNLOAD_MEAS_WINDOW=1m snap download lxd 2>&1 | MATCH "download too slow:"
+
 restore: |
   tc filter del dev ens4
   tc qdisc del dev ens4 ingress
