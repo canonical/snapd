@@ -323,6 +323,10 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 			if err == nil {
 				return true, nil
 			}
+
+			// XXX: do "if secured {" checks and add tests!
+			//          if encrypted"
+
 			logger.Noticef("cannot use fde-setup hook: %v", err)
 			// Stop here if there is a fde-setup hook. We
 			// could fallthrough to the tpm check but
