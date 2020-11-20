@@ -107,6 +107,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  fpga:
+    command: bin/run
+    plugs: [ fpga ]
   system-files:
     command: bin/run
     plugs: [ system-files ]
