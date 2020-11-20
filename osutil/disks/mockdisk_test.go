@@ -20,6 +20,8 @@
 package disks_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"golang.org/x/xerrors"
@@ -37,6 +39,49 @@ var _ = Suite(&mockDiskSuite{})
 
 func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
+	// one disk with different device names
+	d1 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label1": "part1",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+	}
+
+	d2 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label2": "part2",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d2",
+	}
+
+	m := map[string]*disks.MockDiskMapping{
+		"devName1":   d1,
+		"devName2":   d1,
+		"other-disk": d2,
+	}
+
+	r := disks.MockDeviceNameDisksToPartitionMapping(m)
+	defer r()
+
+	res, err := disks.DiskFromDeviceName("devName1")
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, d1)
+
+	res2, err := disks.DiskFromDeviceName("devName2")
+	c.Assert(err, IsNil)
+	c.Assert(res2, DeepEquals, d1)
+
+	_, err = disks.DiskFromDeviceName("devName3")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("device name %q not mocked", "devName3"))
+
+	res3, err := disks.DiskFromDeviceName("other-disk")
+	c.Assert(err, IsNil)
+	c.Assert(res3, DeepEquals, d2)
 }
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
