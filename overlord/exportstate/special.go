@@ -150,7 +150,8 @@ func effectiveExportedVersionForSnapdOrCore(st *state.State) (exportedVersion st
 // 2) core version, if available
 // 3) "host" version, if on classic
 //
-// If no provider is available then empty version is returned.
+// If no provider is available and there is nothing to export the returned
+// version is empty.
 func selectExportedVersionForSnapdTools(activeSnapdExportedVersion, activeCoreExportedVersion string) string {
 	if release.OnClassic && os.Getenv("SNAP_REEXEC") == "0" {
 		return "host"
