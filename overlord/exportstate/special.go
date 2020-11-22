@@ -116,11 +116,11 @@ func manifestForRegularSnap(info *snap.Info) *Manifest {
 	}
 }
 
-func exportedNameVersionForRegularSnap(info *snap.Info) (exportedName string, exportedVersion string) {
+func exportedVersionAndSourceForRegularSnap(info *snap.Info) (exportedVersion, source string) {
 	if typ := info.Type(); typ == snap.TypeSnapd || typ == snap.TypeOS {
-		panic(fmt.Sprintf("internal error, cannot use exportedNameVersionForRegularSnap with core or snapd, got %q of type %q", info.SnapName(), info.Type()))
+		panic(fmt.Sprintf("internal error, cannot use exportedVersionAndSourceForRegularSnap with core or snapd, got %q of type %q", info.SnapName(), info.Type()))
 	}
-	return info.InstanceName(), info.SnapRevision().String()
+	return info.SnapRevision().String(), info.InstanceName()
 }
 
 func effectiveExportedVersionForSnapdOrCore(st *state.State) (exportedVersion string, err error) {

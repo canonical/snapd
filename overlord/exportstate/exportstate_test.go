@@ -252,17 +252,17 @@ func (s *exportstateSuite) TestCurrentExportedVersionSymlinkPath(c *C) {
 func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 	// It is not an error to remove the current version link
 	// if it does not exist.
-	err := exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "")
+	err := exportstate.UpdateExportedVersion("", s.m.SnapInstanceName)
 	c.Assert(err, IsNil)
 
 	// Removing the current version symlink works correctly.
 	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
+	err = exportstate.UpdateExportedVersion(s.m.SnapRevision.String(), s.m.SnapInstanceName)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
 		testutil.SymlinkTargetEquals, s.m.SnapRevision.String())
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "")
+	err = exportstate.UpdateExportedVersion("", s.m.SnapInstanceName)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
 		testutil.FileAbsent)
@@ -271,20 +271,20 @@ func (s *exportstateSuite) TestRemoveCurrentExportedVersion(c *C) {
 func (s *exportstateSuite) TestSetCurrentExportedVersion(c *C) {
 	// Current version cannot be selected without exporting the content first
 	// but the ENOENT error is silently ignored.
-	err := exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
+	err := exportstate.UpdateExportedVersion(s.m.SnapRevision.String(), s.m.SnapInstanceName)
 	c.Check(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"), testutil.FileAbsent)
 
 	// With a manifest in place, we can set the current version at will.
 	err = exportstate.CreateExportedFiles(s.m)
 	c.Assert(err, IsNil)
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, s.m.SnapRevision.String())
+	err = exportstate.UpdateExportedVersion(s.m.SnapRevision.String(), s.m.SnapInstanceName)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
 		testutil.SymlinkTargetEquals, s.m.SnapRevision.String())
 
 	// The current version can be replaced to point to another value.
-	err = exportstate.UpdateExportedVersion(s.m.SnapInstanceName, "other-"+s.m.SnapRevision.String())
+	err = exportstate.UpdateExportedVersion("other-"+s.m.SnapRevision.String(), s.m.SnapInstanceName)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.ExportDir, s.m.SnapInstanceName, "current"),
 		testutil.SymlinkTargetEquals, "other-"+s.m.SnapRevision.String())
@@ -310,9 +310,9 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 			panic("unexpected")
 		}
 	}))
-	exportedName, exportedVersion, err := exportstate.ExportedNameVersion(s.st, "core")
+	exportedVersion, source, err := exportstate.ExportedVersionAndSource(s.st, "core")
 	c.Assert(err, IsNil)
-	c.Check(exportedName, Equals, "snapd")
+	c.Check(source, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "2")
 
 	// Because we have both core and snapd installed, core with revision 1 wins.
@@ -326,9 +326,9 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 			panic("unexpected")
 		}
 	}))
-	exportedName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "core")
+	exportedVersion, source, err = exportstate.ExportedVersionAndSource(s.st, "core")
 	c.Assert(err, IsNil)
-	c.Check(exportedName, Equals, "snapd")
+	c.Check(source, Equals, "snapd")
 	c.Check(exportedVersion, Equals, "core_1")
 
 	// Non-special snaps just use their revision as exported-version.
@@ -336,9 +336,9 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 		return snaptest.MockInfo(c, "name: foo\nversion: 1\n",
 			&snap.SideInfo{Revision: snap.R(42)}), nil
 	}))
-	exportedName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
+	exportedVersion, source, err = exportstate.ExportedVersionAndSource(s.st, "foo")
 	c.Assert(err, IsNil)
-	c.Check(exportedName, Equals, "foo")
+	c.Check(source, Equals, "foo")
 	c.Check(exportedVersion, Equals, "42")
 
 	// TODO: test broken snapd/core
@@ -351,9 +351,9 @@ func (s *exportstateSuite) TestExportedNameVersion(c *C) {
 		info.InstanceKey = "instance"
 		return info, nil
 	}))
-	exportedName, exportedVersion, err = exportstate.ExportedNameVersion(s.st, "foo")
+	exportedVersion, source, err = exportstate.ExportedVersionAndSource(s.st, "foo")
 	c.Assert(err, IsNil)
-	c.Check(exportedName, Equals, "foo_instance")
+	c.Check(source, Equals, "foo_instance")
 	c.Check(exportedVersion, Equals, "42")
 }
 

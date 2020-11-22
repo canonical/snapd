@@ -106,7 +106,7 @@ func (m *ExportManager) exportSnapdTools() error {
 	if err != nil {
 		return err
 	}
-	return updateExportedVersion("snapd", exportedVersion)
+	return updateExportedVersion(exportedVersion, "snapd")
 }
 
 // Ensure implements StateManager.Ensure.
@@ -119,11 +119,11 @@ type LinkSnapParticipant struct{}
 
 // SnapLinkageChanged implements LinkParticipant.SnapLinkageChanged.
 func (p *LinkSnapParticipant) SnapLinkageChanged(st *state.State, instanceName string) error {
-	exportedName, exportedVersion, err := ExportedNameVersion(st, instanceName)
+	exportedVersion, source, err := ExportedVersionAndSource(st, instanceName)
 	if err != nil {
 		return err
 	}
-	return updateExportedVersion(exportedName, exportedVersion)
+	return updateExportedVersion(exportedVersion, source)
 }
 
 var once sync.Once

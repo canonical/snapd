@@ -107,7 +107,7 @@ func (m *Manifest) IsEmpty() bool {
 
 // createExportedFiles creates all the files constituting the export manifest.
 //
-// The directory /var/lib/snapd/export/$exportedName/$exportedVersion is created
+// The directory /var/lib/snapd/export/$source/$exportedVersion is created
 // if necessary. For each export set in the manifest, additional sub-directory
 // is created and populated with symbolic links pointing to the exported files.
 //
@@ -125,7 +125,7 @@ func createExportedFiles(manifest *Manifest) error {
 
 // removeExportedFiles removes all the files constituting the export state.
 //
-// In addition the path /var/lib/snapd/export/$exportedName/$exportedVersion
+// In addition the path /var/lib/snapd/export/$source/$exportedVersion
 // is pruned, removing empty directories if possible.
 //
 // On failure removal continues and the first error is returned.

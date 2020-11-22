@@ -83,9 +83,9 @@ func Get(st *state.State, instanceName string, rev snap.Revision, m *Manifest) e
 }
 
 // exporetedVersionSymlinkPath returns the path of the current exported version symlink
-// for given export name.
-func exportedVersionSymlinkPath(exportedName string) string {
-	return filepath.Join(dirs.ExportDir, exportedName, "current")
+// for given source.
+func exportedVersionSymlinkPath(source string) string {
+	return filepath.Join(dirs.ExportDir, source, "current")
 }
 
 // updateExportedVersion updates or removes the exported version symlink.
@@ -98,33 +98,35 @@ func exportedVersionSymlinkPath(exportedName string) string {
 //
 // if exportedVersion is empty then then it indicates that no version is exported
 //
-// Appropriate version can be computed by exportedVersionForSnap.
-func updateExportedVersion(exportedName, exportedVersion string) error {
-	pathName := exportedVersionSymlinkPath(exportedName)
+// Appropriate version can be computed by ExportedVersionAndSource.
+func updateExportedVersion(exportedVersion, source string) error {
+	pathName := exportedVersionSymlinkPath(source)
 	if exportedVersion != "" {
 		if err := osutil.AtomicSymlink(exportedVersion, pathName); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot set exported version of %q to %q: %v", exportedName, exportedVersion, err)
+			return fmt.Errorf("cannot set exported version of %q to %q: %v", source, exportedVersion, err)
 		}
 	} else {
 		if err := os.Remove(pathName); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot unset exported version of %q: %v", exportedName, err)
+			return fmt.Errorf("cannot unset exported version of %q: %v", source, err)
 		}
 	}
 	return nil
 
 }
 
-// ExportedNameVersion returns the (snapName, exportedVersion) tuple to
-// use as the current provider of all the export sets of a given snap. The
-// returned exportedVersion may be empty, indicating that given snap has no
-// current revision.
-func ExportedNameVersion(st *state.State, instanceName string) (exportedName string, exportedVersion string, err error) {
+// ExportedVersionAndSource returns the (exportedVersion, source) tuple to use
+// as the current provider of all the export sets of a given snap. The returned
+// exportedVersion may be empty, indicating that given snap has no current
+// revision.
+//
+// In some cases, the returned source differs from passed instanceName.
+func ExportedVersionAndSource(st *state.State, instanceName string) (exportedVersion, source string, err error) {
 	info, err := snapstateCurrentInfo(st, instanceName)
 	if _, ok := err.(*snap.NotInstalledError); err != nil && !ok {
 		return "", "", err
 	}
 	if info == nil || info.Broken != "" {
-		return instanceName, "", nil
+		return "", instanceName, nil
 	}
 
 	// Not all snaps are identical. For core (TypeOS) and snapd snaps, we use a
@@ -132,13 +134,13 @@ func ExportedNameVersion(st *state.State, instanceName string) (exportedName str
 	// and still pretend it is coming from snapd.
 	switch info.Type() {
 	case snap.TypeOS, snap.TypeSnapd:
-		exportedName = "snapd"
 		exportedVersion, err = effectiveExportedVersionForSnapdOrCore(st)
+		source = "snapd"
 		if err != nil {
 			return "", "", err
 		}
 	default:
-		exportedName, exportedVersion = exportedNameVersionForRegularSnap(info)
+		exportedVersion, source = exportedVersionAndSourceForRegularSnap(info)
 	}
-	return exportedName, exportedVersion, nil
+	return exportedVersion, source, nil
 }
