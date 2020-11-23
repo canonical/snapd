@@ -392,6 +392,7 @@ type MockTrustedAssetsBootloader struct {
 
 	UpdateErr                  error
 	UpdateCalls                int
+	Updated                    bool
 	ManagedAssetsList          []string
 	StaticCommandLine          string
 	CandidateStaticCommandLine string
@@ -408,9 +409,9 @@ func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
 	return b.ManagedAssetsList
 }
 
-func (b *MockTrustedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	b.UpdateCalls++
-	return b.UpdateErr
+	return b.Updated, b.UpdateErr
 }
 
 func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
