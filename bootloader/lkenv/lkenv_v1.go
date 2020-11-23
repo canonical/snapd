@@ -43,29 +43,29 @@ type SnapBootSelect_v1 struct {
 	Version uint32
 
 	/* snap_mode, one of: 'empty', "try", "trying" */
-	Snap_mode [SNAP_NAME_MAX_LEN]byte
+	Snap_mode [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current core snap revision */
-	Snap_core [SNAP_NAME_MAX_LEN]byte
+	Snap_core [SNAP_FILE_NAME_MAX_LEN]byte
 	/* try core snap revision */
-	Snap_try_core [SNAP_NAME_MAX_LEN]byte
+	Snap_try_core [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current kernel snap revision */
-	Snap_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current kernel snap revision */
-	Snap_try_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_try_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* gadget_mode, one of: 'empty', "try", "trying" */
-	Gadget_mode [SNAP_NAME_MAX_LEN]byte
+	Gadget_mode [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: current gadget assets revision */
-	Snap_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: try gadget assets revision */
-	Snap_try_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_try_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Reboot reason
 	 * optional parameter to signal bootloader alternative reboot reasons
 	 * e.g. recovery/factory-reset/boot asset update
 	 */
-	Reboot_reason [SNAP_NAME_MAX_LEN]byte
+	Reboot_reason [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Matrix for mapping of boot img partition to installed kernel snap revision
@@ -100,13 +100,13 @@ type SnapBootSelect_v1 struct {
 	 * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 */
-	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * name of the boot image from kernel snap to be used for extraction
 	 * when not defined or empty, default boot.img will be used
 	 */
-	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
+	Bootimg_file_name [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * gadget assets: Matrix for mapping of gadget asset partitions
@@ -120,52 +120,47 @@ type SnapBootSelect_v1 struct {
 	 * [ <boot assets 1 part label> ] [ <currently installed assets revision in this partition> ]
 	 * [ <boot assets 2 part label> ] [ <currently installed assets revision in this partition> ]
 	 */
-	Gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
-	Unused_key_01 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_02 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_03 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_04 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_05 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_06 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_07 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_08 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_09 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_10 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_11 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_12 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_13 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_14 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_15 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_16 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_17 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_18 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_19 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_03 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_04 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_05 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_06 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_07 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_08 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_09 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_10 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_11 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_12 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_13 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_14 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_15 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_19 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_20 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
 }
 
-func (v1 *SnapBootSelect_v1) crc32() uint32 {
-	return v1.Crc32
+func newV1() *SnapBootSelect_v1 {
+	return &SnapBootSelect_v1{
+		Version:   SNAP_BOOTSELECT_VERSION_V1,
+		Signature: SNAP_BOOTSELECT_SIGNATURE,
+	}
 }
 
-func (v1 *SnapBootSelect_v1) signature() uint32 {
-	return v1.Signature
-}
-
-func (v1 *SnapBootSelect_v1) version() uint32 {
-	return v1.Version
-}
-
-func (v1 *SnapBootSelect_v1) setup() error {
-	return nil
-}
+func (v1 *SnapBootSelect_v1) currentCrc32() uint32     { return v1.Crc32 }
+func (v1 *SnapBootSelect_v1) currentVersion() uint32   { return v1.Version }
+func (v1 *SnapBootSelect_v1) currentSignature() uint32 { return v1.Signature }
 
 func (v1 *SnapBootSelect_v1) get(key string) string {
 	switch key {
@@ -214,51 +209,10 @@ func (v1 *SnapBootSelect_v1) set(key, value string) {
 	}
 }
 
-func (v1 *SnapBootSelect_v1) configureBootPartitions(bootPartLabels []string) error {
-	matr, err := commonConfigureBootPartitions(v1.Bootimg_matrix, bootPartLabels)
-	if err != nil {
-		return err
-	}
-	v1.Bootimg_matrix = matr
-	return nil
+func (v1 *SnapBootSelect_v1) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v1.Bootimg_matrix)[:]), nil
 }
 
-func (v1 *SnapBootSelect_v1) load(path string) error {
-	return commonLoad(path, v1, SNAP_BOOTSELECT_VERSION_V1, SNAP_BOOTSELECT_SIGNATURE)
-}
-
-func (v1 *SnapBootSelect_v1) removeKernelFromBootPart(kernel string) error {
-	matr, err := commonRemoveKernelFromBootPart(v1.Bootimg_matrix, kernel)
-	if err != nil {
-		return err
-	}
-	v1.Bootimg_matrix = matr
-	return nil
-}
-
-func (v1 *SnapBootSelect_v1) setBootPartition(bootpart, kernel string) error {
-	matr, err := commonSetBootPartition(v1.Bootimg_matrix, bootpart, kernel)
-	if err != nil {
-		return err
-	}
-	v1.Bootimg_matrix = matr
-	return nil
-}
-
-func (v1 *SnapBootSelect_v1) findFreeBootPartition(kernel string) (string, error) {
-	return commonFindFreeBootPartition(v1, v1.Bootimg_matrix, kernel)
-}
-
-func (v1 *SnapBootSelect_v1) getBootPartition(kernel string) (string, error) {
-	return commonGetBootPartition(v1.Bootimg_matrix, kernel)
-}
-
-// unimplemented for v1
-
-func (v1 *SnapBootSelect_v1) setRecoveryBootPartition(string, string) error {
-	return fmt.Errorf("internal error: cannot set recovery system boot partition on non-recovery lkenv")
-}
-
-func (v1 *SnapBootSelect_v1) findFreeRecoveryPartition(string) (string, error) {
-	return "", fmt.Errorf("internal error: cannot find recovery system boot partition on non-recovery lkenv")
+func (v1 *SnapBootSelect_v1) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
+	return nil, fmt.Errorf("internal error: v1 lkenv has no boot image partition recovery system matrix")
 }

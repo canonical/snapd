@@ -275,8 +275,7 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 			if makeBackup {
 				// here we will read the backup file which exists but like the
 				// primary file is corrupted
-				errValidatePattern := `cannot validate %s: got version of .* \(expected .*\), got signature of .* \(expected .*\)`
-				c.Assert(err, ErrorMatches, fmt.Sprintf(errValidatePattern, testFileBackup))
+				c.Assert(err, ErrorMatches, fmt.Sprintf("cannot validate %s: expected version 0x%X, got 0x0", testFileBackup, version.Number()))
 			} else {
 				// here we fail to read the normal file, and automatically try
 				// to read the backup, but fail because it doesn't exist
@@ -324,24 +323,24 @@ func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
 
 	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Assert(err, IsNil)
-	env.ConfigureBootPartitions("boot_a", "boot_b")
+	env.InitializeBootPartitions("boot_a", "boot_b")
 	// test no boot partition used
-	p, err := env.FindFreeBootPartition("kernel-1")
+	p, err := env.FindFreeKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
 	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartition("boot_a", "kernel-1")
+	err = env.SetBootPartitionKernel("boot_a", "kernel-1")
 	c.Assert(err, IsNil)
 	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartition("boot_b", "kernel-2")
+	err = env.SetBootPartitionKernel("boot_b", "kernel-2")
 	c.Assert(err, IsNil)
 
 	// 'boot_a' has 'kernel-1' revision
-	p, err = env.GetBootPartition("kernel-1")
+	p, err = env.GetKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
 	// 'boot_b' has 'kernel-2' revision
-	p, err = env.GetBootPartition("kernel-2")
+	p, err = env.GetKernelBootPartition("kernel-2")
 	c.Check(p, Equals, "boot_b")
 	c.Assert(err, IsNil)
 }
@@ -353,39 +352,43 @@ func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 
 	env := lkenv.NewEnv(l.envPath, lkenv.V1)
 	c.Assert(err, IsNil)
-	env.ConfigureBootPartitions("boot_a", "boot_b")
+	env.InitializeBootPartitions("boot_a", "boot_b")
 	// test no boot partition used
-	p, err := env.FindFreeBootPartition("kernel-1")
+	p, err := env.FindFreeKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
 	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartition("boot_a", "kernel-2")
+	err = env.SetBootPartitionKernel("boot_a", "kernel-2")
 	c.Assert(err, IsNil)
 
 	env.Set("snap_kernel", "kernel-2")
 	// kernel-2 should now return first part, as it's already there
-	p, err = env.FindFreeBootPartition("kernel-2")
+	// TODO: do we really care about this check? What does it represent? I can't
+	// think of a situation in which we have snap_kernel of kernel-2 installed
+	// and we go to then call FindFreeKernelBootPartition("kernel-2")? why would
+	// snapd try to call ExtractKernelAssets on an already installed kernel?
+	p, err = env.FindFreeKernelBootPartition("kernel-2")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
 	// test kernel-1 snapd, it should now offer second partition
-	p, err = env.FindFreeBootPartition("kernel-1")
+	p, err = env.FindFreeKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_b")
 	c.Assert(err, IsNil)
-	err = env.SetBootPartition("boot_b", "kernel-1")
+	err = env.SetBootPartitionKernel("boot_b", "kernel-1")
 	c.Assert(err, IsNil)
 	// set boot kernel-1
 	env.Set("snap_kernel", "kernel-1")
 	// now kernel-2 should not be protected and boot_a shoild be offered
-	p, err = env.FindFreeBootPartition("kernel-3")
+	p, err = env.FindFreeKernelBootPartition("kernel-3")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
-	err = env.SetBootPartition("boot_a", "kernel-3")
+	err = env.SetBootPartitionKernel("boot_a", "kernel-3")
 	c.Assert(err, IsNil)
 	// remove kernel
-	err = env.RemoveKernelRevisionFromBootPartition("kernel-3")
+	err = env.RemoveKernelFromBootPartition("kernel-3")
 	c.Assert(err, IsNil)
 	// repeated use should return false and error
-	err = env.RemoveKernelRevisionFromBootPartition("kernel-3")
+	err = env.RemoveKernelFromBootPartition("kernel-3")
 	c.Assert(err, NotNil)
 }
 
@@ -432,11 +435,11 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
 	c.Check(env.Get("reboot_reason"), Equals, "")
 	// first partition should be with label 'boot_a' and 'kernel-1' revision
-	p, err := env.GetBootPartition("kernel-1")
+	p, err := env.GetKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_a")
 	c.Assert(err, IsNil)
 	// test second boot partition is free with label "boot_b"
-	p, err = env.FindFreeBootPartition("kernel-2")
+	p, err = env.FindFreeKernelBootPartition("kernel-2")
 	c.Check(p, Equals, "boot_b")
 	c.Assert(err, IsNil)
 }

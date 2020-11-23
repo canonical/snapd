@@ -146,7 +146,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		return err
 	}
 
-	bootPartition, err := env.FindFreeBootPartition(blobName)
+	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
 	}
-	if err := env.SetBootPartition(bootPartition, blobName); err != nil {
+	if err := env.SetBootPartitionKernel(bootPartition, blobName); err != nil {
 		return err
 	}
 
@@ -205,7 +205,7 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	err := env.RemoveKernelRevisionFromBootPartition(blobName)
+	err := env.RemoveKernelFromBootPartition(blobName)
 	if err == nil {
 		// found and removed the revision from the bootimg matrix, need to
 		// update the env to persist the change

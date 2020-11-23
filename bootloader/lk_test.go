@@ -177,7 +177,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// ensure we have a valid boot env
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
 	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V1)
-	lkenv.ConfigureBootPartitions("boot_a", "boot_b")
+	lkenv.InitializeBootPartitions("boot_a", "boot_b")
 	err := lkenv.Save()
 	c.Assert(err, IsNil)
 
@@ -215,7 +215,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// test that boot partition got set
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
-	bootPart, err := lkenv.GetBootPartition("ubuntu-kernel_42.snap")
+	bootPart, err := lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, IsNil)
 	c.Assert(bootPart, Equals, "boot_a")
 
@@ -225,7 +225,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// and ensure its no longer available in the boot partitions
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
-	bootPart, err = lkenv.GetBootPartition("ubuntu-kernel_42.snap")
+	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, ErrorMatches, "cannot find kernel .* in boot image partitions")
 	c.Assert(bootPart, Equals, "")
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -36,13 +37,22 @@ const (
 )
 
 // const SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
+// value comes from S(Snap)B(Boot)se(select)
 const SNAP_BOOTSELECT_SIGNATURE = 0x53 | 0x42<<8 | 0x73<<16 | 0x65<<24
-const SNAP_NAME_MAX_LEN = 256
 
-/* number of available boot partitions */
+// const SNAP_BOOTSELECT_RECOVERY_SIGNATURE ('S' | ('R' << 8) | ('s' << 16) | ('e' << 24))
+// value comes from S(Snap)R(Recovery)se(select)
+const SNAP_BOOTSELECT_RECOVERY_SIGNATURE = 0x53 | 0x52<<8 | 0x73<<16 | 0x65<<24
+
+// SNAP_FILE_NAME_MAX_LEN is the maximum size of a C string representing a snap name,
+// such as for a kernel snap revision.
+const SNAP_FILE_NAME_MAX_LEN = 256
+
+// SNAP_BOOTIMG_PART_NUM  is the number of available boot image partitions
 const SNAP_BOOTIMG_PART_NUM = 2
 
-/* number of available boot partitions for uc20 for kernel/try-kernel in run mode */
+// SNAP_RUN_BOOTIMG_PART_NUM is the number of available boot image partitions
+// for uc20 for kernel/try-kernel in run mode
 const SNAP_RUN_BOOTIMG_PART_NUM = 2
 
 /** maximum number of available bootimg partitions for recovery systems, min 5
@@ -57,12 +67,13 @@ const BOOTIMG_DEFAULT_NAME = "boot.img"
 
 // for accessing the 	Bootimg_matrix
 const (
-	MATRIX_ROW_PARTITION       = 0
-	MATRIX_ROW_KERNEL          = 1
-	MATRIX_ROW_RECOVERY_SYSTEM = 1
+	// the boot image partition label itself
+	MATRIX_ROW_PARTITION = 0
+	// the value of the boot image partition label mapping (i.e. the kernel
+	// revision or the recovery system label, depending on which specific
+	// matrix is being operated on)
+	MATRIX_ROW_VALUE = 1
 )
-
-type bootimgKernelMatrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
 
 type Version int
 
@@ -72,66 +83,85 @@ const (
 	V2Recovery
 )
 
-var (
-	validationErr = "cannot validate %s: got version of 0x%X (expected 0x%X), got signature of 0x%X (expected 0x%X)"
-)
+// Number returns the Version of the lkenv version as it is encoded in the
+func (v Version) Number() uint32 {
+	switch v {
+	case V1:
+		return SNAP_BOOTSELECT_VERSION_V1
+	case V2Run, V2Recovery:
+		return SNAP_BOOTSELECT_VERSION_V2
+	default:
+		panic(fmt.Sprintf("unknown lkenv version number: %v", v))
+	}
+}
+
+// Signature returns the Signature of the lkenv version.
+func (v Version) Signature() uint32 {
+	switch v {
+	case V1, V2Run:
+		return SNAP_BOOTSELECT_SIGNATURE
+	case V2Recovery:
+		return SNAP_BOOTSELECT_RECOVERY_SIGNATURE
+	default:
+		panic(fmt.Sprintf("unknown lkenv version number: %v", v))
+	}
+}
 
 type envVariant interface {
-	// TODO: setup necessary ?
-	// setup sets up the env object
-	setup() error
-	// get returns the value of a key in the env object
+	// get returns the value of a key in the env object.
 	get(string) string
-	// set sets a key to a value in the env object
-	set(string, string)
-	// configureBootPartitions is a helper method for tests to setup an env
-	configureBootPartitions(bootPartLabels []string) error
-	// load reads the file into the env object and validates it
-	load(string) error
 
-	// crc32 is a helper method to return the value of the crc32 stored in the
+	// set sets a key to a value in the env object.
+	set(string, string)
+
+	// currentCrc32 is a helper method to return the value of the crc32 stored in the
 	// environment variable - it is NOT a method to calculate the current value,
 	// it is used to store the crc32 for helper methods that validate the crc32
-	// independently of what is in the environment
-	crc32() uint32
+	// independently of what is in the environment.
+	currentCrc32() uint32
+	// currentVersion is the same kind of helper method as currentCrc32(),
+	// always returning the value from the object itself.
+	currentVersion() uint32
+	// currentSignature is the same kind of helper method as currentCrc32(),
+	// always returning the value from the object itself.
+	currentSignature() uint32
 
-	version() uint32
-	signature() uint32
+	// bootImgKernelMatrix returns the boot image matrix from the environment
+	// which stores the kernel revisions for the boot image partitions. The boot
+	// image matrix is used for various exported methods such as
+	// SetBootPartitionKernel(), etc.
+	bootImgKernelMatrix() (bootimgMatrixGeneric, error)
 
-	// the following functions are only for v1 and v2 run
-
-	// removeKernelFromBootPart finds the boot partition with the kernel
-	// reference and removes the reference from that boot partition
-	removeKernelFromBootPart(string) error
-
-	// setBootPartition
-	setBootPartition(string, string) error
-	findFreeBootPartition(string) (string, error)
-
-	// these functions are only for v2 recovery
-	setRecoveryBootPartition(string, string) error
-	findFreeRecoveryPartition(string) (string, error)
-
-	// TODO: this is a test only function ?
-	getBootPartition(string) (string, error)
+	// bootImgRecoverySystemMatrix returns the boot image matrix from the
+	// environment which stores the recovery system labels for the boot image
+	// partitions. The boot image matrix is used for various recovery system
+	// methods such as FindFreeRecoverySystemBootPartition(), etc.
+	bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error)
 }
 
 var (
+	// the variant implementations must all implement envVariant
 	_ = envVariant(&SnapBootSelect_v1{})
 	_ = envVariant(&SnapBootSelect_v2_run{})
 	_ = envVariant(&SnapBootSelect_v2_recovery{})
 )
 
-// Env contains the data of the uboot environment
-// path can be file or partition device node
+// Env contains the data of the little kernel environment
 type Env struct {
-	path            string
-	pathbak         string
-	version         Version
-	env_v1          SnapBootSelect_v1
-	env_v2_recovery SnapBootSelect_v2_recovery
-	env_v2_run      SnapBootSelect_v2_run
-	variant         envVariant
+	// path is the primary lkenv object file, it can be a regular file during
+	// build time, or it can be a partition device node at run time
+	path string
+	// pathbak is the backup lkenv object file, it too can either be a regular
+	// file during build time, or a partition device node at run time, and it is
+	// always given by "<path>" + "bak", i.e. $PWD/lk.conf and $PWD/lk.confbak.
+	pathbak string
+	// version is the configured version of the lkenv object from NewEnv.
+	version Version
+	// variant is the internal implementation of the lkenv object, dependent on
+	// the version. It is tracked separately such that we can verify a given
+	// variant matches the specified version when loading an lkenv object from
+	// disk.
+	variant envVariant
 }
 
 // cToGoString convert string in passed byte array into string type
@@ -159,6 +189,11 @@ func copyString(b []byte, s string) {
 	}
 }
 
+// NewEnv creates a new lkenv object referencing the primary bootloader
+// environment file at path with the specified version. If the specified filed
+// is expected to be a valid lkenv object, then the object should be loaded with
+// the Load() method, otherwise the lkenv object can be manipulated in memory
+// and later written to disk with Save().
 func NewEnv(path string, version Version) *Env {
 	e := &Env{
 		path:    path,
@@ -168,52 +203,13 @@ func NewEnv(path string, version Version) *Env {
 
 	switch version {
 	case V1:
-		// TODO: move the initial assignment of members to setup() ?
-		e.variant = &SnapBootSelect_v1{
-			Signature: SNAP_BOOTSELECT_SIGNATURE,
-			Version:   SNAP_BOOTSELECT_VERSION_V1,
-		}
+		e.variant = newV1()
 	case V2Recovery:
-		e.variant = &SnapBootSelect_v2_recovery{
-			Signature: SNAP_BOOTSELECT_SIGNATURE,
-			Version:   SNAP_BOOTSELECT_VERSION_V2,
-		}
+		e.variant = newV2Recovery()
 	case V2Run:
-		e.variant = &SnapBootSelect_v2_run{
-			Signature: SNAP_BOOTSELECT_SIGNATURE,
-			Version:   SNAP_BOOTSELECT_VERSION_V2,
-		}
+		e.variant = newV2Run()
 	}
 	return e
-}
-
-// Get returns the value of the key from the environment. If the key specified
-// is not supported for the environment, the empty string is returned.
-func (l *Env) Get(key string) string {
-	return l.variant.get(key)
-}
-
-// Set assigns the value to the key in the environment. If the key specified is
-// not supported for the environment, nothing happens.
-func (l *Env) Set(key, value string) {
-	l.variant.set(key, value)
-}
-
-// ConfigureBootPartitions set boot partitions label names
-// this function should not be used at run time!
-// it should be used only at image build time,
-// if partition labels are not pre-filled by gadget built
-// TODO: this function is currently unused?
-func (l *Env) ConfigureBootPartitions(bootPartLabels ...string) error {
-	return l.variant.configureBootPartitions(bootPartLabels)
-}
-
-// ConfigureBootimgName configures the filename of the bootimg that is extracted
-// for the kernel when preparing the image. It should only be used if the
-// bootimg filename was not configured when building the gadget.
-// This is not to be used at runtime!
-func (l *Env) ConfigureBootimgName(bootimgName string) {
-	l.Set("bootimg_file_name", bootimgName)
 }
 
 // Load will load the lk bootloader environment from it's configured primary
@@ -229,38 +225,70 @@ func (l *Env) Load() error {
 	return nil
 }
 
-// LoadEnv loads the lk bootloader environment from the specified file.
+// LoadEnv loads the lk bootloader environment from the specified file. The
+// bootloader environment in the referenced file must be of the same version
+// that the Env object was created with using NewEnv.
 func (l *Env) LoadEnv(path string) error {
-	return l.variant.load(path)
-}
-
-func commonSerialize(v interface{}) (*bytes.Buffer, error) {
-	w := bytes.NewBuffer(nil)
-	ss := binary.Size(v)
-	w.Grow(ss)
-	if err := binary.Write(w, binary.LittleEndian, v); err != nil {
-		return nil, fmt.Errorf("cannot write LK env to buffer for saving: %v", err)
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("cannot open LK env file: %v", err)
 	}
 
-	// calculate crc32
-	newCrc32 := crc32.ChecksumIEEE(w.Bytes()[:ss-4])
-	logger.Debugf("calculated lk bootloader environment crc32: 0x%X", newCrc32)
-	// note for efficiency's sake to avoid re-writing the whole structure, we
-	// re-write _just_ the crc32 w as little-endian
-	w.Truncate(ss - 4)
-	binary.Write(w, binary.LittleEndian, &newCrc32)
-	return w, nil
+	if err := binary.Read(f, binary.LittleEndian, l.variant); err != nil {
+		return fmt.Errorf("cannot read LK env from file: %v", err)
+	}
+
+	// validate the version and signatures
+	v := l.variant.currentVersion()
+	s := l.variant.currentSignature()
+	expV := l.version.Number()
+	expS := l.version.Signature()
+
+	if expV != v {
+		return fmt.Errorf("cannot validate %s: expected version 0x%X, got 0x%X", path, expV, v)
+	}
+
+	if expS != s {
+		return fmt.Errorf("cannot validate %s: expected signature 0x%X, got 0x%X", path, expS, s)
+	}
+
+	// independently calculate crc32 to validate structure
+	w := bytes.NewBuffer(nil)
+	ss := binary.Size(l.variant)
+	w.Grow(ss)
+	if err := binary.Write(w, binary.LittleEndian, l.variant); err != nil {
+		return fmt.Errorf("cannot write LK env to buffer for validation: %v", err)
+	}
+
+	crc := crc32.ChecksumIEEE(w.Bytes()[:ss-4]) // size of crc32 itself at the end of the structure
+	if crc != l.variant.currentCrc32() {
+		return fmt.Errorf("cannot validate environment checksum %s, got 0x%X expected 0x%X", path, crc, l.variant.currentCrc32())
+	}
+	logger.Debugf("Load: validated crc32 (0x%X)", l.variant.currentCrc32())
+
+	return nil
 }
 
 // Save saves the lk bootloader environment to the configured primary
 // environment file, and if the backup environment file exists, the backup too.
+// Save will also update the CRC32 of the environment when writing the file(s).
 func (l *Env) Save() error {
-	buf, err := commonSerialize(l.variant)
-	if err != nil {
-		return err
+	buf := bytes.NewBuffer(nil)
+	ss := binary.Size(l.variant)
+	buf.Grow(ss)
+	if err := binary.Write(buf, binary.LittleEndian, l.variant); err != nil {
+		return fmt.Errorf("cannot write LK env to buffer for saving: %v", err)
 	}
 
-	err = l.saveEnv(l.path, buf)
+	// calculate crc32
+	newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
+	logger.Debugf("calculated lk bootloader environment crc32: 0x%X", newCrc32)
+	// note for efficiency's sake to avoid re-writing the whole structure, we
+	// re-write _just_ the crc32 w as little-endian
+	buf.Truncate(ss - 4)
+	binary.Write(buf, binary.LittleEndian, &newCrc32)
+
+	err := l.saveEnv(l.path, buf)
 	if err != nil {
 		logger.Noticef("failed to save primary bootloader environment: %v", err)
 	}
@@ -291,55 +319,143 @@ func (l *Env) saveEnv(path string, buf *bytes.Buffer) error {
 	return nil
 }
 
-// FindFreeBootPartition finds a free boot partition to be used for new kernel
-// revision. It roughly does:
-// - consider kernel snap blob name, if kernel name matches
-//   already installed revision, return coresponding partition name
-// - protect partition used by kernel_snap, consider other as free
-// - consider only boot partitions with defined partition name
-func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
-	return l.variant.findFreeBootPartition(kernel)
+// Get returns the value of the key from the environment. If the key specified
+// is not supported for the environment, the empty string is returned.
+func (l *Env) Get(key string) string {
+	return l.variant.get(key)
 }
 
-// FindFreeRecoverySystemPartition finds a free recovery system boot partition
-// to be used for the recovery kernel from the recovery system. It follows the
-// same internal logic as FindFreeBootPartition, but only operates on V2
-// recovery environments.
-func (l *Env) FindFreeRecoverySystemPartition(recoverySystem string) (string, error) {
-	return l.variant.findFreeRecoveryPartition(recoverySystem)
+// Set assigns the value to the key in the environment. If the key specified is
+// not supported for the environment, nothing happens.
+func (l *Env) Set(key, value string) {
+	l.variant.set(key, value)
 }
 
-// SetRecoverySystemBootPartition sets the recovery system reference in the
-// provided boot partition reference to the provided recovery system. It returns
-// a non-nil err if the provided boot partition reference was not found.
+// InitializeBootPartitions sets the boot image partition label names.
+// This function should not be used at run time!
+// It should be used only at image build time, if partition labels are not
+// pre-filled by gadget built, currently it is only used inside snapd for tests.
+func (l *Env) InitializeBootPartitions(bootPartLabels ...string) error {
+	var matr bootimgMatrixGeneric
+	var err error
+	// calculate the min/max limits for bootPartLabels
+	var min, max int
+	switch l.version {
+	case V1, V2Run:
+		min = 2
+		max = 2
+		matr, err = l.variant.bootImgKernelMatrix()
+	case V2Recovery:
+		min = 1
+		max = SNAP_RECOVER_BOOTIMG_PART_NUM
+		matr, err = l.variant.bootImgRecoverySystemMatrix()
+	}
+	if err != nil {
+		return err
+	}
+
+	return matr.initializeBootPartitions(bootPartLabels, min, max)
+}
+
+// FindFreeKernelBootPartition finds a free boot image partition to be used for
+// a new kernel revision. It ignores the currently installed boot image
+// partition used for the active kernel
+func (l *Env) FindFreeKernelBootPartition(kernel string) (string, error) {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return "", err
+	}
+
+	// the reserved boot image partition value is just the current snap_kernel
+	// if it is set (it could be unset at image build time where the lkenv is
+	// unset and has no kernel revision values set for the boot image partitions)
+	installedKernels := []string{}
+	if installedKernel := l.variant.get("snap_kernel"); installedKernel != "" {
+		installedKernels = []string{installedKernel}
+	}
+	return matr.findFreeBootPartition(installedKernels, kernel)
+}
+
+// GetKernelBootPartition returns the first found boot image partition label
+// that contains a reference to the given kernel revision. If the revision was
+// not found, a non-nil error is returned.
+func (l *Env) GetKernelBootPartition(kernel string) (string, error) {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return "", err
+	}
+
+	return matr.getBootPart(kernel)
+}
+
+// SetBootPartitionKernel sets the kernel revision reference for the provided
+// boot image partition label. It returns a non-nil err if the provided boot
+// image partition label was not found.
+func (l *Env) SetBootPartitionKernel(bootpart, kernel string) error {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return err
+	}
+
+	return matr.setBootPart(bootpart, kernel)
+}
+
+// RemoveKernelFromBootPartition removes from the boot image matrix the
+// first found boot image partition that contains a reference to the given
+// kernel revision. If the referenced kernel revision was not found, a non-nil
+// err is returned, otherwise the reference is removed and nil is returned.
+func (l *Env) RemoveKernelFromBootPartition(kernel string) error {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return err
+	}
+
+	return matr.dropBootPartValue(kernel)
+}
+
+// FindFreeRecoverySystemBootPartition finds a free recovery system boot image
+// partition to be used for the recovery kernel from the recovery system. It
+// only considers boot image partitions that are currently not set to a recovery
+// system to be free.
+func (l *Env) FindFreeRecoverySystemBootPartition(recoverySystem string) (string, error) {
+	matr, err := l.variant.bootImgRecoverySystemMatrix()
+	if err != nil {
+		return "", err
+	}
+
+	// when we create a new recovery system partition, we set all current
+	// recovery systems as reserved, so first get that list
+	currentRecoverySystems := matr.assignedBootParts()
+	return matr.findFreeBootPartition(currentRecoverySystems, recoverySystem)
+}
+
+// SetRecoverySystemBootPartition sets the recovery system reference for the
+// provided boot image partition. It returns a non-nil err if the provided boot
+// partition reference was not found.
 func (l *Env) SetRecoverySystemBootPartition(bootpart, recoverySystem string) error {
-	return l.variant.setRecoveryBootPartition(bootpart, recoverySystem)
+	matr, err := l.variant.bootImgRecoverySystemMatrix()
+	if err != nil {
+		return err
+	}
+
+	return matr.setBootPart(bootpart, recoverySystem)
 }
 
-// GetBootPartition returns the first found boot partition that contains a
-// reference to the given kernel revision. If the revision was not found, a
-// non-nil error is returned.
-func (l *Env) GetBootPartition(kernel string) (string, error) {
-	return l.variant.getBootPartition(kernel)
-}
-
-// SetBootPartition sets the kernel revision reference in the provided boot
-// partition reference to the provided kernel revision. It returns a non-nil err
-// if the provided boot partition reference was not found.
-func (l *Env) SetBootPartition(bootpart, kernel string) error {
-	return l.variant.setBootPartition(bootpart, kernel)
-}
-
-// RemoveKernelRevisionFromBootPartition removes from the boot image matrix the
-// first found boot partition that contains a reference to the given kernel
-// revision. If the referenced kernel revision was not found, a non-nil err is
+// RemoveRecoverySystemFromBootPartition removes from the boot image matrix the
+// first found boot partition that contains a reference to the given recovery
+// system. If the referenced recovery system was not found, a non-nil err is
 // returned, otherwise the reference is removed and nil is returned.
-// Note that to persist this change the env must be saved afterwards with Save.
-func (l *Env) RemoveKernelRevisionFromBootPartition(kernel string) error {
-	return l.variant.removeKernelFromBootPart(kernel)
+func (l *Env) RemoveRecoverySystemFromBootPartition(recoverySystem string) error {
+	matr, err := l.variant.bootImgRecoverySystemMatrix()
+	if err != nil {
+		return err
+	}
+
+	return matr.dropBootPartValue(recoverySystem)
 }
 
-// GetBootImageName return expected boot image file name in kernel snap
+// GetBootImageName return expected boot image file name in kernel snap. If
+// unset, it will return the default boot.img name.
 func (l *Env) GetBootImageName() string {
 	fn := l.Get("bootimg_file_name")
 	if fn != "" {
@@ -348,108 +464,148 @@ func (l *Env) GetBootImageName() string {
 	return BOOTIMG_DEFAULT_NAME
 }
 
-// common matrix helper methods which take the matrix as input, then return an
-// updated version to be re-assigned to the original struct
+// common matrix helper methods which operate on the boot image matrix, which is
+// a mapping of boot image partition label to either a kernel revision or a
+// recovery system label.
 
-func commonConfigureBootPartitions(matr bootimgKernelMatrix, bootPartLabels []string) (bootimgKernelMatrix, error) {
+// bootimgKernelMatrix is essentially a map of boot image partition label to
+// kernel revision, but implemented as a matrix of byte arrays, where the first
+// row of the matrix is the boot image partition label and the second row is the
+// corresponding kernel revision (for a given column).
+type bootimgKernelMatrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
+
+// bootimgRecoverySystemMatrix is the same idea as bootimgKernelMatrix, but
+// instead of mapping boot image partition labels to kernel revisions, it maps
+// to recovery system labels for UC20.
+type bootimgRecoverySystemMatrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
+
+// bootimgMatrixGeneric is a generic slice version of the above two matrix types
+// which are both statically sized arrays, and thus not able to be used
+// interchangably while the slice is.
+type bootimgMatrixGeneric [][2][SNAP_FILE_NAME_MAX_LEN]byte
+
+// initializeBootPartitions is a test helper method to set all the boot image
+// partition labels for a lkenv object, normally this is done by the gadget at
+// image build time and not done by snapd, but we do this in tests.
+// The min and max arguments are for size checking of the provided array of
+// bootPartLabels
+func (matr bootimgMatrixGeneric) initializeBootPartitions(bootPartLabels []string, min, max int) error {
 	numBootPartLabels := len(bootPartLabels)
 
-	if numBootPartLabels != SNAP_BOOTIMG_PART_NUM {
-		return matr, fmt.Errorf("invalid number of boot partition labels, expected %d got %d", SNAP_BOOTIMG_PART_NUM, numBootPartLabels)
+	if numBootPartLabels < min || numBootPartLabels > max {
+		return fmt.Errorf("invalid number of boot image partitions, expected %d got %d", len(matr), numBootPartLabels)
 	}
-	copyString(matr[0][MATRIX_ROW_PARTITION][:], bootPartLabels[0])
-	copyString(matr[1][MATRIX_ROW_PARTITION][:], bootPartLabels[1])
-	return matr, nil
+	for x, label := range bootPartLabels {
+		copyString(matr[x][MATRIX_ROW_PARTITION][:], label)
+	}
+	return nil
 }
 
-func commonRemoveKernelFromBootPart(matr bootimgKernelMatrix, kernel string) (bootimgKernelMatrix, error) {
+// dropBootPartValue will remove the specified bootPartValue from the boot image
+// matrix - it _only_ deletes the value, not the boot image partition label
+// itself, , as the boot image partition labels are static for the lifetime of a
+// device and should never be changed (as those values correspond to physical
+// names of the formatted partitions and we don't yet support repartitioning of
+// any kind).
+func (matr bootimgMatrixGeneric) dropBootPartValue(bootPartValue string) error {
 	for x := range matr {
 		if "" != cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) {
-			if kernel == cToGoString(matr[x][MATRIX_ROW_KERNEL][:]) {
+			if bootPartValue == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
 				matr[x][1][MATRIX_ROW_PARTITION] = 0
-				return matr, nil
+				return nil
 			}
 		}
 	}
 
-	return matr, fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
+	return fmt.Errorf("cannot find %q in boot image partitions", bootPartValue)
 }
 
-func commonSetBootPartition(matr bootimgKernelMatrix, bootpart, kernel string) (bootimgKernelMatrix, error) {
+// setBootPart associates the specified boot image partition label to the
+// specified value.
+func (matr bootimgMatrixGeneric) setBootPart(bootpart, bootPartValue string) error {
 	for x := range matr {
 		if bootpart == cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) {
-			copyString(matr[x][MATRIX_ROW_KERNEL][:], kernel)
-			return matr, nil
+			copyString(matr[x][MATRIX_ROW_VALUE][:], bootPartValue)
+			return nil
 		}
 	}
 
-	return matr, fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
+	return fmt.Errorf("cannot find boot image partition %s", bootpart)
 }
 
-func commonFindFreeBootPartition(env envVariant, matr bootimgKernelMatrix, kernel string) (string, error) {
+// findFreeBootPartition will return a boot image partition that can be
+// used for a new value, specifically skipping the reserved values. It may
+// return either a boot image partition that does not contain any value or
+// a boot image partition that already contains the specified value. The
+// reserved argument is typically used for already installed values, such as the
+// currently installed kernel snap revision, so that a new try kernel snap does
+// not overwrite the existing installed kernel snap.
+func (matr bootimgMatrixGeneric) findFreeBootPartition(reserved []string, newValue string) (string, error) {
 	for x := range matr {
-		bp := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
-		if bp != "" {
-			k := cToGoString(matr[x][MATRIX_ROW_KERNEL][:])
-			// return this one if it's not the current snap_kernel, if it's the
-			// exactly specified kernel, or if it's empty
-			if k != env.get("snap_kernel") || k == kernel || k == "" {
-				return cToGoString(matr[x][MATRIX_ROW_PARTITION][:]), nil
-			}
+		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
+		// skip boot image partition labels that are unset, for example this may
+		// happen if a system only has 3 physical boot image partitions for
+		// recovery system kernels, but the same matrix structure has 10 slots
+		// and all 3 usable slots are in use by installed reserved recovery
+		// systems.
+		if bootPartLabel == "" {
+			continue
+		}
+
+		val := cToGoString(matr[x][MATRIX_ROW_VALUE][:])
+
+		// if the value is exactly the same, as requested return it, this needs
+		// to be handled before checking the reserved values since we may
+		// sometimes need to find a "free" boot partition for the specific
+		// kernel revision that is already installed, thus it will show up in
+		// the reserved list, but it will also be newValue
+		// see the questions in lkenv_test.go for TestFindFree_Set_Free_BootPartition
+		// about whether we actually care about this behavior, as it is
+		// unintuitive given the name of the function "FindFreeKernelBootPartition"
+		// since by definition the currently installed kernel is not free.
+		if val == newValue {
+			return bootPartLabel, nil
+		}
+
+		// if this value was reserved, skip it
+		if strutil.ListContains(reserved, val) {
+			continue
+		}
+
+		// otherwise consider it to be free, even if it was set to something
+		// else - this is because callers should be using reserved to prevent
+		// overwriting the wrong boot image partition value
+		return bootPartLabel, nil
+	}
+
+	return "", fmt.Errorf("cannot find free boot image partition")
+}
+
+// assignedBootParts returns all boot image partitions that have a value set for
+// them.
+func (matr bootimgMatrixGeneric) assignedBootParts() []string {
+	bootPartLabels := make([]string, 0, len(matr))
+	for x := range matr {
+		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
+		if bootPartLabel != "" {
+			bootPartLabels[x] = bootPartLabel
 		}
 	}
 
-	return "", fmt.Errorf("cannot find free partition for boot image")
+	return bootPartLabels
 }
 
-func commonGetBootPartition(matr bootimgKernelMatrix, kernel string) (string, error) {
+// getBootPart returns the currently associated value for the
+// specified boot image partition label, or the empty string if the boot image
+// partition label exists in the matrix but does not have a kernel revision
+// associated with it currently. If the boot image partition label does not
+// exist in the matrix, an error will be returned.
+func (matr bootimgMatrixGeneric) getBootPart(kernel string) (string, error) {
 	for x := range matr {
-		if kernel == cToGoString(matr[x][MATRIX_ROW_KERNEL][:]) {
+		if kernel == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
 			return cToGoString(matr[x][MATRIX_ROW_PARTITION][:]), nil
 		}
 	}
 
 	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
-}
-
-func commonLoad(path string, env envVariant, expVers, expSign uint32) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("cannot open LK env file: %v", err)
-	}
-
-	if err := binary.Read(f, binary.LittleEndian, env); err != nil {
-		return fmt.Errorf("cannot read LK env from file: %v", err)
-	}
-
-	// cache the crc32 from the file we just read
-	originalCRC32 := env.crc32()
-
-	// independently calculate crc32 to validate structure
-	w := bytes.NewBuffer(nil)
-	ss := binary.Size(env)
-	w.Grow(ss)
-	if err := binary.Write(w, binary.LittleEndian, env); err != nil {
-		return fmt.Errorf("cannot write LK env to buffer for validation: %v", err)
-	}
-
-	if env.version() != expVers ||
-		env.signature() != expSign {
-		return fmt.Errorf(
-			validationErr,
-			path,
-			env.version(),
-			expVers,
-			env.signature(),
-			expSign,
-		)
-	}
-
-	crc := crc32.ChecksumIEEE(w.Bytes()[:ss-4]) // size of crc32 itself at the end of the structure
-	if crc != originalCRC32 {
-		return fmt.Errorf("cannot validate environment checksum %s, got 0x%X expected 0x%X", path, crc, originalCRC32)
-	}
-	logger.Debugf("Load: validated crc32 (0x%X)", originalCRC32)
-
-	return nil
 }

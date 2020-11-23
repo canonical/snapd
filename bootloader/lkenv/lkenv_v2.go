@@ -46,13 +46,13 @@ type SnapBootSelect_v2_recovery struct {
 	/** snapd_recovery_mode is what mode the system will be booted in, one of
 	 *  "install", "recover" or "run"
 	 */
-	Snapd_recovery_mode [SNAP_NAME_MAX_LEN]byte
+	Snapd_recovery_mode [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/** snapd_recovery_system defines the recovery system label to be used when
 	 *  booting the system, it must be defined to one of the values in the
 	 *  bootimg matrix below
 	 */
-	Snapd_recovery_system [SNAP_NAME_MAX_LEN]byte
+	Snapd_recovery_system [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Matrix for mapping of recovery system boot img partition to kernel snap
@@ -95,56 +95,51 @@ type SnapBootSelect_v2_recovery struct {
 	 * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 */
-	Bootimg_matrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Bootimg_matrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* name of the boot image from kernel snap to be used for extraction
 	when not defined or empty, default boot.img will be used */
-	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
+	Bootimg_file_name [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
-	Unused_key_01 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_02 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_03 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_04 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_05 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_06 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_07 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_08 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_09 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_10 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_11 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_12 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_13 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_14 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_15 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_16 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_17 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_18 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_19 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_03 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_04 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_05 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_06 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_07 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_08 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_09 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_10 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_11 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_12 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_13 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_14 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_15 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_19 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_20 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
 }
 
-func (v2recovery *SnapBootSelect_v2_recovery) crc32() uint32 {
-	return v2recovery.Crc32
+func newV2Recovery() *SnapBootSelect_v2_recovery {
+	return &SnapBootSelect_v2_recovery{
+		Version:   SNAP_BOOTSELECT_VERSION_V2,
+		Signature: SNAP_BOOTSELECT_RECOVERY_SIGNATURE,
+	}
 }
 
-func (v2recovery *SnapBootSelect_v2_recovery) version() uint32 {
-	return v2recovery.Version
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) signature() uint32 {
-	return v2recovery.Signature
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) setup() error {
-	return nil
-}
+func (v2recovery *SnapBootSelect_v2_recovery) currentVersion() uint32   { return v2recovery.Version }
+func (v2recovery *SnapBootSelect_v2_recovery) currentSignature() uint32 { return v2recovery.Signature }
+func (v2recovery *SnapBootSelect_v2_recovery) currentCrc32() uint32     { return v2recovery.Crc32 }
 
 func (v2recovery *SnapBootSelect_v2_recovery) get(key string) string {
 	switch key {
@@ -169,72 +164,12 @@ func (v2recovery *SnapBootSelect_v2_recovery) set(key, value string) {
 	}
 }
 
-func (v2recovery *SnapBootSelect_v2_recovery) configureBootPartitions(bootPartLabels []string) error {
-	numBootPartLabels := len(bootPartLabels)
-
-	// too many
-	if numBootPartLabels > SNAP_RECOVER_BOOTIMG_PART_NUM {
-		return fmt.Errorf("too many (%d) boot partition labels for v2 lkenv run mode, expected no more than %d", numBootPartLabels, SNAP_RECOVER_BOOTIMG_PART_NUM)
-	}
-	// too few
-	if numBootPartLabels < SNAP_BOOTIMG_PART_NUM {
-		return fmt.Errorf("too few (%d) boot partition labels for v2 lkenv run mode, expected at least %d", numBootPartLabels, SNAP_BOOTIMG_PART_NUM)
-	}
-
-	// TODO: implement this for tests
-
-	return nil
+func (v2recovery *SnapBootSelect_v2_recovery) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v2recovery.Bootimg_matrix)[:]), nil
 }
 
-func (v2recovery *SnapBootSelect_v2_recovery) load(path string) error {
-	return commonLoad(path, v2recovery, SNAP_BOOTSELECT_VERSION_V2, SNAP_BOOTSELECT_SIGNATURE)
-}
-
-// TODO: the following two implementations are very similar to the kernel bootimg
-// matrix implementations, but they operate on a differently sized array, perhaps
-// we could do something inefficient like copy to a slice of any size and pass
-// that to a helper which operates on slices? would be ugly but kind of nice
-func (v2recovery *SnapBootSelect_v2_recovery) setRecoveryBootPartition(bootpart string, recoverySystem string) error {
-	for x := range v2recovery.Bootimg_matrix {
-		if bootpart == cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
-			copyString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_RECOVERY_SYSTEM][:], recoverySystem)
-			return nil
-		}
-	}
-	return fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) findFreeRecoveryPartition(recoverySystem string) (string, error) {
-	for x := range v2recovery.Bootimg_matrix {
-		bp := cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:])
-		if bp != "" {
-			sys := cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_RECOVERY_SYSTEM][:])
-			// return this one if it's the exact specified recovery system or if
-			// it's empty
-			if sys == recoverySystem || sys == "" {
-				return cToGoString(v2recovery.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("cannot find free partition for recovery system")
-}
-
-// unimplemented for v2 recovery
-
-func (v2recovery *SnapBootSelect_v2_recovery) removeKernelFromBootPart(kernel string) error {
-	return fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) setBootPartition(bootpart, kernel string) error {
-	return fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) findFreeBootPartition(kernel string) (string, error) {
-	return "", fmt.Errorf("internal error: recovery lkenv has no kernel boot partition matrix")
-}
-
-func (v2recovery *SnapBootSelect_v2_recovery) getBootPartition(kernel string) (string, error) {
-	return "", fmt.Errorf("test function unimplemented for non-v1")
+func (v2recovery *SnapBootSelect_v2_recovery) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return nil, fmt.Errorf("internal error: recovery lkenv has no boot image partition kernel matrix")
 }
 
 type SnapBootSelect_v2_run struct {
@@ -244,18 +179,18 @@ type SnapBootSelect_v2_run struct {
 	Version uint32
 
 	/* kernel_status, one of: 'empty', "try", "trying" */
-	Kernel_status [SNAP_NAME_MAX_LEN]byte
+	Kernel_status [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current kernel snap revision */
-	Snap_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current try kernel snap revision */
-	Snap_try_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_try_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* gadget_mode, one of: 'empty', "try", "trying" */
-	Gadget_mode [SNAP_NAME_MAX_LEN]byte
+	Gadget_mode [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: current gadget assets revision */
-	Snap_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: try gadget assets revision */
-	Snap_try_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_try_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Matrix for mapping of run mode boot img partition to installed kernel
@@ -295,11 +230,11 @@ type SnapBootSelect_v2_run struct {
 	 * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 */
-	Bootimg_matrix [SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Bootimg_matrix [SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* name of the boot image from kernel snap to be used for extraction
 	when not defined or empty, default boot.img will be used */
-	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
+	Bootimg_file_name [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * gadget assets: Matrix for mapping of gadget asset partitions
@@ -313,52 +248,47 @@ type SnapBootSelect_v2_run struct {
 	 * [ <boot assets 1 part label> ] [ <currently installed assets revision in this partition> ]
 	 * [ <boot assets 2 part label> ] [ <currently installed assets revision in this partition> ]
 	 */
-	Gadget_asset_matrix [SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Gadget_asset_matrix [SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
-	Unused_key_01 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_02 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_03 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_04 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_05 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_06 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_07 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_08 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_09 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_10 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_11 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_12 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_13 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_14 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_15 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_16 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_17 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_18 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_19 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_03 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_04 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_05 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_06 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_07 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_08 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_09 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_10 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_11 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_12 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_13 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_14 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_15 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_19 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_20 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
 }
 
-func (v2run *SnapBootSelect_v2_run) crc32() uint32 {
-	return v2run.Crc32
+func newV2Run() *SnapBootSelect_v2_run {
+	return &SnapBootSelect_v2_run{
+		Version:   SNAP_BOOTSELECT_VERSION_V2,
+		Signature: SNAP_BOOTSELECT_SIGNATURE,
+	}
 }
 
-func (v2run *SnapBootSelect_v2_run) version() uint32 {
-	return v2run.Version
-}
-
-func (v2run *SnapBootSelect_v2_run) signature() uint32 {
-	return v2run.Signature
-}
-
-func (v2run *SnapBootSelect_v2_run) setup() error {
-	return nil
-}
+func (v2run *SnapBootSelect_v2_run) currentCrc32() uint32     { return v2run.Crc32 }
+func (v2run *SnapBootSelect_v2_run) currentVersion() uint32   { return v2run.Version }
+func (v2run *SnapBootSelect_v2_run) currentSignature() uint32 { return v2run.Signature }
 
 func (v2run *SnapBootSelect_v2_run) get(key string) string {
 	switch key {
@@ -395,51 +325,10 @@ func (v2run *SnapBootSelect_v2_run) set(key, value string) {
 	}
 }
 
-func (v2run *SnapBootSelect_v2_run) configureBootPartitions(bootPartLabels []string) error {
-	matr, err := commonConfigureBootPartitions(v2run.Bootimg_matrix, bootPartLabels)
-	if err != nil {
-		return err
-	}
-	v2run.Bootimg_matrix = matr
-	return nil
+func (v2run *SnapBootSelect_v2_run) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v2run.Bootimg_matrix)[:]), nil
 }
 
-func (v2run *SnapBootSelect_v2_run) load(path string) error {
-	return commonLoad(path, v2run, SNAP_BOOTSELECT_VERSION_V2, SNAP_BOOTSELECT_SIGNATURE)
-}
-
-func (v2run *SnapBootSelect_v2_run) removeKernelFromBootPart(kernel string) error {
-	matr, err := commonRemoveKernelFromBootPart(v2run.Bootimg_matrix, kernel)
-	if err != nil {
-		return err
-	}
-	v2run.Bootimg_matrix = matr
-	return nil
-}
-
-func (v2run *SnapBootSelect_v2_run) setBootPartition(bootpart, kernel string) error {
-	matr, err := commonSetBootPartition(v2run.Bootimg_matrix, bootpart, kernel)
-	if err != nil {
-		return err
-	}
-	v2run.Bootimg_matrix = matr
-	return nil
-}
-
-func (v2run *SnapBootSelect_v2_run) findFreeBootPartition(kernel string) (string, error) {
-	return commonFindFreeBootPartition(v2run, v2run.Bootimg_matrix, kernel)
-}
-
-func (v2run *SnapBootSelect_v2_run) getBootPartition(kernel string) (string, error) {
-	return commonGetBootPartition(v2run.Bootimg_matrix, kernel)
-}
-
-// unimplemented for v2 run
-
-func (v2run *SnapBootSelect_v2_run) setRecoveryBootPartition(string, string) error {
-	return fmt.Errorf("internal error: cannot set recovery system boot partition on non-recovery lkenv")
-}
-
-func (v2run *SnapBootSelect_v2_run) findFreeRecoveryPartition(string) (string, error) {
-	return "", fmt.Errorf("internal error: cannot find recovery system boot partition on non-recovery lkenv")
+func (v2run *SnapBootSelect_v2_run) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
+	return nil, fmt.Errorf("internal error: run lkenv has no boot image partition recovery system matrix")
 }
