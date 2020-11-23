@@ -300,6 +300,22 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 
 var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 
+// XXX: fix name?
+// hooksCheckKeySealingSupported checks if the given device has support
+// for encryption via the fde-setup hook
+func hooksCheckKeySealingSupported(st *state.State, deviceCtx snapstate.DeviceContext) error {
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info for fde-setup hook check: %v", err)
+	}
+	if !hasFDESetupHookInKernel(kernelInfo) {
+		return fmt.Errorf("fde-setup hook not available")
+	}
+	// run the hook with "op":"features", only use hook
+	// if that is successful
+	return checkFDEFeatures(st, kernelInfo)
+}
+
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
@@ -315,47 +331,36 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 		return false, nil
 	}
 
-	// check if kernel has fde-setup hook based encryption support
-	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		if hasFDESetupHookInKernel(kernelInfo) {
-			// run the hook with "op":"features", only use hook
-			// if that is successful
-			err := checkFDEFeatures(st, kernelInfo)
-			if err == nil {
-				return true, nil
-			}
-
-			// XXX: do "if secured {" checks and add tests!
-			//          if encrypted"
-
-			logger.Noticef("cannot use fde-setup hook: %v", err)
-			// Stop here if there is a fde-setup hook. We
-			// could fallthrough to the tpm check but
-			// there is no use-case right now for
-			// fde-setup hooks on generic TPM devices
-			return false, nil
-		}
-	}
-
-	// encryption is required in secured devices and optional in other grades
-	if err := secbootCheckKeySealingSupported(); err != nil {
-		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
-		}
-		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
-		}
-		return false, nil
-	}
-
+	// check if the model prefers to be unencrypted
 	// TODO: provide way to select via install chooser menu
-	// if the install is unencrypted or encrypted
+	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
 		return false, nil
 	}
 
-	// encrypt if it's supported and the user/model did not express
-	// other preferences
+	// check encryption support now
+	var (
+		encryptionViaHookErr    error
+		encryptionViaSecbootErr error
+	)
+	// first check fde-setup hook based encryption
+	encryptionViaHookErr = hooksCheckKeySealingSupported(st, deviceCtx)
+	// if hooks did not work, check build-in seccboot support
+	if encryptionViaHookErr != nil {
+		encryptionViaSecbootErr = secbootCheckKeySealingSupported()
+	}
+
+	if encryptionViaHookErr != nil && encryptionViaSecbootErr != nil {
+		if secured {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured:\n- %v\n- %v", encryptionViaHookErr, encryptionViaSecbootErr)
+		}
+		if encrypted {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option:\n- %v\n- %v", encryptionViaHookErr, encryptionViaSecbootErr)
+		}
+		return false, nil
+	}
+
+	// encrypt
 	return true, nil
 }
