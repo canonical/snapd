@@ -20,6 +20,8 @@
 package client_test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 
 	"github.com/snapcore/snapd/client"
@@ -32,7 +34,8 @@ func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
-	cs.cli.RunSnapctl(options)
+	mockStdin := bytes.NewBuffer(nil)
+	cs.cli.RunSnapctl(mockStdin, options)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
@@ -47,12 +50,13 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
+	mockStdin := bytes.NewBufferString("some-input")
 	options := &client.SnapCtlOptions{
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
 
-	stdout, stderr, err := cs.cli.RunSnapctl(options)
+	stdout, stderr, err := cs.cli.RunSnapctl(mockStdin, options)
 	c.Assert(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
@@ -63,6 +67,8 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"context-id": "1234ABCD",
+		// json byte-stream is b64 encoded
+		"stdin-data": base64.StdEncoding.EncodeToString([]byte("some-input")),
 		"args":       []interface{}{"foo", "bar"},
 	})
 }

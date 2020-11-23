@@ -80,6 +80,8 @@ type commandInfo struct {
 	longHelp  string
 	generator func() command
 	hidden    bool
+
+	needsStdin bool
 }
 
 var commands = make(map[string]*commandInfo)
@@ -92,6 +94,15 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) *com
 	}
 	commands[name] = cmd
 	return cmd
+}
+
+// CommandNeedsStdin returns "true" if the given command name expects to
+// read data from stdin.
+func CommandNeedsStdin(name string) bool {
+	if cmd, ok := commands[name]; ok {
+		return cmd.needsStdin
+	}
+	return false
 }
 
 // UnsuccessfulError carries a specific exit code to be returned to the client.

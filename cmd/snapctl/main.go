@@ -20,11 +20,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
@@ -37,6 +40,8 @@ var clientConfig = client.Config{
 	// we need the less privileged snap socket in snapctl
 	Socket: dirs.SnapSocket,
 }
+
+var osStdin = os.Stdin
 
 func main() {
 	// check for internal commands
@@ -55,8 +60,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	var stdin io.Reader = bytes.NewBuffer(nil)
+	if len(os.Args) > 1 && ctlcmd.CommandNeedsStdin(os.Args[1]) {
+		stdin = osStdin
+	}
+
 	// no internal command, route via snapd
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(stdin)
 	if err != nil {
 		if e, ok := err.(*client.Error); ok {
 			switch e.Kind {
@@ -87,7 +97,7 @@ func main() {
 	}
 }
 
-func run() (stdout, stderr []byte, err error) {
+func run(stdin io.Reader) (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
 	cookie := os.Getenv("SNAP_COOKIE")
@@ -95,7 +105,7 @@ func run() (stdout, stderr []byte, err error) {
 	if cookie == "" {
 		cookie = os.Getenv("SNAP_CONTEXT")
 	}
-	return cli.RunSnapctl(&client.SnapCtlOptions{
+	return cli.RunSnapctl(stdin, &client.SnapCtlOptions{
 		ContextID: cookie,
 		Args:      os.Args[1:],
 	})

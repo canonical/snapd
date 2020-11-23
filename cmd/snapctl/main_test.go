@@ -20,8 +20,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +43,8 @@ type snapctlSuite struct {
 	oldArgs           []string
 	expectedContextID string
 	expectedArgs      []string
+
+	mockStdin io.Reader
 }
 
 var _ = Suite(&snapctlSuite{})
@@ -80,6 +84,8 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 	os.Setenv("SNAPD_AUTH_DATA_FILENAME", fakeAuthPath)
 	err := ioutil.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644)
 	c.Assert(err, IsNil)
+
+	s.mockStdin = bytes.NewBuffer(nil)
 }
 
 func (s *snapctlSuite) TearDownTest(c *C) {
@@ -91,7 +97,7 @@ func (s *snapctlSuite) TearDownTest(c *C) {
 }
 
 func (s *snapctlSuite) TestSnapctl(c *C) {
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(s.mockStdin)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -101,7 +107,7 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 	os.Args = []string{"snapctl", "foo", "--bar"}
 
 	s.expectedArgs = []string{"foo", "--bar"}
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(s.mockStdin)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -114,6 +120,6 @@ func (s *snapctlSuite) TestSnapctlHelp(c *C) {
 	os.Args = []string{"snapctl", "-h"}
 	s.expectedArgs = []string{"-h"}
 
-	_, _, err := run()
+	_, _, err := run(s.mockStdin)
 	c.Check(err, IsNil)
 }
