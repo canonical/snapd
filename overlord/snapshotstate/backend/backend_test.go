@@ -1363,9 +1363,9 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
-	// create 3 snapshot IDs 1,2,3
+	// create 2 snapshot IDs 1,2
 	snapshotFiles := map[int][]string{}
-	for i := 1; i < 4; i++ {
+	for i := 1; i < 3; i++ {
 		fn := fmt.Sprintf("%d_hello_%d.0_x1.zip", i, i)
 		p := filepath.Join(dirs.SnapshotsDir, fn)
 		snapshotFiles[i] = append(snapshotFiles[i], p)
@@ -1379,33 +1379,21 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	// pretend setID 1 is still importing
-	fn := "1_importing"
-	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapshotsDir, fn))
+	// pretend setID 2 has a import file which means which means that
+	// an import was started in the past but did not compelte
+	fn := "2_importing"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
 	c.Assert(err, check.IsNil)
-	err = flock.Lock()
-	c.Assert(err, check.IsNil)
-	defer flock.Unlock()
 
-	// pretend setID 2 has a *stale* (unlocked) import file
-	fn = "2_importing"
-	flock, err = osutil.NewFileLock(filepath.Join(dirs.SnapshotsDir, fn))
-	c.Assert(err, check.IsNil)
-	flock.Lock()
-	flock.Unlock()
-
-	// cleanup
+	// run cleanup
 	cleaned, err := backend.CleanupAbandondedImports()
 	c.Check(cleaned, check.Equals, 1)
 	c.Check(err, check.IsNil)
 
-	// id1 in progress so not cleaned
+	// id1 untouched
 	c.Check(snapshotFiles[1][0], testutil.FilePresent)
 	c.Check(snapshotFiles[1][1], testutil.FilePresent)
 	// id2 cleaned
 	c.Check(snapshotFiles[2][0], testutil.FileAbsent)
 	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
-	// id3 untouched
-	c.Check(snapshotFiles[3][0], testutil.FilePresent)
-	c.Check(snapshotFiles[3][1], testutil.FilePresent)
 }

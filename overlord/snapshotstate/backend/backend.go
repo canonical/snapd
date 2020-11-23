@@ -577,8 +577,7 @@ func (t *importTransaction) Commit() error {
 }
 
 func (t *importTransaction) lock() error {
-	ioutil.WriteFile(t.lockPath, nil, 0644)
-	return nil
+	return ioutil.WriteFile(t.lockPath, nil, 0644)
 }
 
 func (t *importTransaction) unlock() error {
@@ -603,9 +602,6 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 		tr, err := newImportTransactionFromImportFile(p)
 		if err != nil {
 			errs = append(errs, err)
-			continue
-		}
-		if tr.InProgress() {
 			continue
 		}
 		if err := tr.Cancel(); err != nil {
