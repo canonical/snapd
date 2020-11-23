@@ -481,7 +481,7 @@ type bootimgRecoverySystemMatrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_FILE_NA
 
 // bootimgMatrixGeneric is a generic slice version of the above two matrix types
 // which are both statically sized arrays, and thus not able to be used
-// interchangably while the slice is.
+// interchangeably while the slice is.
 type bootimgMatrixGeneric [][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 // initializeBootPartitions is a test helper method to set all the boot image
