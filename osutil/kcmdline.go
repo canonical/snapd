@@ -203,3 +203,12 @@ func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 	}
 	return m, nil
 }
+
+// KernelCommandLine returns the command line reported by the running kernel.
+func KernelCommandLine() (string, error) {
+	buf, err := ioutil.ReadFile(procCmdline)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(buf)), nil
+}
