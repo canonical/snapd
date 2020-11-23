@@ -51,8 +51,8 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 }
 
 func (s *apiSuite) TestPostRemodel(c *check.C) {
-	oldModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
-	newModel := s.brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
 		"revision": "2",
 	})
 
@@ -64,8 +64,8 @@ func (s *apiSuite) TestPostRemodel(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, oldModel)
 	st.Unlock()
 
@@ -135,7 +135,7 @@ func (s *apiSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 	// make a model assertion
-	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
 	d := s.daemonWithOverlordMock(c)
@@ -146,8 +146,8 @@ func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 	st.Unlock()
 
@@ -173,7 +173,7 @@ func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 
 func (s *apiSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	// make a model assertion
-	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
 	d := s.daemonWithOverlordMock(c)
@@ -184,8 +184,8 @@ func (s *apiSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 	st.Unlock()
 
@@ -235,7 +235,7 @@ func (s *apiSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	// make a model assertion
-	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	deviceKey, _ := assertstest.GenerateKey(752)
 
@@ -252,11 +252,11 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
@@ -298,7 +298,7 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 
 func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	// make a model assertion
-	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	deviceKey, _ := assertstest.GenerateKey(752)
 
@@ -315,11 +315,11 @@ func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 
-	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
