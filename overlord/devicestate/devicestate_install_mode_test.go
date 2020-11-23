@@ -896,7 +896,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 
 	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
 	defer restore()
-	makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
 
 	var testCases = []struct {
 		grade, storageSafety string
@@ -905,20 +904,18 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 	}{
 		// we don't test unset here because the assertion assembly
 		// will ensure it has a default
-
-		// no tpm, no hooks
 		{
 			"dangerous", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option:\n- fde-setup hook not available\n- tpm says no",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
 		}, {
 			"signed", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option:\n- fde-setup hook not available\n- tpm says no",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
 		}, {
 			"secured", "",
-			"cannot encrypt device storage as mandated by model grade secured:\n- fde-setup hook not available\n- tpm says no",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
 		}, {
 			"secured", "encrypted",
-			"cannot encrypt device storage as mandated by model grade secured:\n- fde-setup hook not available\n- tpm says no",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
 		},
 	}
 	for _, tc := range testCases {

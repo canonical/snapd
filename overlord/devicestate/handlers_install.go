@@ -300,22 +300,6 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 
 var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 
-// XXX: fix name?
-// hooksCheckKeySealingSupported checks if the given device has support
-// for encryption via the fde-setup hook
-func hooksCheckKeySealingSupported(st *state.State, deviceCtx snapstate.DeviceContext) error {
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get kernel info for fde-setup hook check: %v", err)
-	}
-	if !hasFDESetupHookInKernel(kernelInfo) {
-		return fmt.Errorf("fde-setup hook not available")
-	}
-	// run the hook with "op":"features", only use hook
-	// if that is successful
-	return checkFDEFeatures(st, kernelInfo)
-}
-
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
@@ -339,25 +323,32 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 		return false, nil
 	}
 
-	// check encryption support now
+	// check if encryption is available
 	var (
-		encryptionViaHookErr    error
-		encryptionViaSecbootErr error
+		hasFDESetupHook    bool
+		checkEncryptionErr error
 	)
-	// first check fde-setup hook based encryption
-	encryptionViaHookErr = hooksCheckKeySealingSupported(st, deviceCtx)
-	// if hooks did not work, check build-in seccboot support
-	if encryptionViaHookErr != nil {
-		encryptionViaSecbootErr = secbootCheckKeySealingSupported()
+	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
+		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
+			checkEncryptionErr = checkFDEFeatures(st, kernelInfo)
+		}
+	}
+	// Note that having a fde-setup hook will disable the build-in
+	// secboot encryption
+	if !hasFDESetupHook {
+		checkEncryptionErr = secbootCheckKeySealingSupported()
 	}
 
-	if encryptionViaHookErr != nil && encryptionViaSecbootErr != nil {
+	// check if encryption is required
+	if checkEncryptionErr != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured:\n- %v\n- %v", encryptionViaHookErr, encryptionViaSecbootErr)
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option:\n- %v\n- %v", encryptionViaHookErr, encryptionViaSecbootErr)
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
+
+		// not required, go without
 		return false, nil
 	}
 
