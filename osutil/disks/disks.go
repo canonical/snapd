@@ -152,8 +152,7 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 }
 
 // diskFromDeviceName is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping, but has the same problems as
-// diskFromMountPoint above, so we use a var here
+// MockDeviceNameDisksToPartitionMapping.
 var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	// query for the disk props using udev
 	props, err := udevProperties(deviceName)
