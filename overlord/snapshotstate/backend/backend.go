@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -498,12 +499,7 @@ func importInProgressFor(setID uint64) bool {
 // a commit.
 type importTransaction struct {
 	id        uint64
-	flockPath string
-	// flock is a file lock associated with the import, the logic
-	// using it prevents potentially cleaning up/cancelling a
-	// still in progress import in case we started allowing
-	// cleaning and imports to happen concurrently
-	flock     *osutil.FileLock
+	lockPath  string
 	committed bool
 }
 
@@ -511,8 +507,8 @@ type importTransaction struct {
 // snapshot id.
 func newImportTransaction(setID uint64) *importTransaction {
 	return &importTransaction{
-		flockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingFnFmt, setID)),
-		id:        setID,
+		id:       setID,
+		lockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingFnFmt, setID)),
 	}
 }
 
@@ -539,11 +535,7 @@ func (t *importTransaction) Start() error {
 // InProgress returns true if there is an import for this transactions
 // snapshot ID already.
 func (t *importTransaction) InProgress() bool {
-	if flock, err := osutil.OpenExistingLockForReading(t.flockPath); err == nil {
-		defer flock.Close()
-		return flock.TryLock() == osutil.ErrAlreadyLocked
-	}
-	return false
+	return osutil.FileExists(t.lockPath)
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging
@@ -585,37 +577,18 @@ func (t *importTransaction) Commit() error {
 }
 
 func (t *importTransaction) lock() error {
-	if t.flock != nil {
-		return fmt.Errorf("internal error: import snapshot lock called twice")
-	}
-	flock, err := osutil.NewFileLock(t.flockPath)
-	if err != nil {
-		return err
-	}
-	if err := flock.Lock(); err != nil {
-		return err
-	}
-	t.flock = flock
+	ioutil.WriteFile(t.lockPath, nil, 0644)
 	return nil
 }
 
 func (t *importTransaction) unlock() error {
-	if t.flock == nil {
-		return nil
-	}
-	if err := t.flock.Close(); err != nil {
-		return err
-	}
-	if err := os.Remove(t.flockPath); err != nil {
-		return err
-	}
-	t.flock = nil
-	return nil
+	return os.Remove(t.lockPath)
 }
 
 // CleanupAbandondedImports will clean any import that is in progress.
 // This is meant to be called at startup of snapd before any real imports
-// happen.
+// happen. It is not safe to run this concurrently with any other snapshot
+// operation.
 //
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
