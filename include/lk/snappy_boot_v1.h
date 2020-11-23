@@ -18,7 +18,7 @@
 #ifndef _BOOTLOADER_SNAP_BOOT_V1_H
 #define _BOOTLOADER_SNAP_BOOT_V1_H
 
-#define SNAP_BOOTSELECT_VERSION   0x00010001
+#define SNAP_BOOTSELECT_VERSION 0x00010001
 #define SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
 #define SNAP_NAME_MAX_LEN (256)
 #define HASH_LENGTH (32)
@@ -47,7 +47,7 @@ typedef struct SNAP_BOOT_SELECTION {
     char snap_try_core[SNAP_NAME_MAX_LEN];
     /* current kernel snap revision */
     char snap_kernel[SNAP_NAME_MAX_LEN];
-    /* current kernel snap revision */
+    /* current try kernel snap revision */
     char snap_try_kernel[SNAP_NAME_MAX_LEN];
 
     /* gadget_mode, one of: 'empty', "try", "trying" */
@@ -55,7 +55,7 @@ typedef struct SNAP_BOOT_SELECTION {
     /* GADGET assets: current gadget assets revision */
     char snap_gadget[SNAP_NAME_MAX_LEN];
     /* GADGET assets: try gadget assets revision */
-    char snap_try_gadget [SNAP_NAME_MAX_LEN];
+    char snap_try_gadget[SNAP_NAME_MAX_LEN];
 
     /**
      * Reboot reason
@@ -73,13 +73,13 @@ typedef struct SNAP_BOOT_SELECTION {
      * Second column represents name currently installed kernel snap
      *   e.g. pi2-kernel_123.snap
      * initial value representing initial kernel snap revision
-     *   is pupulated at image build time by snapd
+     *   is populated at image build time by snapd
      *
      * There are two rows in the matrix, representing current and previous kernel revision
      * following describes how this matrix should be modified at different stages:
      *  - at image build time:
      *    - extracted kernel snap revision name should be filled
-     *      into free slow (first row, second row)
+     *      into free slot (first row, second column)
      *  - snapd:
      *    - when new kernel snap revision is being installed, snapd cycles through
      *      matrix to find unused 'boot slot' to be used for new kernel snap revision
@@ -115,32 +115,32 @@ typedef struct SNAP_BOOT_SELECTION {
      * [ <boot assets 1 part label> ] [ <currently installed assets revision in this partition> ]
      * [ <boot assets 2 part label> ] [ <currently installed assets revision in this partition> ]
      */
-    char gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
+    char gadget_asset_matrix[SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
     /* unused placeholders for additional parameters to be used  in the future */
-    char unused_key_01 [SNAP_NAME_MAX_LEN];
-    char unused_key_02 [SNAP_NAME_MAX_LEN];
-    char unused_key_03 [SNAP_NAME_MAX_LEN];
-    char unused_key_04 [SNAP_NAME_MAX_LEN];
-    char unused_key_05 [SNAP_NAME_MAX_LEN];
-    char unused_key_06 [SNAP_NAME_MAX_LEN];
-    char unused_key_07 [SNAP_NAME_MAX_LEN];
-    char unused_key_08 [SNAP_NAME_MAX_LEN];
-    char unused_key_09 [SNAP_NAME_MAX_LEN];
-    char unused_key_10 [SNAP_NAME_MAX_LEN];
-    char unused_key_11 [SNAP_NAME_MAX_LEN];
-    char unused_key_12 [SNAP_NAME_MAX_LEN];
-    char unused_key_13 [SNAP_NAME_MAX_LEN];
-    char unused_key_14 [SNAP_NAME_MAX_LEN];
-    char unused_key_15 [SNAP_NAME_MAX_LEN];
-    char unused_key_16 [SNAP_NAME_MAX_LEN];
-    char unused_key_17 [SNAP_NAME_MAX_LEN];
-    char unused_key_18 [SNAP_NAME_MAX_LEN];
-    char unused_key_19 [SNAP_NAME_MAX_LEN];
-    char unused_key_20 [SNAP_NAME_MAX_LEN];
+    char unused_key_01[SNAP_NAME_MAX_LEN];
+    char unused_key_02[SNAP_NAME_MAX_LEN];
+    char unused_key_03[SNAP_NAME_MAX_LEN];
+    char unused_key_04[SNAP_NAME_MAX_LEN];
+    char unused_key_05[SNAP_NAME_MAX_LEN];
+    char unused_key_06[SNAP_NAME_MAX_LEN];
+    char unused_key_07[SNAP_NAME_MAX_LEN];
+    char unused_key_08[SNAP_NAME_MAX_LEN];
+    char unused_key_09[SNAP_NAME_MAX_LEN];
+    char unused_key_10[SNAP_NAME_MAX_LEN];
+    char unused_key_11[SNAP_NAME_MAX_LEN];
+    char unused_key_12[SNAP_NAME_MAX_LEN];
+    char unused_key_13[SNAP_NAME_MAX_LEN];
+    char unused_key_14[SNAP_NAME_MAX_LEN];
+    char unused_key_15[SNAP_NAME_MAX_LEN];
+    char unused_key_16[SNAP_NAME_MAX_LEN];
+    char unused_key_17[SNAP_NAME_MAX_LEN];
+    char unused_key_18[SNAP_NAME_MAX_LEN];
+    char unused_key_19[SNAP_NAME_MAX_LEN];
+    char unused_key_20[SNAP_NAME_MAX_LEN];
 
     /* unused array of 10 key - value pairs */
-    char key_value_pairs [10][2][SNAP_NAME_MAX_LEN];
+    char key_value_pairs[10][2][SNAP_NAME_MAX_LEN];
 
     /* crc32 value for structure */
     uint32_t crc32;

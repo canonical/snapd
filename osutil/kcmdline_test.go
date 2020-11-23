@@ -17,19 +17,22 @@
  *
  */
 
-package strutil_test
+package osutil_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
-type cmdlineTestSuite struct{}
+type kcmdlineTestSuite struct{}
 
-var _ = Suite(&cmdlineTestSuite{})
+var _ = Suite(&kcmdlineTestSuite{})
 
-func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
+func (s *kcmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 	for idx, tc := range []struct {
 		cmd    string
 		exp    []string
@@ -79,13 +82,112 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo ==a`, errStr: "unexpected assignment"},
 	} {
 		c.Logf("%v: cmd: %q", idx, tc.cmd)
-		out, err := strutil.KernelCommandLineSplit(tc.cmd)
+		out, err := osutil.KernelCommandLineSplit(tc.cmd)
 		if tc.errStr != "" {
 			c.Assert(err, ErrorMatches, tc.errStr)
 			c.Check(out, IsNil)
 		} else {
 			c.Assert(err, IsNil)
 			c.Check(out, DeepEquals, tc.exp)
+		}
+	}
+}
+
+func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
+	for _, t := range []struct {
+		cmdline string
+		keys    []string
+		exp     map[string]string
+		err     string
+		comment string
+	}{
+		{
+			cmdline: "",
+			comment: "empty cmdline",
+			keys:    []string{"foo"},
+		},
+		{
+			cmdline: "foo",
+			comment: "cmdline non-key-value",
+			keys:    []string{"foo"},
+		},
+		{
+			cmdline: "foo=1",
+			comment: "key-value pair",
+			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "1",
+			},
+		},
+		{
+			cmdline: "foo=1 otherfoo=2",
+			comment: "multiple key-value pairs",
+			keys:    []string{"foo", "otherfoo"},
+			exp: map[string]string{
+				"foo":      "1",
+				"otherfoo": "2",
+			},
+		},
+		{
+			cmdline: "foo=",
+			comment: "empty value in key-value pair",
+			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "",
+			},
+		},
+		{
+			cmdline: "foo=1 foo=2",
+			comment: "duplicated key-value pair uses last one",
+			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "2",
+			},
+		},
+		{
+			cmdline: "foo=1 foo foo2=other",
+			comment: "cmdline key-value pair and non-key-value",
+			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "1",
+			},
+		},
+		{
+			cmdline: "foo=a=1",
+			comment: "key-value pair with = in value",
+			keys:    []string{"foo"},
+			exp: map[string]string{
+				"foo": "a=1",
+			},
+		},
+		{
+			cmdline: "=foo",
+			comment: "missing key",
+			keys:    []string{"foo"},
+			err:     "unexpected assignment",
+		},
+		{
+			cmdline: `"foo`,
+			comment: "invalid kernel cmdline",
+			keys:    []string{"foo"},
+			err:     "unexpected quoting",
+		},
+	} {
+		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+		err := ioutil.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
+		c.Assert(err, IsNil)
+		r := osutil.MockProcCmdline(cmdlineFile)
+		defer r()
+		res, err := osutil.KernelCommandLineKeyValues(t.keys...)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, Commentf(t.comment))
+		} else {
+			c.Assert(err, IsNil)
+			exp := t.exp
+			if t.exp == nil {
+				exp = map[string]string{}
+			}
+			c.Assert(res, DeepEquals, exp, Commentf(t.comment))
 		}
 	}
 }

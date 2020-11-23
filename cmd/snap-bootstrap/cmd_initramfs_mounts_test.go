@@ -273,7 +273,7 @@ func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
 	c.Assert(err, IsNil)
-	restore := boot.MockProcCmdline(mockProcCmdline)
+	restore := osutil.MockProcCmdline(mockProcCmdline)
 	s.AddCleanup(restore)
 }
 
@@ -2131,9 +2131,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			expError: "fallback base snap unusable: cannot get snap revision: modeenv base boot variable is empty",
 			comment:  "unhappy empty modeenv",
 		},
-		// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
-		//            already booted the try snap, so mounting the fallback kernel will
-		//            not match in some cases
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",

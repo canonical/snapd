@@ -1982,7 +1982,7 @@ func (s *writerSuite) TestCore20InvalidLabel(c *C) {
 		s.opts.Label = inv
 		w, err := seedwriter.New(model, s.opts)
 		c.Assert(w, IsNil)
-		c.Check(err, ErrorMatches, `system label contains invalid characters:.*`)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid seed system label: %q`, inv))
 	}
 }
 
