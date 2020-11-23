@@ -1740,7 +1740,7 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	//
 	// Services that are not new but have "install-mode: disable"
 	// do not need special handling. They are either still disabled
-	// or soemthing has enabled them and then they should stay enabled.
+	// or something has enabled them and then they should stay enabled.
 	for _, svc := range currentInfo.Services() {
 		if svc.InstallMode == "disable" && !enabledByHookSvcs[svc.Name] {
 			if !prevCurrentSvcs[svc.Name] {
