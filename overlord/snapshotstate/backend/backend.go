@@ -480,6 +480,7 @@ var (
 	importingFnRegexp = regexp.MustCompile("^([0-9]+)_importing$")
 	importingFnGlob   = "*_importing"
 	importingFnFmt    = "%d_importing"
+	importingForIDFmt = "%d_*.zip"
 )
 
 // importInProgressFor return true if the given snapshot id has an import
@@ -544,7 +545,7 @@ func (t *importTransaction) Cancel() error {
 	if t.committed {
 		return ErrCannotCancel
 	}
-	inProgressImports, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id)))
+	inProgressImports, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingForIDFmt, t.id)))
 	if err != nil {
 		return err
 	}
