@@ -31,8 +31,8 @@ execute: |
         #shellcheck source=tests/lib/names.sh
         . "$TESTSLIB"/names.sh
 
-        MATCH "snap_core=${core_name}_*\.snap" < default.out
-        MATCH "snap_kernel=${kernel_name}_*\.snap" < default.out
+        MATCH "snap_core=${core_name}_.*\.snap" < default.out
+        MATCH "snap_kernel=${kernel_name}_.*\.snap" < default.out
         # relevant snaps are not being updated, so snap_mode is unset
         MATCH 'snap_mode=$' < default.out
     fi
