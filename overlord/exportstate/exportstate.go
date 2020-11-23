@@ -17,8 +17,8 @@
  *
  */
 
-// Package exportstate implements the manager and state aspects responsible
-// for the exporting portions of installed snaps to the system.
+// Package exportstate implements the manager and state aspects responsible for
+// exporting and keeping track of portions of installed snaps to the system.
 package exportstate
 
 import (
