@@ -22,7 +22,9 @@ package lkenv_test
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"io/ioutil"
 	"os"
@@ -278,6 +280,166 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 	}
 }
 
+func (l *lkenvTestSuite) TestLoadValidatesCRC32(c *C) {
+	for _, version := range lkversions {
+		testFile := filepath.Join(c.MkDir(), "lk.bin")
+
+		// make an out of band lkenv object and set the wrong signature to be
+		// able to export it to a file
+		var rawStruct interface{}
+		switch version {
+		case lkenv.V1:
+			rawStruct = lkenv.SnapBootSelect_v1{
+				Version:   version.Number(),
+				Signature: version.Signature(),
+			}
+		case lkenv.V2Run:
+			rawStruct = lkenv.SnapBootSelect_v2_run{
+				Version:   version.Number(),
+				Signature: version.Signature(),
+			}
+		case lkenv.V2Recovery:
+			rawStruct = lkenv.SnapBootSelect_v2_recovery{
+				Version:   version.Number(),
+				Signature: version.Signature(),
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		ss := binary.Size(rawStruct)
+		buf.Grow(ss)
+		err := binary.Write(buf, binary.LittleEndian, rawStruct)
+		c.Assert(err, IsNil)
+
+		// calculate the expected checksum but don't put it into the object when
+		// we write it out so that the checksum is invalid
+		expCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
+
+		err = ioutil.WriteFile(testFile, buf.Bytes(), 0644)
+		c.Assert(err, IsNil)
+
+		// now try importing the file with LoadEnv()
+		env := lkenv.NewEnv(testFile, version)
+		c.Assert(env, NotNil)
+
+		err = env.LoadEnv(testFile)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot validate %s: expected checksum 0x%X, got 0x%X", testFile, expCrc32, 0))
+	}
+
+}
+
+func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
+
+	tt := []struct {
+		version          lkenv.Version
+		binVersion       uint32
+		binSignature     uint32
+		validateFailMode string
+	}{
+		{
+			lkenv.V1,
+			lkenv.V2Recovery.Number(),
+			lkenv.V1.Signature(),
+			"version",
+		},
+		{
+			lkenv.V1,
+			lkenv.V1.Number(),
+			lkenv.V2Recovery.Signature(),
+			"signature",
+		},
+		{
+			lkenv.V2Run,
+			lkenv.V1.Number(),
+			lkenv.V2Run.Signature(),
+			"version",
+		},
+		{
+			lkenv.V2Run,
+			lkenv.V2Run.Number(),
+			lkenv.V2Recovery.Signature(),
+			"signature",
+		},
+		{
+			lkenv.V2Recovery,
+			lkenv.V1.Number(),
+			lkenv.V2Recovery.Signature(),
+			"version",
+		},
+		{
+			lkenv.V2Recovery,
+			lkenv.V2Recovery.Number(),
+			lkenv.V2Run.Signature(),
+			"signature",
+		},
+	}
+
+	for _, t := range tt {
+		testFile := filepath.Join(c.MkDir(), "lk.bin")
+
+		// make an out of band lkenv object and set the wrong signature to be
+		// able to export it to a file
+		var rawStruct interface{}
+		switch t.version {
+		case lkenv.V1:
+			rawStruct = lkenv.SnapBootSelect_v1{
+				Version:   t.binVersion,
+				Signature: t.binSignature,
+			}
+		case lkenv.V2Run:
+			rawStruct = lkenv.SnapBootSelect_v2_run{
+				Version:   t.binVersion,
+				Signature: t.binSignature,
+			}
+		case lkenv.V2Recovery:
+			rawStruct = lkenv.SnapBootSelect_v2_recovery{
+				Version:   t.binVersion,
+				Signature: t.binSignature,
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		ss := binary.Size(rawStruct)
+		buf.Grow(ss)
+		err := binary.Write(buf, binary.LittleEndian, rawStruct)
+		c.Assert(err, IsNil)
+
+		// calculate crc32
+		newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
+		// note for efficiency's sake to avoid re-writing the whole structure,
+		// we re-write _just_ the crc32 to w as little-endian
+		buf.Truncate(ss - 4)
+		binary.Write(buf, binary.LittleEndian, &newCrc32)
+
+		err = ioutil.WriteFile(testFile, buf.Bytes(), 0644)
+		c.Assert(err, IsNil)
+
+		// now try importing the file with LoadEnv()
+		env := lkenv.NewEnv(testFile, t.version)
+		c.Assert(env, NotNil)
+
+		var expNum, gotNum uint32
+		switch t.validateFailMode {
+		case "signature":
+			expNum = t.version.Signature()
+			gotNum = t.binSignature
+		case "version":
+			expNum = t.version.Number()
+			gotNum = t.binVersion
+		}
+		expErr := fmt.Sprintf(
+			"cannot validate %s: expected %s 0x%X, got 0x%X",
+			testFile,
+			t.validateFailMode,
+			expNum,
+			gotNum,
+		)
+
+		err = env.LoadEnv(testFile)
+		c.Assert(err, ErrorMatches, expErr)
+	}
+}
+
 func (l *lkenvTestSuite) TestLoad(c *C) {
 	for _, version := range lkversions {
 		for _, makeBackup := range []bool{true, false} {
@@ -302,8 +464,7 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 
 			err = env.Load()
 			// possible error messages could be "cannot open LK env file: ..."
-			// or "cannot read LK env from file: ..."
-			// c.Assert(err, ErrorMatches, "cannot .* LK env .*")
+			// or "cannot valid <file>: ..."
 			if makeBackup {
 				// here we will read the backup file which exists but like the
 				// primary file is corrupted
