@@ -66,9 +66,9 @@ type Modeenv struct {
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
-	// KernelCommandLines is stack of the expected kernel command lines when
-	// booting into run mode.
-	KernelCommandLines bootCommandLines `key:"kernel_command_lines"`
+	// CurrentKernelCommandLines is stack of the expected kernel command
+	// lines when booting into run mode.
+	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
 	// TODO:UC20 add a per recovery system list of kernel command lines
 
 	// read is set to true when a modenv was read successfully
@@ -159,7 +159,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
-	unmarshalModeenvValueFromCfg(cfg, "kernel_command_lines", &m.KernelCommandLines)
+	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
 
 	// save all the rest of the keys we don't understand
 	keys, err := cfg.Options("")
@@ -255,7 +255,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
-	marshalModeenvEntryTo(buf, "kernel_command_lines", m.KernelCommandLines)
+	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
 
 	// write all the extra keys at the end
 	// sort them for test convenience
