@@ -20,7 +20,6 @@
 package client_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -436,8 +435,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 		Args:      []string{"bar", "--baz"},
 	}
 
-	mockStdin := bytes.NewBuffer(nil)
-	stdout, stderr, err := cli.RunSnapctl(mockStdin, options)
+	stdout, stderr, err := cli.RunSnapctl(options, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")

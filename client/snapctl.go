@@ -27,6 +27,17 @@ import (
 	"io/ioutil"
 )
 
+// InternalSsnapctlCmdNeedsStdin returns true if the given snapctl command
+// needs data from stdin
+func InternalSnapctlCmdNeedsStdin(name string) bool {
+	switch name {
+	case "fde-setup-result":
+		return true
+	default:
+		return false
+	}
+}
+
 // SnapCtlOptions holds the various options with which snapctl is invoked.
 type SnapCtlOptions struct {
 	// ContextID is a string used to determine the context of this call (e.g.
@@ -55,12 +66,14 @@ type snapctlOutput struct {
 }
 
 // RunSnapctl requests a snapctl run for the given options.
-func (client *Client) RunSnapctl(stdin io.Reader, options *SnapCtlOptions) (stdout, stderr []byte, err error) {
+func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
 	// TODO: instead of reading all of stdin here we need to forward it to
 	//       the daemon eventually
-	options.StdinData, err = ioutil.ReadAll(stdin)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
+	if stdin != nil {
+		options.StdinData, err = ioutil.ReadAll(stdin)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
+		}
 	}
 
 	b, err := json.Marshal(options)

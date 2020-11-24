@@ -34,8 +34,7 @@ func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
-	mockStdin := bytes.NewBuffer(nil)
-	cs.cli.RunSnapctl(mockStdin, options)
+	cs.cli.RunSnapctl(options, nil)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
@@ -56,7 +55,7 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 
-	stdout, stderr, err := cs.cli.RunSnapctl(mockStdin, options)
+	stdout, stderr, err := cs.cli.RunSnapctl(options, mockStdin)
 	c.Assert(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
@@ -71,4 +70,14 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		"stdin-data": base64.StdEncoding.EncodeToString([]byte("some-input")),
 		"args":       []interface{}{"foo", "bar"},
 	})
+}
+
+func (cs *clientSuite) TestInternalSnapctlCmdNeedsStdin(c *check.C) {
+	res := client.InternalSnapctlCmdNeedsStdin("fde-setup-result")
+	c.Check(res, check.Equals, true)
+
+	for _, s := range []string{"help", "other"} {
+		res := client.InternalSnapctlCmdNeedsStdin(s)
+		c.Check(res, check.Equals, false)
+	}
 }
