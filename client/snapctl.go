@@ -48,9 +48,13 @@ type SnapCtlOptions struct {
 	Args []string `json:"args"`
 }
 
+// SnapCtlPostData is the data posted to the daemon /v2/snapctl endpoint
+// TODO: this can be removed again once we no longer need to pass stdin data
+//       but instead use a real stdin stream
 type SnapCtlPostData struct {
-	Options *SnapCtlOptions `json:"options"`
-	Stdin   []byte          `json:"stdin,omitempty"`
+	SnapCtlOptions
+
+	Stdin []byte `json:"stdin,omitempty"`
 }
 
 type snapctlOutput struct {
@@ -71,8 +75,8 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	}
 
 	b, err := json.Marshal(SnapCtlPostData{
-		Options: options,
-		Stdin:   stdinData,
+		SnapCtlOptions: *options,
+		Stdin:          stdinData,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)

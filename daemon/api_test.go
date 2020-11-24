@@ -6839,7 +6839,7 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
-	buf := bytes.NewBufferString(`{"options": {"context-id": "some-context", "args": ["get", "something"]}}`)
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
@@ -6858,7 +6858,7 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"options": {"context-id": "some-context", "args": [%q, %q]}}`, "set", "foo=bar"))
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
@@ -6878,7 +6878,7 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"options": {"context-id": "some-context", "args": [%q, %q]}}`, "is-connected", "plug"))
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)

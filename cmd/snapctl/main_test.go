@@ -62,8 +62,8 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 			var snapctlPostData client.SnapCtlPostData
 			decoder := json.NewDecoder(r.Body)
 			c.Assert(decoder.Decode(&snapctlPostData), IsNil)
-			c.Assert(snapctlPostData.Options.ContextID, Equals, s.expectedContextID)
-			c.Assert(snapctlPostData.Options.Args, DeepEquals, s.expectedArgs)
+			c.Assert(snapctlPostData.ContextID, Equals, s.expectedContextID)
+			c.Assert(snapctlPostData.Args, DeepEquals, s.expectedArgs)
 			c.Assert(snapctlPostData.Stdin, DeepEquals, s.expectedStdin)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": {"stdout": "test stdout", "stderr": "test stderr"}}`)

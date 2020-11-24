@@ -2164,7 +2164,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if len(snapctlPostData.Options.Args) == 0 {
+	if len(snapctlPostData.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
@@ -2175,7 +2175,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
-	context, _ := c.d.overlord.HookManager().Context(snapctlPostData.Options.ContextID)
+	context, _ := c.d.overlord.HookManager().Context(snapctlPostData.ContextID)
 
 	// make the data read from stdin available for the hook
 	// TODO: use a forwarded stdin here
@@ -2185,7 +2185,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		context.Unlock()
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Options.Args, uid)
+	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, uid)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]interface{}{
