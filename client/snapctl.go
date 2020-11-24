@@ -44,20 +44,13 @@ type SnapCtlOptions struct {
 	// which context and handler should be used, etc.)
 	ContextID string `json:"context-id"`
 
-	// stdin dta read for the command (will only be set for some comamnds)
-	//
-	// TODO: Stdin as bytes should go away, instead the client
-	//       should open a connection (or re-using the exisitng
-	//       POST) for the real stdin and forward that to the
-	//       daemon. There are some complications with that, i.e.
-	//       that net.http wants to read the body of a POST and
-	//       will hang for stdin. A workaround is to use the transport
-	//       directly and to POST. Some PoC code for this:
-	//       https://github.com/snapcore/snapd/compare/master...mvo5:snapctl-real-stdin-forwarding-mess?expand=1
-	StdinData []byte `json:"stdin-data"`
-
 	// Args contains a list of parameters to use for this invocation.
 	Args []string `json:"args"`
+}
+
+type SnapCtlPostData struct {
+	Options *SnapCtlOptions `json:"options"`
+	Stdin   []byte          `json:"stdin,omitempty"`
 }
 
 type snapctlOutput struct {
@@ -69,14 +62,18 @@ type snapctlOutput struct {
 func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
 	// TODO: instead of reading all of stdin here we need to forward it to
 	//       the daemon eventually
+	var stdinData []byte
 	if stdin != nil {
-		options.StdinData, err = ioutil.ReadAll(stdin)
+		stdinData, err = ioutil.ReadAll(stdin)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
 		}
 	}
 
-	b, err := json.Marshal(options)
+	b, err := json.Marshal(SnapCtlPostData{
+		Options: options,
+		Stdin:   stdinData,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}
