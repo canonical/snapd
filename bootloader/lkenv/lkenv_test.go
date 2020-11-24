@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -45,6 +46,14 @@ type lkenvTestSuite struct {
 }
 
 var _ = Suite(&lkenvTestSuite{})
+
+var (
+	lkversions = []lkenv.Version{
+		lkenv.V1,
+		lkenv.V2Run,
+		lkenv.V2Recovery,
+	}
+)
 
 func (l *lkenvTestSuite) SetUpTest(c *C) {
 	l.envPath = filepath.Join(c.MkDir(), "snapbootsel.bin")
@@ -199,6 +208,9 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				comment = Commentf("testcase %s without backup", t.comment)
 			}
 
+			loggerBuf, restore := logger.MockLogger()
+			defer restore()
+
 			// make unique files per test case
 			testFile := filepath.Join(c.MkDir(), "lk.bin")
 			testFileBackup := testFile + "bak"
@@ -240,14 +252,34 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				for k, v := range t.keyValuePairs {
 					c.Check(env3.Get(k), Equals, v, comment)
 				}
+
+				// corrupt the main file and then try to load it - we should
+				// automatically fallback to the backup file since the backup
+				// file will not be corrupt
+				buf := make([]byte, 4096)
+				f, err := os.OpenFile(testFile, os.O_WRONLY, 0644)
+				c.Assert(err, IsNil)
+				_, err = io.Copy(f, bytes.NewBuffer(buf))
+				c.Assert(err, IsNil, comment)
+
+				env4 := lkenv.NewEnv(testFile, t.version)
+				err = env4.Load()
+				c.Assert(err, IsNil, comment)
+
+				for k, v := range t.keyValuePairs {
+					c.Check(env4.Get(k), Equals, v, comment)
+				}
+
+				// we should have also had a logged message about being unable
+				// to load the main file
+				c.Assert(loggerBuf.String(), testutil.Contains, fmt.Sprintf("cannot load primary bootloader environment: cannot validate %s:", testFile))
 			}
 		}
 	}
 }
 
 func (l *lkenvTestSuite) TestLoad(c *C) {
-
-	for _, version := range []lkenv.Version{lkenv.V1, lkenv.V2Run, lkenv.V2Recovery} {
+	for _, version := range lkversions {
 		for _, makeBackup := range []bool{true, false} {
 			loggerBuf, restore := logger.MockLogger()
 			defer restore()
@@ -288,61 +320,183 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 	}
 }
 
-func (l *lkenvTestSuite) TestFailedCRCFallBack(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(l.envPathbak, buf, 0644)
-	c.Assert(err, IsNil)
-
-	env := lkenv.NewEnv(l.envPath, lkenv.V1)
-	c.Check(env, NotNil)
-
-	env.Set("snap_mode", boot.TryingStatus)
-	env.Set("snap_kernel", "kernel-1")
-	env.Set("snap_try_kernel", "kernel-2")
-	err = env.Save()
-	c.Assert(err, IsNil)
-
-	// break main env file
-	err = ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
-
-	env2 := lkenv.NewEnv(l.envPath, lkenv.V1)
-	err = env2.Load()
-	c.Assert(err, IsNil)
-	c.Check(env2.Get("snap_mode"), Equals, boot.TryingStatus)
-	c.Check(env2.Get("snap_kernel"), Equals, "kernel-1")
-	c.Check(env2.Get("snap_try_kernel"), Equals, "kernel-2")
-}
-
 func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
+	tt := []struct {
+		version lkenv.Version
+		// use slices instead of a map since we need a consistent ordering
+		bootMatrixKeys   []string
+		bootMatrixValues []string
+		matrixType       string
+		comment          string
+	}{
+		{
+			lkenv.V1,
+			[]string{
+				"boot_a",
+				"boot_b",
+			},
+			[]string{
+				"kernel-1",
+				"kernel-2",
+			},
+			"kernel",
+			"v1",
+		},
+		{
+			lkenv.V2Run,
+			[]string{
+				"boot_a",
+				"boot_b",
+			},
+			[]string{
+				"kernel-1",
+				"kernel-2",
+			},
+			"kernel",
+			"v2 run",
+		},
+		{
+			lkenv.V2Recovery,
+			[]string{
+				"boot_recovery_1",
+			},
+			[]string{
+				"20201123",
+			},
+			"recovery-system",
+			"v2 recovery 1 slot",
+		},
+		{
+			lkenv.V2Recovery,
+			[]string{
+				"boot_recovery_1",
+				"boot_recovery_2",
+			},
+			[]string{
+				"20201123",
+				"20201124",
+			},
+			"recovery-system",
+			"v2 recovery 2 slots",
+		},
+		{
+			lkenv.V2Recovery,
+			[]string{
+				"boot_recovery_1",
+				"boot_recovery_2",
+				"boot_recovery_3",
+			},
+			[]string{
+				"20201123",
+				"20201124",
+				"20201125",
+			},
+			"recovery-system",
+			"v2 recovery 3 slots",
+		},
+		{
+			lkenv.V2Recovery,
+			[]string{
+				"boot_recovery_1",
+				"boot_recovery_2",
+				"boot_recovery_3",
+				"boot_recovery_4",
+				"boot_recovery_5",
+				"boot_recovery_6",
+				"boot_recovery_7",
+				"boot_recovery_8",
+				"boot_recovery_9",
+				"boot_recovery_10",
+			},
+			[]string{
+				"20201123",
+				"20201124",
+				"20201125",
+				"20201126",
+				"20201127",
+				"20201128",
+				"20201129",
+				"20201130",
+				"20201131",
+				"20201132",
+				"20201133",
+			},
+			"recovery-system",
+			"v2 recovery max slots",
+		},
+	}
 
-	env := lkenv.NewEnv(l.envPath, lkenv.V1)
-	c.Assert(err, IsNil)
-	env.InitializeBootPartitions("boot_a", "boot_b")
-	// test no boot partition used
-	p, err := env.FindFreeKernelBootPartition("kernel-1")
-	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
-	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartitionKernel("boot_a", "kernel-1")
-	c.Assert(err, IsNil)
-	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartitionKernel("boot_b", "kernel-2")
-	c.Assert(err, IsNil)
+	for _, t := range tt {
+		comment := Commentf(t.comment)
 
-	// 'boot_a' has 'kernel-1' revision
-	p, err = env.GetKernelBootPartition("kernel-1")
-	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
-	// 'boot_b' has 'kernel-2' revision
-	p, err = env.GetKernelBootPartition("kernel-2")
-	c.Check(p, Equals, "boot_b")
-	c.Assert(err, IsNil)
+		buf := make([]byte, 4096)
+		err := ioutil.WriteFile(l.envPath, buf, 0644)
+		c.Assert(err, IsNil, comment)
+
+		env := lkenv.NewEnv(l.envPath, t.version)
+		c.Assert(env, Not(IsNil), comment)
+
+		var findFunc func(string) (string, error)
+		var setFunc func(string, string) error
+		var getFunc func(string) (string, error)
+		switch t.matrixType {
+		case "recovery-system":
+			findFunc = func(s string) (string, error) { return env.FindFreeRecoverySystemBootPartition(s) }
+			setFunc = func(s1, s2 string) error { return env.SetBootPartitionRecoverySystem(s1, s2) }
+			getFunc = func(s1 string) (string, error) { return env.GetRecoverySystemBootPartition(s1) }
+		case "kernel":
+			findFunc = func(s string) (string, error) { return env.FindFreeKernelBootPartition(s) }
+			setFunc = func(s1, s2 string) error {
+				// for assigning the kernel, we need to also set the
+				// snap_kernel, since that is used to detect if we should return
+				// an unset variable or not
+
+				err := env.SetBootPartitionKernel(s1, s2)
+				c.Assert(err, IsNil, comment)
+				if err != nil {
+					return err
+				}
+				env.Set("snap_kernel", s2)
+				return nil
+			}
+			getFunc = func(s1 string) (string, error) { return env.GetKernelBootPartition(s1) }
+		default:
+			c.Errorf("unexpected matrix type, test setup broken", comment)
+		}
+
+		err = env.InitializeBootPartitions(t.bootMatrixKeys...)
+		c.Assert(err, IsNil, comment)
+
+		// before assigning any values to the boot matrix, check that all
+		// values we try to assign would go to the first bootPartLabel
+		for _, bootPartValue := range t.bootMatrixKeys {
+			// we haven't assigned anything yet, so all values should get mapped
+			// to the first boot image partition
+			bootPartFound, err := findFunc(bootPartValue)
+			c.Assert(err, IsNil, comment)
+			c.Assert(bootPartFound, Equals, t.bootMatrixKeys[0], comment)
+		}
+
+		// now go and assign them, checking that along the way we are assigning
+		// to the next slot
+		// iterate over the key list to keep the same order
+		for i, bootPart := range t.bootMatrixKeys {
+			bootPartValue := t.bootMatrixValues[i]
+			// we haven't assigned anything yet, so all values should get mapped
+			// to the first boot image partition
+			bootPartFound, err := findFunc(bootPartValue)
+			c.Assert(err, IsNil, comment)
+			c.Assert(bootPartFound, Equals, bootPart, comment)
+
+			err = setFunc(bootPart, bootPartValue)
+			c.Assert(err, IsNil, comment)
+
+			// now check that it has the right value
+			val, err := getFunc(bootPartValue)
+			c.Assert(err, IsNil, comment)
+			c.Assert(val, Equals, bootPart, comment)
+		}
+	}
 }
 
 func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {

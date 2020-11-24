@@ -425,20 +425,32 @@ func (l *Env) FindFreeRecoverySystemBootPartition(recoverySystem string) (string
 
 	// when we create a new recovery system partition, we set all current
 	// recovery systems as reserved, so first get that list
-	currentRecoverySystems := matr.assignedBootParts()
+	currentRecoverySystems := matr.assignedBootPartValues()
 	return matr.findFreeBootPartition(currentRecoverySystems, recoverySystem)
 }
 
-// SetRecoverySystemBootPartition sets the recovery system reference for the
+// SetBootPartitionRecoverySystem sets the recovery system reference for the
 // provided boot image partition. It returns a non-nil err if the provided boot
 // partition reference was not found.
-func (l *Env) SetRecoverySystemBootPartition(bootpart, recoverySystem string) error {
+func (l *Env) SetBootPartitionRecoverySystem(bootpart, recoverySystem string) error {
 	matr, err := l.variant.bootImgRecoverySystemMatrix()
 	if err != nil {
 		return err
 	}
 
 	return matr.setBootPart(bootpart, recoverySystem)
+}
+
+// GetRecoverySystemBootPartition returns the first found boot image partition
+// label that contains a reference to the given recovery system. If the recovery
+// system was not found, a non-nil error is returned.
+func (l *Env) GetRecoverySystemBootPartition(recoverySystem string) (string, error) {
+	matr, err := l.variant.bootImgRecoverySystemMatrix()
+	if err != nil {
+		return "", err
+	}
+
+	return matr.getBootPart(recoverySystem)
 }
 
 // RemoveRecoverySystemFromBootPartition removes from the boot image matrix the
@@ -581,18 +593,21 @@ func (matr bootimgMatrixGeneric) findFreeBootPartition(reserved []string, newVal
 	return "", fmt.Errorf("cannot find free boot image partition")
 }
 
-// assignedBootParts returns all boot image partitions that have a value set for
-// them.
-func (matr bootimgMatrixGeneric) assignedBootParts() []string {
-	bootPartLabels := make([]string, 0, len(matr))
+// assignedBootPartValues returns all boot image partitions values that are set.
+func (matr bootimgMatrixGeneric) assignedBootPartValues() []string {
+	bootPartValues := make([]string, 0, len(matr))
 	for x := range matr {
 		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
 		if bootPartLabel != "" {
-			bootPartLabels[x] = bootPartLabel
+			// now check the value
+			bootPartValue := cToGoString(matr[x][MATRIX_ROW_VALUE][:])
+			if bootPartValue != "" {
+				bootPartValues = append(bootPartValues, bootPartValue)
+			}
 		}
 	}
 
-	return bootPartLabels
+	return bootPartValues
 }
 
 // getBootPart returns the currently associated value for the
