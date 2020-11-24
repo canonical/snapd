@@ -6672,10 +6672,12 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C)
 	runner := s.o.TaskRunner()
 	runner.AddHandler("run-hook", func(t *state.Task, _ *tomb.Tomb) error {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(st, "services-snap", &snapst)
-		c.Assert(err, IsNil)
 		st.Lock()
+		err := snapstate.Get(st, "services-snap", &snapst)
+		st.Unlock()
+		c.Assert(err, IsNil)
 		snapst.ServicesEnabledByHooks = []string{"svcInstallModeDisable"}
+		st.Lock()
 		snapstate.Set(st, "services-snap", &snapst)
 		st.Unlock()
 		return nil
