@@ -415,6 +415,11 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 	return d
 }
 
+func (s *APIBaseSuite) Daemon(c *check.C) *Daemon {
+	return s.daemon(c)
+}
+
+// XXX this one will go away
 func (s *APIBaseSuite) daemon(c *check.C) *Daemon {
 	return s.DaemonWithStore(c, s)
 }
@@ -596,6 +601,13 @@ func handlerCommand(c *check.C, d *Daemon, req *http.Request) (cmd *Command, var
 		c.Fatalf("no command for URL %q", req.URL)
 	}
 	return cmd, m.Vars
+}
+
+func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
+	cmd, _ := handlerCommand(c, s.d, req)
+	c.Check(cmd.POST, check.IsNil)
+	c.Check(cmd.PUT, check.IsNil)
+	c.Check(cmd.GET, check.NotNil)
 }
 
 func (s *APIBaseSuite) GetReq(c *check.C, req *http.Request, u *auth.UserState) Response {

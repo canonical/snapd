@@ -44,7 +44,6 @@ import (
 var _ = check.Suite(&userSuite{})
 
 // TODO: also pull login/logout tests into this.
-// TODO: move to daemon_test package
 
 type userSuite struct {
 	daemon.APIBaseSuite
