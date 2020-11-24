@@ -461,7 +461,7 @@ func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
 			}
 			getFunc = func(s1 string) (string, error) { return env.GetKernelBootPartition(s1) }
 		default:
-			c.Errorf("unexpected matrix type, test setup broken", comment)
+			c.Errorf("unexpected matrix type, test setup broken (%s)", comment)
 		}
 
 		err = env.InitializeBootPartitions(t.bootMatrixKeys...)
