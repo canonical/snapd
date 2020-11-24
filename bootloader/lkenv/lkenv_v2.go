@@ -169,7 +169,7 @@ func (v2recovery *SnapBootSelect_v2_recovery) bootImgRecoverySystemMatrix() (boo
 }
 
 func (v2recovery *SnapBootSelect_v2_recovery) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
-	return nil, fmt.Errorf("internal error: recovery lkenv has no boot image partition kernel matrix")
+	return nil, fmt.Errorf("internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 }
 
 type SnapBootSelect_v2_run struct {
@@ -330,5 +330,5 @@ func (v2run *SnapBootSelect_v2_run) bootImgKernelMatrix() (bootimgMatrixGeneric,
 }
 
 func (v2run *SnapBootSelect_v2_run) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
-	return nil, fmt.Errorf("internal error: run lkenv has no boot image partition recovery system matrix")
+	return nil, fmt.Errorf("internal error: v2 run lkenv has no boot image partition recovery system matrix")
 }

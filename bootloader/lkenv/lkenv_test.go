@@ -660,6 +660,57 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 	}
 }
 
+func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
+	env := lkenv.NewEnv(l.envPath, lkenv.V1)
+	c.Assert(env, NotNil)
+
+	_, err := env.FindFreeRecoverySystemBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
+
+	err = env.SetBootPartitionRecoverySystem("blah", "blah")
+	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
+
+	_, err = env.GetRecoverySystemBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
+
+	err = env.RemoveRecoverySystemFromBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v1 lkenv has no boot image partition recovery system matrix")
+}
+
+func (l *lkenvTestSuite) TestV2RunNoRecoverySystemSupport(c *C) {
+	env := lkenv.NewEnv(l.envPath, lkenv.V2Run)
+	c.Assert(env, NotNil)
+
+	_, err := env.FindFreeRecoverySystemBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
+
+	err = env.SetBootPartitionRecoverySystem("blah", "blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
+
+	_, err = env.GetRecoverySystemBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
+
+	err = env.RemoveRecoverySystemFromBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 run lkenv has no boot image partition recovery system matrix")
+}
+
+func (l *lkenvTestSuite) TestV2RecoveryNoKernelSupport(c *C) {
+	env := lkenv.NewEnv(l.envPath, lkenv.V2Recovery)
+	c.Assert(env, NotNil)
+
+	_, err := env.FindFreeKernelBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+
+	err = env.SetBootPartitionKernel("blah", "blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+
+	_, err = env.GetKernelBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+
+	err = env.RemoveKernelFromBootPartition("blah")
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+}
+
 func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 	buf := make([]byte, 4096)
 	err := ioutil.WriteFile(l.envPath, buf, 0644)
