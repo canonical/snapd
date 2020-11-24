@@ -21,6 +21,7 @@
 #define _BOOTLOADER_SNAP_BOOT_COMMON_H
 
 #define SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
+#define SNAP_BOOTSELECT_RUN_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
 
 // note SNAP_NAME_MAX_LEN also defines the max length of a recovery system label
 #define SNAP_NAME_MAX_LEN (256)

@@ -20,14 +20,14 @@
 #ifndef _BOOTLOADER_SNAP_BOOT_V2_H
 #define _BOOTLOADER_SNAP_BOOT_V2_H
 
-// TODO: what bit fields should be set for this to be v2?
 #define SNAP_BOOTSELECT_VERSION_V2 0x00010010
+#define SNAP_BOOTSELECT_SIGNATURE_RECOVERY ('S' | ('R' << 8) | ('s' << 16) | ('e' << 24))
 
 /* snappy bootselect partition format structure for run mode */
 typedef struct SNAP_RUN_BOOT_SELECTION {
-    /* Contains value BOOTSELECT_SIGNATURE defined above */
+    /* Should always contain value of SNAP_BOOTSELECT_RUN_SIGNATURE defined in common.h */
     uint32_t signature;
-    /* snappy boot select version */
+    /* Should always contain value of SNAP_BOOTSELECT_VERSION_V2 */
     uint32_t version;
 
     /* kernel_status, one of: 'empty', "try", "trying" */
@@ -133,9 +133,9 @@ typedef struct SNAP_RUN_BOOT_SELECTION {
 
 /* snappy bootselect partition format structure for recovery*/
 typedef struct SNAP_RECOVERY_BOOT_SELECTION {
-    /* Contains value BOOTSELECT_SIGNATURE defined above */
+    /* Should always contain value of SNAP_BOOTSELECT_SIGNATURE_RECOVERY defined above */
     uint32_t signature;
-    /* snappy boot select version */
+    /* Should always contain value of SNAP_BOOTSELECT_VERSION_V2 */
     uint32_t version;
 
     /** snapd_recovery_mode is what mode the system will be booted in, one of
