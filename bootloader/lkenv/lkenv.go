@@ -580,10 +580,9 @@ func (matr bootimgMatrixGeneric) findFreeBootPartition(reserved []string, newVal
 		// sometimes need to find a "free" boot partition for the specific
 		// kernel revision that is already installed, thus it will show up in
 		// the reserved list, but it will also be newValue
-		// see the questions in lkenv_test.go for TestFindFree_Set_Free_BootPartition
-		// about whether we actually care about this behavior, as it is
-		// unintuitive given the name of the function "FindFreeKernelBootPartition"
-		// since by definition the currently installed kernel is not free.
+		// this case happens in practice during seeding of kernels on uc16/uc18,
+		// where we already extracted the kernel at image build time and we will
+		// go to extract the kernel again during seeding
 		if val == newValue {
 			return bootPartLabel, nil
 		}

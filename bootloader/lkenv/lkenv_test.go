@@ -580,7 +580,6 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 				"20201130",
 				"20201131",
 				"20201132",
-				"20201133",
 			},
 			"recovery-system",
 			"v2 recovery max slots",
@@ -589,6 +588,9 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 
 	for _, t := range tt {
 		comment := Commentf(t.comment)
+		// make sure the key and values are the same length for test case
+		// consistency check
+		c.Assert(t.bootMatrixKeys, HasLen, len(t.bootMatrixValues), comment)
 
 		buf := make([]byte, 4096)
 		err := ioutil.WriteFile(l.envPath, buf, 0644)
@@ -600,11 +602,13 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		var findFunc func(string) (string, error)
 		var setFunc func(string, string) error
 		var getFunc func(string) (string, error)
+		var deleteFunc func(string) error
 		switch t.matrixType {
 		case "recovery-system":
 			findFunc = func(s string) (string, error) { return env.FindFreeRecoverySystemBootPartition(s) }
 			setFunc = func(s1, s2 string) error { return env.SetBootPartitionRecoverySystem(s1, s2) }
 			getFunc = func(s1 string) (string, error) { return env.GetRecoverySystemBootPartition(s1) }
+			deleteFunc = func(s1 string) error { return env.RemoveRecoverySystemFromBootPartition(s1) }
 		case "kernel":
 			findFunc = func(s string) (string, error) { return env.FindFreeKernelBootPartition(s) }
 			setFunc = func(s1, s2 string) error {
@@ -617,10 +621,15 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 				if err != nil {
 					return err
 				}
-				env.Set("snap_kernel", s2)
+				if env.Get("snap_kernel") == "" {
+					// only set it the first time so that the delete logic test
+					// works and we only set the first kernel to be snap_kernel
+					env.Set("snap_kernel", s2)
+				}
 				return nil
 			}
 			getFunc = func(s1 string) (string, error) { return env.GetKernelBootPartition(s1) }
+			deleteFunc = func(s1 string) error { return env.RemoveKernelFromBootPartition(s1) }
 		default:
 			c.Errorf("unexpected matrix type, test setup broken (%s)", comment)
 		}
@@ -643,8 +652,8 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		// iterate over the key list to keep the same order
 		for i, bootPart := range t.bootMatrixKeys {
 			bootPartValue := t.bootMatrixValues[i]
-			// we haven't assigned anything yet, so all values should get mapped
-			// to the first boot image partition
+			// now we will be assigning things, so we should check that the
+			// assigned boot image partition matches what we expect
 			bootPartFound, err := findFunc(bootPartValue)
 			c.Assert(err, IsNil, comment)
 			c.Assert(bootPartFound, Equals, bootPart, comment)
@@ -656,7 +665,40 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 			val, err := getFunc(bootPartValue)
 			c.Assert(err, IsNil, comment)
 			c.Assert(val, Equals, bootPart, comment)
+
+			// double-check that finding a free slot for this value returns the
+			// existing slot - this logic specifically is important for uc16 and
+			// uc18 where during seeding we will end up extracting a kernel to
+			// the already extracted slot (since the kernel will already have
+			// been extracted during image build time)
+			bootPartFound2, err := findFunc(bootPartValue)
+			c.Assert(err, IsNil, comment)
+			c.Assert(bootPartFound2, Equals, bootPart, comment)
 		}
+
+		// now check that trying to find a free slot for a new recovery system
+		// fails because we are full
+		if t.matrixType == "recovery-system" {
+			thing, err := findFunc("some-random-value")
+			c.Check(thing, Equals, "")
+			c.Assert(err, ErrorMatches, "cannot find free boot image partition", comment)
+		}
+
+		// test that removing the last one works
+		lastIndex := len(t.bootMatrixValues) - 1
+		lastValue := t.bootMatrixValues[lastIndex]
+		lastKey := t.bootMatrixKeys[lastIndex]
+		err = deleteFunc(lastValue)
+		c.Assert(err, IsNil, comment)
+
+		// trying to delete again will fail since it won't exist
+		err = deleteFunc(lastValue)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find %q in boot image partitions", lastValue), comment)
+
+		// trying to find it will return the last slot
+		slot, err := findFunc(lastValue)
+		c.Assert(err, IsNil, comment)
+		c.Assert(slot, Equals, lastKey, comment)
 	}
 }
 
@@ -711,54 +753,10 @@ func (l *lkenvTestSuite) TestV2RecoveryNoKernelSupport(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 }
 
-func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
-	buf := make([]byte, 4096)
-	err := ioutil.WriteFile(l.envPath, buf, 0644)
-	c.Assert(err, IsNil)
-
-	env := lkenv.NewEnv(l.envPath, lkenv.V1)
-	c.Assert(err, IsNil)
-	env.InitializeBootPartitions("boot_a", "boot_b")
-	// test no boot partition used
-	p, err := env.FindFreeKernelBootPartition("kernel-1")
-	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
-	//  set kernel-2 to boot_a partition
-	err = env.SetBootPartitionKernel("boot_a", "kernel-2")
-	c.Assert(err, IsNil)
-
-	env.Set("snap_kernel", "kernel-2")
-	// kernel-2 should now return first part, as it's already there
-	// TODO: do we really care about this check? What does it represent? I can't
-	// think of a situation in which we have snap_kernel of kernel-2 installed
-	// and we go to then call FindFreeKernelBootPartition("kernel-2")? why would
-	// snapd try to call ExtractKernelAssets on an already installed kernel?
-	p, err = env.FindFreeKernelBootPartition("kernel-2")
-	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
-	// test kernel-1 snapd, it should now offer second partition
-	p, err = env.FindFreeKernelBootPartition("kernel-1")
-	c.Check(p, Equals, "boot_b")
-	c.Assert(err, IsNil)
-	err = env.SetBootPartitionKernel("boot_b", "kernel-1")
-	c.Assert(err, IsNil)
-	// set boot kernel-1
-	env.Set("snap_kernel", "kernel-1")
-	// now kernel-2 should not be protected and boot_a shoild be offered
-	p, err = env.FindFreeKernelBootPartition("kernel-3")
-	c.Check(p, Equals, "boot_a")
-	c.Assert(err, IsNil)
-	err = env.SetBootPartitionKernel("boot_a", "kernel-3")
-	c.Assert(err, IsNil)
-	// remove kernel
-	err = env.RemoveKernelFromBootPartition("kernel-3")
-	c.Assert(err, IsNil)
-	// repeated use should return false and error
-	err = env.RemoveKernelFromBootPartition("kernel-3")
-	c.Assert(err, NotNil)
-}
-
 func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
+	// TODO: add binary data test for v2 structures generated with gadget build
+	// tool when it has been updated for v2
+
 	// test data is generated with gadget build helper tool:
 	// $ parts/snap-boot-sel-env/build/lk-boot-env -w test.bin \
 	//   --snap-mode="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2" \
