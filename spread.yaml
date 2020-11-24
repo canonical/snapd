@@ -887,7 +887,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
