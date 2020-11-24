@@ -21,7 +21,6 @@ package bootloadertest
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -31,6 +30,9 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
+	MockedPresent bool
+	PresentErr    error
+
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
@@ -99,8 +101,8 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
-func (b *MockBootloader) ConfigFile() string {
-	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+func (b *MockBootloader) Present() (bool, error) {
+	return b.MockedPresent, b.PresentErr
 }
 
 func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
@@ -392,6 +394,7 @@ type MockTrustedAssetsBootloader struct {
 
 	UpdateErr                  error
 	UpdateCalls                int
+	Updated                    bool
 	ManagedAssetsList          []string
 	StaticCommandLine          string
 	CandidateStaticCommandLine string
@@ -408,9 +411,9 @@ func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
 	return b.ManagedAssetsList
 }
 
-func (b *MockTrustedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	b.UpdateCalls++
-	return b.UpdateErr
+	return b.Updated, b.UpdateErr
 }
 
 func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {

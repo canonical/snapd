@@ -145,9 +145,15 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
-// DiskFromName finds a matching Disk using the specified name, such as vda, or
-// mmcblk0, etc.
+// DiskFromDeviceName finds a matching Disk using the specified name, such as
+// vda, or mmcblk0, etc.
 func DiskFromDeviceName(deviceName string) (Disk, error) {
+	return diskFromDeviceName(deviceName)
+}
+
+// diskFromDeviceName is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	// query for the disk props using udev
 	props, err := udevProperties(deviceName)
 	if err != nil {
