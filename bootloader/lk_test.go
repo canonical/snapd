@@ -20,6 +20,7 @@
 package bootloader_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -237,6 +238,6 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
 	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
-	c.Assert(err, ErrorMatches, "cannot find kernel .* in boot image partitions")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
 	c.Assert(bootPart, Equals, "")
 }

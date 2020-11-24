@@ -385,7 +385,11 @@ func (l *Env) GetKernelBootPartition(kernel string) (string, error) {
 		return "", err
 	}
 
-	return matr.getBootPart(kernel)
+	bootPart, err := matr.getBootPartWithValue(kernel)
+	if err != nil {
+		return "", fmt.Errorf("cannot find kernel %q: %v", kernel, err)
+	}
+	return bootPart, nil
 }
 
 // SetBootPartitionKernel sets the kernel revision reference for the provided
@@ -450,7 +454,11 @@ func (l *Env) GetRecoverySystemBootPartition(recoverySystem string) (string, err
 		return "", err
 	}
 
-	return matr.getBootPart(recoverySystem)
+	bootPart, err := matr.getBootPartWithValue(recoverySystem)
+	if err != nil {
+		return "", fmt.Errorf("cannot find recovery system %q: %v", recoverySystem, err)
+	}
+	return bootPart, nil
 }
 
 // RemoveRecoverySystemFromBootPartition removes from the boot image matrix the
@@ -523,7 +531,8 @@ func (matr bootimgMatrixGeneric) dropBootPartValue(bootPartValue string) error {
 	for x := range matr {
 		if "" != cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) {
 			if bootPartValue == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
-				matr[x][1][MATRIX_ROW_PARTITION] = 0
+				// clear the string by setting the first element to 0 or NUL
+				matr[x][MATRIX_ROW_VALUE][0] = 0
 				return nil
 			}
 		}
@@ -610,17 +619,15 @@ func (matr bootimgMatrixGeneric) assignedBootPartValues() []string {
 	return bootPartValues
 }
 
-// getBootPart returns the currently associated value for the
-// specified boot image partition label, or the empty string if the boot image
-// partition label exists in the matrix but does not have a kernel revision
-// associated with it currently. If the boot image partition label does not
-// exist in the matrix, an error will be returned.
-func (matr bootimgMatrixGeneric) getBootPart(kernel string) (string, error) {
+// getBootPartWithValue returns the boot image partition label for the specified value.
+// If the boot image partition label does not exist in the matrix, an error will
+// be returned.
+func (matr bootimgMatrixGeneric) getBootPartWithValue(value string) (string, error) {
 	for x := range matr {
-		if kernel == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
+		if value == cToGoString(matr[x][MATRIX_ROW_VALUE][:]) {
 			return cToGoString(matr[x][MATRIX_ROW_PARTITION][:]), nil
 		}
 	}
 
-	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
+	return "", fmt.Errorf("no boot image partition has value %q", value)
 }

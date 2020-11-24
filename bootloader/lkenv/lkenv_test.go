@@ -320,7 +320,7 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 	}
 }
 
-func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
+func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 	tt := []struct {
 		version lkenv.Version
 		// use slices instead of a map since we need a consistent ordering
