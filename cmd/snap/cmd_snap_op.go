@@ -58,11 +58,11 @@ unique identifier (for each instance) to a snap's name.
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
 
-Revision choice via the --revision override requires the the user to
+Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 
-Note a later refresh will typically undo a revision override, taking the snap
+Note that a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
 
 Use --name to set the instance name when installing from snap file.
@@ -87,7 +87,7 @@ none are specified.
 With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options.
 
-Revision choice via the --revision override requires the the user to
+Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 
@@ -196,8 +196,8 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	if x.Revision != "" {
-		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
+	if x.Purge || x.Revision != "" {
+		return errors.New(i18n.G("a single snap name is needed to specify options"))
 	}
 	return x.removeMany(nil)
 }
@@ -474,8 +474,9 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort     string `long:"cohort"`
-	Positional struct {
+	Cohort        string `long:"cohort"`
+	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
+	Positional    struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -591,11 +592,12 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:   x.Channel,
-		Revision:  x.Revision,
-		Dangerous: dangerous,
-		Unaliased: x.Unaliased,
-		CohortKey: x.Cohort,
+		Channel:       x.Channel,
+		Revision:      x.Revision,
+		Dangerous:     dangerous,
+		Unaliased:     x.Unaliased,
+		CohortKey:     x.Cohort,
+		IgnoreRunning: x.IgnoreRunning,
 	}
 	x.setModes(opts)
 
@@ -637,6 +639,7 @@ type cmdRefresh struct {
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
+	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -802,6 +805,7 @@ func (x *cmdRefresh) Execute([]string) error {
 			Amend:            x.Amend,
 			Channel:          x.Channel,
 			IgnoreValidation: x.IgnoreValidation,
+			IgnoreRunning:    x.IgnoreRunning,
 			Revision:         x.Revision,
 			CohortKey:        x.Cohort,
 			LeaveCohort:      x.LeaveCohort,
@@ -816,6 +820,9 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
+	}
+	if x.IgnoreRunning {
+		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
 	}
 
 	return x.refreshMany(names, nil)
@@ -970,8 +977,9 @@ type cmdRevert struct {
 	waitMixin
 
 	modeMixin
-	Revision   string `long:"revision"`
-	Positional struct {
+	Revision      string `long:"revision"`
+	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
+	Positional    struct {
 		Snap installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -996,7 +1004,10 @@ func (x *cmdRevert) Execute(args []string) error {
 	}
 
 	name := string(x.Positional.Snap)
-	opts := &client.SnapOptions{Revision: x.Revision}
+	opts := &client.SnapOptions{
+		Revision:      x.Revision,
+		IgnoreRunning: x.IgnoreRunning,
+	}
 	x.setModes(opts)
 	changeID, err := x.client.Revert(name, opts)
 	if err != nil {
@@ -1095,6 +1106,8 @@ func init() {
 			"name": i18n.G("Install the snap file under the given instance name"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"cohort": i18n.G("Install the snap in the given cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1109,6 +1122,8 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"ignore-running": i18n.G("Ignore running hooks or applications blocking the refresh"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"cohort": i18n.G("Refresh the snap into the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
@@ -1119,6 +1134,8 @@ func init() {
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"revision": i18n.G("Revert to the given revision"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"ignore-running": i18n.G("Ignore running hooks or applications blocking the revert"),
 	}), nil)
 	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, waitDescs.also(channelDescs).also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.

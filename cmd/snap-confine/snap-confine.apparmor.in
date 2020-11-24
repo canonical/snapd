@@ -38,8 +38,6 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
-    # Needed to run /usr/bin/sh for snap-device-helper.
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libtinfo.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -55,9 +53,11 @@
     capability sys_admin,
     capability dac_read_search,
     capability dac_override,
-    /sys/fs/cgroup/devices/snap{,py}.*/ w,
-    /sys/fs/cgroup/devices/snap{,py}.*/cgroup.procs w,
-    /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
+    /sys/fs/cgroup/ r,
+    /sys/fs/cgroup/devices/ r,
+    /sys/fs/cgroup/devices/snap.*/ rw,
+    /sys/fs/cgroup/devices/snap.*/cgroup.procs w,
+    /sys/fs/cgroup/devices/snap.*/devices.{allow,deny} w,
 
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
@@ -68,18 +68,9 @@
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
 
-    # cgroup: pids
-    # allow creating per snap-security-tag hierarchy and adding snap command (task)
-    # invocations to the controller.
-    /sys/fs/cgroup/pids/ r,
-    /sys/fs/cgroup/pids/snap.*/ w,
-    /sys/fs/cgroup/pids/snap.*/cgroup.procs w,
-
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    /usr/lib/snapd/snap-device-helper ixr, # drop
-    /{,usr/}lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
@@ -91,9 +82,9 @@
     capability setgid,
 
     # changing profile
-    @{PROC}/[0-9]*/attr/exec w,
+    @{PROC}/[0-9]*/attr/{,apparmor/}exec w,
     # Reading current profile
-    @{PROC}/[0-9]*/attr/current r,
+    @{PROC}/[0-9]*/attr/{,apparmor/}current r,
     # Reading available filesystems
     @{PROC}/filesystems r,
 
@@ -106,8 +97,11 @@
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
     # the environment for determining the capabilities of the architecture.
     # 'unsafe' is ok here because the kernel will have already cleared the
-    # environment as part of launching snap-confine with
-    # CAP_SYS_ADMIN.
+    # environment as part of launching snap-confine with CAP_SYS_ADMIN. This
+    # does leave directories as configured by ld.so.preload as well as
+    # LD_PRELOAD to be set to a library which is in a directory configured by
+    # ld.so.conf, but access to those locations is mediated by this profile
+    # (which requires rules for specific locations).
     change_profile unsafe /** -> [^u/]**,
     change_profile unsafe /** -> u[^n]**,
     change_profile unsafe /** -> un[^c]**,
@@ -221,15 +215,23 @@
     mount options=(rw bind) /usr/bin/snapctl -> /tmp/snap.rootfs_*/usr/bin/snapctl,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
 
-    # /etc/alternatives (classic)
+    # /etc/alternatives (classic and normal mode)
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
-    # /etc/alternatives (core)
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/apparmor/ -> /tmp/snap.rootfs_*/etc/apparmor/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/apparmor.d/ -> /tmp/snap.rootfs_*/etc/apparmor.d/,
+
+    # /etc/alternatives (core/legacy mode)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+
+    # making all those directories slave shared.
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ssl/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/apparmor/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/apparmor.d/,
+
     # the /snap directory
     mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
@@ -430,7 +432,7 @@
     /var/lib/snapd/cookie/snap.* r,
 
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
-    @{PROC}/[0-9]*/attr/current w,
+    @{PROC}/[0-9]*/attr/{,apparmor/}current w,
 
     # As a special exception allow snap-confine to write to anything in /var/lib.
     # This code should be changed to allow delegation so that snap-confine can

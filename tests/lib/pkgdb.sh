@@ -190,7 +190,7 @@ distro_install_local_package() {
             quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         opensuse-*)
-            quiet rpm -i --replacepkgs "$@"
+            quiet zypper in -y --no-recommends --allow-unsigned-rpm "$@"
             ;;
         arch-*)
             pacman -U --noconfirm "$@"
@@ -529,6 +529,12 @@ distro_install_build_snapd(){
             fi
         fi
 
+        if [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]]; then
+            # Package installation applies vendor presets only, which leaves
+            # snapd.apparmor disabled.
+            systemctl enable --now snapd.apparmor.service
+        fi
+
         # On some distributions the snapd.socket is not yet automatically
         # enabled as we don't have a systemd present configuration approved
         # by the distribution for it in place yet.
@@ -642,14 +648,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
-                evolution-data-server
-                fwupd
-                packagekit
-                qemu-utils
-                "
-            ;;
-        ubuntu-19.10-64)
-            echo "
                 evolution-data-server
                 fwupd
                 packagekit

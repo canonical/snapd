@@ -1,8 +1,5 @@
 summary: D-Bus system services support activation
 
-# Ubuntu 14.04 does not run the system bus under systemd's control.
-systems: [-ubuntu-14.04-*]
-
 prepare: |
     snap set system experimental.user-daemons=true
     snap set system experimental.dbus-activation=true
@@ -12,6 +9,11 @@ restore: |
     snap unset system experimental.user-daemons
 
 execute: |
+    if ! tests.session has-system-systemd-and-dbus; then
+        echo "System does not have a systemd managed D-Bus system bus"
+        exit 0
+    fi
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
@@ -19,7 +21,7 @@ execute: |
     snap install --edge test-snapd-dbus-service
 
     echo "A service activation file has been created"
-    [ -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
+    test -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service
 
     echo "The service is not initially running"
     not systemctl is-active snap.test-snapd-dbus-service.system.service
@@ -33,6 +35,7 @@ execute: |
     echo "The corresponding D-Bus service is now running"
     systemctl is-active snap.test-snapd-dbus-service.system.service
 
-    echo "Removing the snap also removes the service activation file"
+    echo "Removing the snap stops the service and removes the service activation file"
     snap remove test-snapd-dbus-service
-    [ ! -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
+    not  systemctl is-active snap.test-snapd-dbus-service.system.service
+    test ! -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service

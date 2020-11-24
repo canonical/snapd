@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -235,6 +236,65 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	c.Check(osutil.FileExists(fn), Equals, false)
 }
 
+func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
+	d := c.MkDir()
+	initialTarget := filepath.Join(d, "foo")
+	actualTarget := filepath.Join(d, "bar")
+
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	fn := aw.File.Name()
+	c.Check(osutil.FileExists(fn), Equals, true)
+	c.Check(strings.HasPrefix(fn, initialTarget), Equals, true, Commentf("unexpected temporary file name prefix: %q", fn))
+	_, err = aw.WriteString("this is test data")
+	c.Assert(err, IsNil)
+
+	err = aw.CommitAs(actualTarget)
+	c.Assert(err, IsNil)
+	c.Check(fn, testutil.FileAbsent)
+	c.Check(actualTarget, testutil.FileEquals, "this is test data")
+	c.Check(initialTarget, testutil.FileAbsent)
+
+	// not confused when CommitAs uses the same name as initially
+	sameNameTarget := filepath.Join(d, "baz")
+	aw, err = osutil.NewAtomicFile(sameNameTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	_, err = aw.WriteString("this is baz")
+	c.Assert(err, IsNil)
+	err = aw.CommitAs(sameNameTarget)
+	c.Assert(err, IsNil)
+	c.Check(sameNameTarget, testutil.FileEquals, "this is baz")
+
+	// overwrites any existing file on CommitAs (same as Commit)
+	overwrittenTarget := filepath.Join(d, "will-overwrite")
+	err = ioutil.WriteFile(overwrittenTarget, []byte("overwritten"), 0644)
+	c.Assert(err, IsNil)
+	aw, err = osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	_, err = aw.WriteString("this will overwrite existing file")
+	c.Assert(err, IsNil)
+	err = aw.CommitAs(overwrittenTarget)
+	c.Assert(err, IsNil)
+	c.Check(overwrittenTarget, testutil.FileEquals, "this will overwrite existing file")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAsDifferentDirErr(c *C) {
+	d := c.MkDir()
+	initialTarget := filepath.Join(d, "foo")
+	differentDirTarget := filepath.Join(c.MkDir(), "bar")
+
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	_, err = aw.WriteString("this is test data")
+	c.Assert(err, IsNil)
+
+	err = aw.CommitAs(differentDirTarget)
+	c.Assert(err, ErrorMatches, `cannot commit as "bar" to a different directory .*`)
+}
+
 type AtomicSymlinkTestSuite struct{}
 
 var _ = Suite(&AtomicSymlinkTestSuite{})
@@ -270,17 +330,19 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: no such file or directory`)
 	checkLeftoverFiles(nestedBarSymlink, nil)
 
-	// create a dir without write permission
-	err = os.MkdirAll(nested, 0644)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		// create a dir without write permission
+		err = os.MkdirAll(nested, 0644)
+		c.Assert(err, IsNil)
 
-	// no permission to write in dir
-	err = osutil.AtomicSymlink("target", nestedBarSymlink)
-	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
-	checkLeftoverFiles(nestedBarSymlink, nil)
+		// no permission to write in dir
+		err = osutil.AtomicSymlink("target", nestedBarSymlink)
+		c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
+		checkLeftoverFiles(nestedBarSymlink, nil)
 
-	err = os.Chmod(nested, 0755)
-	c.Assert(err, IsNil)
+		err = os.Chmod(nested, 0755)
+		c.Assert(err, IsNil)
+	}
 
 	err = osutil.AtomicSymlink("target", nestedBarSymlink)
 	c.Assert(err, IsNil)
@@ -359,16 +421,18 @@ func (ts *AtomicRenameTestSuite) TestAtomicRename(c *C) {
 		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: no such file or directory")
 	}
 
-	// create a dir without write permission
-	err = os.MkdirAll(nested, 0644)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		// create a dir without write permission
+		err = os.MkdirAll(nested, 0644)
+		c.Assert(err, IsNil)
 
-	// no permission to write in dir
-	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
-	c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
+		// no permission to write in dir
+		err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
 
-	err = os.Chmod(nested, 0755)
-	c.Assert(err, IsNil)
+		err = os.Chmod(nested, 0755)
+		c.Assert(err, IsNil)
+	}
 
 	// all good now
 	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))

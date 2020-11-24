@@ -42,17 +42,23 @@ type lkTestSuite struct {
 
 var _ = Suite(&lkTestSuite{})
 
-func (s *lkTestSuite) TestNewLkNolkReturnsNil(c *C) {
-	l := bootloader.NewLk("/does/not/exist", nil)
-	c.Assert(l, IsNil)
-}
-
 func (s *lkTestSuite) TestNewLk(c *C) {
-	bootloader.MockLkFiles(c, s.rootdir, nil)
+	// no files means bl is not present, but we can still create the bl object
 	l := bootloader.NewLk(s.rootdir, nil)
 	c.Assert(l, NotNil)
+	c.Assert(l.Name(), Equals, "lk")
+
+	present, err := l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockLkFiles(c, s.rootdir, nil)
+	present, err = l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, true)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
+	c.Check(bootloader.LkConfigFile(l), Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
 }
 
 func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
@@ -63,7 +69,7 @@ func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
 	l := bootloader.NewLk(s.rootdir, opts)
 	c.Assert(l, NotNil)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, false)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
+	c.Check(bootloader.LkConfigFile(l), Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
 }
 
 func (s *lkTestSuite) TestSetGetBootVar(c *C) {
@@ -132,7 +138,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	c.Assert(l, NotNil)
 
 	// first configure custom boot image file name
-	env := lkenv.NewEnv(l.ConfigFile())
+	env := lkenv.NewEnv(bootloader.LkConfigFile(l))
 	env.Load()
 	env.ConfigureBootimgName("boot-2.img")
 	err := env.Save()
@@ -227,7 +233,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// now remove the kernel
 	err = lk.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
-	// and ensure its no longer available in the boot partions
+	// and ensure its no longer available in the boot partitions
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
 	bootPart, err = lkenv.GetBootPartition("ubuntu-kernel_42.snap")

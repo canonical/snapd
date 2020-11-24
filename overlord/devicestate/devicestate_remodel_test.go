@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -1339,7 +1340,7 @@ volumes:
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
@@ -1351,7 +1352,7 @@ volumes:
 						Structure: []gadget.VolumeStructure{{
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
-							Size:       10 * gadget.SizeMiB,
+							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{Source: "foo-content", Target: "/"},
@@ -1359,7 +1360,7 @@ volumes:
 						}, {
 							Name: "bare-one",
 							Type: "bare",
-							Size: gadget.SizeMiB,
+							Size: quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
@@ -1377,7 +1378,7 @@ volumes:
 						Structure: []gadget.VolumeStructure{{
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
-							Size:       10 * gadget.SizeMiB,
+							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
 								{Source: "new-foo-content", Target: "/"},
@@ -1385,7 +1386,7 @@ volumes:
 						}, {
 							Name: "bare-one",
 							Type: "bare",
-							Size: gadget.SizeMiB,
+							Size: quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},
@@ -1485,7 +1486,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()

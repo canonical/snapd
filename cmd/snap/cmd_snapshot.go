@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -36,11 +38,13 @@ func fmtSize(size int64) string {
 }
 
 var (
-	shortSavedHelp   = i18n.G("List currently stored snapshots")
-	shortSaveHelp    = i18n.G("Save a snapshot of the current data")
-	shortForgetHelp  = i18n.G("Delete a snapshot")
-	shortCheckHelp   = i18n.G("Check a snapshot")
-	shortRestoreHelp = i18n.G("Restore a snapshot")
+	shortSavedHelp          = i18n.G("List currently stored snapshots")
+	shortSaveHelp           = i18n.G("Save a snapshot of the current data")
+	shortForgetHelp         = i18n.G("Delete a snapshot")
+	shortCheckHelp          = i18n.G("Check a snapshot")
+	shortRestoreHelp        = i18n.G("Restore a snapshot")
+	shortExportSnapshotHelp = i18n.G("Export a snapshot")
+	shortImportSnapshotHelp = i18n.G("Import a snapshot")
 )
 
 var longSavedHelp = i18n.G(`
@@ -98,6 +102,15 @@ configuration data from the restore is not currently possible. This
 restriction may be lifted in the future.
 `)
 
+var longExportSnapshotHelp = i18n.G(`
+Export a snapshot to the given filename.
+`)
+
+var longImportSnapshotHelp = i18n.G(`
+Import an exported snapshot set to the system. The snapshot is imported
+with a new snapshot ID and can be restored using the restore command.
+`)
+
 type savedCmd struct {
 	clientMixin
 	durationMixin
@@ -125,6 +138,7 @@ func (x *savedCmd) Execute([]string) error {
 		fmt.Fprintln(Stdout, i18n.G("No snapshots found."))
 		return nil
 	}
+
 	w := tabWriter()
 	defer w.Flush()
 
@@ -384,4 +398,126 @@ func init() {
 				desc: i18n.G("The snap for which data will be verified"),
 			},
 		})
+
+	addCommand("export-snapshot",
+		shortExportSnapshotHelp,
+		longExportSnapshotHelp,
+		func() flags.Commander {
+			return &exportSnapshotCmd{}
+		}, nil, []argDesc{
+			{
+				name: "<id>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("Set id of snapshot to export"),
+			},
+			{
+				// TRANSLATORS: This should retain < ... >. The file name is the name of an exported snapshot.
+				name: i18n.G("<filename>"),
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The filename of the export"),
+			},
+		})
+
+	addCommand("import-snapshot",
+		shortImportSnapshotHelp,
+		longImportSnapshotHelp,
+		func() flags.Commander {
+			return &importSnapshotCmd{}
+		}, nil, []argDesc{
+			{
+				name: "<filename>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("Name of the snapshot export file to use"),
+			},
+		})
+}
+
+type exportSnapshotCmd struct {
+	clientMixin
+	Positional struct {
+		ID       snapshotID `positional-arg-name:"<id>"`
+		Filename string     `long:"filename"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *exportSnapshotCmd) Execute([]string) (err error) {
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
+
+	r, expectedSize, err := x.client.SnapshotExport(setID)
+	if err != nil {
+		return err
+	}
+
+	filename := x.Positional.Filename
+	f, err := os.Create(filename + ".part")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	defer func() {
+		if err != nil {
+			os.Remove(filename + ".part")
+		}
+	}()
+
+	// Pre-allocate the disk space for the snapshot, if the file system supports this.
+	if err := maybeReserveDiskSpace(f, expectedSize); err != nil {
+		return fmt.Errorf(i18n.G("cannot reserve disk space for snapshot: %v"), err)
+	}
+
+	n, err := io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	if n != expectedSize {
+		return fmt.Errorf(i18n.G("unexpected size, got: %v but wanted %v"), n, expectedSize)
+	}
+
+	if err := os.Rename(filename+".part", filename); err != nil {
+		return err
+	}
+
+	// TRANSLATORS: the first argument is the identifier of the snapshot, the second one is the file name.
+	fmt.Fprintf(Stdout, i18n.G("Exported snapshot #%s into %q\n"), x.Positional.ID, x.Positional.Filename)
+	return nil
+}
+
+type importSnapshotCmd struct {
+	clientMixin
+	durationMixin
+	Positional struct {
+		Filename string `long:"filename"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *importSnapshotCmd) Execute([]string) error {
+	filename := x.Positional.Filename
+	f, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("error accessing file: %v", err)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("cannot stat file: %v", err)
+	}
+
+	importSet, err := x.client.SnapshotImport(f, st.Size())
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Imported snapshot as #%d\n"), importSet.ID)
+	// Now display the details about this snapshot, re-use the
+	// "snap saved" command for this which displays details about
+	// the snapshot.
+	y := &savedCmd{
+		clientMixin:   x.clientMixin,
+		durationMixin: x.durationMixin,
+		ID:            snapshotID(strconv.FormatUint(importSet.ID, 10)),
+	}
+	return y.Execute(nil)
 }

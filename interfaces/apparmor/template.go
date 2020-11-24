@@ -111,6 +111,8 @@ var templateCommon = `
 
   # for perl apps/services
   #include <abstractions/perl>
+  # Missing from perl abstraction
+  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
 
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
@@ -229,7 +231,7 @@ var templateCommon = `
   # example, allow access to /dev/std{in,out,err} which are all symlinks to
   # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
   # linkat() temporary file technique, allow all fds. Importantly, access to
-  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # another task's fd via this proc interface is mediated via 'ptrace (read)'
   # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
   # this rule by itself doesn't allow opening another snap's fds via proc.
   owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
@@ -276,8 +278,12 @@ var templateCommon = `
   # unprivilged, dedicated user).
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
-  /sys/fs/cgroup/memory/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
+  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
+  /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
+  /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.shares r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -307,6 +313,9 @@ var templateCommon = `
 
   # Read-only of this snap
   /var/lib/snapd/snaps/@{SNAP_NAME}_*.snap r,
+
+  # Read-only of snapd restart state for snapctl specifically
+  /var/lib/snapd/maintenance.json r,
 
   # Read-only for the install directory
   # bind mount used here (see 'parallel installs', above)
@@ -1016,6 +1025,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Commonly needed permissions for writable mimics.
   /tmp/ r,
   /tmp/.snap/{,**} rw,
+
+  # snapd logger.go checks /proc/cmdline
+  @{PROC}/cmdline r,
 
 ###SNIPPETS###
 }

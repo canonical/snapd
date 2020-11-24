@@ -52,20 +52,20 @@ func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
-			StoreSigning: s.storeSigning,
-			Brands:       s.brands,
+			StoreSigning: s.StoreSigning,
+			Brands:       s.Brands,
 		},
 		SeedDir: dirs.SnapSeedDir,
 	}
 
 	restore = seed.MockTrusted(seed20.StoreSigning.Trusted)
 
-	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
+	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 	// add essential snaps
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
@@ -310,7 +310,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	model := s.brands.Model("my-brand", "pc", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
@@ -427,8 +427,8 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		// devicemgr needs boot id to request a reboot
 		st.VerifyReboot("boot-id-0")
 		// device model
-		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-		assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 		s.mockModel(c, st, model)
 		if tc.currentMode == "run" {
 			// only set in run mode
@@ -487,7 +487,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.restartSystem, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
+				c.Check(d.requestedRestart, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
@@ -573,4 +573,101 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 		"status-code": 401.0,
 		"type":        "error",
 	})
+}
+
+func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
+	restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		c.Fatalf("request reboot should not get called")
+		return nil
+	})
+	defer restore()
+
+	body := `{"action":"reboot"}`
+	url := "/v2/systems"
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 401)
+}
+
+func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		systemLabel, mode string
+	}{
+		{"", ""},
+		{"20200101", ""},
+		{"", "run"},
+		{"", "recover"},
+		{"20200101", "run"},
+		{"20200101", "recover"},
+	} {
+		called := 0
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+			called++
+			c.Check(dm, check.NotNil)
+			c.Check(systemLabel, check.Equals, tc.systemLabel)
+			c.Check(mode, check.Equals, tc.mode)
+			return nil
+		})
+		defer restore()
+
+		body := fmt.Sprintf(`{"action":"reboot", "mode":"%s"}`, tc.mode)
+		url := "/v2/systems"
+		if tc.systemLabel != "" {
+			url += "/" + tc.systemLabel
+		}
+		s.vars = map[string]string{"label": tc.systemLabel}
+		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+		rec := httptest.NewRecorder()
+		systemsActionCmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 200)
+		c.Check(called, check.Equals, 1)
+	}
+}
+
+func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		rebootErr        error
+		expectedHttpCode int
+		expectedErr      string
+	}{
+		{fmt.Errorf("boom"), 500, "boom"},
+		{os.ErrNotExist, 404, `requested seed system "" does not exist`},
+		{devicestate.ErrUnsupportedAction, 400, `requested action is not supported by system ""`},
+	} {
+		called := 0
+		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+			called++
+			return tc.rebootErr
+		})
+		defer restore()
+
+		body := fmt.Sprintf(`{"action":"reboot"}`)
+		url := "/v2/systems"
+		req, err := http.NewRequest("POST", url, strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		req.RemoteAddr = "pid=100;uid=0;socket=;"
+
+		rec := httptest.NewRecorder()
+		systemsActionCmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, tc.expectedHttpCode)
+		c.Check(called, check.Equals, 1)
+
+		var rspBody map[string]interface{}
+		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+		c.Check(err, check.IsNil)
+		c.Check(rspBody["status-code"], check.Equals, float64(tc.expectedHttpCode))
+		result := rspBody["result"].(map[string]interface{})
+		c.Check(result["message"], check.Equals, tc.expectedErr)
+	}
 }

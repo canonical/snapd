@@ -41,16 +41,21 @@ type ubootTestSuite struct {
 
 var _ = Suite(&ubootTestSuite{})
 
-func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := bootloader.NewUboot(s.rootdir, nil)
-	c.Assert(u, IsNil)
-}
-
 func (s *ubootTestSuite) TestNewUboot(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	// no files means bl is not present, but we can still create the bl object
 	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, "uboot")
+
+	present, err := u.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	present, err = u.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 }
 
 func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
@@ -84,7 +89,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
 
-	envFile := u.ConfigFile()
+	envFile := bootloader.UbootConfigFile(u)
 	env, err := ubootenv.Create(envFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
@@ -234,17 +239,17 @@ func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 			"traditional uboot.env",
 		},
 		{
-			&bootloader.Options{NoSlashBoot: true},
+			&bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			"/uboot/ubuntu/boot.sel",
 			"uc20 install mode boot.sel",
 		},
 		{
-			&bootloader.Options{ExtractedRunKernelImage: true},
+			&bootloader.Options{Role: bootloader.RoleRunMode},
 			"/boot/uboot/boot.sel",
 			"uc20 run mode boot.sel",
 		},
 		{
-			&bootloader.Options{Recovery: true},
+			&bootloader.Options{Role: bootloader.RoleRecovery},
 			"/uboot/ubuntu/boot.sel",
 			"uc20 recovery boot.sel",
 		},
@@ -255,7 +260,7 @@ func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 		bootloader.MockUbootFiles(c, dir, t.blOpts)
 		u := bootloader.NewUboot(dir, t.blOpts)
 		c.Assert(u, NotNil, Commentf(t.comment))
-		c.Assert(u.ConfigFile(), Equals, filepath.Join(dir, t.expEnv), Commentf(t.comment))
+		c.Assert(bootloader.UbootConfigFile(u), Equals, filepath.Join(dir, t.expEnv), Commentf(t.comment))
 
 		// if we set boot vars on the uboot, we can open the config file and
 		// get the same variables

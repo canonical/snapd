@@ -41,6 +41,10 @@ func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	return d
 }
 
+func (d *Daemon) Overlord() *overlord.Overlord {
+	return d.overlord
+}
+
 func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 	old := muxVars
 	muxVars = vars
@@ -65,7 +69,7 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	}
 }
 
-func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
+func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl
 	servicestateControl = f
 	return func() {

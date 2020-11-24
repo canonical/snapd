@@ -75,3 +75,10 @@ execute: |
     cloud_region=$(get_conf region)
     snap_cloud_region=$(snap get core cloud.region)
     test "$cloud_region" = "$snap_cloud_region"
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+        # TODO: is there a race here with snapd restricting cloud-init and us
+        # checking that it was restricted?
+        echo "Test that cloud-init restrict file was written"
+        test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
+    fi

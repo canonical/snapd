@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -45,6 +46,10 @@ func (s *servicesSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	// mock an empty cmdline since we check the cmdline to check whether we are
+	// in install mode or not and we don't want to use the host's proc/cmdline
+	s.AddCleanup(osutil.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
@@ -94,7 +99,6 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
-		{"console-conf", "getty@*"},
 	} {
 		s.systemctlArgs = nil
 
@@ -115,16 +119,6 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
 			})
-		case "console-conf":
-			consoleConfCanary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-			_, err := os.Stat(consoleConfCanary)
-			c.Assert(err, IsNil)
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"restart", srv, "--all"},
-				{"restart", "serial-getty@*", "--all"},
-				{"restart", "serial-console-conf@*", "--all"},
-				{"restart", "console-conf@*", "--all"},
-			})
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "disable", srv},
@@ -136,7 +130,37 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	}
 }
 
-func (s *servicesSuite) TestConfigureConsoleConfEnableIntegration(c *C) {
+func (s *servicesSuite) TestConfigureConsoleConfDisableFSOnly(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"service.console-conf.disable": true,
+	})
+
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+
+	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
+	c.Check(consoleConfDisabled, testutil.FileEquals, "console-conf has been disabled by the snapd system configuration\n")
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnabledFSOnly(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"service.console-conf.disable": false,
+	})
+
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+
+	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
+	c.Check(consoleConfDisabled, testutil.FileAbsent)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -154,19 +178,27 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableIntegration(c *C) {
 			"service.console-conf.disable": false,
 		},
 	})
-	c.Assert(err, IsNil)
-	// ensure it got fully enabled
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"restart", "getty@*", "--all"},
-		{"restart", "serial-getty@*", "--all"},
-		{"restart", "serial-console-conf@*", "--all"},
-		{"restart", "console-conf@*", "--all"},
-	})
-	// and that the canary file is no longer there
-	c.Assert(canary, testutil.FileAbsent)
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
 }
 
-func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabled(c *C) {
+func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// console-conf is not disabled, i.e. there is no
+	// "/var/lib/console-conf/complete" file
+
+	// now try to enable it
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -180,8 +212,46 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabled(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	// because it was not enabled before no need to restart anything
-	c.Check(s.systemctlArgs, HasLen, 0)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// pretend that console-conf is disabled
+	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
+	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	// no error because we are in install mode
+	c.Assert(err, IsNil)
 }
 
 func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {

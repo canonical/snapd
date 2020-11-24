@@ -10,20 +10,15 @@ debug: |
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "When the service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
 
     echo "When it is re-installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can still see it running with the same PID"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid
@@ -33,4 +28,4 @@ execute: |
     echo "Once the snap is removed, the service is stopped"
     snap remove --purge test-snapd-service
     # shellcheck disable=SC2119
-    get_journalctl_log | MATCH "stop endure"
+    "$TESTSTOOLS"/journal-state get-log | MATCH "stop endure"

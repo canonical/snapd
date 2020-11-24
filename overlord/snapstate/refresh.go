@@ -21,33 +21,29 @@ package snapstate
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-var (
-	pidsCgroupDir = cgroup.ControllerPathV1("pids")
-)
+// pidsOfSnap is a mockable version of PidsOfSnap
+var pidsOfSnap = cgroup.PidsOfSnap
 
-func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-	// Grab per-snap lock to prevent new processes from starting. This is
-	// sufficient to perform the check, even though individual processes
-	// may fork or exit, we will have per-security-tag information about
-	// what is running.
-	lock, err := snaplock.OpenLock(info.SnapName())
+var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	knownPids, err := pidsOfSnap(info.InstanceName())
 	if err != nil {
 		return err
 	}
-	// Closing the lock also unlocks it, if locked.
-	defer lock.Close()
-	if err := lock.Lock(); err != nil {
-		return err
-	}
 
+	// Due to specific of the interaction with locking, all locking is performed by the caller.
 	var busyAppNames []string
 	var busyHookNames []string
 	var busyPIDs []int
@@ -63,11 +59,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
 			busyAppNames = append(busyAppNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -77,11 +69,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
 			busyHookNames = append(busyHookNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -93,7 +81,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	sort.Strings(busyHookNames)
 	sort.Ints(busyPIDs)
 	return &BusySnapError{
-		SnapName:      info.SnapName(),
+		SnapInfo:      info,
 		busyAppNames:  busyAppNames,
 		busyHookNames: busyHookNames,
 		pids:          busyPIDs,
@@ -137,10 +125,33 @@ func HardNothingRunningRefreshCheck(info *snap.Info) error {
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
 type BusySnapError struct {
-	SnapName      string
+	SnapInfo      *snap.Info
 	pids          []int
 	busyAppNames  []string
 	busyHookNames []string
+}
+
+// PendingSnapRefreshInfo computes information necessary to perform user notification
+// of postponed refresh of a snap, based on the information about snap "business".
+//
+// The returned value contains the instance name of the snap as well as, if possible,
+// information relevant for desktop notification services, such as application name
+// and the snapd-generated desktop file name.
+func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefreshInfo {
+	refreshInfo := &userclient.PendingSnapRefreshInfo{
+		InstanceName: err.SnapInfo.InstanceName(),
+	}
+	for _, appName := range err.busyAppNames {
+		if app, ok := err.SnapInfo.Apps[appName]; ok {
+			path := app.DesktopFile()
+			if osutil.FileExists(path) {
+				refreshInfo.BusyAppName = appName
+				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
+				break
+			}
+		}
+	}
+	return refreshInfo
 }
 
 // Error formats an error string describing what is running.
@@ -148,15 +159,15 @@ func (err *BusySnapError) Error() string {
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.SnapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
 	case len(err.busyAppNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.SnapName, strings.Join(err.busyAppNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "))
 	case len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.SnapName, strings.Join(err.busyHookNames, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "))
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapName)
+		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapInfo.InstanceName())
 	}
 }
 
@@ -170,4 +181,51 @@ func (err *BusySnapError) Error() string {
 // refresh scenario.
 func (err BusySnapError) Pids() []int {
 	return err.pids
+}
+
+// hardEnsureNothingRunningDuringRefresh performs the complete hard refresh interaction.
+//
+// This check uses HardNothingRunningRefreshCheck along with interaction with
+// two locks - the snap lock, shared by snap-confine and snapd and the snap run
+// inhibition lock, shared by snapd and snap run.
+//
+// On success this function returns a locked snap lock, allowing the caller to
+// atomically, with regards to "snap-confine", finish any action that required
+// the apps and hooks not to be running. In addition, the persistent run
+// inhibition lock is established, forcing snap-run to pause and postpone
+// startup of applications from the given snap.
+//
+// In practice, we either inhibit app startup and refresh the snap _or_ inhibit
+// the refresh change and continue running existing app processes.
+func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, info *snap.Info) (*osutil.FileLock, error) {
+	return backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
+		// In case of successful refresh inhibition the snap state is modified
+		// to indicate when the refresh was first inhibited. If the first
+		// refresh inhibition is outside of a grace period then refresh
+		// proceeds regardless of the existing processes.
+		return inhibitRefresh(st, snapst, info, HardNothingRunningRefreshCheck)
+	})
+}
+
+// softCheckNothingRunningForRefresh checks if non-service apps are off for a snap refresh.
+//
+// The details of the check are explained by SoftNothingRunningRefreshCheck.
+// The check is performed while holding the snap lock, which ensures that we
+// are not racing with snap-confine, which is starting a new process in the
+// context of the given snap.
+//
+// In the case that the check fails, the state is modified to reflect when the
+// refresh was first postponed. Eventually the check does not fail, even if
+// non-service apps are running, because this mechanism only allows postponing
+// refreshes for a bounded amount of time.
+func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
+	// Grab per-snap lock to prevent new processes from starting. This is
+	// sufficient to perform the check, even though individual processes may
+	// fork or exit, we will have per-security-tag information about what is
+	// running.
+	return backend.WithSnapLock(info, func() error {
+		// Perform the soft refresh viability check, possibly writing to the state
+		// on failure.
+		return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
+	})
 }

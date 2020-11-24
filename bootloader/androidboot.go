@@ -33,11 +33,8 @@ type androidboot struct {
 }
 
 // newAndroidboot creates a new Androidboot bootloader object
-func newAndroidBoot(rootdir string) Bootloader {
+func newAndroidBoot(rootdir string, _ *Options) Bootloader {
 	a := &androidboot{rootdir: rootdir}
-	if !osutil.FileExists(a.ConfigFile()) {
-		return nil
-	}
 	return a
 }
 
@@ -56,18 +53,22 @@ func (a *androidboot) dir() string {
 	return filepath.Join(a.rootdir, "/boot/androidboot")
 }
 
-func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, a.Name()+".conf")
-	systemFile := a.ConfigFile()
+	systemFile := a.configFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (a *androidboot) ConfigFile() string {
+func (a *androidboot) Present() (bool, error) {
+	return osutil.FileExists(a.configFile()), nil
+}
+
+func (a *androidboot) configFile() string {
 	return filepath.Join(a.dir(), "androidboot.env")
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
-	env := androidbootenv.NewEnv(a.ConfigFile())
+	env := androidbootenv.NewEnv(a.configFile())
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (a *androidboot) SetBootVars(values map[string]string) error {
-	env := androidbootenv.NewEnv(a.ConfigFile())
+	env := androidbootenv.NewEnv(a.configFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}

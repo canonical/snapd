@@ -24,12 +24,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -71,9 +75,22 @@ type fakeOp struct {
 	disabledServices []string
 
 	vitalityRank int
+
+	inhibitHint runinhibit.Hint
 }
 
 type fakeOps []fakeOp
+
+func (ops fakeOps) MustFindOp(c *C, opName string) *fakeOp {
+	for _, op := range ops {
+		if op.op == opName {
+			return &op
+		}
+	}
+	c.Errorf("cannot find operation with op: %q, all ops: %v", opName, ops.Ops())
+	c.FailNow()
+	return nil
+}
 
 func (ops fakeOps) Ops() []string {
 	opsOps := make([]string, len(ops))
@@ -200,7 +217,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "core18":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -231,6 +248,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		Confinement: confinement,
 		SnapType:    typ,
@@ -659,6 +677,8 @@ type fakeSnappyBackend struct {
 	emptyContainer          snap.Container
 
 	servicesCurrentlyDisabled []string
+
+	lockDir string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -865,10 +885,6 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		path: info.MountDir(),
 	}
 
-	// only add the services to the op if there's something to add
-	if len(linkCtx.PrevDisabledServices) != 0 {
-		op.disabledServices = linkCtx.PrevDisabledServices
-	}
 	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -897,16 +913,21 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
 	}
-	f.appendOp(&fakeOp{
+	op := fakeOp{
 		op:       "start-snap-services",
 		path:     svcSnapMountDir(svcs),
 		services: services,
-	})
+	}
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+	f.appendOp(&op)
 	return nil
 }
 
@@ -1044,6 +1065,14 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-inhibit-lock",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
@@ -1105,6 +1134,22 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 		name: snapName,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
+	f.appendOp(&fakeOp{
+		op:          "run-inhibit-snap-for-unlink",
+		name:        info.InstanceName(),
+		inhibitHint: hint,
+	})
+	if err := decision(); err != nil {
+		return nil, err
+	}
+	if f.lockDir == "" {
+		f.lockDir = os.TempDir()
+	}
+	// XXX: returning a real lock is somewhat annoying
+	return osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
 }
 
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {

@@ -13,9 +13,7 @@ environment:
     CONFIG: "$HOME/.gnupg/gpg.conf"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     if [ -d "$KEYSDIR" ]; then
         cp -rf "$KEYSDIR" "$KEYSDIR".old

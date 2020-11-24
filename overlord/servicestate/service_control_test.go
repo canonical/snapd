@@ -23,6 +23,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +60,9 @@ version: 1.0
 apps:
   someapp:
     command: cmd
+  abc:
+    daemon: simple
+    after: [bar]
   foo:
     daemon: simple
   bar:
@@ -113,18 +118,40 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	return info
 }
 
-func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction string, expectedServices ...string) {
+func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string, expectedServices ...string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
+
+	// group service names by snaps
+	bySnap := make(map[string][]string)
+	for _, name := range expectedServices {
+		// split service name, e.g. snap.test-snap.foo.service
+		parts := strings.Split(name, ".")
+		c.Assert(parts, HasLen, 4)
+		snapName := parts[1]
+		serviceName := parts[2]
+		bySnap[snapName] = append(bySnap[snapName], serviceName)
+	}
+
+	var execCommandTasks int
+	var serviceControlTasks int
+	// snaps from service-control tasks
+	seenSnaps := make(map[string]bool)
+
 	var i int
 	for i < len(tasks) {
 		var argv []string
-		if tasks[i].Kind() == "exec-command" {
+		kind := tasks[i].Kind()
+		if kind == "exec-command" {
+			execCommandTasks++
+			var ignore bool
+			c.Assert(tasks[i].Get("ignore", &ignore), IsNil)
+			c.Check(ignore, Equals, true)
 			switch expectedAction {
 			case "start":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", actionModifier}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -133,9 +160,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "start"}, expectedServices...))
 			case "stop":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", actionModifier}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -144,7 +171,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "stop"}, expectedServices...))
 			case "restart":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
 					c.Check(argv, DeepEquals, append([]string{"systemctl", "reload-or-restart"}, expectedServices...))
 				} else {
@@ -154,10 +181,48 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 			default:
 				c.Fatalf("unhandled action %s", expectedAction)
 			}
+		} else if kind == "service-control" {
+			serviceControlTasks++
+			var sa servicestate.ServiceAction
+			c.Assert(tasks[i].Get("service-action", &sa), IsNil)
+			switch expectedAction {
+			case "start":
+				c.Check(sa.Action, Equals, "start")
+				if actionModifier != "" {
+					c.Check(sa.ActionModifier, Equals, actionModifier)
+				}
+			case "stop":
+				c.Check(sa.Action, Equals, "stop")
+				if actionModifier != "" {
+					c.Check(sa.ActionModifier, Equals, actionModifier)
+				}
+			case "restart":
+				if actionModifier == "reload" {
+					c.Check(sa.Action, Equals, "reload-or-restart")
+				} else {
+					c.Check(sa.Action, Equals, "restart")
+				}
+			default:
+				c.Fatalf("unhandled action %s", expectedAction)
+			}
+			seenSnaps[sa.SnapName] = true
+			obtainedServices := sa.Services
+			sort.Strings(obtainedServices)
+			sort.Strings(bySnap[sa.SnapName])
+			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
 		i++
+	}
+
+	c.Check(execCommandTasks > 0, Equals, true)
+
+	// we should have one service-control task for every snap
+	c.Assert(serviceControlTasks, Equals, len(bySnap))
+	c.Assert(len(bySnap), Equals, len(seenSnaps))
+	for snapName := range bySnap {
+		c.Assert(seenSnaps[snapName], Equals, true)
 	}
 }
 
@@ -167,9 +232,9 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 		c.Assert(info.Apps[name], NotNil)
 		apps = append(apps, info.Apps[name])
 	}
-	st.Unlock()
-	tss, err := servicestate.Control(st, apps, inst, nil)
-	st.Lock()
+
+	flags := &servicestate.Flags{CreateExecCommandTasks: true}
+	tss, err := servicestate.Control(st, apps, inst, flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("service-control", "...")
@@ -179,9 +244,30 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	return chg
 }
 
+func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasksIfNoFlags(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	info := s.mockTestSnap(c)
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"foo"},
+	}
+
+	flags := &servicestate.Flags{}
+	tss, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, flags, nil)
+	c.Assert(err, IsNil)
+	// service-control is the only task
+	c.Assert(tss, HasLen, 1)
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "service-control")
+}
+
 func (s *serviceControlSuite) TestControlConflict(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	inf := s.mockTestSnap(c)
 
@@ -191,10 +277,9 @@ func (s *serviceControlSuite) TestControlConflict(c *C) {
 	t.Set("snap-setup", snapsup)
 	chg := st.NewChange("manip", "...")
 	chg.AddTask(t)
-	st.Unlock()
 
 	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
-	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil)
+	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil, nil)
 	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
 }
 
@@ -302,13 +387,14 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	info := s.mockTestSnap(c)
 	inst := &servicestate.Instruction{
 		Action:         "boo",
 		Names:          []string{"foo"},
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
-	_, err := servicestate.Control(st, []*snap.AppInfo{}, inst, nil)
+	_, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, nil)
 	c.Assert(err, ErrorMatches, `unknown action "boo"`)
 }
 
@@ -467,10 +553,9 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.abc.service"},
 	})
 }
 
@@ -497,7 +582,6 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -526,7 +610,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -554,10 +638,12 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
+		{"enable", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.bar.service"},
+		{"enable", "snap.test-snap.abc.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.abc.service"},
 	})
 }
 
@@ -615,7 +701,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snap.test-snap.foo.service"},
+		{"disable", "snap.test-snap.foo.service"},
 	})
 }
 
@@ -648,6 +734,41 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 	})
 }
 
+func (s *serviceControlSuite) TestRestartAllServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "restart",
+		Services: []string{"abc", "foo", "bar"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"stop", "snap.test-snap.foo.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.foo.service"},
+		{"stop", "snap.test-snap.bar.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.bar.service"},
+		{"stop", "snap.test-snap.abc.service"},
+		{"show", "--property=ActiveState", "snap.test-snap.abc.service"},
+		{"start", "snap.test-snap.abc.service"},
+	})
+}
+
 func (s *serviceControlSuite) TestReloadServices(c *C) {
 	st := s.state
 	st.Lock()
@@ -672,6 +793,35 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"reload-or-restart", "snap.test-snap.foo.service"},
+	})
+}
+
+func (s *serviceControlSuite) TestReloadAllServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "reload-or-restart",
+		Services: []string{"foo", "abc", "bar"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "snap.test-snap.foo.service"},
+		{"reload-or-restart", "snap.test-snap.bar.service"},
+		{"reload-or-restart", "snap.test-snap.abc.service"},
 	})
 }
 

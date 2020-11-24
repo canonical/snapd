@@ -32,19 +32,19 @@ import (
 
 // creates a new Androidboot bootloader object
 func NewAndroidBoot(rootdir string) Bootloader {
-	return newAndroidBoot(rootdir)
+	return newAndroidBoot(rootdir, nil)
 }
 
 func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	f := &androidboot{rootdir: rootdir}
 	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
+	err = ioutil.WriteFile(f.configFile(), nil, mode)
 	c.Assert(err, IsNil)
 }
 
 func NewUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
-	return newUboot(rootdir, blOpts)
+	return newUboot(rootdir, blOpts).(ExtractedRecoveryKernelImageBootloader)
 }
 
 func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
@@ -62,7 +62,7 @@ func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 }
 
 func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
-	return newGrub(rootdir, opts)
+	return newGrub(rootdir, opts).(RecoveryAwareBootloader)
 }
 
 func MockGrubFiles(c *C, rootdir string) {
@@ -77,6 +77,16 @@ func NewLk(rootdir string, opts *Options) Bootloader {
 		opts = &Options{}
 	}
 	return newLk(rootdir, opts)
+}
+
+func LkConfigFile(b Bootloader) string {
+	lk := b.(*lk)
+	return lk.envFile()
+}
+
+func UbootConfigFile(b Bootloader) string {
+	u := b.(*uboot)
+	return u.envFile()
 }
 
 func MockLkFiles(c *C, rootdir string, opts *Options) {
@@ -103,8 +113,17 @@ func LkRuntimeMode(b Bootloader) bool {
 	return lk.inRuntimeMode
 }
 
+func MockAddBootloaderToFind(blConstructor func(string, *Options) Bootloader) (restore func()) {
+	oldLen := len(bootloaders)
+	bootloaders = append(bootloaders, blConstructor)
+	return func() {
+		bootloaders = bootloaders[:oldLen]
+	}
+}
+
 var (
-	EditionFromDiskConfigAsset = editionFromDiskConfigAsset
-	EditionFromConfigAsset     = editionFromConfigAsset
-	ConfigAssetFrom            = configAssetFrom
+	EditionFromDiskConfigAsset           = editionFromDiskConfigAsset
+	EditionFromConfigAsset               = editionFromConfigAsset
+	ConfigAssetFrom                      = configAssetFrom
+	StaticCommandLineForGrubAssetEdition = staticCommandLineForGrubAssetEdition
 )

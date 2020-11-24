@@ -80,8 +80,24 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
-func KeypairManager(m *DeviceManager) asserts.KeypairManager {
-	return m.keypairMgr
+func KeypairManager(m *DeviceManager) (keypairMgr asserts.KeypairManager) {
+	// XXX expose the with... method at some point
+	err := m.withKeypairMgr(func(km asserts.KeypairManager) error {
+		keypairMgr = km
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return keypairMgr
+}
+
+func SaveAvailable(m *DeviceManager) bool {
+	return m.saveAvailable
+}
+
+func SetSaveAvailable(m *DeviceManager, avail bool) {
+	m.saveAvailable = avail
 }
 
 func EnsureOperationalShouldBackoff(m *DeviceManager, now time.Time) bool {
@@ -98,6 +114,10 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 
 func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
+}
+
+func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
+	return m.setTimeOnce(name, t)
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -152,6 +172,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func StartTime() time.Time {
+	return startTime
+}
+
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
@@ -190,9 +214,11 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
+
+	CheckEncryption = checkEncryption
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -208,7 +234,7 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	old := bootMakeBootable
 	bootMakeBootable = f
 	return func() {
@@ -232,15 +258,15 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureRunSystem
-	sysconfigConfigureRunSystem = f
+func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
 	return func() {
-		sysconfigConfigureRunSystem = old
+		sysconfigConfigureTargetSystem = old
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -262,4 +288,8 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	return func() {
 		restrictCloudInit = old
 	}
+}
+
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
+	return mgr.hasFDESetupHook()
 }

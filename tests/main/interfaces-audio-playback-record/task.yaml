@@ -2,7 +2,7 @@ summary: Ensure that the audio-playback/record interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend tests.session and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"
@@ -71,6 +71,21 @@ prepare: |
     test -e ~test/.config/pulse/cookie || test -e ~test/.config/pulse/.pulse-cookie
     tests.cleanup defer rm -rf ~test/.config/pulse
 
+    # enable debug logging in pulseaudio
+    cp /etc/pulse/daemon.conf /etc/pulse/daemon.conf.backup
+    echo 'log-level = debug' >> /etc/pulse/daemon.conf
+    tests.cleanup defer mv /etc/pulse/daemon.conf.backup /etc/pulse/daemon.conf
+
+    # disable start limit checking for pulseaudio service
+    mkdir -p /etc/systemd/user/pulseaudio.service.d
+    cat <<-EOF > /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+    EOF
+    tests.cleanup defer rm /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
+    # reload user's systemd instance
+    tests.session -u test exec systemctl daemon-reload --user
+
 debug: |
     echo "Files present in the test user's home directory"
     test -d /home/test && find /home/test
@@ -80,6 +95,8 @@ debug: |
     test -d /home/user/12345 && find /run/user/12345
     echo "Processes running as the test user"
     ps -u test
+    echo "Pulseaudio log"
+    tests.session -u test exec journalctl --user -u pulseaudio.service || true
 
 restore: |
     tests.cleanup restore

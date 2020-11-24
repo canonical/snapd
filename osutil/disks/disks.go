@@ -28,16 +28,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
 var (
-	// for mocking in tests
-	devBlockDir = "/sys/dev/block"
-
 	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
 	// sysfs entry for a luks2 device mapper volume dynamically created by
 	// systemd-cryptsetup when unlocking
@@ -50,7 +49,7 @@ var (
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
-// MockMountPointDisksToPartionMapping, but we can't just assign
+// MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
 // the former returns a *disk, the latter returns a Disk, and as such they can't
 // be assigned to each other
@@ -67,17 +66,25 @@ type Options struct {
 }
 
 // Disk is a single physical disk device that contains partitions.
+// TODO:UC20: add function to get some properties like an associated /dev node
+//            for a disk for better user error reporting, i.e. /dev/vda3 is much
+//            more helpful than 252:3
 type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition
 	// matching the specified filesystem label on the disk. Note that for
 	// non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
+	// If the filesystem label was not found on the disk, and no other errors
+	// were encountered, a FilesystemLabelNotFoundError will be returned.
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
 	// and mountpoints found when the disk was identified with
 	// DiskFromMountPoint.
+	// TODO:UC20: make this function return what a Disk of where the mount point
+	//            is actually from if it is not from the same disk for better
+	//            error reporting
 	MountPointIsFromDisk(string, *Options) (bool, error)
 
 	// Dev returns the string "major:minor" number for the disk device.
@@ -136,6 +143,47 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	}
 
 	return m, scanner.Err()
+}
+
+// DiskFromDeviceName finds a matching Disk using the specified name, such as
+// vda, or mmcblk0, etc.
+func DiskFromDeviceName(deviceName string) (Disk, error) {
+	return diskFromDeviceName(deviceName)
+}
+
+// diskFromDeviceName is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	// query for the disk props using udev
+	props, err := udevProperties(deviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	major, err := strconv.Atoi(props["MAJOR"])
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+	}
+	minor, err := strconv.Atoi(props["MINOR"])
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+	}
+
+	// ensure that the device has DEVTYPE=disk, if not then we were not given a
+	// disk name
+	devType := props["DEVTYPE"]
+	if devType != "disk" {
+		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceName, devType)
+	}
+
+	// TODO: should we try to introspect the device more to find out if it has
+	// partitions? we don't currently need that information for how we use
+	// DiskFromName but it might be useful eventually
+
+	return &disk{
+		major: major,
+		minor: minor,
+	}, nil
 }
 
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
@@ -225,12 +273,14 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            be missing from the initrd previously, and are not
 		//            available at all during userspace on UC20 for some reason
 		errFmt := "mountpoint source %s is not a decrypted device: could not read device mapper metadata: %v"
-		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
+
+		dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", d.Dev(), "dm")
+		dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
 
-		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
+		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
@@ -309,64 +359,107 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
+// FilesystemLabelNotFoundError is an error where the specified label was not
+// found on the disk.
+type FilesystemLabelNotFoundError struct {
+	Label string
+}
+
+var (
+	_ = error(FilesystemLabelNotFoundError{})
+)
+
+func (e FilesystemLabelNotFoundError) Error() string {
+	return fmt.Sprintf("filesystem label %q not found", e.Label)
+}
+
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	encodedLabel := BlkIDEncodeLabel(label)
 	// if we haven't found the partitions for this disk yet, do that now
 	if d.fsLabelToPartUUID == nil {
 		d.fsLabelToPartUUID = make(map[string]string)
-		// step 1. find all devices with a matching major number
-		// step 2. start at the major + minor device for the disk, and iterate over
-		//         all devices that have a partition attribute, starting with the
-		//         device with major same as disk and minor equal to disk minor + 1
-		// step 3. if we hit a device that does not have a partition attribute, then
-		//         we hit another disk, and shall stop searching
 
-		// note that this code assumes that all contiguous major / minor devices
-		// belong to the same physical device, even with MBR and
-		// logical/extended partition nodes jumping to i.e. /dev/sd*5
+		// step 1. find the devpath for the disk, then glob for matching
+		//         devices using the devname in that sysfs directory
+		// step 2. iterate over all those devices and save all the ones that are
+		//         partitions using the partition sysfs file
+		// step 3. for all partition devices found, query udev to get the fs
+		//         label and partition uuid
 
-		// start with the minor + 1, since the major + minor of the disk we have
-		// itself is not a partition
-		currentMinor := d.minor
-		for {
-			currentMinor++
-			partMajMin := fmt.Sprintf("%d:%d", d.major, currentMinor)
-			props, err := udevProperties(filepath.Join("/dev/block", partMajMin))
-			if err != nil && strings.Contains(err.Error(), "Unknown device") {
-				// the device doesn't exist, we hit the end of the disk
-				break
-			} else if err != nil {
-				// some other error trying to get udev properties, we should fail
-				return "", fmt.Errorf("cannot get udev properties for partition %s: %v", partMajMin, err)
+		udevProps, err := udevProperties(filepath.Join("/dev/block", d.Dev()))
+		if err != nil {
+			return "", err
+		}
+
+		// get the base device name
+		devName := udevProps["DEVNAME"]
+		if devName == "" {
+			return "", fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVNAME\"", d.Dev())
+		}
+		// the DEVNAME as returned by udev includes the /dev/mmcblk0 path, we
+		// just want mmcblk0 for example
+		devName = filepath.Base(devName)
+
+		// get the device path in sysfs
+		devPath := udevProps["DEVPATH"]
+		if devPath == "" {
+			return "", fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVPATH\"", d.Dev())
+		}
+
+		// glob for /sys/${devPath}/${devName}*
+		paths, err := filepath.Glob(filepath.Join(dirs.SysfsDir, devPath, devName+"*"))
+		if err != nil {
+			return "", fmt.Errorf("internal error getting udev properties for device %s: %v", err, d.Dev())
+		}
+
+		// Glob does not sort, so sort manually to have consistent tests
+		sort.Strings(paths)
+
+		for _, path := range paths {
+			// check if this device is a partition - note that the mere
+			// existence of this file is sufficient to indicate that it is a
+			// partition, the file is the partition number of the device, it
+			// will be absent for pseudo sub-devices, such as the
+			// /dev/mmcblk0boot0 disk device on the dragonboard which exists
+			// under the /dev/mmcblk0 disk, but is not a partition and is
+			// instead a proper disk
+			_, err := ioutil.ReadFile(filepath.Join(path, "partition"))
+			if err != nil {
+				continue
 			}
 
-			if props["DEVTYPE"] != "partition" {
-				// we ran into another disk, break out
-				break
+			// then the device is a partition, get the udev props for it
+			partDev := filepath.Base(path)
+			udevProps, err := udevProperties(partDev)
+			if err != nil {
+				continue
+			}
+
+			partUUID := udevProps["ID_PART_ENTRY_UUID"]
+			if partUUID == "" {
+				return "", fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+			}
+
+			fsLabelEnc := udevProps["ID_FS_LABEL_ENC"]
+			if fsLabelEnc == "" {
+				// it is valid for there to be a partition without a fs
+				// label - such as the bios-boot partition on amd64 pc
+				// gadget systems
+				// in this case just skip this, since we are only matching
+				// by filesystem labels, obviously we cannot ever match to
+				// a partition which does not have a filesystem
+				continue
 			}
 
 			// TODO: maybe save ID_PART_ENTRY_NAME here too, which is the name
 			//       of the partition. this may be useful if this function gets
 			//       used in the gadget update code
-			fsLabelEnc := props["ID_FS_LABEL_ENC"]
-			if fsLabelEnc == "" {
-				// this partition does not have a filesystem, and thus doesn't
-				// have a filesystem label - this is not fatal, i.e. the
-				// bios-boot partition does not have a filesystem label but it
-				// is the first structure and so we should just skip it
-				continue
-			}
 
-			partuuid := props["ID_PART_ENTRY_UUID"]
-			if partuuid == "" {
-				return "", fmt.Errorf("cannot get udev properties for partition %s, missing udev property \"ID_PART_ENTRY_UUID\"", partMajMin)
-			}
-
-			// we always overwrite the fsLabelEnc with the last one, this has
-			// the result that the last partition with a given filesystem label
-			// will be set/found
+			// we always overwrite the fsLabelEnc with the last one, this
+			// has the result that the last partition with a given
+			// filesystem label will be set/found
 			// this matches what udev does with the symlinks in /dev
-			d.fsLabelToPartUUID[fsLabelEnc] = partuuid
+			d.fsLabelToPartUUID[fsLabelEnc] = partUUID
 		}
 	}
 
@@ -379,7 +472,7 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return partuuid, nil
 	}
 
-	return "", fmt.Errorf("couldn't find label %q", label)
+	return "", FilesystemLabelNotFoundError{Label: label}
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {

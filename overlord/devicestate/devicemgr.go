@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -42,9 +43,11 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -57,9 +60,16 @@ var (
 // policies.
 type DeviceManager struct {
 	systemMode string
+	// saveAvailable keeps track whether /var/lib/snapd/save
+	// is available, i.e. exists and is mounted from ubuntu-save
+	// if the latter exists.
+	// TODO: evolve this to state to track things if we start mounting
+	// save as rw vs ro, or mount/umount it fully on demand
+	saveAvailable bool
 
-	state      *state.State
-	keypairMgr asserts.KeypairManager
+	state *state.State
+
+	cachedKeypairMgr asserts.KeypairManager
 
 	// newStore can make new stores for remodeling
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -87,17 +97,11 @@ type DeviceManager struct {
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
-	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	if err != nil {
-		return nil, err
-	}
-
 	m := &DeviceManager{
-		state:      s,
-		keypairMgr: keypairMgr,
-		newStore:   newStore,
-		reg:        make(chan struct{}),
-		preseed:    snapdenv.Preseeding(),
+		state:    s,
+		newStore: newStore,
+		reg:      make(chan struct{}),
+		preseed:  snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := maybeReadModeenv()
@@ -138,6 +142,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
+	// wire FDE kernel hook support into boot
+	boot.HasFDESetupHook = m.hasFDESetupHook
+
 	return m, nil
 }
 
@@ -147,6 +154,55 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeEnv, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	// system mode is explicitly set on UC20
+	// TODO:UC20: ubuntu-save needs to be mounted for recover too
+	if !release.OnClassic && m.systemMode == "run" {
+		if err := m.maybeSetupUbuntuSave(); err != nil {
+			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) maybeSetupUbuntuSave() error {
+	// only called for UC20
+
+	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
+	if err != nil {
+		return err
+	}
+	if saveMounted {
+		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		m.saveAvailable = true
+		return nil
+	}
+
+	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return err
+	}
+	if !runMntSaveMounted {
+		// we don't have ubuntu-save, save will be used directly
+		logger.Noticef("no ubuntu-save mount")
+		m.saveAvailable = true
+		return nil
+	}
+
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+
+	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
+		dirs.SnapSaveDir, "-o", "bind")
+	if err != nil {
+		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
+		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
+	}
+	m.saveAvailable = true
+	return nil
 }
 
 type deviceMgrKey struct{}
@@ -435,6 +491,26 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now()
+}
+
+func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
+	var prev time.Time
+	err := m.state.Get(name, &prev)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !prev.IsZero() {
+		// already set
+		return nil
+	}
+	m.state.Set(name, t)
+	return nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -456,6 +532,19 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	if m.changeInFlight("seed") {
 		return nil
+	}
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return err
 	}
 
 	var opts *populateStateFromSeedOptions
@@ -561,8 +650,6 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
 	// attached to a device via a USB drive and inject code onto the device.
 
-	// TODO: expand the scope to run on any device with a gadget, so i.e.
-	//       classic devices connected to a brand store also have this run?
 	if seeded && !release.OnClassic {
 		opts := &sysconfig.CloudInitRestrictOptions{}
 
@@ -589,7 +676,8 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// cloud-init errored, so we give the device admin / developer a few
 			// minutes to reboot the machine to re-run cloud-init and try again,
 			// otherwise we will disable cloud-init permanently
-			// initialize
+
+			// initialize the time we first saw cloud-init in error state
 			if m.cloudInitErrorAttemptStart == nil {
 				// save the time we started the attempt to restrict
 				now := timeNow()
@@ -647,6 +735,24 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			statusMsg = "failed to transition to done or error state after 5 minutes"
 		}
 
+		// we should always have a model if we are seeded and are not on classic
+		model, err := m.Model()
+		if err != nil {
+			return err
+		}
+
+		// For UC20, we want to always disable cloud-init after it has run on
+		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+		// or if we installed cloud-init configuration from the gadget
+		if model.Grade() != asserts.ModelGradeUnset {
+			// always disable NoCloud/local datasources after first boot on
+			// uc20, this is because even if the gadget has a cloud.conf
+			// configuring NoCloud, the config installed by cloud-init should
+			// not work differently for later boots, so it's sufficient that
+			// NoCloud runs on first-boot and never again
+			opts.DisableAfterLocalDatasourcesRun = true
+		}
+
 		// now restrict/disable cloud-init
 		res, err := restrictCloudInit(cloudInitStatus, opts)
 		if err != nil {
@@ -660,12 +766,14 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			actionMsg = "disabled permanently"
 		case "restrict":
 			// log different messages depending on what datasource was used
-			if res.Datasource == "NoCloud" {
+			if res.DataSource == "NoCloud" {
 				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
 			} else {
 				// all other datasources just log that we limited it to that datasource
-				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.Datasource)
+				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
 			}
+		default:
+			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
 		}
 		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
 
@@ -853,6 +961,93 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
+var errNoSaveSupport = errors.New("no save directory before UC20")
+
+// withSaveDir invokes a function making sure save dir is available.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveDir(f func() error) error {
+	// we use the model to check whether this is a UC20 device
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access save dir before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	if model.Grade() == asserts.ModelGradeUnset {
+		return errNoSaveSupport
+	}
+	// at this point we need save available
+	if !m.saveAvailable {
+		return fmt.Errorf("internal error: save dir is unavailable")
+	}
+
+	return f()
+}
+
+// withSaveAssertDB invokes a function making the save device assertion
+// backup database available to it.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveAssertDB(f func(*asserts.Database) error) error {
+	return m.withSaveDir(func() error {
+		// open an ancillary backup assertion database in save/device
+		assertDB, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
+		if err != nil {
+			return err
+		}
+		return f(assertDB)
+	})
+}
+
+// withKeypairMgr invokes a function making the device KeypairManager
+// available to it.
+// It uses the right location for the manager depending on UC16/18 vs 20,
+// the latter uses ubuntu-save.
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) error {
+	// we use the model to check whether this is a UC20 device
+	// TODO: during a theoretical UC18->20 remodel the location of
+	// keypair manager keys would move, we will need dedicated code
+	// to deal with that, this code typically will return the old location
+	// until a restart
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	underSave := false
+	if model.Grade() != asserts.ModelGradeUnset {
+		// on UC20 the keys are kept under the save dir
+		underSave = true
+	}
+	where := dirs.SnapDeviceDir
+	if underSave {
+		// at this point we need save available
+		if !m.saveAvailable {
+			return fmt.Errorf("internal error: cannot access device keypair manager if ubuntu-save is unavailable")
+		}
+		where = dirs.SnapDeviceSaveDir
+	}
+	keypairMgr := m.cachedKeypairMgr
+	if keypairMgr == nil {
+		var err error
+		keypairMgr, err = asserts.OpenFSKeypairManager(where)
+		if err != nil {
+			return err
+		}
+		m.cachedKeypairMgr = keypairMgr
+	}
+	return f(keypairMgr)
+}
+
+// TODO:UC20: we need proper encapsulated support to read
+// tpm-policy-auth-key from save if the latter can get unmounted on
+// demand
+
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
 	if err != nil {
@@ -863,9 +1058,16 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 		return nil, state.ErrNoState
 	}
 
-	privKey, err := m.keypairMgr.Get(device.KeyID)
+	var privKey asserts.PrivateKey
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
+		privKey, err = keypairMgr.Get(device.KeyID)
+		if err != nil {
+			return fmt.Errorf("cannot read device key pair: %v", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot read device key pair: %v", err)
+		return nil, err
 	}
 	return privKey, nil
 }
@@ -962,23 +1164,88 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
-// RequestSystemAction request provided system to be run in a given mode. A
-// system reboot will be requested when the request can be successfully carried
-// out.
+// Reboot triggers a reboot into the given systemLabel and mode.
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (m *DeviceManager) Reboot(systemLabel, mode string) error {
+	rebootCurrent := func() {
+		logger.Noticef("rebooting system")
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+
+	// most simple case: just reboot
+	if systemLabel == "" && mode == "" {
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		rebootCurrent()
+		return nil
+	}
+
+	// no systemLabel means "current" so get the current system label
+	if systemLabel == "" {
+		systemMode := m.SystemMode()
+		currentSys, err := currentSystemForMode(m.state, systemMode)
+		if err != nil {
+			return fmt.Errorf("cannot get curent system: %v", err)
+		}
+		systemLabel = currentSys.System
+	}
+
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// even if we are already in the right mode we restart here by
+	// passing rebootCurrent as this is what the user requested
+	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+// RequestSystemAction requests the provided system to be run in a
+// given mode as specified by action.
+// A system reboot will be requested when the request can be
+// successfully carried out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
 
+	nop := func() {}
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// we do nothing (nop) if the mode and system are the same
+	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
+}
+
+// switchToSystemAndMode switches to given systemLabel and mode.
+// If the systemLabel and mode are the same as current, it calls
+// sameSystemAndMode. If successful otherwise it calls switched. Both
+// are called with the state lock held.
+func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}
 
 	systemMode := m.SystemMode()
+	// ignore the error to be robust in scenarios that
+	// dont' stricly require currentSys to be carried through.
+	// make sure that currentSys == nil does not break
+	// the code below!
+	// TODO: should we log the error?
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
+		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
 	system, err := systemFromSeed(systemLabel, currentSys)
@@ -988,12 +1255,13 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
-		if action.Mode == act.Mode {
+		if mode == act.Mode {
 			sysAction = &act
 			break
 		}
 	}
 	if sysAction == nil {
+		// XXX: provide more context here like what mode was requested?
 		return ErrUnsupportedAction
 	}
 
@@ -1004,7 +1272,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && currentSys != nil && systemLabel == currentSys.System {
+			m.state.Lock()
+			defer m.state.Unlock()
+			sameSystemAndMode()
 			return nil
 		}
 	case "install":
@@ -1026,14 +1297,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if err != nil {
 		return err
 	}
-
-	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
-		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
-			systemLabel, action.Mode, err)
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v", systemLabel, mode, err)
 	}
 
-	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-	m.state.RequestRestart(state.RestartSystemNow)
+	switched(systemLabel, sysAction)
 	return nil
 }
 
@@ -1087,4 +1355,20 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok, nil
 }

@@ -28,19 +28,13 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # get the full journal to see any out-of-memory errors
     # shellcheck disable=SC2119
-    get_journalctl_log
+    "$TESTSTOOLS"/journal-state get-log
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Given a snap is installed"
-    install_local "$CONSUMER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
     # If possible, prepare a session for the test user. On many systems this
     # will allow running all tests as the unprivileged user. This shields us
@@ -53,9 +47,6 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
 
     echo "For each core-provided slot"
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do

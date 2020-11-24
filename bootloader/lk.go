@@ -41,17 +41,15 @@ type lk struct {
 func newLk(rootdir string, opts *Options) Bootloader {
 	l := &lk{rootdir: rootdir}
 
-	// XXX: in the long run we want this to go away, we probably add
-	//      something like "boot.PrepareImage()" and add an (optional)
-	//      method "PrepareImage" to the bootloader interface that is
-	//      used to setup a bootloader from prepare-image if things
-	//      are very different from runtime vs image-building mode.
-	//
-	// determine mode we are in, runtime or image build
-	l.inRuntimeMode = !opts.PrepareImageTime
-
-	if !osutil.FileExists(l.envFile()) {
-		return nil
+	if opts != nil {
+		// XXX: in the long run we want this to go away, we probably add
+		//      something like "boot.PrepareImage()" and add an (optional)
+		//      method "PrepareImage" to the bootloader interface that is
+		//      used to setup a bootloader from prepare-image if things
+		//      are very different from runtime vs image-building mode.
+		//
+		// determine mode we are in, runtime or image build
+		l.inRuntimeMode = !opts.PrepareImageTime
 	}
 
 	return l
@@ -75,14 +73,14 @@ func (l *lk) dir() string {
 	return filepath.Join(l.rootdir, "/boot/lk/")
 }
 
-func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
-	systemFile := l.ConfigFile()
+	systemFile := l.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (l *lk) ConfigFile() string {
-	return l.envFile()
+func (l *lk) Present() (bool, error) {
+	return osutil.FileExists(l.envFile()), nil
 }
 
 func (l *lk) envFile() string {
@@ -208,8 +206,10 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	dirty, _ := env.FreeBootPartition(blobName)
-	if dirty {
+	err := env.RemoveKernelRevisionFromBootPartition(blobName)
+	if err == nil {
+		// found and removed the revision from the bootimg matrix, need to
+		// update the env to persist the change
 		return env.Save()
 	}
 	return nil

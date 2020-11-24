@@ -8,12 +8,10 @@ details: |
 systems: [ubuntu-core-*]
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     TARGET_SNAP_NAME=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP_NAME=core18
-    elif is_core20_system; then
+    elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
     fi
 
@@ -23,15 +21,10 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB"/journalctl.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     TARGET_SNAP_NAME=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP_NAME=core18
-    elif is_core20_system; then
+    elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
     fi    
 
@@ -41,7 +34,7 @@ execute: |
         echo "$currRev" > initialRev
 
         # use journalctl wrapper to grep only the logs collected while the test is running
-        if get_journalctl_log | MATCH "Waiting for system reboot"; then
+        if "$TESTSTOOLS"/journal-state get-log | MATCH "Waiting for system reboot"; then
             echo "Already waiting for system reboot, exiting..."
             exit 1
         fi
@@ -53,13 +46,13 @@ execute: |
 
         # Detect in the logs when the reboot can been triggered
         for _ in $(seq 50); do
-            if check_journalctl_log "Waiting for system reboot"; then
+            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
                  break
             fi
             sleep 2
         done
 
-        if ! check_journalctl_log "Waiting for system reboot"; then
+        if ! "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
             echo "Taking too long to reach waiting for reboot"
             exit 1
         fi
@@ -79,13 +72,13 @@ execute: |
 
         # Detect in the logs when the reboot can been triggered
         for _ in $(seq 50); do
-            if check_journalctl_log "Waiting for system reboot" -b; then
+            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot" -b; then
                  break
             fi
             sleep 2
         done
 
-        if ! check_journalctl_log "Waiting for system reboot" -b; then
+        if ! "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot" -b; then
             echo "Taking too long to reach waiting for reboot"
             exit 1
         fi
