@@ -100,11 +100,22 @@ func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrub(c *C) {
-	s.makeFakeGrubEnv(c)
-
+	// no files means bl is not present, but we can still create the bl object
+	c.Assert(os.RemoveAll(s.rootdir), IsNil)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
+
+	present, err := g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockGrubFiles(c, s.rootdir)
+	s.makeFakeGrubEnv(c)
+	present, err = g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 }
 
 func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {

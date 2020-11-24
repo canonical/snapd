@@ -143,8 +143,8 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 	return genv.Get(key), nil
 }
 
-func (g *grub) ConfigFile() string {
-	return filepath.Join(g.dir(), "grub.cfg")
+func (g *grub) Present() (bool, error) {
+	return osutil.FileExists(filepath.Join(g.dir(), "grub.cfg")), nil
 }
 
 func (g *grub) envFile() string {
