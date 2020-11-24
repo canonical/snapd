@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"text/template"
 
 	"github.com/snapcore/snapd/dirs"
@@ -63,23 +64,19 @@ X-Snap={{.App.Snap.InstanceName}}
 	return templateOut.Bytes(), nil
 }
 
+var snapNameLine = regexp.MustCompile(`(?m)^X-Snap=(.*)$`)
+
 // snapNameFromServiceFile returns the snap name for the D-Bus service activation file.
 func snapNameFromServiceFile(filename string) (owner string, err error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}
-	snapKey := []byte("\nX-Snap=")
-	pos := bytes.Index(content, snapKey)
-	if pos == -1 {
-		return "", nil
+	m := snapNameLine.FindSubmatch(content)
+	if m != nil {
+		owner = string(m[1])
 	}
-	snapName := content[pos+len(snapKey):]
-	pos = bytes.IndexRune(snapName, '\n')
-	if pos != -1 {
-		snapName = snapName[:pos]
-	}
-	return string(snapName), nil
+	return owner, nil
 }
 
 // snapServiceActivationFiles returns the list of service activation files for a snap.
@@ -154,17 +151,17 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 		}
 	}
 
-	_, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, sessionContent)
-	if err != nil {
+	if _, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, sessionContent); err != nil {
 		return err
 	}
 
-	_, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemServicesDir, systemServices, systemContent)
-	if err != nil {
+	if _, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemServicesDir, systemServices, systemContent); err != nil {
 		// On error, remove files installed by first invocation
 		osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, nil)
+		return err
 	}
-	return err
+
+	return nil
 }
 
 func RemoveSnapDBusActivationFiles(s *snap.Info) error {
@@ -179,8 +176,7 @@ func RemoveSnapDBusActivationFiles(s *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		_, _, err = osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil)
-		if err != nil {
+		if _, _, err = osutil.EnsureDirStateGlobs(servicesDir, toRemove, nil); err != nil {
 			return err
 		}
 	}

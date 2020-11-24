@@ -21,7 +21,7 @@ execute: |
     snap install --edge test-snapd-dbus-service
 
     echo "A service activation file has been created"
-    [ -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service ]
+    test -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service
 
     echo "The service is not initially running"
     not systemctl is-active snap.test-snapd-dbus-service.system.service
@@ -35,6 +35,7 @@ execute: |
     echo "The corresponding D-Bus service is now running"
     systemctl is-active snap.test-snapd-dbus-service.system.service
 
-    echo "Removing the snap also removes the service activation file"
+    echo "Removing the snap stops the service and removes the service activation file"
     snap remove test-snapd-dbus-service
-    [ ! -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service ]
+    not  systemctl is-active snap.test-snapd-dbus-service.system.service
+    test ! -f /var/lib/snapd/dbus-1/system-services/io.snapcraft.SnapDbusService.service

@@ -1,4 +1,4 @@
-summary: D-Bus session services support activation without a user of instance systemd
+summary: D-Bus session services support activation without a user instance of systemd
 
 prepare: |
     snap set system experimental.user-daemons=true
@@ -39,14 +39,14 @@ execute: |
     snap install --edge test-snapd-dbus-service
 
     echo "A service activation file has been created"
-    [ -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service ]
+    test -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service
 
     echo "Making a method call wakes the service"
     install_local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-session-plug \
                  test-snapd-dbus-service:dbus-session-slot
-    test-snapd-dbus-service-client.session | MATCH hello
+    test-snapd-dbus-service-client.session | MATCH "hello world"
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
-    [ ! -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service ]
+    test ! -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service

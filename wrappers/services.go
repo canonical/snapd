@@ -234,6 +234,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			continue
 		}
 		// sockets and timers are enabled and started separately (and unconditionally) further down.
+		// dbus activatable services are started on first use.
 		if len(app.Sockets) == 0 && app.Timer == nil && len(app.ActivatesOn) == 0 {
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				continue
