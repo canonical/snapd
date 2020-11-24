@@ -32,6 +32,9 @@ var (
 	GenerateSnapSocketFiles = generateSnapSocketFiles
 	GenerateSnapTimerFile   = generateSnapTimerFile
 
+	// dbus
+	GenerateDBusActivationFile = generateDBusActivationFile
+
 	// desktop
 	SanitizeDesktopFile    = sanitizeDesktopFile
 	RewriteExecLine        = rewriteExecLine
