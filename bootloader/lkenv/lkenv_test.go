@@ -129,6 +129,27 @@ func (l *lkenvTestSuite) TestCopyStringNoPanic(c *C) {
 	c.Assert(recover(), IsNil)
 }
 
+func (l *lkenvTestSuite) TestGetBootImageName(c *C) {
+	for _, version := range lkversions {
+		for _, setValue := range []bool{true, false} {
+			env := lkenv.NewEnv(l.envPath, version)
+			c.Check(env, NotNil)
+
+			if setValue {
+				env.Set("bootimg_file_name", "some-boot-image-name")
+			}
+
+			name := env.GetBootImageName()
+
+			if setValue {
+				c.Assert(name, Equals, "some-boot-image-name")
+			} else {
+				c.Assert(name, Equals, "boot.img")
+			}
+		}
+	}
+}
+
 func (l *lkenvTestSuite) TestSet(c *C) {
 	tt := []struct {
 		version lkenv.Version
