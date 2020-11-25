@@ -21,7 +21,8 @@
 #define _BOOTLOADER_SNAP_BOOT_COMMON_H
 
 #define SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
-#define SNAP_BOOTSELECT_RUN_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
+// SNAP_BOOTSELECT_SIGNATURE_RUN is the same as SNAP_BOOTSELECT_SIGNATURE
+#define SNAP_BOOTSELECT_SIGNATURE_RUN ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
 
 // note SNAP_NAME_MAX_LEN also defines the max length of a recovery system label
 #define SNAP_NAME_MAX_LEN (256)
@@ -29,6 +30,10 @@
 #define SNAP_MODE_TRY "try"
 #define SNAP_MODE_TRYING "trying"
 #define FACTORY_RESET "factory-reset"
+
+#define SNAP_RECOVERY_MODE_INSTALL "install"
+#define SNAP_RECOVERY_MODE_run "run"
+#define SNAP_RECOVERY_MODE_RECOVER "recover"
 
 /* partition label where boot select structure is stored, for uc20 this is just
  * used for run mode
