@@ -145,6 +145,47 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
+// DiskFromDeviceName finds a matching Disk using the specified name, such as
+// vda, or mmcblk0, etc.
+func DiskFromDeviceName(deviceName string) (Disk, error) {
+	return diskFromDeviceName(deviceName)
+}
+
+// diskFromDeviceName is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	// query for the disk props using udev
+	props, err := udevProperties(deviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	major, err := strconv.Atoi(props["MAJOR"])
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+	}
+	minor, err := strconv.Atoi(props["MINOR"])
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+	}
+
+	// ensure that the device has DEVTYPE=disk, if not then we were not given a
+	// disk name
+	devType := props["DEVTYPE"]
+	if devType != "disk" {
+		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceName, devType)
+	}
+
+	// TODO: should we try to introspect the device more to find out if it has
+	// partitions? we don't currently need that information for how we use
+	// DiskFromName but it might be useful eventually
+
+	return &disk{
+		major: major,
+		minor: minor,
+	}, nil
+}
+
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests

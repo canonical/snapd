@@ -41,6 +41,10 @@ func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	return d
 }
 
+func (d *Daemon) Overlord() *overlord.Overlord {
+	return d.overlord
+}
+
 func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 	old := muxVars
 	muxVars = vars
