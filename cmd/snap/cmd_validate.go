@@ -33,8 +33,9 @@ import (
 
 type cmdValidate struct {
 	clientMixin
-	Monitor    bool `long:"monitor"`
-	Enforce    bool `long:"enforce"`
+	Monitor bool `long:"monitor"`
+	// XXX: enforce mode is not supported yet
+	Enforce    bool `long:"enforce" hidden:"yes"`
 	Forget     bool `long:"forget"`
 	Positional struct {
 		ValidationSet string `positional-arg-name:"<validation-set>"`

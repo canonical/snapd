@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	"gopkg.in/check.v1"
 
@@ -43,17 +42,14 @@ func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pin
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets")
-		c.Check(r.URL.Query(), check.DeepEquals, url.Values{
-			"validation-set": []string{"foo/bar"},
-		})
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-set")
 
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
 		} else {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q}\n", mode))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q}\n", mode))
 		}
 
 		c.Check(r.Method, check.Equals, "POST")
@@ -62,29 +58,21 @@ func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pin
 	}
 }
 
-func makeFakeValidationSetQueryHandler(c *check.C, body string, all bool) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidationSetQueryHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/validation-set")
-		if all {
-			c.Check(r.URL.Query(), check.HasLen, 0)
-		} else {
-			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
-				"validation-set": []string{"foo/bar"},
-			})
-		}
-
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-set/foo/bar")
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
 	}
 }
 
-func makeFakeListValidationsSetsHandler(c *check.C, body string, all bool) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeListValidationsSetsHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -92,14 +80,6 @@ func makeFakeListValidationsSetsHandler(c *check.C, body string, all bool) func(
 		}
 		called = true
 		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets")
-		if all {
-			c.Check(r.URL.Query(), check.HasLen, 0)
-		} else {
-			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
-				"validation-set": []string{"foo/bar"},
-			})
-		}
-
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
@@ -192,7 +172,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true}}`, false))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -205,7 +185,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":false}}`, false))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":false}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -221,7 +201,7 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": [
 		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true},
 		{"validation-set":"foo/baz","mode":"enforce","seq":1,"valid":false}
-	]}`, true))
+	]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
 	c.Assert(err, check.IsNil)
