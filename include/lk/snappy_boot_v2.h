@@ -25,7 +25,7 @@
 
 /* snappy bootselect partition format structure for run mode */
 typedef struct SNAP_RUN_BOOT_SELECTION {
-    /* Should always contain value of SNAP_BOOTSELECT_RUN_SIGNATURE defined in common.h */
+    /* Should always contain value of SNAP_BOOTSELECT_SIGNATURE_RUN defined in common.h */
     uint32_t signature;
     /* Should always contain value of SNAP_BOOTSELECT_VERSION_V2 */
     uint32_t version;
