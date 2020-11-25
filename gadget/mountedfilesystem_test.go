@@ -455,6 +455,10 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	makeSizedFile(c, filepath.Join(s.dir, "foo"), 0, []byte("foo foo foo"))
 
 	ps := &gadget.LaidOutStructure{
@@ -1234,6 +1238,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
@@ -1268,6 +1276,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	// some data for the gadget
 	gd := []gadgetData{
 		{name: "bar", content: "data"},
@@ -1310,6 +1322,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcComparison(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	// some data for the gadget
 	gd := []gadgetData{
 		{name: "bar", content: "data"},
@@ -2335,6 +2351,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	makeGadgetData(c, s.dir, []gadgetData{
 		{name: "bar", content: "data"},
 	})

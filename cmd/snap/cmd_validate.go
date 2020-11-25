@@ -33,8 +33,9 @@ import (
 
 type cmdValidate struct {
 	clientMixin
-	Monitor    bool `long:"monitor"`
-	Enforce    bool `long:"enforce"`
+	Monitor bool `long:"monitor"`
+	// XXX: enforce mode is not supported yet
+	Enforce    bool `long:"enforce" hidden:"yes"`
 	Forget     bool `long:"forget"`
 	Positional struct {
 		ValidationSet string `positional-arg-name:"<validation-set>"`
@@ -42,9 +43,9 @@ type cmdValidate struct {
 	colorMixin
 }
 
-var shortValidateHelp = i18n.G("List or set snap validations")
+var shortValidateHelp = i18n.G("List or apply validation sets")
 var longValidateHelp = i18n.G(`
-The validate command lists validation sets or sets validations
+The validate command lists or applies validations sets
 `)
 
 func init() {
@@ -103,9 +104,9 @@ func fmtValid(res *client.ValidationSetResult) string {
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
-	// check that only one flag is used at a time
-	var validateFlag string
-	for _, flag := range []struct {
+	// check that only one mode is used at a time
+	var validateMode string
+	for _, mode := range []struct {
 		name string
 		set  bool
 	}{
@@ -113,15 +114,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		{"enforce", cmd.Enforce},
 		{"forget", cmd.Forget},
 	} {
-		if flag.set {
-			if validateFlag != "" {
-				return fmt.Errorf("cannot use --%s and --%s together", validateFlag, flag.name)
+		if mode.set {
+			if validateMode != "" {
+				return fmt.Errorf("cannot use --%s and --%s together", validateMode, mode.name)
 			}
-			validateFlag = flag.name
+			validateMode = mode.name
 		}
 	}
 
-	if cmd.Positional.ValidationSet == "" && validateFlag != "" {
+	if cmd.Positional.ValidationSet == "" && validateMode != "" {
 		return fmt.Errorf("missing validation set argument")
 	}
 
@@ -135,22 +136,21 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 	}
 
-	if validateFlag != "" {
+	if validateMode != "" {
 		// apply
 		opts := &client.ValidateApplyOptions{
-			Flag:  validateFlag,
+			Mode:  validateMode,
 			PinAt: seq,
 		}
 		return cmd.client.ApplyValidationSet(account, name, opts)
 	}
 
-	// validate
-	vsets, err := cmd.client.QueryValidationSet(account, name, seq)
-	if err != nil {
-		return err
-	}
 	// no validation set argument, print list with extended info
 	if cmd.Positional.ValidationSet == "" {
+		vsets, err := cmd.client.ListValidationsSets()
+		if err != nil {
+			return err
+		}
 		if len(vsets) == 0 {
 			return nil
 		}
@@ -161,13 +161,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
 		fmt.Fprintf(w, i18n.G("Validation\tMode\tSeq\tCurrent\t%s\tNotes\n"), fillerPublisher(esc))
 		for _, res := range vsets {
+			// TODO: fill notes when've clarity about them
+			var notes string
 			// doing it this way because otherwise it's a sea of %s\t%s\t%s
 			line := []string{
 				res.ValidationSet,
 				res.Mode,
 				fmt.Sprintf("%d", res.Seq),
 				fmtValid(res),
-				strings.Join(res.Notes, ","),
+				notes,
 			}
 			fmt.Fprintln(w, strings.Join(line, "\t"))
 		}
@@ -175,8 +177,11 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		fmt.Fprintln(Stdout)
 
 	} else {
-		// specific validation set was queried, so we expect exactly one result.
-		fmt.Fprintf(Stdout, fmtValid(vsets[0]))
+		vset, err := cmd.client.ValidationSet(account, name, seq)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stdout, fmtValid(vset))
 		// XXX: exit status 1 if invalid?
 	}
 

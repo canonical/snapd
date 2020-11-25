@@ -279,12 +279,15 @@ func init() {
 }
 
 func (x *cmdAutoImport) autoAddUsers() error {
-	cmd := cmdCreateUser{
-		clientMixin: x.clientMixin,
-		Known:       true,
-		Sudoer:      true,
+	options := client.CreateUserOptions{
+		Automatic: true,
 	}
-	return cmd.Execute(nil)
+	results, err := x.client.CreateUsers([]*client.CreateUserOptions{&options})
+	for _, result := range results {
+		fmt.Fprintf(Stdout, i18n.G("created user %q\n"), result.Username)
+	}
+
+	return err
 }
 
 func removableBlockDevices() (removableDevices []string) {

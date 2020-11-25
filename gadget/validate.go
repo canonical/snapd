@@ -50,10 +50,33 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 	return nil
 }
 
+func validateEncryptionSupport(info *Info) error {
+	for name, vol := range info.Volumes {
+		var haveSave bool
+		for _, s := range vol.Structure {
+			if s.Role == SystemSave {
+				haveSave = true
+			}
+		}
+		if !haveSave {
+			return fmt.Errorf("volume %q has no structure with system-save role", name)
+		}
+		// XXX: shall we make sure that size of ubuntu-save is reasonable?
+	}
+	return nil
+}
+
+type ValidationConstraints struct {
+	// EncryptedData when true indicates that the gadget will be used on a
+	// device where the data partition will be encrypted.
+	EncryptedData bool
+}
+
 // Validate checks whether the given directory contains valid gadget snap
 // metadata and a matching content, under the provided model constraints, which
-// are handled identically to ReadInfo().
-func Validate(gadgetSnapRootDir string, model Model) error {
+// are handled identically to ReadInfo(). Optionally takes additional validation
+// constraints, which for instance may only be known at run time,
+func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraints) error {
 	info, err := ReadInfo(gadgetSnapRootDir, model)
 	if err != nil {
 		return fmt.Errorf("invalid gadget metadata: %v", err)
@@ -68,6 +91,12 @@ func Validate(gadgetSnapRootDir string, model Model) error {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
-
+	if extra != nil {
+		if extra.EncryptedData {
+			if err := validateEncryptionSupport(info); err != nil {
+				return fmt.Errorf("gadget does not support encrypted data: %v", err)
+			}
+		}
+	}
 	return nil
 }

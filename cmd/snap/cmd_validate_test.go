@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	"gopkg.in/check.v1"
 
@@ -36,24 +35,21 @@ type validateSuite struct {
 
 var _ = check.Suite(&validateSuite{})
 
-func makeFakeValidateHandler(c *check.C, body string, flag string, pinned int) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pinned int) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets")
-		c.Check(r.URL.Query(), check.DeepEquals, url.Values{
-			"validation-set": []string{"foo/bar"},
-		})
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-set")
 
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q,\"pin-at\":%d}\n", flag, pinned))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
 		} else {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"flag\":%q}\n", flag))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q}\n", mode))
 		}
 
 		c.Check(r.Method, check.Equals, "POST")
@@ -62,7 +58,21 @@ func makeFakeValidateHandler(c *check.C, body string, flag string, pinned int) f
 	}
 }
 
-func makeFakeValidateQueryHandler(c *check.C, body string, all bool) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidationSetQueryHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
+	var called bool
+	return func(w http.ResponseWriter, r *http.Request) {
+		if called {
+			c.Fatalf("expected a single request")
+		}
+		called = true
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-set/foo/bar")
+		c.Check(r.Method, check.Equals, "GET")
+		w.WriteHeader(200)
+		fmt.Fprintln(w, body)
+	}
+}
+
+func makeFakeListValidationsSetsHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -70,14 +80,6 @@ func makeFakeValidateQueryHandler(c *check.C, body string, all bool) func(w http
 		}
 		called = true
 		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets")
-		if all {
-			c.Check(r.URL.Query(), check.HasLen, 0)
-		} else {
-			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
-				"validation-set": []string{"foo/bar"},
-			})
-		}
-
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
@@ -107,7 +109,7 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateMonitor(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -117,7 +119,7 @@ func (s *validateSuite) TestValidateMonitor(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 3))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 3))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar=3"})
 	c.Assert(err, check.IsNil)
@@ -127,7 +129,7 @@ func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforce(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -137,7 +139,7 @@ func (s *validateSuite) TestValidateEnforce(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 5))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 5))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar=5"})
 	c.Assert(err, check.IsNil)
@@ -147,7 +149,7 @@ func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateForget(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -157,7 +159,7 @@ func (s *validateSuite) TestValidateForget(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateForgetPinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidateHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 5))
+	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 5))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar=5"})
 	c.Assert(err, check.IsNil)
@@ -170,7 +172,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidateQueryHandler(c, `{"type": "sync", "status-code": 200, "result": [{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true}]}`, false))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -183,7 +185,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidateQueryHandler(c, `{"type": "sync", "status-code": 200, "result": [{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":false}]}`, false))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":false}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -192,21 +194,21 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, "invalid")
 }
 
-func (s *validateSuite) TestValidateQueryAll(c *check.C) {
+func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidateQueryHandler(c, `{"type": "sync", "status-code": 200, "result": [
-		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true,"notes":["model","other"]},
+	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": [
+		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true},
 		{"validation-set":"foo/baz","mode":"enforce","seq":1,"valid":false}
-	]}`, true))
+	]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current       Notes\n"+
-		"foo/bar     monitor  3    valid    model,other\n"+
+		"foo/bar     monitor  3    valid    \n"+
 		"foo/baz     enforce  1    invalid  \n"+
 		"\n")
 }

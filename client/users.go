@@ -45,6 +45,8 @@ type CreateUserOptions struct {
 	Sudoer       bool   `json:"sudoer,omitempty"`
 	Known        bool   `json:"known,omitempty"`
 	ForceManaged bool   `json:"force-managed,omitempty"`
+	// Automatic is for internal snapd use, behavior might evolve
+	Automatic bool `json:"automatic,omitempty"`
 }
 
 // RemoveUserOptions holds options for removing a local system user.
@@ -88,7 +90,7 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 // Results may be provided even if there are errors.
 func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
 	for _, opts := range options {
-		if opts == nil || (opts.Email == "" && !opts.Known) {
+		if opts == nil || (opts.Email == "" && !(opts.Known || opts.Automatic)) {
 			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
 		}
 	}
