@@ -26,6 +26,8 @@ import (
 	"hash/crc32"
 	"os"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -228,10 +230,13 @@ func (l *Env) Load() error {
 // LoadEnv loads the lk bootloader environment from the specified file. The
 // bootloader environment in the referenced file must be of the same version
 // that the Env object was created with using NewEnv.
+// The returned error may wrap os.ErrNotExist, so instead of using
+// os.IsNotExist, callers should use xerrors.Is(err,os.ErrNotExist) instead.
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("cannot open LK env file: %v", err)
+		fmtStr := "cannot open LK env file: %w"
+		return xerrors.Errorf(fmtStr, err)
 	}
 
 	if err := binary.Read(f, binary.LittleEndian, l.variant); err != nil {

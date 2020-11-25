@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
+	"golang.org/x/xerrors"
 )
 
 type lk struct {
@@ -270,7 +271,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
