@@ -59,6 +59,20 @@ nested_wait_for_reboot() {
     [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
+nested_uc20_transition_to_system_mode() {
+    local recovery_system="$1"
+    local mode="$2"
+    local current_boot_id
+    current_boot_id=$(nested_get_boot_id)
+    nested_exec "sudo snap reboot --$mode $recovery_system"
+    nested_wait_for_reboot "$current_boot_id"
+
+    # verify we are now in the requested mode
+    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+        return 1
+    fi
+}
+
 nested_retry_while_success() {
     local retry="$1"
     local wait="$2"
@@ -218,9 +232,15 @@ nested_get_cdimage_current_image_url() {
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
-    # This should be executed on remote system but as nested architecture is the same than the
-    # host then the snap info is executed in the host
-    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+
+    curl -s \
+         -H "Snap-Device-Architecture: ${NESTED_ARCHITECTURE:-amd64}" \
+         -H "Snap-Device-Series: 16" \
+         -X POST \
+         -H "Content-Type: application/json" \
+         --data "{\"context\": [], \"actions\": [{\"action\": \"install\", \"name\": \"$SNAP\", \"channel\": \"$CHANNEL\", \"instance-key\": \"1\"}]}" \
+         https://api.snapcraft.io/v2/snaps/refresh | \
+        jq '.results[0].snap.revision'
 }
 
 nested_is_nested_system() {
@@ -410,7 +430,8 @@ nested_get_model() {
 
 nested_ensure_ubuntu_save() {
     local GADGET_DIR="$1"
-    "$TESTSLIB"/ensure_ubuntu_save.py "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
+    shift
+    "$TESTSLIB"/ensure_ubuntu_save.py "$@" "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
     if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
         mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
     else
@@ -497,13 +518,19 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
-                        # lands there is no ubuntu-save in the gadget, make sure we have one
-                        nested_ensure_ubuntu_save pc-gadget
+                        if [ "$NESTED_ENABLE_TPM" = "true" ] || [ "${NESTED_ADD_UBUNTU_SAVE:-}" = "true" ]; then
+                            # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
+                            # lands there is no ubuntu-save in the gadget, make sure we have one
+                            nested_ensure_ubuntu_save pc-gadget --add
+                            touch ubuntu-save-added
+                        else
+                            nested_ensure_ubuntu_save pc-gadget --remove
+                            touch ubuntu-save-removed
+                        fi
 
-                        # also make logging persistent for easier debugging of 
-                        # test failures, otherwise we have no way to see what 
-                        # happened during a failed nested VM boot where we 
+                        # also make logging persistent for easier debugging of
+                        # test failures, otherwise we have no way to see what
+                        # happened during a failed nested VM boot where we
                         # weren't able to login to a device
                         cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
@@ -1111,7 +1138,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_destroy_unit "$NESTED_VM"
+    systemd_stop_and_remove_unit "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 

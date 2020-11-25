@@ -1014,6 +1014,22 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
+	} else {
+		if info.Type() == snap.TypeKernel {
+			// kernels have no explicit base, we use the boot base
+			modelAssertion, err := x.client.CurrentModelAssertion()
+			if err != nil {
+				if hook != "" {
+					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
+				} else {
+					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
+				}
+			}
+			modelBase := modelAssertion.Base()
+			if modelBase != "" {
+				cmd = append(cmd, "--base", modelBase)
+			}
+		}
 	}
 	cmd = append(cmd, securityTag)
 

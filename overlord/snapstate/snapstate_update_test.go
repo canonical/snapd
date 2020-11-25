@@ -2382,9 +2382,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -5314,16 +5311,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesSavesSnapSetupLastActiveDisabledS
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t1.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
-
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisabledServices(c *C) {
@@ -5331,7 +5326,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	defer s.state.Unlock()
 
 	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
-	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1", "svc2"}
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1"}
 
 	// reset the services to what they were before after the test is done
 	defer func() {
@@ -5344,6 +5339,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		},
 		Current: snap.R(11),
 		Active:  true,
+		LastActiveDisabledServices: []string{"svc2"},
 	})
 
 	snapsup := &snapstate.SnapSetup{
@@ -5368,15 +5364,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {

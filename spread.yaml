@@ -103,7 +103,7 @@ backends:
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
             - ubuntu-20.10-64:
-                  workers: 6
+                  workers: 8
                   image: ubuntu-20.10-64
 
             - debian-9-64:
@@ -111,12 +111,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-30-64:
-                  workers: 6
-                  manual: true
-            - fedora-31-64:
-                  workers: 6
             - fedora-32-64:
+                  workers: 6
+            - fedora-33-64:
                   workers: 6
 
             - arch-linux-64:
@@ -136,6 +133,7 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  manual: true
             - centos-8-64:
                   workers: 4
                   storage: preserve-size
@@ -191,8 +189,6 @@ backends:
                   password: ubuntu
 
     qemu:
-        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
-        memory: 2G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
@@ -578,6 +574,14 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
         # make sure EPEL is enabled
         yum install -y epel-release
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # make sure unattended-upgrades does not get in the way
+        if systemctl is-enabled unattended-upgrades.service; then
+            systemctl stop unattended-upgrades.service
+            systemctl mask unattended-upgrades.service
+        fi
     fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).

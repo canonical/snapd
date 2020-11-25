@@ -35,7 +35,7 @@ import (
 var _ = Suite(&consoleConfSuite{})
 
 type consoleConfSuite struct {
-	apiBaseSuite
+	APIBaseSuite
 }
 
 func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {

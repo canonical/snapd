@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -131,6 +132,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	bopts.Encrypt = useEncryption
 
+	// make sure that gadget is usable for the set up we want to use it in
+	gadgetContaints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
@@ -175,6 +184,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
 		}
 		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+			return err
+		}
+		// write markers containing a secret to pair data and save
+		if err := writeMarkers(); err != nil {
 			return err
 		}
 	}
@@ -224,6 +237,35 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// writeMarkers writes markers containing the same secret to pair data and save.
+func writeMarkers() error {
+	// ensure directory for markers exists
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
+		return err
+	}
+
+	// generate a secret random marker
+	markerSecret, err := randutil.CryptoTokenBytes(32)
+	if err != nil {
+		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
+	}
+
+	dataMarker := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	if err := osutil.AtomicWriteFile(dataMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
+
+	saveMarker := filepath.Join(boot.InstallHostFDESaveDir, "marker")
+	if err := osutil.AtomicWriteFile(saveMarker, markerSecret, 0600, 0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	dataKeySet := keysForRoles[gadget.SystemData]
 
@@ -263,6 +305,7 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 func checkEncryption(model *asserts.Model) (res bool, err error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
+	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
@@ -273,10 +316,22 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	// encryption is required in secured devices and optional in other grades
 	if err := secbootCheckKeySealingSupported(); err != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
+		}
+		if encrypted {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
 		}
 		return false, nil
 	}
 
+	// TODO: provide way to select via install chooser menu
+	// if the install is unencrypted or encrypted
+	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
+		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
+		return false, nil
+	}
+
+	// encrypt if it's supported and the user/model did not express
+	// other preferences
 	return true, nil
 }

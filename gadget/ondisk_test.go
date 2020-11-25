@@ -153,7 +153,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Save",
-			Size:       134217728,
+			Size:       128 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-save",
 			Label:      "ubuntu-save",
@@ -162,6 +162,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 		StartOffset: 1260388352,
 		Index:       3,
 	},
+	Size: 128 * quantity.SizeMiB,
 }
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
@@ -169,7 +170,7 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",
-			Size:       1258291200,
+			Size:       1200 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-data",
 			Label:      "ubuntu-data",
@@ -178,6 +179,8 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 		StartOffset: 1394606080,
 		Index:       4,
 	},
+	// expanded to fill the disk
+	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
 }
 
 func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
