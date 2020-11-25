@@ -32,7 +32,7 @@
 #define FACTORY_RESET "factory-reset"
 
 #define SNAP_RECOVERY_MODE_INSTALL "install"
-#define SNAP_RECOVERY_MODE_run "run"
+#define SNAP_RECOVERY_MODE_RUN "run"
 #define SNAP_RECOVERY_MODE_RECOVER "recover"
 
 /* partition label where boot select structure is stored, for uc20 this is just
