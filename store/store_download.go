@@ -289,7 +289,7 @@ type TransferSpeedMonitoringWriter struct {
 
 // NewTransferSpeedMonitoringWriterAndContext returns an io.Writer that measures
 // write speed in measureTimeWindow windows and cancels the operation if
-// minDownloadSeepdBps is not achieved.
+// minDownloadSpeedBps is not achieved.
 // Monitor() must be called to start actual measurement.
 func NewTransferSpeedMonitoringWriterAndContext(origCtx context.Context, measureTimeWindow time.Duration, minDownloadSpeedBps float64) (*TransferSpeedMonitoringWriter, context.Context) {
 	ctx, cancel := context.WithCancel(origCtx)
