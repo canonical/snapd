@@ -44,17 +44,16 @@ type ValidationSetResult struct {
 }
 
 type postData struct {
-	Account string `json:"account"`
-	Name string `json:"name"`
 	Mode  string `json:"mode"`
 	PinAt int    `json:"pin-at,omitempty"`
 }
 
 // ApplyValidationSet applies or forgets the given validation set identified by account and name.
 func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApplyOptions) error {
+	if account == "" || name == "" {
+		return xerrors.Errorf("cannot apply validation set without account and name")
+	}
 	data := &postData{
-		Account: account,
-		Name: name,
 		Mode: opts.Mode,
 		PinAt: opts.PinAt,
 	}
@@ -63,7 +62,8 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return err
 	}
-	if _, err := client.doSync("POST", "/v2/validation-set", nil, nil, &body, nil); err != nil {
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
 		return xerrors.Errorf("cannot apply validation set: %v", err)
 	}
 	return nil
@@ -91,7 +91,7 @@ func (client *Client) ValidationSet(account, name string, pinnedAt int) (*Valida
 	}
 
 	var res *ValidationSetResult
-	path := fmt.Sprintf("/v2/validation-set/%s/%s", account, name)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	_, err := client.doSync("GET", path, q, nil, nil, &res)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot get validation set: %v", err)

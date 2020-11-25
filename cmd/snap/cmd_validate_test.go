@@ -42,14 +42,14 @@ func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pin
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/validation-set")
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
 		} else {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"account\":\"foo\",\"name\":\"bar\",\"mode\":%q}\n", mode))
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q}\n", mode))
 		}
 
 		c.Check(r.Method, check.Equals, "POST")
@@ -65,7 +65,7 @@ func makeFakeValidationSetQueryHandler(c *check.C, body string) func(w http.Resp
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/validation-set/foo/bar")
+		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
