@@ -89,6 +89,14 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 
 	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
 
+	var startupOrdered []*snap.AppInfo
+	if sc.Action != "stop" {
+		startupOrdered, err = snap.SortServices(services)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Note - state must be unlocked when calling wrappers below.
 	switch sc.Action {
 	case "stop":
@@ -116,10 +124,6 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 	case "start":
-		startupOrdered, err := snap.SortServices(services)
-		if err != nil {
-			return err
-		}
 		enable := sc.ActionModifier == "enable"
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
@@ -145,13 +149,13 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(services, nil, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, nil, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
 		st.Unlock()
-		err := wrappers.RestartServices(services, flags, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, flags, meter, perfTimings)
 		st.Lock()
 		return err
 	default:

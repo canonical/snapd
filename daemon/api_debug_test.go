@@ -34,7 +34,7 @@ import (
 var _ = check.Suite(&postDebugSuite{})
 
 type postDebugSuite struct {
-	apiBaseSuite
+	APIBaseSuite
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
