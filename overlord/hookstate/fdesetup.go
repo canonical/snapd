@@ -19,14 +19,18 @@
 
 package hookstate
 
-// FDESetupRequest carries the operation and parameters for the fde-setup hooks
-// made available to them via the snapctl fde-setup-request command.
+import (
+	"github.com/snapcore/snapd/secboot"
+)
+
+// FDESetupRequest is the struct that is passed the the fde-setup hooks
+// via the `snapctl fde-setup-request` command.
 type FDESetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
-	Key     []byte `json:"key,omitempty"`
-	KeyName string `json:"key-name,omitempty"`
+	Key     *secboot.EncryptionKey `json:"key,omitempty"`
+	KeyName string                 `json:"key-name,omitempty"`
 
 	// Model related fields, this will be set to follow the
 	// secboot:SnapModel interface.
