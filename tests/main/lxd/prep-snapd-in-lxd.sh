@@ -12,7 +12,14 @@ fi
 # wait for cloud-init to finish before doing any apt operations, since it will
 # re-write the apt sources.list file and we will be racing with the re-write 
 # trying to do apt operations before cloud-init is done
-cloud-init status --wait
+# TODO: we should eventually use `cloud-init status --wait`, but that doesn't work
+# in nested containers, see https://bugs.launchpad.net/cloud-init/+bug/1905493
+for _ in $(seq 1 60); do
+    if python3 -c "import apt;apt.apt_pkg.SourceList().read_main_list()"; then
+        break
+    fi
+    sleep 1
+done
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
