@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"fmt"
@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -34,16 +35,18 @@ import (
 var _ = check.Suite(&apiValidationSetsSuite{})
 
 type apiValidationSetsSuite struct {
-	apiBaseSuite
+	daemon.APIBaseSuite
+
+	d *daemon.Daemon
 }
 
 func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
-	s.apiBaseSuite.SetUpTest(c)
-	s.vars = map[string]string{"account": "foo", "name": "bar"}
+	s.APIBaseSuite.SetUpTest(c)
+	s.d = s.DaemonWithStore(c, s)
 }
 
 func (s *apiValidationSetsSuite) TearDownTest(c *check.C) {
-	s.apiBaseSuite.TearDownTest(c)
+	s.APIBaseSuite.TearDownTest(c)
 }
 
 func mockValidationSetsTracking(st *state.State) {
@@ -66,8 +69,7 @@ func mockValidationSetsTracking(st *state.State) {
 }
 
 func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
@@ -80,8 +82,8 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		status  int
 	}{
 		{
-			validationSet: "ąśćź",
-			message:       "invalid validation-set argument",
+			validationSet: "abc/1foo",
+			message:       `invalid name "1foo"`,
 			status:        400,
 		},
 		{
@@ -117,12 +119,10 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		if tc.pinAt != "" {
 			q.Set("pin-at", tc.pinAt)
 		}
-		req, err := http.NewRequest("GET", "/v2/validation-sets?"+q.Encode(), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s?%s", tc.validationSet, q.Encode()), nil)
 		c.Assert(err, check.IsNil)
-
-		rsp := listValidationSets(validationSetsListCmd, req, nil).(*resp)
-
-		c.Check(rsp.Type, check.Equals, ResponseTypeError, check.Commentf("case #%d", i))
+		rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("case #%d", i))
 		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
 	}
@@ -132,11 +132,9 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsNone(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
 	c.Assert(err, check.IsNil)
 
-	s.daemonWithOverlordMock(c)
-	rsp := listValidationSets(validationSetsListCmd, req, nil).(*resp)
-
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
-	res := rsp.Result.([]validationSetResult)
+	res := rsp.Result.([]daemon.ValidationSetResult)
 	c.Check(res, check.HasLen, 0)
 }
 
@@ -144,17 +142,15 @@ func (s *apiValidationSetsSuite) TestQueryValidationSets(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := listValidationSets(validationSetsListCmd, req, nil).(*resp)
-
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
-	res := rsp.Result.([]validationSetResult)
-	c.Check(res, check.DeepEquals, []validationSetResult{
+	res := rsp.Result.([]daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, []daemon.ValidationSetResult{
 		{
 			ValidationSet: "foo/bar=9",
 			Mode:          "enforce",
@@ -174,17 +170,15 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSet(c *check
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := getValidationSet(validationSetsCmd, req, nil).(*resp)
-
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
-	res := rsp.Result.(validationSetResult)
-	c.Check(res, check.DeepEquals, validationSetResult{
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
 		ValidationSet: "foo/bar=9",
 		Mode:          "enforce",
 		Seq:           12,
@@ -195,42 +189,37 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSet(c *check
 func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetPinned(c *check.C) {
 	q := url.Values{}
 	q.Set("pin-at", "9")
-	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar"+q.Encode(), nil)
+	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := getValidationSet(validationSetsCmd, req, nil).(*resp)
-
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
-	res := rsp.Result.(validationSetResult)
-	c.Check(res, check.DeepEquals, validationSetResult{
-			ValidationSet: "foo/bar=9",
-			Mode:          "enforce",
-			Seq:           12,
-			Valid:         false,
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		ValidationSet: "foo/bar=9",
+		Mode:          "enforce",
+		Seq:           12,
+		Valid:         false,
 	})
 }
 
 func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetNotFound(c *check.C) {
-	s.vars = map[string]string{"account": "foo", "name": "other"}
-
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := getValidationSet(validationSetsCmd, req, nil).(*resp)
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
-	res := rsp.Result.(*errorResult)
+	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
 	c.Check(res.Value, check.DeepEquals, "foo/other")
@@ -242,45 +231,43 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetPinnedNot
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := getValidationSet(validationSetsCmd, req, nil).(*resp)
+	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
-	res := rsp.Result.(*errorResult)
+	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
 	c.Check(res.Value, check.DeepEquals, "foo/bar=333")
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 
 	for _, tc := range []struct {
-		mode  string
-		pinAt int
-		expectedMode  assertstate.ValidationSetMode
+		mode         string
+		pinAt        int
+		expectedMode assertstate.ValidationSetMode
 	}{
 		{
-			mode:  "enforce",
-			pinAt: 12,
-			expectedMode:  assertstate.Enforce,
-		},
-		{
-			mode:  "monitor",
-			pinAt: 99,
-			expectedMode:  assertstate.Monitor,
-		},
-		{
-			mode: "enforce",
+			mode:         "enforce",
+			pinAt:        12,
 			expectedMode: assertstate.Enforce,
 		},
 		{
-			mode: "monitor",
+			mode:         "monitor",
+			pinAt:        99,
+			expectedMode: assertstate.Monitor,
+		},
+		{
+			mode:         "enforce",
+			expectedMode: assertstate.Enforce,
+		},
+		{
+			mode:         "monitor",
 			expectedMode: assertstate.Monitor,
 		},
 	} {
@@ -290,11 +277,11 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 		} else {
 			body = fmt.Sprintf(`{"mode":"%s"}`, tc.mode)
 		}
-		
+
 		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 
-		rsp := applyValidationSet(validationSetsCmd, req, nil).(*resp)
+		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 200)
 
 		var tr assertstate.ValidationSetTracking
@@ -313,8 +300,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 
 	for i, pinAt := range []int{0, 9} {
 		st.Lock()
@@ -323,9 +309,9 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 
 		var body string
 		if pinAt != 0 {
-			body = fmt.Sprintf(`{"flag":"forget", "pin-at":%d}`, pinAt)
+			body = fmt.Sprintf(`{"mode":"forget", "pin-at":%d}`, pinAt)
 		} else {
-			body = fmt.Sprintf(`{"flag":"forget"}`)
+			body = fmt.Sprintf(`{"mode":"forget"}`)
 		}
 		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
@@ -340,26 +326,27 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		c.Check(tr.AccountID, check.Equals, "foo")
 		c.Check(tr.Name, check.Equals, "bar")
 
-		rsp := applyValidationSet(validationSetsCmd, req, nil).(*resp)
-		c.Check(rsp.Status, check.Equals, 200, check.Commentf("case #%d", i))
+		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
+		c.Assert(rsp.Status, check.Equals, 200, check.Commentf("case #%d", i))
 
 		// after forget it's removed
 		st.Lock()
 		err = assertstate.GetValidationSet(st, "foo", "bar", &tr)
 		st.Unlock()
-		c.Check(err, check.Equals, state.ErrNoState)
+		c.Assert(err, check.Equals, state.ErrNoState)
 
 		// and forget again fails
 		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp = applyValidationSet(validationSetsCmd, req, nil).(*resp)
-		c.Check(rsp.Status, check.Equals, 404, check.Commentf("case #%d", i))
+		rsp = s.PostReq(c, req, nil).(*daemon.Resp)
+		c.Assert(rsp.Status, check.Equals, 404, check.Commentf("case #%d", i))
 	}
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	st := d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
 	st.Unlock()
@@ -373,9 +360,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		status  int
 	}{
 		{
-			validationSet: "zzz",
+			validationSet: "0/zzz",
 			flag:          "monitor",
-			message:       `invalid account name ""`,
+			message:       `invalid account name "0"`,
 			status:        400,
 		},
 		{
@@ -403,10 +390,6 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 			status:        400,
 		},
 	} {
-		//q := url.Values{}
-		//if tc.pinAt != "" {
-		//	q.Set("pin-at", tc.pinAt)
-		//}
 		var body string
 		if tc.pinAt != "" {
 			body = fmt.Sprintf(`{"mode":"%s", "pin-at":%s}`, tc.flag, tc.pinAt)
@@ -415,9 +398,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s", tc.validationSet), strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp := applyValidationSet(validationSetsCmd, req, nil).(*resp)
+		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
 
-		c.Check(rsp.Type, check.Equals, ResponseTypeError, check.Commentf("case #%d", i))
+		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("case #%d", i))
 		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
 	}
