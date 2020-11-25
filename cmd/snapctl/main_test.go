@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -41,6 +42,7 @@ type snapctlSuite struct {
 	oldArgs           []string
 	expectedContextID string
 	expectedArgs      []string
+	expectedStdin     []byte
 }
 
 var _ = Suite(&snapctlSuite{})
@@ -57,11 +59,12 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 			c.Assert(r.URL.Path, Equals, "/v2/snapctl")
 			c.Assert(r.Header.Get("Authorization"), Equals, "")
 
-			var snapctlOptions client.SnapCtlOptions
+			var snapctlPostData client.SnapCtlPostData
 			decoder := json.NewDecoder(r.Body)
-			c.Assert(decoder.Decode(&snapctlOptions), IsNil)
-			c.Assert(snapctlOptions.ContextID, Equals, s.expectedContextID)
-			c.Assert(snapctlOptions.Args, DeepEquals, s.expectedArgs)
+			c.Assert(decoder.Decode(&snapctlPostData), IsNil)
+			c.Assert(snapctlPostData.ContextID, Equals, s.expectedContextID)
+			c.Assert(snapctlPostData.Args, DeepEquals, s.expectedArgs)
+			c.Assert(snapctlPostData.Stdin, DeepEquals, s.expectedStdin)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": {"stdout": "test stdout", "stderr": "test stderr"}}`)
 		default:
@@ -91,7 +94,7 @@ func (s *snapctlSuite) TearDownTest(c *C) {
 }
 
 func (s *snapctlSuite) TestSnapctl(c *C) {
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -101,7 +104,7 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 	os.Args = []string{"snapctl", "foo", "--bar"}
 
 	s.expectedArgs = []string{"foo", "--bar"}
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -114,6 +117,14 @@ func (s *snapctlSuite) TestSnapctlHelp(c *C) {
 	os.Args = []string{"snapctl", "-h"}
 	s.expectedArgs = []string{"-h"}
 
-	_, _, err := run()
+	_, _, err := run(nil)
+	c.Check(err, IsNil)
+}
+
+func (s *snapctlSuite) TestSnapctlWithStdin(c *C) {
+	s.expectedStdin = []byte("hello")
+	mockStdin := bytes.NewBuffer(s.expectedStdin)
+
+	_, _, err := run(mockStdin)
 	c.Check(err, IsNil)
 }
