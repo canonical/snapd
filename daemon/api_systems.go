@@ -31,8 +31,10 @@ import (
 )
 
 var systemsCmd = &Command{
-	Path: "/v2/systems",
-	GET:  getSystems,
+	Path:     "/v2/systems",
+	GET:      getSystems,
+	POST:     postSystemsAction,
+	RootOnly: true,
 }
 
 var systemsActionCmd = &Command{
