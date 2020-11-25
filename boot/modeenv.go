@@ -66,8 +66,10 @@ type Modeenv struct {
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
-	// CurrentKernelCommandLines is stack of the expected kernel command
-	// lines when booting into run mode.
+	// CurrentKernelCommandLines is a list of the expected kernel command
+	// lines when booting into run mode. It will typically only be one
+	// element for normal operations, but may contain two elements during
+	// update scenarios.
 	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
 	// TODO:UC20 add a per recovery system list of kernel command lines
 
