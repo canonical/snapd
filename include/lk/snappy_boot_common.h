@@ -43,7 +43,7 @@
  *  gadget, this just sets the upper bound of maximum number of recovery systems
  *  a gadget could define without needing changes here
  */
-#define SNAP_SEED_BOOTIMG_PART_NUM 10
+#define SNAP_RECOVERY_BOOTIMG_PART_NUM 10
 
 /* number of available bootimg partitions for run mode, min 2 */
 #define SNAP_RUN_BOOTIMG_PART_NUM 2

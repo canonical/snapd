@@ -69,7 +69,7 @@ type SnapBootSelect_v2_recovery struct {
 	 * The initial value representing initial single recovery system is
 	 *   populated at image build time by snapd
 	 *
-	 * There are SNAP_RECOVER_BOOTIMG_PART_NUM rows in the matrix, representing
+	 * There are SNAP_RECOVERY_BOOTIMG_PART_NUM rows in the matrix, representing
 	 *   all possible recovery systems on the image.
 	 * The following describes how this matrix should be modified at different
 	 * stages:
@@ -95,7 +95,7 @@ type SnapBootSelect_v2_recovery struct {
 	 * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 */
-	Bootimg_matrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
+	Bootimg_matrix [SNAP_RECOVERY_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* name of the boot image from kernel snap to be used for extraction
 	when not defined or empty, default boot.img will be used */

@@ -60,7 +60,7 @@ const SNAP_RUN_BOOTIMG_PART_NUM = 2
  *  gadget, this just sets the upper bound of maximum number of recovery systems
  *  a gadget could define without needing changes here
  */
-const SNAP_RECOVER_BOOTIMG_PART_NUM = 10
+const SNAP_RECOVERY_BOOTIMG_PART_NUM = 10
 
 /* Default boot image file name to be used from kernel snap */
 const BOOTIMG_DEFAULT_NAME = "boot.img"
@@ -347,7 +347,7 @@ func (l *Env) InitializeBootPartitions(bootPartLabels ...string) error {
 		matr, err = l.variant.bootImgKernelMatrix()
 	case V2Recovery:
 		min = 1
-		max = SNAP_RECOVER_BOOTIMG_PART_NUM
+		max = SNAP_RECOVERY_BOOTIMG_PART_NUM
 		matr, err = l.variant.bootImgRecoverySystemMatrix()
 	}
 	if err != nil {
@@ -497,7 +497,7 @@ type bootimgKernelMatrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 // bootimgRecoverySystemMatrix is the same idea as bootimgKernelMatrix, but
 // instead of mapping boot image partition labels to kernel revisions, it maps
 // to recovery system labels for UC20.
-type bootimgRecoverySystemMatrix [SNAP_RECOVER_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
+type bootimgRecoverySystemMatrix [SNAP_RECOVERY_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 // bootimgMatrixGeneric is a generic slice version of the above two matrix types
 // which are both statically sized arrays, and thus not able to be used
