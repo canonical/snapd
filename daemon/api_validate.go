@@ -39,7 +39,7 @@ type validationSetResult struct {
 	Mode          string   `json:"mode"`
 	Seq           int      `json:"seq,omitempty"`
 	Valid         bool     `json:"valid"`
-	Notes         []string `json:"notes,omitempty"`
+	// TODO: attributes for Notes column
 }
 
 func modeString(mode assertstate.ValidationSetMode) (string, error) {
@@ -93,49 +93,14 @@ func validationSetAccountAndName(validationSet string) (accountID, name string, 
 	return accountID, name, nil
 }
 
-func getValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response {
-	query := r.URL.Query()
-
-	// query arguments are optional
-	validationSet := query.Get("validation-set")
-	pinAtStr := query.Get("pin-at")
-
-	var err error
-	var pinAt int
-	if pinAtStr != "" {
-		pinAt, err = strconv.Atoi(pinAtStr)
-		if err != nil {
-			return BadRequest("invalid pin-at argument")
-		}
-	}
-
+func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	var validationSets map[string]*assertstate.ValidationSetTracking
-
-	if validationSet != "" {
-		accountID, name, err := validationSetAccountAndName(validationSet)
-		if err != nil {
-			return BadRequest(err.Error())
-		}
-		var tr assertstate.ValidationSetTracking
-		err = assertstate.GetValidationSet(st, accountID, name, &tr)
-		if err == state.ErrNoState || (err == nil && pinAt != 0 && pinAt != tr.PinnedAt) {
-			return validationSetNotFound(accountID, name, pinAt)
-		}
-		if err != nil {
-			return InternalError("accessing validation sets failed: %v", err)
-		}
-
-		validationSets = make(map[string]*assertstate.ValidationSetTracking)
-		validationSets[validationSet] = &tr
-	} else {
-		validationSets, err = assertstate.ValidationSets(st)
-		if err != nil {
-			return InternalError("accessing validation sets failed: %v", err)
-		}
+	validationSets, err := assertstate.ValidationSets(st)
+	if err != nil {
+		return InternalError("accessing validation sets failed: %v", err)
 	}
 
 	names := make([]string, 0, len(validationSets))
@@ -164,20 +129,74 @@ func getValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response 
 	return SyncResponse(results, nil)
 }
 
+func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
+	vars := muxVars(r)
+	accountID := vars["account"]
+	name := vars["name"]
+
+	if !validName.MatchString(accountID) {
+		return BadRequest("invalid account name %q", accountID)
+	}
+	if !validName.MatchString(name) {
+		return BadRequest("invalid name %q", name)
+	}
+
+	query := r.URL.Query()
+
+	// pin-at is optional
+	pinAtStr := query.Get("pin-at")
+	var pinAt int
+	if pinAtStr != "" {
+		var err error
+		pinAt, err = strconv.Atoi(pinAtStr)
+		if err != nil {
+			return BadRequest("invalid pin-at argument")
+		}
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var tr assertstate.ValidationSetTracking
+	err := assertstate.GetValidationSet(st, accountID, name, &tr)
+	if err == state.ErrNoState || (err == nil && pinAt != 0 && pinAt != tr.PinnedAt) {
+		return validationSetNotFound(accountID, name, pinAt)
+	}
+	if err != nil {
+		return InternalError("accessing validation sets failed: %v", err)
+	}
+
+	modeStr, err := modeString(tr.Mode)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	// TODO: evaluate against installed snaps
+	var valid bool
+	res := validationSetResult{
+		ValidationSet: validationSetKeyString(tr.AccountID, tr.Name, tr.PinnedAt),
+		Mode:          modeStr,
+		Seq:           tr.Current,
+		Valid:         valid,
+	}
+	return SyncResponse(res, nil)
+}
+
 type validationSetApplyRequest struct {
-	Flag  string `json:"flag"`
+	Mode  string `json:"mode"`
 	PinAt int    `json:"pin-at,omitempty"`
 }
 
-func applyValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response {
-	query := r.URL.Query()
-	validationSet := query.Get("validation-set")
-	if validationSet == "" {
-		return BadRequest("validation-set missing")
+func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
+	vars := muxVars(r)
+	accountID := vars["account"]
+	name := vars["name"]
+
+	if !validName.MatchString(accountID) {
+		return BadRequest("invalid account name %q", accountID)
 	}
-	accountID, name, err := validationSetAccountAndName(validationSet)
-	if err != nil {
-		return BadRequest(err.Error())
+	if !validName.MatchString(name) {
+		return BadRequest("invalid name %q", name)
 	}
 
 	var req validationSetApplyRequest
@@ -193,18 +212,18 @@ func applyValidationSets(c *Command, r *http.Request, _ *auth.UserState) Respons
 	st.Lock()
 	defer st.Unlock()
 
-	if req.Flag == "forget" {
+	if req.Mode == "forget" {
 		return forgetValidationSet(st, accountID, name, req.PinAt)
 	}
 
 	var mode assertstate.ValidationSetMode
-	switch req.Flag {
+	switch req.Mode {
 	case "monitor":
 		mode = assertstate.Monitor
 	case "enforce":
 		mode = assertstate.Enforce
 	default:
-		return BadRequest("invalid mode %q", req.Flag)
+		return BadRequest("invalid mode %q", req.Mode)
 	}
 
 	// TODO: check that it exists in the store?

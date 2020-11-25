@@ -113,7 +113,8 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
-	validateCmd,
+	validationSetsListCmd,
+	validationSetsCmd,
 	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
 }
@@ -240,10 +241,15 @@ var (
 		POST:     ackWarnings,
 	}
 
-	validateCmd = &Command{
+	validationSetsListCmd = &Command{
 		Path: "/v2/validation-sets",
-		GET:  getValidationSets,
-		POST: applyValidationSets,
+		GET:  listValidationSets,
+	}
+
+	validationSetsCmd = &Command{
+		Path: "/v2/validation-sets/{account}/{name}",
+		GET:  getValidationSet,
+		POST: applyValidationSet,
 	}
 
 	buildID = "unknown"
