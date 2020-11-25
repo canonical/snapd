@@ -819,7 +819,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	}{
 		// unhappy: no tpm, no hook
 		{kernelYamlNoFdeSetup, fmt.Errorf("tpm says no"), false},
-		// happy: either tpm or hook or booth
+		// happy: either tpm or hook or both
 		{kernelYamlWithFdeSetup, nil, true},
 		{kernelYamlNoFdeSetup, nil, true},
 		{kernelYamlWithFdeSetup, fmt.Errorf("tpm says no"), true},
