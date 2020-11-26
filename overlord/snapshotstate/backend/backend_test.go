@@ -1375,7 +1375,7 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	}
 
 	// pretend setID 2 has a import file which means which means that
-	// an import was started in the past but did not compelte
+	// an import was started in the past but did not complete
 	fn := "2_importing"
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
 	c.Assert(err, check.IsNil)
