@@ -610,14 +610,22 @@ func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
 	c.Check(cmd.GET, check.NotNil)
 }
 
-func (s *APIBaseSuite) GetReq(c *check.C, req *http.Request, u *auth.UserState) Response {
+func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Response {
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
-	return cmd.GET(cmd, req, u)
-}
-
-func (s *APIBaseSuite) PostReq(c *check.C, req *http.Request, u *auth.UserState) Response {
-	cmd, vars := handlerCommand(c, s.d, req)
-	s.vars = vars
-	return cmd.POST(cmd, req, u)
+	var f ResponseFunc
+	switch req.Method {
+	case "GET":
+		f = cmd.GET
+	case "POST":
+		f = cmd.POST
+	case "PUT":
+		f = cmd.PUT
+	default:
+		c.Fatalf("unsupported HTTP method %q", req.Method)
+	}
+	if f == nil {
+		c.Fatalf("no support for %q for %q", req.Method, req.URL)
+	}
+	return f(cmd, req, u)
 }
