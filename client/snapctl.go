@@ -27,7 +27,7 @@ import (
 	"io/ioutil"
 )
 
-// InternalSsnapctlCmdNeedsStdin returns true if the given snapctl command
+// InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
 // needs data from stdin
 func InternalSnapctlCmdNeedsStdin(name string) bool {
 	switch name {
