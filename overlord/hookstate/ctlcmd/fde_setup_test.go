@@ -162,8 +162,8 @@ func (s *fdeSetupSuite) TestFdeSetupResult(c *C) {
 
 	// check that the task got the key that was passed via stdin
 	var fdeSetupResult []byte
-	s.st.Lock()
-	s.mockTask.Get("fde-setup-result", &fdeSetupResult)
-	s.st.Unlock()
+	s.mockContext.Lock()
+	s.mockContext.Get("fde-setup-result", &fdeSetupResult)
+	s.mockContext.Unlock()
 	c.Check(fdeSetupResult, DeepEquals, mockStdin)
 }

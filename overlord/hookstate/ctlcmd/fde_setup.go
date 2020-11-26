@@ -133,11 +133,7 @@ func (c *fdeSetupResultCommand) Execute(args []string) error {
 	if fdeSetupResult == nil {
 		return fmt.Errorf("no result data found from stdin")
 	}
-	task, ok := context.Task()
-	if !ok {
-		return fmt.Errorf("internal error: fdeSetupResultCommand called without task")
-	}
-	task.Set("fde-setup-result", fdeSetupResult)
+	context.Set("fde-setup-result", fdeSetupResult)
 
 	return nil
 }
