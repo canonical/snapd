@@ -19,6 +19,8 @@
 
 package hookstate
 
+// FDESetupRequest is the struct that is passed the the fde-setup hooks
+// via the `snapctl fde-setup-request` command.
 type FDESetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
