@@ -581,18 +581,6 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestEnableServices(c *C) {
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-
-	err := wrappers.EnableSnapServices(info, nil)
-	c.Assert(err, IsNil)
-
-	c.Assert(s.sysdLog, DeepEquals, [][]string{
-		{"enable", filepath.Base(svcFile)},
-	})
-}
-
 func (s *servicesTestSuite) TestStartServicesEnabledConditional(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
