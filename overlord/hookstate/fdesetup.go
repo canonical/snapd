@@ -19,7 +19,7 @@
 
 package hookstate
 
-type FDESetupOp struct {
+type FDESetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 

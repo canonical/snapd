@@ -75,11 +75,11 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
-	fdeSetup := &hookstate.FDESetupOp{
+	fdeSetup := &hookstate.FDESetupRequest{
 		Op: "invalid-and-unknown",
 	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-setup-op", fdeSetup)
+	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
@@ -89,7 +89,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
-	// note that we did not set "fde-setup-op" in mockContext in this test
+	// note that we did not set "fde-setup-request" in mockContext in this test
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
 	c.Check(err, ErrorMatches, `cannot find FDE setup data, is the command called from a non fde-setup hook\?`)
@@ -98,11 +98,11 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
-	fdeSetup := &hookstate.FDESetupOp{
+	fdeSetup := &hookstate.FDESetupRequest{
 		Op: "features",
 	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-setup-op", fdeSetup)
+	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
@@ -112,7 +112,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
-	fdeSetup := &hookstate.FDESetupOp{
+	fdeSetup := &hookstate.FDESetupRequest{
 		Op:      "initial-setup",
 		Key:     []byte("key-to-seal"),
 		KeyName: "the-key-name",
@@ -125,7 +125,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 		},
 	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-setup-op", fdeSetup)
+	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)

@@ -68,8 +68,8 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
-	var fdeSetup hookstate.FDESetupOp
-	err := context.Get("fde-setup-op", &fdeSetup)
+	var fdeSetup hookstate.FDESetupRequest
+	err := context.Get("fde-setup-request", &fdeSetup)
 	if err == state.ErrNoState {
 		return fmt.Errorf("cannot find FDE setup data, is the command called from a non fde-setup hook?")
 	}
