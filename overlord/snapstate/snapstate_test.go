@@ -6581,3 +6581,122 @@ func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
 
 	c.Assert(chgs, DeepEquals, []*state.Change{chg0, chg1})
 }
+
+func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	oldServicesSnapYaml := servicesSnapYaml
+	servicesSnapYaml += `
+  svcInstallModeDisable:
+    daemon: simple
+    install-mode: disable
+`
+	defer func() { servicesSnapYaml = oldServicesSnapYaml }()
+
+	installChg := s.state.NewChange("install", "...")
+	installTs, err := snapstate.Install(context.Background(), s.state, "services-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	installChg.AddAll(installTs)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(installChg.Err(), IsNil)
+	c.Assert(installChg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, Not(IsNil))
+	c.Check(op.disabledServices, DeepEquals, []string{"svcInstallModeDisable"})
+}
+
+func (s *snapmgrTestSuite) TestInstallModeDisableUpdateServiceNotDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	oldServicesSnapYaml := servicesSnapYaml
+	servicesSnapYaml += `
+  svcInstallModeDisable:
+    daemon: simple
+    install-mode: disable
+`
+	defer func() { servicesSnapYaml = oldServicesSnapYaml }()
+
+	// pretent services-snap is installed and no service is disabled in
+	// this install (i.e. svcInstallModeDisable is active)
+	si := &snap.SideInfo{
+		RealName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(7),
+	}
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnap(c, string(servicesSnapYaml), si)
+
+	updateChg := s.state.NewChange("refresh", "...")
+	updateTs, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	updateChg.AddAll(updateTs)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(updateChg.Err(), IsNil)
+	c.Assert(updateChg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, Not(IsNil))
+	c.Check(op.disabledServices, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	oldServicesSnapYaml := servicesSnapYaml
+	servicesSnapYaml += `
+  svcInstallModeDisable:
+    daemon: simple
+    install-mode: disable
+`
+	defer func() { servicesSnapYaml = oldServicesSnapYaml }()
+
+	// XXX: should this become part of managers_test.go ?
+	// pretent we have a hook that enables the service on install
+	runner := s.o.TaskRunner()
+	runner.AddHandler("run-hook", func(t *state.Task, _ *tomb.Tomb) error {
+		var snapst snapstate.SnapState
+		st.Lock()
+		err := snapstate.Get(st, "services-snap", &snapst)
+		st.Unlock()
+		c.Assert(err, IsNil)
+		snapst.ServicesEnabledByHooks = []string{"svcInstallModeDisable"}
+		st.Lock()
+		snapstate.Set(st, "services-snap", &snapst)
+		st.Unlock()
+		return nil
+	}, nil)
+
+	installChg := s.state.NewChange("install", "...")
+	installTs, err := snapstate.Install(context.Background(), s.state, "services-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	installChg.AddAll(installTs)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(installChg.Err(), IsNil)
+	c.Assert(installChg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("start-snap-services")
+	c.Assert(op, Not(IsNil))
+	c.Check(op.disabledServices, HasLen, 0)
+}

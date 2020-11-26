@@ -690,7 +690,7 @@ func (m *recoverModeStateMachine) finalize() error {
 	// check soundness
 	// the grade check makes sure that if data was mounted unencrypted
 	// but the model is secured it will end up marked as untrusted
-	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
+	isEncrypted := m.isEncryptedDev || m.model.StorageSafety() == asserts.StorageSafetyEncrypted
 	part := m.degradedState.partition("ubuntu-data")
 	if part.MountState == partitionMounted && isEncrypted {
 		// check that save and data match
@@ -1131,6 +1131,12 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 	if err != nil {
 		return nil, err
 	}
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// expected recovery model we sealed against.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected recovery models
 
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
@@ -1277,8 +1283,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
-	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
-	// one recorded in ubuntu-data modeenv during install
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// run model.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected models
 
 	// 3.2. mount Data
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")

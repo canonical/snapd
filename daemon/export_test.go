@@ -41,19 +41,23 @@ func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	return d
 }
 
+func (d *Daemon) Overlord() *overlord.Overlord {
+	return d.overlord
+}
+
+func MockEnsureStateSoon(mock func(*state.State)) (restore func()) {
+	oldEnsureStateSoon := ensureStateSoon
+	ensureStateSoon = mock
+	return func() {
+		ensureStateSoon = oldEnsureStateSoon
+	}
+}
+
 func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 	old := muxVars
 	muxVars = vars
 	return func() {
 		muxVars = old
-	}
-}
-
-func MockBuildID(mock string) (restore func()) {
-	old := buildID
-	buildID = mock
-	return func() {
-		buildID = old
 	}
 }
 

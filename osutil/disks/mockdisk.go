@@ -88,6 +88,30 @@ type Mountpoint struct {
 	IsDecryptedDevice bool
 }
 
+// MockDeviceNameDisksToPartitionMapping will mock DiskFromDeviceName such that
+// the provided map of device names to mock disks is used instead of the actual
+// implementation using udev.
+func MockDeviceNameDisksToPartitionMapping(mockedMountPoints map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	// note that devices can have many names that are recognized by
+	// udev/kernel, so we don't do any validation of the mapping here like we do
+	// for MockMountPointDisksToPartitionMapping
+
+	old := diskFromDeviceName
+	diskFromDeviceName = func(deviceName string) (Disk, error) {
+		disk, ok := mockedMountPoints[deviceName]
+		if !ok {
+			return nil, fmt.Errorf("device name %q not mocked", deviceName)
+		}
+		return disk, nil
+	}
+
+	return func() {
+		diskFromDeviceName = old
+	}
+}
+
 // MockMountPointDisksToPartitionMapping will mock DiskFromMountPoint such that
 // the specified mapping is returned/used. Specifically, keys in the provided
 // map are mountpoints, and the values for those keys are the disks that will
