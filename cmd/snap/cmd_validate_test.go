@@ -35,7 +35,7 @@ type validateSuite struct {
 
 var _ = check.Suite(&validateSuite{})
 
-func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pinned int) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, sequence int) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -43,16 +43,16 @@ func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, pin
 		}
 		called = true
 		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
+		c.Check(r.Method, check.Equals, "POST")
 
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
-		if pinned != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"pin-at\":%d}\n", mode, pinned))
+		if sequence != 0 {
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"sequence\":%d}\n", mode, sequence))
 		} else {
 			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q}\n", mode))
 		}
 
-		c.Check(r.Method, check.Equals, "POST")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
 	}
@@ -172,7 +172,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true}}`))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":true}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -185,7 +185,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":false}}`))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":false}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -199,8 +199,8 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	defer restore()
 
 	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": [
-		{"validation-set":"foo/bar","mode":"monitor","seq":3,"valid":true},
-		{"validation-set":"foo/baz","mode":"enforce","seq":1,"valid":false}
+		{"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":true},
+		{"validation-set":"foo/baz","mode":"enforce","sequence":1,"valid":false}
 	]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})

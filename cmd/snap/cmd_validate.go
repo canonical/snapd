@@ -140,7 +140,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		// apply
 		opts := &client.ValidateApplyOptions{
 			Mode:  validateMode,
-			PinAt: seq,
+			Sequence: seq,
 		}
 		return cmd.client.ApplyValidationSet(account, name, opts)
 	}
@@ -167,7 +167,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			line := []string{
 				res.ValidationSet,
 				res.Mode,
-				fmt.Sprintf("%d", res.Seq),
+				fmt.Sprintf("%d", res.Sequence),
 				fmtValid(res),
 				notes,
 			}
