@@ -54,7 +54,7 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 		return xerrors.Errorf("cannot apply validation set without account and name")
 	}
 	data := &postData{
-		Mode: opts.Mode,
+		Mode:  opts.Mode,
 		PinAt: opts.PinAt,
 	}
 

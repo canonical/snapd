@@ -435,7 +435,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 		Args:      []string{"bar", "--baz"},
 	}
 
-	stdout, stderr, err := cli.RunSnapctl(options)
+	stdout, stderr, err := cli.RunSnapctl(options, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
