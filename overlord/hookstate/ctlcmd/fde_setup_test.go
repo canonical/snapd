@@ -88,6 +88,15 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 	c.Check(string(stderr), Equals, "")
 }
 
+func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
+	// note that we did not set "fde-setup-op" in mockContext in this test
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	c.Check(err, ErrorMatches, `cannot find FDE setup data, is the command called from a non fde-setup hook\?`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
 func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 	fdeSetup := &hookstate.FDESetupOp{
 		Op: "features",

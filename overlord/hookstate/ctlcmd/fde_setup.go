@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type fdeSetupRequestCommand struct {
@@ -68,7 +69,11 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	defer context.Unlock()
 
 	var fdeSetup hookstate.FDESetupOp
-	if err := context.Get("fde-setup-op", &fdeSetup); err != nil {
+	err := context.Get("fde-setup-op", &fdeSetup)
+	if err == state.ErrNoState {
+		return fmt.Errorf("cannot find FDE setup data, is the command called from a non fde-setup hook?")
+	}
+	if err != nil {
 		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}
 	// Op is either "initial-setup" or "features"
