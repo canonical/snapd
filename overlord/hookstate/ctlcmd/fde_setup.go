@@ -102,11 +102,11 @@ var longFdeSetupResultHelp = i18n.G(`
 The fde-setup-result command sets the result data for a fde-setup hook
 reading it from stdin.
 
-E.g.
+For example:
 When the fde-setup hook is called with "op":"features:
 $ echo "[]" | snapctl fde-setup-result
 
-Or when the fde-setup hook is called with "op":"initial-setup":
+When the fde-setup hook is called with "op":"initial-setup":
 $ echo "sealed-key" | snapctl fde-setup-result
 `)
 
