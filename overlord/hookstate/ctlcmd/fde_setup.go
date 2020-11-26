@@ -78,10 +78,8 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	}
 	// Op is either "initial-setup" or "features"
 	switch fdeSetup.Op {
-	case "features":
-		// nothing
-	case "initial-setup":
-		// TODO: validate we have key, key-name, model
+	case "features", "initial-setup":
+		// fine
 	default:
 		return fmt.Errorf("unknown fde-setup-request op %q", fdeSetup.Op)
 
