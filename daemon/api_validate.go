@@ -35,10 +35,10 @@ import (
 )
 
 type validationSetResult struct {
-	ValidationSet string   `json:"validation-set,omitempty"`
-	Mode          string   `json:"mode"`
-	Seq           int      `json:"seq,omitempty"`
-	Valid         bool     `json:"valid"`
+	ValidationSet string `json:"validation-set,omitempty"`
+	Mode          string `json:"mode"`
+	Seq           int    `json:"seq,omitempty"`
+	Valid         bool   `json:"valid"`
 	// TODO: attributes for Notes column
 }
 
@@ -152,6 +152,9 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 		if err != nil {
 			return BadRequest("invalid pin-at argument")
 		}
+		if pinAt < 0 {
+			return BadRequest("invalid pin-at argument: %d", pinAt)
+		}
 	}
 
 	st := c.d.overlord.State()
@@ -206,6 +209,9 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	}
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
+	}
+	if req.PinAt < 0 {
+		return BadRequest("invalid pin-at argument: %d", req.PinAt)
 	}
 
 	st := c.d.overlord.State()

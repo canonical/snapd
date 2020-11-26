@@ -113,6 +113,12 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 			message:       "invalid pin-at argument",
 			status:        400,
 		},
+		{
+			validationSet: "foo/bar",
+			pinAt:         "-2",
+			message:       "invalid pin-at argument: -2",
+			status:        400,
+		},
 	} {
 		q := url.Values{}
 		q.Set("validation-set", tc.validationSet)
@@ -128,7 +134,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 	}
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSetsNone(c *check.C) {
+func (s *apiValidationSetsSuite) TestGetValidationSetsNone(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
 	c.Assert(err, check.IsNil)
 
@@ -138,7 +144,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsNone(c *check.C) {
 	c.Check(res, check.HasLen, 0)
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSets(c *check.C) {
+func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
 	c.Assert(err, check.IsNil)
 
@@ -166,7 +172,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSets(c *check.C) {
 	})
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSet(c *check.C) {
+func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar", nil)
 	c.Assert(err, check.IsNil)
 
@@ -186,7 +192,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSet(c *check
 	})
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetPinned(c *check.C) {
+func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	q := url.Values{}
 	q.Set("pin-at", "9")
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
@@ -208,7 +214,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetPinned(c 
 	})
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetNotFound(c *check.C) {
+func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
 	c.Assert(err, check.IsNil)
 
@@ -225,7 +231,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetNotFound(
 	c.Check(res.Value, check.DeepEquals, "foo/other")
 }
 
-func (s *apiValidationSetsSuite) TestQueryValidationSingleValidationSetPinnedNotFound(c *check.C) {
+func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
 	q := url.Values{}
 	q.Set("pin-at", "333")
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
@@ -387,6 +393,13 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 			validationSet: "foo/bar",
 			flag:          "bad",
 			message:       `invalid mode "bad"`,
+			status:        400,
+		},
+		{
+			validationSet: "foo/bar",
+			pinAt:         "-1",
+			flag:          "monitor",
+			message:       `invalid pin-at argument: -1`,
 			status:        400,
 		},
 	} {
