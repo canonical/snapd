@@ -30,7 +30,8 @@ type fdeSetupRequestCommand struct {
 	baseCommand
 }
 
-var shortFdeSetupRequestHelp = i18n.G("Request setup of full disk encryption")
+var shortFdeSetupRequestHelp = i18n.G("Obtain full disk encryption setup request")
+
 var longFdeSetupRequestHelp = i18n.G(`
 The fde-setup-request command is used inside the fde-setup hook. It will
 return information about what operation for full-disk encryption is
@@ -77,7 +78,7 @@ type fdeSetupJSON struct {
 func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	context := c.context()
 	if context == nil {
-		return fmt.Errorf("cannot  without a context")
+		return fmt.Errorf("cannot run fde-setup-request without a context")
 	}
 	context.Lock()
 	defer context.Unlock()
@@ -120,8 +121,8 @@ type fdeSetupResultCommand struct {
 
 var shortFdeSetupResultHelp = i18n.G("Set result for full disk encryption")
 var longFdeSetupResultHelp = i18n.G(`
-The fde-setup-result command reads the result data for a fde-setup hook
-from stdin.
+The fde-setup-result command sets the result data for a fde-setup hook
+reading it from stdin.
 
 E.g.
 When the fde-setup hook is called with "op":"features:
@@ -138,7 +139,7 @@ func init() {
 func (c *fdeSetupResultCommand) Execute(args []string) error {
 	context := c.context()
 	if context == nil {
-		return fmt.Errorf("cannot  without a context")
+		return fmt.Errorf("cannot run fde-setup-result without a context")
 	}
 	context.Lock()
 	defer context.Unlock()
@@ -148,7 +149,7 @@ func (c *fdeSetupResultCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot get result from stdin: %v", err)
 	}
 	if fdeSetupResult == nil {
-		return fmt.Errorf("no result data found on stdin")
+		return fmt.Errorf("no result data found from stdin")
 	}
 	task, ok := context.Task()
 	if !ok {
