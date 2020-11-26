@@ -35,7 +35,7 @@ type validateSuite struct {
 
 var _ = check.Suite(&validateSuite{})
 
-func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, sequence int) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeValidationSetPostHandler(c *check.C, body, action string, sequence int) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -47,10 +47,17 @@ func makeFakeValidationSetApplyHandler(c *check.C, body string, mode string, seq
 
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
-		if sequence != 0 {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q,\"sequence\":%d}\n", mode, sequence))
-		} else {
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"mode\":%q}\n", mode))
+		switch {
+		case sequence != 0 && action != "forget":
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"apply\",\"mode\":%q,\"sequence\":%d}\n", action, sequence))
+		case sequence == 0 && action != "forget":
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"apply\",\"mode\":%q}\n", action))
+		case sequence != 0 && action == "forget":
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"forget\",\"sequence\":%d}\n", sequence))
+		case action == "forget":
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"forget\"}\n"))
+		default:
+			c.Fatalf("unexpected action: %s", action)
 		}
 
 		w.WriteHeader(200)
@@ -109,7 +116,7 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateMonitor(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -119,7 +126,7 @@ func (s *validateSuite) TestValidateMonitor(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 3))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 3))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar=3"})
 	c.Assert(err, check.IsNil)
@@ -129,7 +136,7 @@ func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforce(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -139,7 +146,7 @@ func (s *validateSuite) TestValidateEnforce(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 5))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 5))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar=5"})
 	c.Assert(err, check.IsNil)
@@ -149,7 +156,7 @@ func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateForget(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -159,7 +166,7 @@ func (s *validateSuite) TestValidateForget(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateForgetPinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetApplyHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 5))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "forget", 5))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--forget", "foo/bar=5"})
 	c.Assert(err, check.IsNil)

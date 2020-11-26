@@ -28,6 +28,11 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
+var errorResponseJSON = `{
+	"type": "error",
+	"result": {"message": "failed"}
+}`
+
 func (cs *clientSuite) TestListValidationsSetsNone(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
@@ -44,10 +49,7 @@ func (cs *clientSuite) TestListValidationsSetsNone(c *check.C) {
 
 func (cs *clientSuite) TestListValidationsSetsError(c *check.C) {
 	cs.status = 500
-	cs.rsp = `{
-		"type": "error",
-		"result": {"message": "failed"}
-	}`
+	cs.rsp = errorResponseJSON
 
 	_, err := cs.cli.ListValidationsSets()
 	c.Assert(err, check.ErrorMatches, "cannot get validation sets: failed")
@@ -90,6 +92,7 @@ func (cs *clientSuite) TestApplyValidationSet(c *check.C) {
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action":   "apply",
 		"mode":     "monitor",
 		"sequence": float64(3),
 	})
@@ -97,10 +100,7 @@ func (cs *clientSuite) TestApplyValidationSet(c *check.C) {
 
 func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 	cs.status = 500
-	cs.rsp = `{
-		"type": "error",
-		"result": {"message": "failed"}
-	}`
+	cs.rsp = errorResponseJSON
 	opts := &client.ValidateApplyOptions{Mode: "monitor"}
 	err := cs.cli.ApplyValidationSet("foo", "bar", opts)
 	c.Assert(err, check.ErrorMatches, "cannot apply validation set: failed")
@@ -114,6 +114,41 @@ func (cs *clientSuite) TestApplyValidationSetInvalidArgs(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account and name`)
 	err = cs.cli.ApplyValidationSet("", "bar", opts)
 	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account and name`)
+}
+
+func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"status-code": 200
+	}`
+	c.Assert(cs.cli.ForgetValidationSet("foo", "bar", 3), check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action":   "forget",
+		"sequence": float64(3),
+	})
+}
+
+func (cs *clientSuite) TestForgetValidationSetError(c *check.C) {
+	cs.status = 500
+	cs.rsp = errorResponseJSON
+	err := cs.cli.ForgetValidationSet("foo", "bar", 0)
+	c.Assert(err, check.ErrorMatches, "cannot forget validation set: failed")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
+}
+
+func (cs *clientSuite) TestForgetValidationSetInvalidArgs(c *check.C) {
+	err := cs.cli.ForgetValidationSet("", "bar", 0)
+	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account and name`)
+	err = cs.cli.ForgetValidationSet("", "bar", 0)
+	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account and name`)
 }
 
 func (cs *clientSuite) TestValidationSet(c *check.C) {
@@ -134,10 +169,7 @@ func (cs *clientSuite) TestValidationSet(c *check.C) {
 
 func (cs *clientSuite) TestValidationSetError(c *check.C) {
 	cs.status = 500
-	cs.rsp = `{
-		"type": "error",
-		"result": {"message": "failed"}
-	}`
+	cs.rsp = errorResponseJSON
 
 	_, err := cs.cli.ValidationSet("foo", "bar", 0)
 	c.Assert(err, check.ErrorMatches, "cannot get validation set: failed")

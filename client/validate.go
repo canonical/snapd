@@ -44,16 +44,42 @@ type ValidationSetResult struct {
 }
 
 type postData struct {
-	Mode     string `json:"mode"`
+	Action   string `json:"action"`
+	Mode     string `json:"mode,omitempty"`
 	Sequence int    `json:"sequence,omitempty"`
 }
 
-// ApplyValidationSet applies or forgets the given validation set identified by account and name.
+// ForgetValidationSet forgets the given validation set identified by account,
+// name and optional sequence (if non-zero).
+func (client *Client) ForgetValidationSet(account, name string, sequence int) error {
+	if account == "" || name == "" {
+		return xerrors.Errorf("cannot forget validation set without account and name")
+	}
+
+	data := &postData{
+		Action:   "forget",
+		Sequence: sequence,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(data); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
+		return xerrors.Errorf("cannot forget validation set: %v", err)
+	}
+	return nil
+}
+
+// ApplyValidationSet applies the given validation set identified by account and name.
 func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApplyOptions) error {
 	if account == "" || name == "" {
 		return xerrors.Errorf("cannot apply validation set without account and name")
 	}
+
 	data := &postData{
+		Action:   "apply",
 		Mode:     opts.Mode,
 		Sequence: opts.Sequence,
 	}
