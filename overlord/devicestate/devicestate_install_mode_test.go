@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -440,7 +441,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
 	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
-	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured: TPM not available.*")
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
@@ -482,7 +483,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
-	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured: TPM not available.*")
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errMatch string) {
@@ -800,6 +801,43 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+
+	for _, tc := range []struct {
+		kernelYaml string
+		tpmErr     error
+		encrypt    bool
+	}{
+		// unhappy: no tpm, no hook
+		{kernelYamlNoFdeSetup, fmt.Errorf("tpm says no"), false},
+		// happy: either tpm or hook or both
+		{kernelYamlWithFdeSetup, nil, true},
+		{kernelYamlNoFdeSetup, nil, true},
+		{kernelYamlWithFdeSetup, fmt.Errorf("tpm says no"), true},
+	} {
+		// TODO: right now having the hook in the kernel is enough
+		//       to trigger encryption, soon the code will try to
+		//       actually run the hook with "op":"features"
+		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
+		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
+		encrypt, err := devicestate.CheckEncryption(st, deviceCtx)
+		c.Assert(err, IsNil)
+		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -844,8 +882,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 					"default-channel": "20",
 				}},
 		})
+		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
-		encrypt, err := devicestate.CheckEncryption(mockModel)
+		encrypt, err := devicestate.CheckEncryption(s.state, deviceCtx)
 		c.Assert(err, IsNil)
 		c.Check(encrypt, Equals, tc.expectedEncryption)
 	}
@@ -865,10 +904,19 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 	}{
 		// we don't test unset here because the assertion assembly
 		// will ensure it has a default
-		{"dangerous", "encrypted", "cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no"},
-		{"signed", "encrypted", "cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no"},
-		{"secured", "", "cannot encrypt device storage as mandated by model grade secured: tpm says no"},
-		{"secured", "encrypted", "cannot encrypt device storage as mandated by model grade secured: tpm says no"},
+		{
+			"dangerous", "encrypted",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+		}, {
+			"signed", "encrypted",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+		}, {
+			"secured", "",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+		}, {
+			"secured", "encrypted",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+		},
 	}
 	for _, tc := range testCases {
 		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
@@ -891,8 +939,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 					"default-channel": "20",
 				}},
 		})
-
-		_, err := devicestate.CheckEncryption(mockModel)
+		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+		_, err := devicestate.CheckEncryption(s.state, deviceCtx)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
 	}
 }

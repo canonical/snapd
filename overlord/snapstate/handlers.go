@@ -1716,6 +1716,41 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// installModeDisabledServices returns what services with
+// "install-mode: disabled" should be disabled. Only services
+// seen for the first time are considered.
+func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (svcsToDisable []string, err error) {
+	enabledByHookSvcs := map[string]bool{}
+	for _, svcName := range snapst.ServicesEnabledByHooks {
+		enabledByHookSvcs[svcName] = true
+	}
+
+	// find what servies the previous snap had
+	prevCurrentSvcs := map[string]bool{}
+	if psi := snapst.previousSideInfo(); psi != nil {
+		var prevCurrentInfo *snap.Info
+		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
+			for _, prevSvc := range prevCurrentInfo.Services() {
+				prevCurrentSvcs[prevSvc.Name] = true
+			}
+		}
+	}
+	// and deal with "install-mode: disable" for all new services
+	// (i.e. not present in previous snap).
+	//
+	// Services that are not new but have "install-mode: disable"
+	// do not need special handling. They are either still disabled
+	// or something has enabled them and then they should stay enabled.
+	for _, svc := range currentInfo.Services() {
+		if svc.InstallMode == "disable" && !enabledByHookSvcs[svc.Name] {
+			if !prevCurrentSvcs[svc.Name] {
+				svcsToDisable = append(svcsToDisable, svc.Name)
+			}
+		}
+	}
+	return svcsToDisable, nil
+}
+
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1752,6 +1787,13 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// check what services with "InstallMode: disable" need to be disabled
+	svcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo)
+	if err != nil {
+		return err
+	}
+	svcsToDisable = append(svcsToDisable, svcsToDisableFromInstallMode...)
 
 	// append services that were disabled by hooks (they should not get re-enabled)
 	svcsToDisable = append(svcsToDisable, snapst.ServicesDisabledByHooks...)
