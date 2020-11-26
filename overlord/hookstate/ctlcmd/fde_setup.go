@@ -25,7 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 type fdeSetupRequestCommand struct {
@@ -68,12 +67,12 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
-	var fdeSetup hookstate.FDESetupRequest
-	err := context.Get("fde-setup-request", &fdeSetup)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot find FDE setup data, is the command called from a non fde-setup hook?")
+	if context.HookName() != "fde-setup" {
+		return fmt.Errorf("cannot use fde-setup-request outside of the fde-setup hook")
 	}
-	if err != nil {
+
+	var fdeSetup hookstate.FDESetupRequest
+	if err := context.Get("fde-setup-request", &fdeSetup); err != nil {
 		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}
 	// Op is either "initial-setup" or "features"
@@ -123,9 +122,13 @@ func (c *fdeSetupResultCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
+	if context.HookName() != "fde-setup" {
+		return fmt.Errorf("cannot use fde-setup-result outside of the fde-setup hook")
+	}
+
 	var fdeSetupResult []byte
 	if err := context.Get("stdin", &fdeSetupResult); err != nil {
-		return fmt.Errorf("cannot get result from stdin: %v", err)
+		return fmt.Errorf("internal error: cannot get result from stdin: %v", err)
 	}
 	if fdeSetupResult == nil {
 		return fmt.Errorf("no result data found from stdin")

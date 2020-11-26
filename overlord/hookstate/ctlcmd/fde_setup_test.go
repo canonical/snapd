@@ -89,10 +89,22 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
-	// note that we did not set "fde-setup-request" in mockContext in this test
+	hooksup := &hookstate.HookSetup{
+		Snap:     "pc-kernel",
+		Revision: snap.R(1),
+		Hook:     "other-hook",
+	}
+	context, err := hookstate.NewContext(nil, s.st, hooksup, s.mockHandler, "")
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
-	c.Check(err, ErrorMatches, `cannot find FDE setup data, is the command called from a non fde-setup hook\?`)
+	// check "fde-setup-request" error
+	stdout, stderr, err := ctlcmd.Run(context, []string{"fde-setup-request"}, 0)
+	c.Check(err, ErrorMatches, `cannot use fde-setup-request outside of the fde-setup hook`)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// check "fde-setup-result" error
+	stdout, stderr, err = ctlcmd.Run(context, []string{"fde-setup-result"}, 0)
+	c.Check(err, ErrorMatches, `cannot use fde-setup-result outside of the fde-setup hook`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
