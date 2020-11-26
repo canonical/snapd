@@ -95,6 +95,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 		Hook:     "other-hook",
 	}
 	context, err := hookstate.NewContext(nil, s.st, hooksup, s.mockHandler, "")
+	c.Assert(err, IsNil)
 
 	// check "fde-setup-request" error
 	stdout, stderr, err := ctlcmd.Run(context, []string{"fde-setup-request"}, 0)
