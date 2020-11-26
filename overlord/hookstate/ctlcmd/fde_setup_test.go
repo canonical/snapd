@@ -75,8 +75,11 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
+	fdeSetup := &hookstate.FDESetupOp{
+		Op: "invalid-and-unknown",
+	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-op", "invalid-and-unknown")
+	s.mockContext.Set("fde-setup-op", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
@@ -86,8 +89,11 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
+	fdeSetup := &hookstate.FDESetupOp{
+		Op: "features",
+	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-op", "features")
+	s.mockContext.Set("fde-setup-op", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
@@ -97,23 +103,26 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
-	b64EncodedKeyToSeal := base64.StdEncoding.EncodeToString([]byte("key-to-seal"))
-
+	fdeSetup := &hookstate.FDESetupOp{
+		Op:      "initial-setup",
+		Key:     []byte("key-to-seal"),
+		KeyName: "the-key-name",
+		Model: map[string]string{
+			"series":     "16",
+			"brand-id":   "my-brand",
+			"model":      "my-model",
+			"grade":      "secured",
+			"signkey-id": "the-signkey-id",
+		},
+	}
 	s.mockContext.Lock()
-	s.mockContext.Set("fde-op", "initial-setup")
-	s.mockContext.Set("fde-key", b64EncodedKeyToSeal)
-	s.mockContext.Set("fde-key-name", "the-key-name")
-	s.mockContext.Set("model", map[string]string{
-		"series":     "16",
-		"brand-id":   "my-brand",
-		"model":      "my-model",
-		"grade":      "secured",
-		"signkey-id": "the-signkey-id",
-	})
+	s.mockContext.Set("fde-setup-op", fdeSetup)
 	s.mockContext.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
 	c.Assert(err, IsNil)
+
+	b64EncodedKeyToSeal := base64.StdEncoding.EncodeToString([]byte("key-to-seal"))
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name","model":{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}}`+"\n", b64EncodedKeyToSeal))
 	c.Check(string(stderr), Equals, "")
 }

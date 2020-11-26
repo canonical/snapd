@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 type fdeSetupRequestCommand struct {
@@ -58,23 +59,6 @@ func init() {
 	addCommand("fde-setup-request", shortFdeSetupRequestHelp, longFdeSetupRequestHelp, func() command { return &fdeSetupRequestCommand{} })
 }
 
-type fdeSetupJSON struct {
-	// XXX: make "op" a type: "features", "initial-setup", "update" ?
-	Op string `json:"op"`
-
-	Key     []byte `json:"key,omitempty"`
-	KeyName string `json:"key-name,omitempty"`
-
-	// Model related fields, this will be set to follow the
-	// secboot:SnapModel interface.
-	//
-	// XXX: do we need this to be a list? i.e. multiple models?
-	Model map[string]string `json:"model,omitempty"`
-
-	// TODO: provide LoadChains, KernelCmdline etc to support full
-	//       tpm sealing
-}
-
 func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	context := c.context()
 	if context == nil {
@@ -83,30 +67,22 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	context.Lock()
 	defer context.Unlock()
 
-	var js fdeSetupJSON
-	if err := context.Get("fde-op", &js.Op); err != nil {
-		return fmt.Errorf("cannot get fde op from context: %v", err)
+	var fdeSetup hookstate.FDESetupOp
+	if err := context.Get("fde-setup-op", &fdeSetup); err != nil {
+		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}
 	// Op is either "initial-setup" or "features"
-	switch js.Op {
+	switch fdeSetup.Op {
 	case "features":
 		// nothing
 	case "initial-setup":
-		if err := context.Get("fde-key", &js.Key); err != nil {
-			return fmt.Errorf("cannot get fde key from context: %v", err)
-		}
-		if err := context.Get("fde-key-name", &js.KeyName); err != nil {
-			return fmt.Errorf("cannot get fde key name from context: %v", err)
-		}
-		if err := context.Get("model", &js.Model); err != nil {
-			return fmt.Errorf("cannot get model from context: %v", err)
-		}
+		// TODO: validate we have key, key-name, model
 	default:
-		return fmt.Errorf("unknown fde-setup-request op %q", js.Op)
+		return fmt.Errorf("unknown fde-setup-request op %q", fdeSetup.Op)
 
 	}
 
-	bytes, err := json.Marshal(js)
+	bytes, err := json.Marshal(fdeSetup)
 	if err != nil {
 		return fmt.Errorf("cannot json print fde key: %v", err)
 	}
