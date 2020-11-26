@@ -945,9 +945,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
-			flock, err := osutil.NewFileLock(importingFile)
-			c.Assert(err, check.IsNil, comm)
-			err = flock.Lock()
+			err = ioutil.WriteFile(importingFile, nil, 0644)
 			c.Assert(err, check.IsNil)
 		} else {
 			err = os.RemoveAll(importingFile)
@@ -1347,11 +1345,8 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	// now pretend we are importing snapshot id 1
 	callbackCalled = 0
 	fn = "1_importing"
-	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapshotsDir, fn))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
 	c.Assert(err, check.IsNil)
-	err = flock.Lock()
-	c.Assert(err, check.IsNil)
-	defer flock.Unlock()
 
 	// and while importing Iter() does not call the callback
 	err = backend.Iter(context.Background(), f)
