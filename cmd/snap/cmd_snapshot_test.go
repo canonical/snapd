@@ -29,7 +29,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	main "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/strutil/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -125,7 +127,7 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 			}
 			if r.Method == "POST" {
-				if r.Header.Get("Content-Type") == "application/x.snapd.snapshot" {
+				if r.Header.Get("Content-Type") == client.SnapshotExportMediaType {
 					fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["htop"]}}`)
 				} else {
 
@@ -136,7 +138,7 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
 		case "/v2/snapshots/1/export":
-			w.Header().Set("Content-Type", "application/x.snapd.snapshot")
+			w.Header().Set("Content-Type", client.SnapshotExportMediaType)
 			fmt.Fprint(w, "Hello World!")
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)
@@ -149,14 +151,19 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	// import calls
 	s.mockSnapshotsServer(c)
 
+	// time may be crossing DST change, so the age value should not be
+	// hardcoded, otherwise we'll see failures for 2 montsh during the year
+	expectedAge := time.Since(time.Now().AddDate(0, -1, 0))
+	ageStr := quantity.FormatDuration(expectedAge.Seconds())
+
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
 	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
-	c.Check(s.Stdout(), testutil.MatchesWrapped, `Imported snapshot as #42
+	c.Check(s.Stdout(), testutil.MatchesWrapped, fmt.Sprintf(`Imported snapshot as #42
 Set  Snap  Age    Version  Rev   Size    Notes
-1    htop  30d0h  2        1168      1B  -
-`)
+1    htop  %-6s 2        1168      1B  -
+`, ageStr))
 }

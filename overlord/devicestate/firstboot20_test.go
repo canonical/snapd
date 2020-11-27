@@ -277,7 +277,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
 		// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
 		//     installSeedSnap() after restart
-		// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
+		// * 1 from boot.GetCurrentBoot() from FinishRestart after restart
 		_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 		c.Assert(numKernelCalls, Equals, 3)
 	}

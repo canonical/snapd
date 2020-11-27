@@ -21,7 +21,6 @@ package bootloadertest
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -31,6 +30,9 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
+	MockedPresent bool
+	PresentErr    error
+
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
@@ -43,7 +45,6 @@ type MockBootloader struct {
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 
 	InstallBootConfigCalled []string
-	InstallBootConfigResult bool
 	InstallBootConfigErr    error
 
 	enabledKernel    snap.PlaceInfo
@@ -100,8 +101,8 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
-func (b *MockBootloader) ConfigFile() string {
-	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+func (b *MockBootloader) Present() (bool, error) {
+	return b.MockedPresent, b.PresentErr
 }
 
 func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
@@ -138,9 +139,9 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 
 // InstallBootConfig installs the boot config in the gadget directory to the
 // mock bootloader's root directory.
-func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) (bool, error) {
+func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
-	return b.InstallBootConfigResult, b.InstallBootConfigErr
+	return b.InstallBootConfigErr
 }
 
 // MockRecoveryAwareBootloader mocks a bootloader implementing the
@@ -391,10 +392,9 @@ type MockTrustedAssetsBootloader struct {
 	BootChainRunBl         []bootloader.Bootloader
 	BootChainKernelPath    []string
 
-	IsManaged                  bool
-	IsManagedErr               error
 	UpdateErr                  error
 	UpdateCalls                int
+	Updated                    bool
 	ManagedAssetsList          []string
 	StaticCommandLine          string
 	CandidateStaticCommandLine string
@@ -407,17 +407,13 @@ func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	}
 }
 
-func (b *MockTrustedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
-	return b.IsManaged, b.IsManagedErr
-}
-
 func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
 	return b.ManagedAssetsList
 }
 
-func (b *MockTrustedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	b.UpdateCalls++
-	return b.UpdateErr
+	return b.Updated, b.UpdateErr
 }
 
 func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {

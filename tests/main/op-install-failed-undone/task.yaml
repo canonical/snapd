@@ -21,9 +21,7 @@ execute: |
     mkdir -p $SNAP_MOUNT_DIR/test-snapd-sh/current/foo
 
     echo "And we try to install it"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    if install_local test-snapd-sh; then
+    if "$TESTSTOOLS"/snaps-state install-local test-snapd-sh; then
         echo "A snap shouldn't be installable if its mount point is busy"
         exit 1
     fi

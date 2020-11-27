@@ -30,9 +30,7 @@ restore: |
     fi
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
     # make a backup of the original xdg-open
     if [ -e /usr/bin/xdg-open ]; then

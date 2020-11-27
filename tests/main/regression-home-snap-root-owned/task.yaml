@@ -5,9 +5,7 @@ prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
     rm -rf /root/snap
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.session -u test prepare
 restore: |
     tests.session -u test restore

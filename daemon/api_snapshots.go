@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -89,7 +90,7 @@ func (action snapshotAction) String() string {
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	if contentType == "application/x.snapd.snapshot" {
+	if contentType == client.SnapshotExportMediaType {
 		return doSnapshotImport(c, r, user)
 	}
 
@@ -182,9 +183,16 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer r.Body.Close()
 
+	expectedSize, err := strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64)
+	if err != nil {
+		return BadRequest("cannot parse Content-Length: %v", err)
+	}
+	// ensure we don't read more than we expect
+	limitedBodyReader := io.LimitReader(r.Body, expectedSize)
+
 	// XXX: check that we have enough space to import the compressed snapshots
 	st := c.d.overlord.State()
-	setID, snapNames, _, err := snapshotImport(context.TODO(), st, r.Body)
+	setID, snapNames, err := snapshotImport(context.TODO(), st, limitedBodyReader)
 	if err != nil {
 		return BadRequest(err.Error())
 	}
