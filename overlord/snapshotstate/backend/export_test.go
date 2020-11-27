@@ -130,3 +130,11 @@ func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size in
 		Size:     size,
 	}
 }
+
+func MockFilepathGlob(new func(pattern string) (matches []string, err error)) (restore func()) {
+	oldFilepathGlob := filepathGlob
+	filepathGlob = new
+	return func() {
+		filepathGlob = oldFilepathGlob
+	}
+}

@@ -1392,3 +1392,65 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	c.Check(snapshotFiles[2][0], testutil.FileAbsent)
 	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
 }
+
+func (s *snapshotSuite) TestCleanupAbandondedImportsFailMany(c *check.C) {
+	restore := backend.MockFilepathGlob(func(string) ([]string, error) {
+		return []string{
+			"/var/lib/snapd/snapshots/NaN_importing",
+			"/var/lib/snapd/snapshots/11_importing",
+			"/var/lib/snapd/snapshots/22_importing",
+		}, nil
+	})
+	defer restore()
+
+	_, err := backend.CleanupAbandondedImports()
+	c.Assert(err, check.ErrorMatches, `cannot cleanup imports:
+- cannot determine snapshot id from "/var/lib/snapd/snapshots/NaN_importing"
+- cannot cancel import for set id 11:
+ - remove /.*/var/lib/snapd/snapshots/11_importing: no such file or directory
+- cannot cancel import for set id 22:
+ - remove /.*/var/lib/snapd/snapshots/22_importing: no such file or directory`)
+}
+
+func (s *snapshotSuite) TestMultiError(c *check.C) {
+	me := backend.NewMultiError("some error that may happen")
+	c.Check(me.Err(), check.IsNil)
+
+	me = backend.NewMultiError("many things went wrong")
+	me.Append(fmt.Errorf("some normal error"))
+	me1 := backend.NewMultiError("nested wrongness")
+	me1.Append(fmt.Errorf("some error in level 1"))
+	me.Append(me1)
+	me2 := backend.NewMultiError("deeper nested wrongness")
+	me2.Append(fmt.Errorf("some error in level 2"))
+	me1.Append(me2)
+	me1.Append(fmt.Errorf("other error in level 1"))
+
+	c.Check(me.Err(), check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+
+	// do it again
+	c.Check(me.Err(), check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+}
+
+func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
+	me1 := backend.NewMultiError("me1")
+	me2 := backend.NewMultiError("me2")
+	me1.Append(me2)
+	me2.Append(me1)
+	c.Check(me1.Err(), check.ErrorMatches, `me1:
+- me2:
+ - me1:
+  - cycle detected to "me2"`)
+}

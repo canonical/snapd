@@ -476,9 +476,69 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
+// XXX: move to a new errutil ?
+//
+// MultiError is a helper to handle mutliple errors.
+type MultiError struct {
+	header string
+	errs   []error
+}
+
+// NewMultiError returns a new MultiError struct initialized with
+// the given format string that explains what operation potentially
+// want wrong. MultiError can be nested and will render correctly
+// in these cases.
+//
+// Note that "Append" needs to get called to add actual errors.
+func NewMultiError(format string, v ...interface{}) *MultiError {
+	return &MultiError{header: fmt.Sprintf(format, v...)}
+}
+
+// Append appends an error to the MultiError.
+func (me *MultiError) Append(e error) {
+	me.errs = append(me.errs, e)
+}
+
+// Error formats the error string.
+func (me *MultiError) Error() string {
+	return me.nestedError(0, make(map[error]struct{}))
+}
+
+// Err returns nil if no errors where added to the MultiError helper
+// and otherwise it returns a MultiError.
+func (me *MultiError) Err() error {
+	if len(me.errs) == 0 {
+		return nil
+	}
+	return me
+}
+
+// helper to ensure formating of nested MultiErrors works.
+func (me *MultiError) nestedError(level int, seen map[error]struct{}) string {
+	indent := strings.Repeat(" ", level)
+	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
+	for i, err := range me.errs {
+		switch v := err.(type) {
+		case *MultiError:
+			if _, ok := seen[err]; ok {
+				fmt.Fprintf(buf, "%s- cycle detected to %q", indent, v.header)
+			} else {
+				seen[err] = struct{}{}
+				fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1, seen))
+			}
+		default:
+			fmt.Fprintf(buf, "%s- %v", indent, err)
+		}
+		if i < len(me.errs)-1 {
+			fmt.Fprintf(buf, "\n")
+		}
+	}
+	return buf.String()
+}
+
 var (
 	importingFnRegexp = regexp.MustCompile("^([0-9]+)_importing$")
-	importingFnGlob   = "*_importing"
+	importingFnGlob   = "[0-9]*_importing"
 	importingFnFmt    = "%d_importing"
 	importingForIDFmt = "%d_*.zip"
 )
@@ -549,23 +609,16 @@ func (t *importTransaction) Cancel() error {
 	if err != nil {
 		return err
 	}
-	var errs []error
+	errs := NewMultiError("cannot cancel import for set id %d", t.id)
 	for _, p := range inProgressImports {
 		if err := os.Remove(p); err != nil {
-			errs = append(errs, err)
+			errs.Append(err)
 		}
 	}
 	if err := t.unlock(); err != nil {
-		errs = append(errs, err)
+		errs.Append(err)
 	}
-	if len(errs) > 0 {
-		buf := bytes.NewBuffer(nil)
-		for _, err := range errs {
-			fmt.Fprintf(buf, " - %v\n", err)
-		}
-		return fmt.Errorf("cannot cancel import for set id %d:\n%s", t.id, buf.String())
-	}
-	return nil
+	return errs.Err()
 }
 
 // Commit will commit a given transaction
@@ -585,6 +638,8 @@ func (t *importTransaction) unlock() error {
 	return os.Remove(t.lockPath)
 }
 
+var filepathGlob = filepath.Glob
+
 // CleanupAbandondedImports will clean any import that is in progress.
 // This is meant to be called at startup of snapd before any real imports
 // happen. It is not safe to run this concurrently with any other snapshot
@@ -593,38 +648,25 @@ func (t *importTransaction) unlock() error {
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
 func CleanupAbandondedImports() (cleaned int, err error) {
-	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
+	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
 		return 0, err
 	}
 
-	var errs []error
+	errs := NewMultiError("cannot cleanup imports")
 	for _, p := range inProgressSnapshots {
 		tr, err := newImportTransactionFromImportFile(p)
 		if err != nil {
-			errs = append(errs, err)
+			errs.Append(err)
 			continue
 		}
 		if err := tr.Cancel(); err != nil {
-			errs = append(errs, err)
+			errs.Append(err)
 		} else {
 			cleaned++
 		}
 	}
-	if len(errs) > 0 {
-		buf := bytes.NewBuffer(nil)
-		for _, err := range errs {
-			fmt.Fprintf(buf, " - %v\n", err)
-		}
-		var prefixFmt string
-		if cleaned == 0 {
-			prefixFmt = "cannot cleanup imports:\n%s"
-		} else {
-			prefixFmt = "cannot cleanup some imports:\n%s"
-		}
-		return cleaned, fmt.Errorf(prefixFmt, buf.String())
-	}
-	return cleaned, nil
+	return cleaned, errs.Err()
 }
 
 // Import a snapshot from the export file format
