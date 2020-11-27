@@ -305,9 +305,9 @@ var (
 		},
 	))
 
-	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
+	peekRetryStrategy = retry.LimitCount(6, retry.LimitTime(44*time.Second,
 		retry.Exponential{
-			Initial: 300 * time.Millisecond,
+			Initial: 500 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
