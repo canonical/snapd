@@ -127,7 +127,7 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		}
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s?%s", tc.validationSet, q.Encode()), nil)
 		c.Assert(err, check.IsNil)
-		rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+		rsp := s.Req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("case #%d", i))
 		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
@@ -138,7 +138,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetsNone(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.([]daemon.ValidationSetResult)
 	c.Check(res, check.HasLen, 0)
@@ -153,7 +153,7 @@ func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.([]daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, []daemon.ValidationSetResult{
@@ -181,7 +181,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
@@ -203,7 +203,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
@@ -223,7 +223,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
 	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
@@ -242,7 +242,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.GetReq(c, req, nil).(*daemon.Resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
 	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
@@ -287,7 +287,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 
-		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
+		rsp := s.Req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 200)
 
 		var tr assertstate.ValidationSetTracking
@@ -334,7 +334,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 
 		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
+		rsp := s.Req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 200, check.Commentf("case #%d", i))
 
 		// after forget it's removed
@@ -346,7 +346,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		// and forget again fails
 		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp = s.PostReq(c, req, nil).(*daemon.Resp)
+		rsp = s.Req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 404, check.Commentf("case #%d", i))
 	}
 }
@@ -411,7 +411,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s", tc.validationSet), strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp := s.PostReq(c, req, nil).(*daemon.Resp)
+		rsp := s.Req(c, req, nil).(*daemon.Resp)
 
 		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("case #%d", i))
 		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
