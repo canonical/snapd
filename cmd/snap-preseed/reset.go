@@ -82,6 +82,8 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapCacheDir, "*"),
 		filepath.Join(apparmor_sandbox.CacheDir, "*"),
 		filepath.Join(dirs.SnapDesktopFilesDir, "*"),
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "*"),
+		filepath.Join(dirs.SnapDBusSystemServicesDir, "*"),
 	}
 
 	for _, gl := range globs {

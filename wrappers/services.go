@@ -226,14 +226,16 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	systemServices := make([]string, 0, len(apps))
 	userServices := make([]string, 0, len(apps))
 
-	// gather all non-sockets and non-timers services to enable first
+	// gather all non-sockets, non-timers, and non-dbus activated
+	// services to enable first
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
 		// sockets and timers are enabled and started separately (and unconditionally) further down.
-		if len(app.Sockets) == 0 && app.Timer == nil {
+		// dbus activatable services are started on first use.
+		if len(app.Sockets) == 0 && app.Timer == nil && len(app.ActivatesOn) == 0 {
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				continue
 			}
@@ -485,22 +487,6 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 	return nil
 }
 
-// EnableSnapServices enables all services of the snap; the main use case for this is
-// the first boot of a pre-seeded image with service files already in place but not enabled.
-// XXX: it should go away once services are fixed and enabled on start.
-func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
-	sysd := systemd.New(systemd.SystemMode, inter)
-	for _, app := range s.Apps {
-		if app.IsService() {
-			svcName := app.ServiceName()
-			if err := sysd.Enable(svcName); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // StopServicesFlags carries extra flags for StopServices.
 type StopServicesFlags struct {
 	Disable bool
@@ -724,8 +710,8 @@ Type={{.App.Daemon}}
 {{- if .Remain}}
 RemainAfterExit={{.Remain}}
 {{- end}}
-{{- if .App.BusName}}
-BusName={{.App.BusName}}
+{{- if .BusName}}
+BusName={{.BusName}}
 {{- end}}
 {{- if .App.WatchdogTimeout}}
 WatchdogSec={{.App.WatchdogTimeout.Seconds}}
@@ -780,6 +766,18 @@ WantedBy={{.ServicesTarget}}
 		killMode = "process"
 	}
 
+	var busName string
+	if appInfo.Daemon == "dbus" {
+		busName = appInfo.BusName
+		if busName == "" && len(appInfo.ActivatesOn) != 0 {
+			slot := appInfo.ActivatesOn[len(appInfo.ActivatesOn)-1]
+			if err := slot.Attr("name", &busName); err != nil {
+				// This should be impossible for a valid AppInfo
+				logger.Noticef("Cannot get 'name' attribute of dbus slot %q: %v", slot.Name, err)
+			}
+		}
+	}
+
 	wrapperData := struct {
 		App *snap.AppInfo
 
@@ -794,6 +792,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode           string
 		KillSignal         string
 		OOMAdjustScore     int
+		BusName            string
 		Before             []string
 		After              []string
 
@@ -809,6 +808,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode:       killMode,
 		KillSignal:     appInfo.StopMode.KillSignal(),
 		OOMAdjustScore: oomAdjustScore,
+		BusName:        busName,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
