@@ -219,6 +219,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        # spread uses tags as delta reference
+        fetch-depth: 0
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
