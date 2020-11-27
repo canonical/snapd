@@ -191,3 +191,20 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		}
 	}
 }
+
+func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
+	d := c.MkDir()
+	newProcCmdline := filepath.Join(d, "cmdline")
+	restore := osutil.MockProcCmdline(newProcCmdline)
+	defer restore()
+
+	cmd, err := osutil.KernelCommandLine()
+	c.Assert(err, ErrorMatches, `.*/cmdline: no such file or directory`)
+	c.Check(cmd, Equals, "")
+
+	err = ioutil.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
+	c.Assert(err, IsNil)
+	cmd, err = osutil.KernelCommandLine()
+	c.Assert(err, IsNil)
+	c.Check(cmd, Equals, "foo bar baz panic=-1")
+}
