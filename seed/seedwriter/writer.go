@@ -850,6 +850,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
 		w.availableByMode = make(map[string]*naming.SnapSet)
+		w.availableByMode["run"] = naming.NewSnapSet(nil)
 	}
 
 	for _, sn := range seedSnaps {
