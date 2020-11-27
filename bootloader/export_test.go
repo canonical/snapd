@@ -102,8 +102,8 @@ func MockLkFiles(c *C, rootdir string, opts *Options) {
 	err = ioutil.WriteFile(l.envFile(), buf, 0660)
 	c.Assert(err, IsNil)
 	// now write env in it with correct crc
-	env := lkenv.NewEnv(l.envFile())
-	env.ConfigureBootPartitions("boot_a", "boot_b")
+	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env.InitializeBootPartitions("boot_a", "boot_b")
 	err = env.Save()
 	c.Assert(err, IsNil)
 }
