@@ -137,6 +137,24 @@ func (c *Context) writing() {
 	}
 }
 
+func (c *Context) InitContextData(m map[string]interface{}) error {
+	serialized, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	var data map[string]*json.RawMessage
+	if err := json.Unmarshal(serialized, &data); err != nil {
+		return err
+	}
+
+	if c.IsEphemeral() {
+		c.cache["ephemeral-context"] = data
+	} else {
+		c.task.Set("hook-context", &data)
+	}
+	return nil
+}
+
 // Set associates value with key. The provided value must properly marshal and
 // unmarshal with encoding/json. Note that the context needs to be locked and
 // unlocked by the caller.
