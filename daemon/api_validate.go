@@ -186,8 +186,9 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 }
 
 type validationSetApplyRequest struct {
-	Mode  string `json:"mode"`
-	PinAt int    `json:"pin-at,omitempty"`
+	Action string `json:"action"`
+	Mode   string `json:"mode"`
+	PinAt  int    `json:"pin-at,omitempty"`
 }
 
 func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -218,8 +219,11 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	st.Lock()
 	defer st.Unlock()
 
-	if req.Mode == "forget" {
+	if req.Action == "forget" {
 		return forgetValidationSet(st, accountID, name, req.PinAt)
+	}
+	if req.Action != "apply" {
+		return BadRequest("unsupported action %q", req.Action)
 	}
 
 	var mode assertstate.ValidationSetMode

@@ -279,9 +279,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 	} {
 		var body string
 		if tc.pinAt != 0 {
-			body = fmt.Sprintf(`{"mode":"%s", "pin-at":%d}`, tc.mode, tc.pinAt)
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "pin-at":%d}`, tc.mode, tc.pinAt)
 		} else {
-			body = fmt.Sprintf(`{"mode":"%s"}`, tc.mode)
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s"}`, tc.mode)
 		}
 
 		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
@@ -315,9 +315,9 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 
 		var body string
 		if pinAt != 0 {
-			body = fmt.Sprintf(`{"mode":"forget", "pin-at":%d}`, pinAt)
+			body = fmt.Sprintf(`{"action":"forget", "pin-at":%d}`, pinAt)
 		} else {
-			body = fmt.Sprintf(`{"mode":"forget"}`)
+			body = fmt.Sprintf(`{"action":"forget"}`)
 		}
 		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
@@ -359,7 +359,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 
 	for i, tc := range []struct {
 		validationSet string
-		flag          string
+		mode          string
 		// pinAt is normally an int, use string for passing invalid ones.
 		pinAt   string
 		message string
@@ -367,19 +367,19 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 	}{
 		{
 			validationSet: "0/zzz",
-			flag:          "monitor",
+			mode:          "monitor",
 			message:       `invalid account name "0"`,
 			status:        400,
 		},
 		{
 			validationSet: "1foo/bar",
-			flag:          "monitor",
+			mode:          "monitor",
 			message:       `invalid account name "1foo"`,
 			status:        400,
 		},
 		{
 			validationSet: "foo/1abc",
-			flag:          "monitor",
+			mode:          "monitor",
 			message:       `invalid name "1abc"`,
 			status:        400,
 		},
@@ -391,23 +391,23 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		},
 		{
 			validationSet: "foo/bar",
-			flag:          "bad",
+			mode:          "bad",
 			message:       `invalid mode "bad"`,
 			status:        400,
 		},
 		{
 			validationSet: "foo/bar",
 			pinAt:         "-1",
-			flag:          "monitor",
+			mode:          "monitor",
 			message:       `invalid pin-at argument: -1`,
 			status:        400,
 		},
 	} {
 		var body string
 		if tc.pinAt != "" {
-			body = fmt.Sprintf(`{"mode":"%s", "pin-at":%s}`, tc.flag, tc.pinAt)
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "pin-at":%s}`, tc.mode, tc.pinAt)
 		} else {
-			body = fmt.Sprintf(`{"mode":"%s"}`, tc.flag)
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s"}`, tc.mode)
 		}
 		req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s", tc.validationSet), strings.NewReader(body))
 		c.Assert(err, check.IsNil)
@@ -417,4 +417,16 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
 	}
+}
+
+func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *check.C) {
+	body := fmt.Sprintf(`{"action":"baz","mode":"monitor"}`)
+
+	req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Matches, `unsupported action "baz"`)
 }
