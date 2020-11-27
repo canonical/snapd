@@ -20,6 +20,7 @@
 package bootloader_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,11 +44,22 @@ type lkTestSuite struct {
 var _ = Suite(&lkTestSuite{})
 
 func (s *lkTestSuite) TestNewLk(c *C) {
-	bootloader.MockLkFiles(c, s.rootdir, nil)
+	// no files means bl is not present, but we can still create the bl object
 	l := bootloader.NewLk(s.rootdir, nil)
 	c.Assert(l, NotNil)
+	c.Assert(l.Name(), Equals, "lk")
+
+	present, err := l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockLkFiles(c, s.rootdir, nil)
+	present, err = l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, true)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
+	c.Check(bootloader.LkConfigFile(l), Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
 }
 
 func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
@@ -58,7 +70,7 @@ func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
 	l := bootloader.NewLk(s.rootdir, opts)
 	c.Assert(l, NotNil)
 	c.Check(bootloader.LkRuntimeMode(l), Equals, false)
-	c.Check(l.ConfigFile(), Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
+	c.Check(bootloader.LkConfigFile(l), Equals, filepath.Join(s.rootdir, "/boot/lk", "snapbootsel.bin"))
 }
 
 func (s *lkTestSuite) TestSetGetBootVar(c *C) {
@@ -127,9 +139,9 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	c.Assert(l, NotNil)
 
 	// first configure custom boot image file name
-	env := lkenv.NewEnv(l.ConfigFile())
+	env := lkenv.NewEnv(bootloader.LkConfigFile(l), lkenv.V1)
 	env.Load()
-	env.ConfigureBootimgName("boot-2.img")
+	env.Set("bootimg_file_name", "boot-2.img")
 	err := env.Save()
 	c.Assert(err, IsNil)
 
@@ -176,8 +188,8 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	}
 	// ensure we have a valid boot env
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
-	lkenv := lkenv.NewEnv(bootselPartition)
-	lkenv.ConfigureBootPartitions("boot_a", "boot_b")
+	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V1)
+	lkenv.InitializeBootPartitions("boot_a", "boot_b")
 	err := lkenv.Save()
 	c.Assert(err, IsNil)
 
@@ -215,7 +227,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// test that boot partition got set
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
-	bootPart, err := lkenv.GetBootPartition("ubuntu-kernel_42.snap")
+	bootPart, err := lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, IsNil)
 	c.Assert(bootPart, Equals, "boot_a")
 
@@ -225,7 +237,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	// and ensure its no longer available in the boot partitions
 	err = lkenv.Load()
 	c.Assert(err, IsNil)
-	bootPart, err = lkenv.GetBootPartition("ubuntu-kernel_42.snap")
-	c.Assert(err, ErrorMatches, "cannot find kernel .* in boot image partitions")
+	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
 	c.Assert(bootPart, Equals, "")
 }

@@ -1,0 +1,55 @@
+summary: Check that a kernel refresh reseals
+
+systems: [ubuntu-20.04-64]
+
+prepare: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  # we cannot use the kernel from store as it may have a version of
+  # snap-bootstrap that will not be able to unseal the keys and unlock the
+  # encrypted volumes, instead use the kernel we repacked when building the UC20
+  # image
+  KERNEL_SNAP="$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)"
+  unsquashfs -d pc-kernel "$KERNEL_SNAP"
+  # ensure we really have the header we expect
+  grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
+  # modify the kernel so that the hash changes
+  sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
+  grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
+
+  KEY_NAME=$(nested_get_snakeoil_key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+  nested_secboot_sign_file "$PWD/pc-kernel/kernel.efi" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+
+  snap pack pc-kernel
+  rm -rf pc-kernel
+  mv pc-kernel_*.snap new-pc-kernel.snap
+  nested_copy new-pc-kernel.snap
+
+execute: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+
+  # Install new (unasserted) kernel and wait for reboot/change finishing
+  boot_id="$( nested_get_boot_id )"
+  REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
+  nested_wait_for_reboot "${boot_id}"
+  nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+
+  # sanity check that we are using the right kernel
+  nested_exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
+
+  # ensure ubuntu-data.sealed-key mtime is newer
+  SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+
+  # check that we have boot chains
+  nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
+
+  RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"

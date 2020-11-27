@@ -11,11 +11,8 @@ details: |
 systems: [-ubuntu-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given the physical-memory-observe snap is installed"
-    install_local test-snapd-physical-memory-observe
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-physical-memory-observe
 
 execute: |
     config="/boot/config-$(uname -r)"

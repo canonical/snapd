@@ -4,6 +4,7 @@ set -o pipefail
 # We need to add a "cut -b4-" everywhere because `dbus-send
 # --print-reply=literal` indents the output by 3 spaces (hard-coded in
 # dbus-print-message.c:print_iter).
+# TODO: change this to busctl, it's much easier to use.
 case "$1" in
     get)
         if [ $# -eq 3 ]; then

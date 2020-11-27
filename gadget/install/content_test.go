@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -185,7 +186,7 @@ type mockWriteObserver struct {
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
 		m.content = make(map[string][]*mockContentChange)
 	}
@@ -193,7 +194,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 		&mockContentChange{path: relativeTargetPath, change: data})
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
-	return true, m.observeErr
+	return gadget.ChangeApply, m.observeErr
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
@@ -288,7 +289,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 				Image: "pc-core.img",
 			},
 			StartOffset: 2,
-			Size:        gadget.Size(len("pc-core.img content")),
+			Size:        quantity.Size(len("pc-core.img content")),
 		},
 	}
 

@@ -2,14 +2,12 @@ summary: Ensure the default policy is correct for base and core bases
 
 prepare: |
     echo "Given basic snaps are installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh-core
-    install_local test-snapd-sh-core18
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core18
 
     # test-snapd-core18 is only available on amd64
     if [ "$(uname -p)" = "x86_64" ]; then
-        install_local test-snapd-sh-other18
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-other18
     fi
 
 execute: |

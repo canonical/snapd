@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -33,7 +34,7 @@ var (
 var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        512,
 	}
 )
@@ -61,19 +62,21 @@ type ContentChange struct {
 }
 
 type ContentOperation int
+type ContentChangeAction int
 
 const (
 	ContentWrite ContentOperation = iota
 	ContentUpdate
 	ContentRollback
+
+	ChangeAbort ContentChangeAction = iota
+	ChangeApply
+	ChangeIgnore
 )
 
 // ContentObserver allows for observing operations on the content of the gadget
 // structures.
 type ContentObserver interface {
-	// TODO:UC20: add Observe() result value indicating that a file should
-	// be preserved
-
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
 	// the scenarios, the target path is relative under the root.
@@ -82,8 +85,14 @@ type ContentObserver interface {
 	// that will be written. When called during rollback, observe call
 	// happens after the original file has been restored (or removed if the
 	// file was added during the update), the source path is empty.
+	//
+	// Returning ChangeApply indicates that the observer agrees for a given
+	// change to be applied. When called with a ContentUpdate or
+	// ContentWrite operation, returning ChangeIgnore indicates that the
+	// change shall be ignored. ChangeAbort is expected to be returned along
+	// with a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (bool, error)
+		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
@@ -188,7 +197,7 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return &oldV, &newV, nil
 }
 
-func isSameOffset(one *Size, two *Size) bool {
+func isSameOffset(one *quantity.Size, two *quantity.Size) bool {
 	if one == nil && two == nil {
 		return true
 	}

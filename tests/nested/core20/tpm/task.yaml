@@ -21,6 +21,10 @@ execute: |
     echo "and has the expected owner and permissions"
     nested_exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
 
+    echo "and the tpm-{policy-auth-key,lockout-auth} files are in ubuntu-save"
+    nested_exec "test -e /var/lib/snapd/save/device/fde/tpm-policy-auth-key"
+    nested_exec "test -e /var/lib/snapd/save/device/fde/tpm-lockout-auth"
+
     # grab modeenv content
     nested_exec "cat /var/lib/snapd/modeenv" > modeenv
     # and checksums
@@ -45,3 +49,6 @@ execute: |
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_grub_sha3\$"
     nested_exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_shim_sha3\$"
+
+    # check for sealed keys marker
+    nested_exec "test -f /var/lib/snapd/device/fde/sealed-keys"

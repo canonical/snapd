@@ -21,14 +21,12 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
@@ -51,17 +49,13 @@ const (
 	long  = ""
 )
 
-type simpleObserver struct {
-	encryptionKey secboot.EncryptionKey
+type simpleObserver struct{}
+
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (bool, error) {
-	return true, nil
-}
-
-func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
-}
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
 
 func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
@@ -93,36 +87,33 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}
 
 	if args.Encrypt {
-		loadChain := []bootloader.BootFile{
-			// the path to the shim EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"), bootloader.RoleRecovery),
-			// the path to the recovery grub EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"), bootloader.RoleRecovery),
-			// the path to the run mode grub EFI binary
-			bootloader.NewBootFile("", filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"), bootloader.RoleRunMode),
+		if installSideData == nil || installSideData.KeysForRoles == nil {
+			panic("expected encryption keys")
 		}
-
-		sealKeyParams := secboot.SealKeyParams{
-			ModelParams: []*secboot.SealKeyModelParams{
-				{
-					KernelCmdlines: []string{"cmdline"},
-					EFILoadChains:  [][]bootloader.BootFile{loadChain},
-				},
-			},
-
-			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostFDEDataDir, "policy-update-data"),
-			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostFDEDataDir, "tpm-lockout-auth"),
+		dataKey := installSideData.KeysForRoles[gadget.SystemData]
+		if dataKey == nil {
+			panic("ubuntu-data encryption key is unset")
 		}
-
-		if err := secboot.SealKey(obs.encryptionKey, &sealKeyParams); err != nil {
-			panic(err)
+		saveKey := installSideData.KeysForRoles[gadget.SystemSave]
+		if saveKey == nil {
+			panic("ubuntu-save encryption key is unset")
+		}
+		toWrite := map[string][]byte{
+			"unsealed-key":  dataKey.Key[:],
+			"recovery-key":  dataKey.RecoveryKey[:],
+			"save-key":      saveKey.Key[:],
+			"reinstall-key": saveKey.RecoveryKey[:],
+		}
+		for keyFileName, keyData := range toWrite {
+			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+				panic(err)
+			}
 		}
 	}
 }

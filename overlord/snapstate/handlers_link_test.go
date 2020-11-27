@@ -92,6 +92,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -133,6 +137,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 	// we end with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
@@ -328,6 +335,28 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	linkChangeCount := 0
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, instanceName, &snapst)
+			linkChangeCount++
+			switch linkChangeCount {
+			case 1:
+				// Initially the snap gets linked.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, true)
+			case 2:
+				// Then link-snap is undone and the snap gets unlinked.
+				c.Check(err, Equals, state.ErrNoState)
+			}
+			return nil
+		},
+	}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	// a hook might have set some config
 	cfg := json.RawMessage(`{"c":true}`)
 	err := config.SetSnapConfig(s.state, "foo", &cfg)
@@ -374,6 +403,71 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(config, HasLen, 1)
 	_, ok := config["core"]
 	c.Check(ok, Equals, true)
+
+	// link snap participant was invoked, once for do, once for undo.
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo", "foo"})
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With refresh-app-awareness enabled
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap "pkg" at revision 42
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
+	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	// With an app belonging to the snap that is apparently running.
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "pkg")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "pkg")
+		return map[string][]int{"snap.pkg.app": {1234}}, nil
+	})
+	defer restore()
+
+	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Flags:    snapstate.Flags{IgnoreRunning: true},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "pkg", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(42))
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	expected := fakeOps{{
+		op:   "unlink-snap",
+		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
@@ -482,6 +576,11 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	si := &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(35),
@@ -527,6 +626,9 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"foo"})
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
@@ -823,6 +925,28 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	linkChangeCount := 0
+	lp := &testLinkParticipant{
+		linkageChanged: func(st *state.State, instanceName string) error {
+			var snapst snapstate.SnapState
+			err := snapstate.Get(st, instanceName, &snapst)
+			linkChangeCount++
+			switch linkChangeCount {
+			case 1:
+				// Initially the snap gets unlinked.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, false)
+			case 2:
+				// Then the undo handler re-links it.
+				c.Check(err, IsNil)
+				c.Check(snapst.Active, Equals, true)
+			}
+			return nil
+		},
+	}
+	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
@@ -867,6 +991,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(lp.instanceNames, DeepEquals, []string{"core", "core"})
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
@@ -1280,9 +1405,6 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
@@ -1300,7 +1422,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(t.Log()[1], Matches, `.*INFO unlink`)
 }
 
-func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1316,6 +1438,10 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", false)
+	tr.Commit()
 
 	chg := s.testDoUnlinkSnapRefreshAwareness(c)
 

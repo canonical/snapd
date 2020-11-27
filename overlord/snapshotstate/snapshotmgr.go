@@ -44,10 +44,13 @@ var (
 	configSetSnapConfig  = config.SetSnapConfig
 	backendOpen          = backend.Open
 	backendSave          = backend.Save
+	backendImport        = backend.Import
 	backendRestore       = (*backend.Reader).Restore // TODO: look into using an interface instead
 	backendCheck         = (*backend.Reader).Check
 	backendRevert        = (*backend.RestoreState).Revert // ditto
 	backendCleanup       = (*backend.RestoreState).Cleanup
+
+	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 )
@@ -82,6 +85,14 @@ func (mgr *SnapshotManager) Ensure() error {
 	// process expired snapshots once a day.
 	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(autoExpirationInterval)) {
 		return mgr.forgetExpiredSnapshots()
+	}
+
+	return nil
+}
+
+func (mgr *SnapshotManager) StartUp() error {
+	if _, err := backendCleanupAbandondedImports(); err != nil {
+		logger.Noticef("cannot cleanup incomplete imports: %v", err)
 	}
 	return nil
 }
@@ -246,7 +257,7 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 		}
 	}
 
-	reader, err = backendOpen(snapshot.Filename)
+	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
@@ -361,7 +372,7 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	reader, err := backendOpen(snapshot.Filename)
+	reader, err := backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return fmt.Errorf("cannot open snapshot: %v", err)
 	}
