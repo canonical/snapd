@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,17 +32,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -66,7 +62,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -113,24 +108,12 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	routineConsoleConfStartCmd,
+	systemRecoveryKeysCmd,
 }
-
-var servicestateControl = servicestate.Control
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
-	rootCmd = &Command{
-		Path:    "/",
-		GuestOK: true,
-		GET:     tbd,
-	}
-
-	sysInfoCmd = &Command{
-		Path:    "/v2/system-info",
-		GuestOK: true,
-		GET:     sysInfo,
-	}
-
 	appIconCmd = &Command{
 		Path:   "/v2/icons/{name}/icon",
 		UserOK: true,
@@ -186,20 +169,6 @@ var (
 		POST:     changeInterfaces,
 	}
 
-	stateChangeCmd = &Command{
-		Path:     "/v2/changes/{id}",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getChange,
-		POST:     abortChange,
-	}
-
-	stateChangesCmd = &Command{
-		Path:   "/v2/changes",
-		UserOK: true,
-		GET:    getChanges,
-	}
-
 	buyCmd = &Command{
 		Path: "/v2/buy",
 		POST: postBuy,
@@ -228,135 +197,7 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
-
-	warningsCmd = &Command{
-		Path:     "/v2/warnings",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getWarnings,
-		POST:     ackWarnings,
-	}
-
-	buildID = "unknown"
 )
-
-var systemdVirt = ""
-
-func init() {
-	// cache the build-id on startup to ensure that changes in
-	// the underlying binary do not affect us
-	if bid, err := osutil.MyBuildID(); err == nil {
-		buildID = bid
-	}
-	// cache systemd-detect-virt output as it's unlikely to change :-)
-	if buf, err := exec.Command("systemd-detect-virt").CombinedOutput(); err == nil {
-		systemdVirt = string(bytes.TrimSpace(buf))
-	}
-}
-
-func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse([]string{"TBD"}, nil)
-}
-
-func formatRefreshTime(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
-}
-
-func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	st := c.d.overlord.State()
-	snapMgr := c.d.overlord.SnapManager()
-	deviceMgr := c.d.overlord.DeviceManager()
-	st.Lock()
-	defer st.Unlock()
-	nextRefresh := snapMgr.NextRefresh()
-	lastRefresh, _ := snapMgr.LastRefresh()
-	refreshHold, _ := snapMgr.EffectiveRefreshHold()
-	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
-	if err != nil {
-		return InternalError("cannot get refresh schedule: %s", err)
-	}
-	users, err := auth.Users(st)
-	if err != nil && err != state.ErrNoState {
-		return InternalError("cannot get user auth data: %s", err)
-	}
-
-	refreshInfo := client.RefreshInfo{
-		Last: formatRefreshTime(lastRefresh),
-		Hold: formatRefreshTime(refreshHold),
-		Next: formatRefreshTime(nextRefresh),
-	}
-	if !legacySchedule {
-		refreshInfo.Timer = refreshScheduleStr
-	} else {
-		refreshInfo.Schedule = refreshScheduleStr
-	}
-
-	m := map[string]interface{}{
-		"series":         release.Series,
-		"version":        c.d.Version,
-		"build-id":       buildID,
-		"os-release":     release.ReleaseInfo,
-		"on-classic":     release.OnClassic,
-		"managed":        len(users) > 0,
-		"kernel-version": osutil.KernelVersion(),
-		"locations": map[string]interface{}{
-			"snap-mount-dir": dirs.SnapMountDir,
-			"snap-bin-dir":   dirs.SnapBinariesDir,
-		},
-		"refresh":      refreshInfo,
-		"architecture": arch.DpkgArchitecture(),
-		"system-mode":  deviceMgr.SystemMode(),
-	}
-	if systemdVirt != "" {
-		m["virtualization"] = systemdVirt
-	}
-
-	// NOTE: Right now we don't have a good way to differentiate if we
-	// only have partial confinement (ala AppArmor disabled and Seccomp
-	// enabled) or no confinement at all. Once we have a better system
-	// in place how we can dynamically retrieve these information from
-	// snapd we will use this here.
-	if sandbox.ForceDevMode() {
-		m["confinement"] = "partial"
-	} else {
-		m["confinement"] = "strict"
-	}
-
-	// Convey richer information about features of available security backends.
-	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
-		m["sandbox-features"] = features
-	}
-
-	return SyncResponse(m, nil)
-}
-
-func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
-	result := make(map[string][]string, len(backends)+1)
-	for _, backend := range backends {
-		features := backend.SandboxFeatures()
-		if len(features) > 0 {
-			sort.Strings(features)
-			result[string(backend.Name())] = features
-		}
-	}
-
-	// Add information about supported confinement types as a fake backend
-	features := make([]string, 1, 3)
-	features[0] = "devmode"
-	if !sandbox.ForceDevMode() {
-		features = append(features, "strict")
-	}
-	if dirs.SupportsClassicConfinement() {
-		features = append(features, "classic")
-	}
-	sort.Strings(features)
-	result["confinement-options"] = features
-
-	return result
-}
 
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
@@ -1879,205 +1720,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-type changeInfo struct {
-	ID      string      `json:"id"`
-	Kind    string      `json:"kind"`
-	Summary string      `json:"summary"`
-	Status  string      `json:"status"`
-	Tasks   []*taskInfo `json:"tasks,omitempty"`
-	Ready   bool        `json:"ready"`
-	Err     string      `json:"err,omitempty"`
-
-	SpawnTime time.Time  `json:"spawn-time,omitempty"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
-
-	Data map[string]*json.RawMessage `json:"data,omitempty"`
-}
-
-type taskInfo struct {
-	ID       string           `json:"id"`
-	Kind     string           `json:"kind"`
-	Summary  string           `json:"summary"`
-	Status   string           `json:"status"`
-	Log      []string         `json:"log,omitempty"`
-	Progress taskInfoProgress `json:"progress"`
-
-	SpawnTime time.Time  `json:"spawn-time,omitempty"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
-}
-
-type taskInfoProgress struct {
-	Label string `json:"label"`
-	Done  int    `json:"done"`
-	Total int    `json:"total"`
-}
-
-func change2changeInfo(chg *state.Change) *changeInfo {
-	status := chg.Status()
-	chgInfo := &changeInfo{
-		ID:      chg.ID(),
-		Kind:    chg.Kind(),
-		Summary: chg.Summary(),
-		Status:  status.String(),
-		Ready:   status.Ready(),
-
-		SpawnTime: chg.SpawnTime(),
-	}
-	readyTime := chg.ReadyTime()
-	if !readyTime.IsZero() {
-		chgInfo.ReadyTime = &readyTime
-	}
-	if err := chg.Err(); err != nil {
-		chgInfo.Err = err.Error()
-	}
-
-	tasks := chg.Tasks()
-	taskInfos := make([]*taskInfo, len(tasks))
-	for j, t := range tasks {
-		label, done, total := t.Progress()
-
-		taskInfo := &taskInfo{
-			ID:      t.ID(),
-			Kind:    t.Kind(),
-			Summary: t.Summary(),
-			Status:  t.Status().String(),
-			Log:     t.Log(),
-			Progress: taskInfoProgress{
-				Label: label,
-				Done:  done,
-				Total: total,
-			},
-			SpawnTime: t.SpawnTime(),
-		}
-		readyTime := t.ReadyTime()
-		if !readyTime.IsZero() {
-			taskInfo.ReadyTime = &readyTime
-		}
-		taskInfos[j] = taskInfo
-	}
-	chgInfo.Tasks = taskInfos
-
-	var data map[string]*json.RawMessage
-	if chg.Get("api-data", &data) == nil {
-		chgInfo.Data = data
-	}
-
-	return chgInfo
-}
-
-func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
-	chID := muxVars(r)["id"]
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-	chg := state.Change(chID)
-	if chg == nil {
-		return NotFound("cannot find change with id %q", chID)
-	}
-
-	return SyncResponse(change2changeInfo(chg), nil)
-}
-
-func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-	qselect := query.Get("select")
-	if qselect == "" {
-		qselect = "in-progress"
-	}
-	var filter func(*state.Change) bool
-	switch qselect {
-	case "all":
-		filter = func(*state.Change) bool { return true }
-	case "in-progress":
-		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
-	case "ready":
-		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
-	default:
-		return BadRequest("select should be one of: all,in-progress,ready")
-	}
-
-	if wantedName := query.Get("for"); wantedName != "" {
-		outerFilter := filter
-		filter = func(chg *state.Change) bool {
-			if !outerFilter(chg) {
-				return false
-			}
-
-			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
-				return false
-			}
-
-			for _, name := range snapNames {
-				// due to
-				// https://bugs.launchpad.net/snapd/+bug/1880560
-				// the snap-names in service-control changes
-				// could have included <snap>.<app>
-				snapName, _ := snap.SplitSnapApp(name)
-				if snapName == wantedName {
-					return true
-				}
-			}
-			return false
-		}
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-	chgs := state.Changes()
-	chgInfos := make([]*changeInfo, 0, len(chgs))
-	for _, chg := range chgs {
-		if !filter(chg) {
-			continue
-		}
-		chgInfos = append(chgInfos, change2changeInfo(chg))
-	}
-	return SyncResponse(chgInfos, nil)
-}
-
-func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
-	chID := muxVars(r)["id"]
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-	chg := state.Change(chID)
-	if chg == nil {
-		return NotFound("cannot find change with id %q", chID)
-	}
-
-	var reqData struct {
-		Action string `json:"action"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&reqData); err != nil {
-		return BadRequest("cannot decode data from request body: %v", err)
-	}
-
-	if reqData.Action != "abort" {
-		return BadRequest("change action %q is unsupported", reqData.Action)
-	}
-
-	if chg.Status().Ready() {
-		return BadRequest("cannot abort change %s with nothing pending", chID)
-	}
-
-	// flag the change
-	chg.Abort()
-
-	// actually ask to proceed with the abort
-	ensureStateSoon(state)
-
-	return SyncResponse(change2changeInfo(chg), nil)
-}
-
-var (
-	runSnapctlUcrednetGet = ucrednetGet
-	ctlcmdRun             = ctlcmd.Run
-)
-
 func convertBuyError(err error) Response {
 	switch err {
 	case nil:
@@ -2155,13 +1797,19 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(true, nil)
 }
 
+var (
+	runSnapctlUcrednetGet = ucrednetGet
+	ctlcmdRun             = ctlcmd.Run
+)
+
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
-	var snapctlOptions client.SnapCtlOptions
-	if err := jsonutil.DecodeWithNumber(r.Body, &snapctlOptions); err != nil {
+	var snapctlPostData client.SnapCtlPostData
+
+	if err := jsonutil.DecodeWithNumber(r.Body, &snapctlPostData); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if len(snapctlOptions.Args) == 0 {
+	if len(snapctlPostData.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
@@ -2172,8 +1820,17 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
-	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
+	context, _ := c.d.overlord.HookManager().Context(snapctlPostData.ContextID)
+
+	// make the data read from stdin available for the hook
+	// TODO: use a forwarded stdin here
+	if snapctlPostData.Stdin != nil {
+		context.Lock()
+		context.Set("stdin", snapctlPostData.Stdin)
+		context.Unlock()
+	}
+
+	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, uid)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]interface{}{
@@ -2436,6 +2093,8 @@ func namesToSnapNames(inst *servicestate.Instruction) []string {
 	return names
 }
 
+var servicestateControl = servicestate.Control
+
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
@@ -2459,7 +2118,12 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	tss, err := servicestateControl(st, appInfos, &inst, nil)
+	// do not pass flags - only create service-control tasks, do not create
+	// exec-command tasks for old snapd. These are not needed since we are
+	// handling momentary snap service commands.
+	st.Lock()
+	defer st.Unlock()
+	tss, err := servicestateControl(st, appInfos, &inst, nil, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
@@ -2467,69 +2131,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return BadRequest(err.Error())
 	}
-	st.Lock()
-	defer st.Unlock()
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-var (
-	stateOkayWarnings    = (*state.State).OkayWarnings
-	stateAllWarnings     = (*state.State).AllWarnings
-	statePendingWarnings = (*state.State).PendingWarnings
-)
-
-func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
-	defer r.Body.Close()
-	var op struct {
-		Action    string    `json:"action"`
-		Timestamp time.Time `json:"timestamp"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&op); err != nil {
-		return BadRequest("cannot decode request body into warnings operation: %v", err)
-	}
-	if op.Action != "okay" {
-		return BadRequest("unknown warning action %q", op.Action)
-	}
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	n := stateOkayWarnings(st, op.Timestamp)
-
-	return SyncResponse(n, nil)
-}
-
-func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
-	query := r.URL.Query()
-	var all bool
-	sel := query.Get("select")
-	switch sel {
-	case "all":
-		all = true
-	case "pending", "":
-		all = false
-	default:
-		return BadRequest("invalid select parameter: %q", sel)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var ws []*state.Warning
-	if all {
-		ws = stateAllWarnings(st)
-	} else {
-		ws, _ = statePendingWarnings(st)
-	}
-	if len(ws) == 0 {
-		// no need to confuse the issue
-		return SyncResponse([]state.Warning{}, nil)
-	}
-
-	return SyncResponse(ws, nil)
 }

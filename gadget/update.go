@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -33,7 +34,7 @@ var (
 var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        512,
 	}
 )
@@ -196,7 +197,7 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return &oldV, &newV, nil
 }
 
-func isSameOffset(one *Size, two *Size) bool {
+func isSameOffset(one *quantity.Size, two *quantity.Size) bool {
 	if one == nil && two == nil {
 		return true
 	}

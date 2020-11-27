@@ -49,17 +49,13 @@ const (
 	long  = ""
 )
 
-type simpleObserver struct {
-	encryptionKey secboot.EncryptionKey
-}
+type simpleObserver struct{}
 
 func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
-}
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
 
 func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
@@ -104,11 +100,20 @@ func main() {
 		if dataKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		if err := ioutil.WriteFile("unsealed-key", dataKey.Key[:], 0644); err != nil {
-			panic(err)
+		saveKey := installSideData.KeysForRoles[gadget.SystemSave]
+		if saveKey == nil {
+			panic("ubuntu-save encryption key is unset")
 		}
-		if err := ioutil.WriteFile("recovery-key", dataKey.RecoveryKey[:], 0644); err != nil {
-			panic(err)
+		toWrite := map[string][]byte{
+			"unsealed-key":  dataKey.Key[:],
+			"recovery-key":  dataKey.RecoveryKey[:],
+			"save-key":      saveKey.Key[:],
+			"reinstall-key": saveKey.RecoveryKey[:],
+		}
+		for keyFileName, keyData := range toWrite {
+			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+				panic(err)
+			}
 		}
 	}
 }

@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type snapshotSuite struct {
@@ -945,7 +946,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
 			err = ioutil.WriteFile(importingFile, nil, 0644)
-			c.Assert(err, check.IsNil, comm)
+			c.Assert(err, check.IsNil)
 		} else {
 			err = os.RemoveAll(importingFile)
 			c.Assert(err, check.IsNil, comm)
@@ -1351,4 +1352,43 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	err = backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
 	c.Check(callbackCalled, check.Equals, 0)
+}
+
+func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	// create 2 snapshot IDs 1,2
+	snapshotFiles := map[int][]string{}
+	for i := 1; i < 3; i++ {
+		fn := fmt.Sprintf("%d_hello_%d.0_x1.zip", i, i)
+		p := filepath.Join(dirs.SnapshotsDir, fn)
+		snapshotFiles[i] = append(snapshotFiles[i], p)
+		err = ioutil.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		c.Assert(err, check.IsNil)
+
+		fn = fmt.Sprintf("%d_olleh_%d.0_x1.zip", i, i)
+		p = filepath.Join(dirs.SnapshotsDir, fn)
+		snapshotFiles[i] = append(snapshotFiles[i], p)
+		err = ioutil.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		c.Assert(err, check.IsNil)
+	}
+
+	// pretend setID 2 has a import file which means which means that
+	// an import was started in the past but did not complete
+	fn := "2_importing"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	c.Assert(err, check.IsNil)
+
+	// run cleanup
+	cleaned, err := backend.CleanupAbandondedImports()
+	c.Check(cleaned, check.Equals, 1)
+	c.Check(err, check.IsNil)
+
+	// id1 untouched
+	c.Check(snapshotFiles[1][0], testutil.FilePresent)
+	c.Check(snapshotFiles[1][1], testutil.FilePresent)
+	// id2 cleaned
+	c.Check(snapshotFiles[2][0], testutil.FileAbsent)
+	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
 }

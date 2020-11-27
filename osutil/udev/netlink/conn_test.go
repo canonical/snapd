@@ -4,7 +4,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 func TestConnect(t *testing.T) {
 	conn := new(UEventConn)

@@ -37,7 +37,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.46
+    DELTA_REF: 2.48
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -102,18 +102,18 @@ backends:
                   secure-boot: true
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
+            - ubuntu-20.10-64:
+                  workers: 8
+                  image: ubuntu-20.10-64
 
             - debian-9-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
 
-            - fedora-30-64:
-                  workers: 6
-                  manual: true
-            - fedora-31-64:
-                  workers: 6
             - fedora-32-64:
+                  workers: 6
+            - fedora-33-64:
                   workers: 6
 
             - arch-linux-64:
@@ -133,13 +133,11 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  manual: true
             - centos-8-64:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
-            - ubuntu-20.10-64:
-                  workers: 6
-                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -152,6 +150,8 @@ backends:
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
+                  workers: 6
+            - ubuntu-20.10-64:
                   workers: 6
 
     google-nested:
@@ -173,6 +173,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 6
+            - ubuntu-20.10-64:
+                  image: ubuntu-2010-64-virt-enabled
+                  storage: 20G
+                  workers: 6
 
     qemu-nested:
         memory: 4G
@@ -189,8 +193,6 @@ backends:
                   password: ubuntu
 
     qemu:
-        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
-        memory: 2G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
@@ -496,7 +498,7 @@ repack: |
             find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
                 ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
                 -delete
-            tar -C "$tmpdir" -c "$DELTA_PREFIX" > repacked-current.tar
+            tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar
         fi
@@ -576,6 +578,14 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
         # make sure EPEL is enabled
         yum install -y epel-release
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # make sure unattended-upgrades does not get in the way
+        if systemctl is-enabled unattended-upgrades.service; then
+            systemctl stop unattended-upgrades.service
+            systemctl mask unattended-upgrades.service
+        fi
     fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
@@ -837,6 +847,7 @@ suites:
             - ubuntu-16.04-64
             - ubuntu-18.04-64
             - ubuntu-20.04-64
+            - ubuntu-20.10-64
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -863,22 +874,12 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
+            "$TESTSTOOLS"/nested-state prepare
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
-
+            "$TESTSTOOLS"/nested-state remove-vm
+            "$TESTSTOOLS"/nested-state restore
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
-
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
@@ -886,7 +887,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -910,26 +911,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_classic_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image classic
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_classic_vm
+            "$TESTSTOOLS"/nested-state create-vm classic
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -962,27 +953,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image core
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state create-vm core
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_cleanup_env
+            "$TESTSTOOLS"/nested-state restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1017,29 +997,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_prepare_env
-            nested_create_core_vm
+            "$TESTSTOOLS"/nested-state prepare
+            "$TESTSTOOLS"/nested-state build-image core
         prepare-each: |
             tests.backup prepare
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_start_core_vm
-            nested_wait_for_snap_command
+            "$TESTSTOOLS"/nested-state create-vm core
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-
+            "$TESTSTOOLS"/nested-state remove-vm
             tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_destroy_vm
-            nested_cleanup_env
-
+            "$TESTSTOOLS"/nested-state restore
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils

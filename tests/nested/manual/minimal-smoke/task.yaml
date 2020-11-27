@@ -6,7 +6,7 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     nested_fetch_spread
-    nested_create_core_vm
+    "$TESTSTOOLS"/nested-state build-image core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -29,7 +29,7 @@ execute: |
         exit 1
     fi
 
-    NESTED_PARAM_MEM="-m $MINIMAL_MEM" nested_start_core_vm
+    "$TESTSTOOLS"/nested-state create-vm core --param-mem "-m $MINIMAL_MEM"
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
