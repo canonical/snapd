@@ -428,6 +428,17 @@ nested_get_model() {
     esac
 }
 
+nested_ensure_ubuntu_save() {
+    local GADGET_DIR="$1"
+    shift
+    "$TESTSLIB"/ensure_ubuntu_save.py "$@" "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
+    if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
+        mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
+    else
+        rm -f /tmp/gadget-with-save.yaml
+    fi
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -507,6 +518,18 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        case "${NESTED_UBUNTU_SAVE:-}" in
+                            add)
+                                # ensure that ubuntu-save is present
+                                nested_ensure_ubuntu_save pc-gadget --add
+                                touch ubuntu-save-added
+                                ;;
+                            remove)
+                                # ensure that ubuntu-save is removed
+                                nested_ensure_ubuntu_save pc-gadget --remove
+                                touch ubuntu-save-removed
+                                ;;
+                        esac
 
                         # also make logging persistent for easier debugging of
                         # test failures, otherwise we have no way to see what
