@@ -188,14 +188,28 @@ func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *
 	defer bootloader.Force(nil)
 
 	tbl.StaticCommandLine = "panic=-1"
-	tbl.CandidateStaticCommandLine = "candidate panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
 
 	cmdline, err := boot.ComposeCandidateCommandLine(model)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=0")
+}
 
-	// managed status is effectively ignored
-	cmdline, err = boot.ComposeCandidateCommandLine(model)
+func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
+
+	cmdline, err := boot.ComposeCandidateRecoveryCommandLine(model, "1234")
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
+	c.Check(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 candidate panic=0")
+
+	cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, "")
+	c.Assert(err, ErrorMatches, "internal error: system is unset")
+	c.Check(cmdline, Equals, "")
 }
