@@ -14,6 +14,9 @@ remap_one() {
         python3-gi)
             echo "python3-gobject"
             ;;
+        test-snapd-pkg)
+            echo "robotfindskitten"
+            ;;
         *)
             echo "$1"
             ;;
@@ -26,6 +29,22 @@ cmd_install() {
         dnf install -y "$@"
     else
         yum install -y "$@"
+    fi
+    set +x
+}
+
+cmd_is_installed() {
+    set -x
+    rpm -qi "$@" >/dev/null 2>&1
+    set +x
+}
+
+cmd_query() {
+    set -x
+    if [ "$(command -v dnf)" != "" ]; then
+        dnf info "$@"
+    else
+        yum info "$@"
     fi
     set +x
 }

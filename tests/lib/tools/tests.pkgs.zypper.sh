@@ -18,6 +18,9 @@ remap_one() {
         python3-gi)
             echo "python3-gobject"
             ;;
+        test-snapd-pkg)
+            echo "nudoku"
+            ;;
         *)
             echo "$1"
             ;;
@@ -27,6 +30,18 @@ remap_one() {
 cmd_install() {
     set -x
     zypper install -y "$@"
+    set +x
+}
+
+cmd_is_installed() {
+    set -x
+    rpm -qi "$@" >/dev/null 2>&1
+    set +x
+}
+
+cmd_query() {
+    set -x
+    zypper info "$@"
     set +x
 }
 

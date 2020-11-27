@@ -1,0 +1,28 @@
+summary: Smoke test for tests.pkgs tool
+
+execute: |
+    # pkgs tool presents the usage screen when invoked without arguments
+    # or with the -h or --help options.
+    tests.pkgs | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
+    tests.pkgs -h | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
+    tests.pkgs --help | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
+
+    # Check the test pkg is not installed and cannot be queried
+    ! tests.pkgs query test-snapd-pkg
+    ! tests.pkgs is-installed test-snapd-pkg
+
+    # Install the test pkg and check it is installed and query it
+    tests.pkgs install test-snapd-pkg
+    tests.pkgs query test-snapd-pkg
+    tests.pkgs is-installed test-snapd-pkg
+
+    # Remove the test pkg and check it is not installed anymore and query it
+    tests.pkgs remove test-snapd-pkg
+    tests.pkgs query test-snapd-pkg
+    ! tests.pkgs is-installed test-snapd-pkg
+
+    # Check the message when a command is not supported
+    tests.pkgs noexist test-snapd-pkg 2>&1 | MATCH 'tests.pkgs: unknown command noexist'
+    tests.pkgs -install test-snapd-pkg 2>&1 | MATCH 'tests.pkgs: unknown option -install'
+
+    # TODO: install and remove more than 1 pkg with the command install/remove

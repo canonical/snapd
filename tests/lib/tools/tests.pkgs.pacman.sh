@@ -24,6 +24,9 @@ remap_one() {
         python3-gi)
             echo "python-gobject"
             ;;
+        test-snapd-pkg)
+            echo "curseofwar"
+            ;;
         *)
             echo "$1"
             ;;
@@ -36,8 +39,20 @@ cmd_install() {
     set +x
 }
 
+cmd_is_installed() {
+    set -x
+    pacman -Qi "$@" >/dev/null 2>&1
+    set +x
+}
+
+cmd_query() {
+    set -x
+    pacman -Si "$@"
+    set +x
+}
+
 cmd_remove() {
     set -x
-    pacman -Rn "$@"
+    pacman -Rnsc --noconfirm "$@"
     set +x
 }

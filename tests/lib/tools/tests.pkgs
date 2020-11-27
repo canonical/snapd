@@ -2,6 +2,7 @@
 
 show_help() {
     echo "usage: tests.pkgs {install,remove} [PACKAGE...]"
+    echo "       tests.pkgs {is-installed,query} [PACKAGE]"
     echo
     echo "Package names are standardized based on Debian package names"
     echo "internally, package names are re-mapped to fit the convention"
@@ -78,7 +79,7 @@ main() {
                 shift
                 break
                 ;;
-            install|remove)
+            install|remove|query|is-installed)
                 action="$1"
                 shift
                 break  # consume remaining arguments
@@ -103,6 +104,12 @@ main() {
     case "$action" in
         install)
             cmd_install "$(remap_many "$@")"
+            ;;
+        is-installed)
+            cmd_is_installed "$(remap_one "$@")"
+            ;;
+        query)
+            cmd_query "$(remap_one "$@")"
             ;;
         remove)
             cmd_remove "$(remap_many "$@")"

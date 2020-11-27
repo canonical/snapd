@@ -16,6 +16,9 @@ remap_one() {
                 echo "$1"
             fi
             ;;
+        test-snapd-pkg)
+            echo "curseofwar"
+            ;;
         *)
             echo "$1"
             ;;
@@ -25,6 +28,18 @@ remap_one() {
 cmd_install() {
     set -x
     apt-get install --yes "$@"
+    set +x
+}
+
+cmd_is_installed() {
+    set -x
+    dpkg -S "$@" >/dev/null 2>&1
+    set +x
+}
+
+cmd_query() {
+    set -x
+    apt-cache policy "$@"
     set +x
 }
 
