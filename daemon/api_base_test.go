@@ -415,6 +415,11 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 	return d
 }
 
+func (s *APIBaseSuite) Daemon(c *check.C) *Daemon {
+	return s.daemon(c)
+}
+
+// XXX this one will go away
 func (s *APIBaseSuite) daemon(c *check.C) *Daemon {
 	return s.DaemonWithStore(c, s)
 }
@@ -598,14 +603,55 @@ func handlerCommand(c *check.C, d *Daemon, req *http.Request) (cmd *Command, var
 	return cmd, m.Vars
 }
 
-func (s *APIBaseSuite) GetReq(c *check.C, req *http.Request, u *auth.UserState) Response {
-	cmd, vars := handlerCommand(c, s.d, req)
-	s.vars = vars
-	return cmd.GET(cmd, req, u)
+func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	cmd, _ := handlerCommand(c, s.d, req)
+	c.Check(cmd.POST, check.IsNil)
+	c.Check(cmd.PUT, check.IsNil)
+	c.Check(cmd.GET, check.NotNil)
 }
 
-func (s *APIBaseSuite) PostReq(c *check.C, req *http.Request, u *auth.UserState) Response {
+func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Response {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
-	return cmd.POST(cmd, req, u)
+	var f ResponseFunc
+	switch req.Method {
+	case "GET":
+		f = cmd.GET
+	case "POST":
+		f = cmd.POST
+	case "PUT":
+		f = cmd.PUT
+	default:
+		c.Fatalf("unsupported HTTP method %q", req.Method)
+	}
+	if f == nil {
+		c.Fatalf("no support for %q for %q", req.Method, req.URL)
+	}
+	return f(cmd, req, u)
+}
+
+func (s *APIBaseSuite) SimulateConflict(name string) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	o := s.d.overlord
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
+		RealName: name,
+	}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("manip", "...")
+	chg.AddTask(t)
 }
