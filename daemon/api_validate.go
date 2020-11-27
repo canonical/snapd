@@ -52,19 +52,19 @@ func modeString(mode assertstate.ValidationSetMode) (string, error) {
 	return "", fmt.Errorf("internal error: unhandled mode %d", mode)
 }
 
-func validationSetKeyString(accountID, name string, pinAt int) string {
+func validationSetKeyString(accountID, name string, sequence int) string {
 	key := assertstate.ValidationSetKey(accountID, name)
-	if pinAt != 0 {
-		key = fmt.Sprintf("%s=%d", key, pinAt)
+	if sequence != 0 {
+		key = fmt.Sprintf("%s=%d", key, sequence)
 	}
 	return key
 }
 
-func validationSetNotFound(accountID, name string, pinAt int) Response {
+func validationSetNotFound(accountID, name string, sequence int) Response {
 	res := &errorResult{
 		Message: "validation set not found",
 		Kind:    client.ErrorKindValidationSetNotFound,
-		Value:   validationSetKeyString(accountID, name, pinAt),
+		Value:   validationSetKeyString(accountID, name, sequence),
 	}
 	return &resp{
 		Type:   ResponseTypeError,
@@ -143,17 +143,17 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	query := r.URL.Query()
 
-	// pin-at is optional
-	pinAtStr := query.Get("pin-at")
-	var pinAt int
-	if pinAtStr != "" {
+	// sequence is optional
+	sequenceStr := query.Get("sequence")
+	var sequence int
+	if sequenceStr != "" {
 		var err error
-		pinAt, err = strconv.Atoi(pinAtStr)
+		sequence, err = strconv.Atoi(sequenceStr)
 		if err != nil {
-			return BadRequest("invalid pin-at argument")
+			return BadRequest("invalid sequence argument")
 		}
-		if pinAt < 0 {
-			return BadRequest("invalid pin-at argument: %d", pinAt)
+		if sequence < 0 {
+			return BadRequest("invalid sequence argument: %d", sequence)
 		}
 	}
 
@@ -163,8 +163,8 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
-	if err == state.ErrNoState || (err == nil && pinAt != 0 && pinAt != tr.PinnedAt) {
-		return validationSetNotFound(accountID, name, pinAt)
+	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
+		return validationSetNotFound(accountID, name, sequence)
 	}
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)
@@ -186,9 +186,9 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 }
 
 type validationSetApplyRequest struct {
-	Action string `json:"action"`
-	Mode   string `json:"mode"`
-	PinAt  int    `json:"pin-at,omitempty"`
+	Action   string `json:"action"`
+	Mode     string `json:"mode"`
+	Sequence int    `json:"sequence,omitempty"`
 }
 
 func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -211,8 +211,8 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
-	if req.PinAt < 0 {
-		return BadRequest("invalid pin-at argument: %d", req.PinAt)
+	if req.Sequence < 0 {
+		return BadRequest("invalid sequence argument: %d", req.Sequence)
 	}
 
 	st := c.d.overlord.State()
@@ -220,7 +220,7 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	defer st.Unlock()
 
 	if req.Action == "forget" {
-		return forgetValidationSet(st, accountID, name, req.PinAt)
+		return forgetValidationSet(st, accountID, name, req.Sequence)
 	}
 	if req.Action != "apply" {
 		return BadRequest("unsupported action %q", req.Action)
@@ -242,19 +242,19 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 		AccountID: accountID,
 		Name:      name,
 		Mode:      mode,
-		// note, PinAt may be 0, meaning not pinned.
-		PinnedAt: req.PinAt,
+		// note, Sequence may be 0, meaning not pinned.
+		PinnedAt: req.Sequence,
 	}
 	assertstate.UpdateValidationSet(st, &tr)
 	return SyncResponse(nil, nil)
 }
 
-func forgetValidationSet(st *state.State, accountID, name string, pinAt int) Response {
+func forgetValidationSet(st *state.State, accountID, name string, sequence int) Response {
 	// check if it exists first
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
-	if err == state.ErrNoState || (err == nil && pinAt != 0 && pinAt != tr.PinnedAt) {
-		return validationSetNotFound(accountID, name, pinAt)
+	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
+		return validationSetNotFound(accountID, name, sequence)
 	}
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)

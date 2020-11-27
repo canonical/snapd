@@ -76,10 +76,10 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 
 	for i, tc := range []struct {
 		validationSet string
-		// pinAt is normally an int, use string for passing invalid ones.
-		pinAt   string
-		message string
-		status  int
+		// sequence is normally an int, use string for passing invalid ones.
+		sequence string
+		message  string
+		status   int
 	}{
 		{
 			validationSet: "abc/1foo",
@@ -103,27 +103,27 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		},
 		{
 			validationSet: "foo/bar",
-			pinAt:         "1999",
+			sequence:      "1999",
 			message:       "validation set not found",
 			status:        404,
 		},
 		{
 			validationSet: "foo/bar",
-			pinAt:         "x",
-			message:       "invalid pin-at argument",
+			sequence:      "x",
+			message:       "invalid sequence argument",
 			status:        400,
 		},
 		{
 			validationSet: "foo/bar",
-			pinAt:         "-2",
-			message:       "invalid pin-at argument: -2",
+			sequence:      "-2",
+			message:       "invalid sequence argument: -2",
 			status:        400,
 		},
 	} {
 		q := url.Values{}
 		q.Set("validation-set", tc.validationSet)
-		if tc.pinAt != "" {
-			q.Set("pin-at", tc.pinAt)
+		if tc.sequence != "" {
+			q.Set("sequence", tc.sequence)
 		}
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s?%s", tc.validationSet, q.Encode()), nil)
 		c.Assert(err, check.IsNil)
@@ -194,7 +194,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 
 func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	q := url.Values{}
-	q.Set("pin-at", "9")
+	q.Set("sequence", "9")
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
 	c.Assert(err, check.IsNil)
 
@@ -233,7 +233,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
 	q := url.Values{}
-	q.Set("pin-at", "333")
+	q.Set("sequence", "333")
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
 	c.Assert(err, check.IsNil)
 
@@ -255,17 +255,17 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 
 	for _, tc := range []struct {
 		mode         string
-		pinAt        int
+		sequence     int
 		expectedMode assertstate.ValidationSetMode
 	}{
 		{
 			mode:         "enforce",
-			pinAt:        12,
+			sequence:     12,
 			expectedMode: assertstate.Enforce,
 		},
 		{
 			mode:         "monitor",
-			pinAt:        99,
+			sequence:     99,
 			expectedMode: assertstate.Monitor,
 		},
 		{
@@ -278,8 +278,8 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 		},
 	} {
 		var body string
-		if tc.pinAt != 0 {
-			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "pin-at":%d}`, tc.mode, tc.pinAt)
+		if tc.sequence != 0 {
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "sequence":%d}`, tc.mode, tc.sequence)
 		} else {
 			body = fmt.Sprintf(`{"action":"apply","mode":"%s"}`, tc.mode)
 		}
@@ -299,7 +299,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 		c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
 			AccountID: "foo",
 			Name:      "bar",
-			PinnedAt:  tc.pinAt,
+			PinnedAt:  tc.sequence,
 			Mode:      tc.expectedMode,
 		})
 	}
@@ -308,14 +308,14 @@ func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 	st := s.d.Overlord().State()
 
-	for i, pinAt := range []int{0, 9} {
+	for i, sequence := range []int{0, 9} {
 		st.Lock()
 		mockValidationSetsTracking(st)
 		st.Unlock()
 
 		var body string
-		if pinAt != 0 {
-			body = fmt.Sprintf(`{"action":"forget", "pin-at":%d}`, pinAt)
+		if sequence != 0 {
+			body = fmt.Sprintf(`{"action":"forget", "sequence":%d}`, sequence)
 		} else {
 			body = fmt.Sprintf(`{"action":"forget"}`)
 		}
@@ -360,10 +360,10 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 	for i, tc := range []struct {
 		validationSet string
 		mode          string
-		// pinAt is normally an int, use string for passing invalid ones.
-		pinAt   string
-		message string
-		status  int
+		// sequence is normally an int, use string for passing invalid ones.
+		sequence string
+		message  string
+		status   int
 	}{
 		{
 			validationSet: "0/zzz",
@@ -385,7 +385,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		},
 		{
 			validationSet: "foo/bar",
-			pinAt:         "x",
+			sequence:      "x",
 			message:       "cannot decode request body into validation set action: invalid character 'x' looking for beginning of value",
 			status:        400,
 		},
@@ -397,15 +397,15 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		},
 		{
 			validationSet: "foo/bar",
-			pinAt:         "-1",
+			sequence:      "-1",
 			mode:          "monitor",
-			message:       `invalid pin-at argument: -1`,
+			message:       `invalid sequence argument: -1`,
 			status:        400,
 		},
 	} {
 		var body string
-		if tc.pinAt != "" {
-			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "pin-at":%s}`, tc.mode, tc.pinAt)
+		if tc.sequence != "" {
+			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "sequence":%s}`, tc.mode, tc.sequence)
 		} else {
 			body = fmt.Sprintf(`{"action":"apply","mode":"%s"}`, tc.mode)
 		}
