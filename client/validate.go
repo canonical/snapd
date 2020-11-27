@@ -30,32 +30,58 @@ import (
 
 // ValidateApplyOptions carries options for ApplyValidationSet.
 type ValidateApplyOptions struct {
-	Mode  string
-	PinAt int
+	Mode     string
+	Sequence int
 }
 
 // ValidationSetResult holds information about a single validation set.
 type ValidationSetResult struct {
 	ValidationSet string `json:"validation-set,omitempty"`
 	Mode          string `json:"mode"`
-	Seq           int    `json:"seq,omitempty"`
+	Sequence      int    `json:"sequence,omitempty"`
 	Valid         bool   `json:"valid"`
 	// TODO: flags/states for notes column
 }
 
 type postData struct {
-	Mode  string `json:"mode"`
-	PinAt int    `json:"pin-at,omitempty"`
+	Action   string `json:"action"`
+	Mode     string `json:"mode,omitempty"`
+	Sequence int    `json:"sequence,omitempty"`
 }
 
-// ApplyValidationSet applies or forgets the given validation set identified by account and name.
+// ForgetValidationSet forgets the given validation set identified by account,
+// name and optional sequence (if non-zero).
+func (client *Client) ForgetValidationSet(account, name string, sequence int) error {
+	if account == "" || name == "" {
+		return xerrors.Errorf("cannot forget validation set without account and name")
+	}
+
+	data := &postData{
+		Action:   "forget",
+		Sequence: sequence,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(data); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
+		return xerrors.Errorf("cannot forget validation set: %v", err)
+	}
+	return nil
+}
+
+// ApplyValidationSet applies the given validation set identified by account and name.
 func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApplyOptions) error {
 	if account == "" || name == "" {
 		return xerrors.Errorf("cannot apply validation set without account and name")
 	}
+
 	data := &postData{
-		Mode:  opts.Mode,
-		PinAt: opts.PinAt,
+		Action:   "apply",
+		Mode:     opts.Mode,
+		Sequence: opts.Sequence,
 	}
 
 	var body bytes.Buffer
@@ -80,18 +106,20 @@ func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 }
 
 // ValidationSet queries the given validation set identified by account/name.
-func (client *Client) ValidationSet(account, name string, pinnedAt int) (*ValidationSetResult, error) {
+func (client *Client) ValidationSet(account, name string, sequence int) (*ValidationSetResult, error) {
 	if account == "" || name == "" {
 		return nil, xerrors.Errorf("cannot get validation set without account and name")
 	}
 
+	var qvalue string
 	q := url.Values{}
-	if pinnedAt != 0 {
-		q.Set("pin-at", fmt.Sprintf("%d", pinnedAt))
+	if sequence != 0 {
+		q.Set("sequence", fmt.Sprintf("%d", sequence))
+		qvalue = fmt.Sprintf("?%s", q.Encode())
 	}
 
 	var res *ValidationSetResult
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s%s", account, name, qvalue)
 	_, err := client.doSync("GET", path, q, nil, nil, &res)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot get validation set: %v", err)

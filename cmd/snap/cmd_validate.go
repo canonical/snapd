@@ -104,9 +104,9 @@ func fmtValid(res *client.ValidationSetResult) string {
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
-	// check that only one mode is used at a time
-	var validateMode string
-	for _, mode := range []struct {
+	// check that only one action is used at a time
+	var action string
+	for _, a := range []struct {
 		name string
 		set  bool
 	}{
@@ -114,15 +114,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		{"enforce", cmd.Enforce},
 		{"forget", cmd.Forget},
 	} {
-		if mode.set {
-			if validateMode != "" {
-				return fmt.Errorf("cannot use --%s and --%s together", validateMode, mode.name)
+		if a.set {
+			if action != "" {
+				return fmt.Errorf("cannot use --%s and --%s together", action, a.name)
 			}
-			validateMode = mode.name
+			action = a.name
 		}
 	}
 
-	if cmd.Positional.ValidationSet == "" && validateMode != "" {
+	if cmd.Positional.ValidationSet == "" && action != "" {
 		return fmt.Errorf("missing validation set argument")
 	}
 
@@ -136,11 +136,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 	}
 
-	if validateMode != "" {
+	if action != "" {
+		// forget
+		if cmd.Forget {
+			return cmd.client.ForgetValidationSet(account, name, seq)
+		}
 		// apply
 		opts := &client.ValidateApplyOptions{
-			Mode:  validateMode,
-			PinAt: seq,
+			Mode:     action,
+			Sequence: seq,
 		}
 		return cmd.client.ApplyValidationSet(account, name, opts)
 	}
@@ -167,7 +171,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			line := []string{
 				res.ValidationSet,
 				res.Mode,
-				fmt.Sprintf("%d", res.Seq),
+				fmt.Sprintf("%d", res.Sequence),
 				fmtValid(res),
 				notes,
 			}
