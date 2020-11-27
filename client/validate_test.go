@@ -22,6 +22,7 @@ package client_test
 import (
 	"encoding/json"
 	"io/ioutil"
+	"net/url"
 
 	"gopkg.in/check.v1"
 
@@ -192,7 +193,8 @@ func (cs *clientSuite) TestValidationSetWithSequence(c *check.C) {
 	vsets, err := cs.cli.ValidationSet("foo", "bar", 9)
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar?sequence=9")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{"sequence": []string{"9"}})
 	c.Check(vsets, check.DeepEquals, &client.ValidationSetResult{
 		ValidationSet: "abc/def", Mode: "monitor", Sequence: 9, Valid: false,
 	})
