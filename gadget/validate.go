@@ -77,6 +77,10 @@ type ValidationConstraints struct {
 // are handled identically to ReadInfo(). Optionally takes additional validation
 // constraints, which for instance may only be known at run time,
 func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraints) error {
+	// TODO: also validate that only one "<bl-name>.conf" file is in the root
+	//       directory  of the gadget snap, because the "<bl-name>.conf" file
+	//       indicates precisely which bootloader the gadget uses and as such
+	//       there cannot be more than one such bootloader
 	info, err := ReadInfo(gadgetSnapRootDir, model)
 	if err != nil {
 		return fmt.Errorf("invalid gadget metadata: %v", err)

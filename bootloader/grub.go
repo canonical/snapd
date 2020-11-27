@@ -143,8 +143,8 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 	return genv.Get(key), nil
 }
 
-func (g *grub) ConfigFile() string {
-	return filepath.Join(g.dir(), "grub.cfg")
+func (g *grub) Present() (bool, error) {
+	return osutil.FileExists(filepath.Join(g.dir(), "grub.cfg")), nil
 }
 
 func (g *grub) envFile() string {
@@ -344,11 +344,11 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 // and has a lower edition.
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
-func (g *grub) UpdateBootConfig(opts *Options) error {
+func (g *grub) UpdateBootConfig() (bool, error) {
 	// XXX: do we need to take opts here?
 	bootScriptName := "grub.cfg"
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	if opts != nil && opts.Role == RoleRecovery {
+	if g.recovery {
 		// use the recovery asset when asked to do so
 		bootScriptName = "grub-recovery.cfg"
 	}

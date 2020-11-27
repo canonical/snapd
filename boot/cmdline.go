@@ -118,6 +118,9 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 	modeArg := "snapd_recovery_mode=run"
 	systemArg := ""
 	if mode == ModeRecover {
+		if system == "" {
+			return "", fmt.Errorf("internal error: system is unset")
+		}
 		// dealing with recovery system bootloader
 		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
@@ -153,11 +156,16 @@ func ComposeCommandLine(model *asserts.Model) (string, error) {
 	return composeCommandLine(model, currentEdition, ModeRun, "")
 }
 
-// TODO:UC20: add helper to compose candidate command line for a recovery system
-
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
 func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
 	return composeCommandLine(model, candidateEdition, ModeRun, "")
+}
+
+// ComposeCandidateRecoveryCommandLine composes the kernel command line used
+// when booting the given system in recover mode with the current built-in
+// edition of managed boot assets.
+func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRecover, system)
 }
