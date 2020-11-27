@@ -17,18 +17,19 @@
  *
  */
 
+// XXX should move to daemon_test
+
 package daemon
 
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
+func (s *APIBaseSuite) MockSnap(c *C, yamlText string) *snap.Info {
 	if s.d == nil {
 		panic("call s.daemon(c) in your test first")
 	}
@@ -60,60 +61,6 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	c.Assert(err, IsNil)
 	return snapInfo
 }
-
-func (s *apiSuite) mockIface(c *C, iface interfaces.Interface) {
-	if s.d == nil {
-		panic("call s.daemon(c) in your test first")
-	}
-	err := s.d.overlord.InterfaceManager().Repository().AddInterface(iface)
-	c.Assert(err, IsNil)
-}
-
-var consumerYaml = `
-name: consumer
-version: 1
-apps:
- app:
-plugs:
- plug:
-  interface: test
-  key: value
-  label: label
-`
-
-var producerYaml = `
-name: producer
-version: 1
-apps:
- app:
-slots:
- slot:
-  interface: test
-  key: value
-  label: label
-`
-
-var coreProducerYaml = `
-name: core
-version: 1
-slots:
- slot:
-  interface: test
-  key: value
-  label: label
-`
-
-var differentProducerYaml = `
-name: producer
-version: 1
-apps:
- app:
-slots:
- slot:
-  interface: different
-  key: value
-  label: label
-`
 
 var configYaml = `
 name: config-snap

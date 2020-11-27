@@ -50,6 +50,8 @@ var (
 	backendRevert        = (*backend.RestoreState).Revert // ditto
 	backendCleanup       = (*backend.RestoreState).Cleanup
 
+	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
+
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 )
 
@@ -83,6 +85,14 @@ func (mgr *SnapshotManager) Ensure() error {
 	// process expired snapshots once a day.
 	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(autoExpirationInterval)) {
 		return mgr.forgetExpiredSnapshots()
+	}
+
+	return nil
+}
+
+func (mgr *SnapshotManager) StartUp() error {
+	if _, err := backendCleanupAbandondedImports(); err != nil {
+		logger.Noticef("cannot cleanup incomplete imports: %v", err)
 	}
 	return nil
 }
