@@ -84,6 +84,7 @@ type appYaml struct {
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
+	InstallMode     string          `yaml:"install-mode,omitempty"`
 
 	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
 	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
@@ -364,6 +365,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
 			RefreshMode:     yApp.RefreshMode,
+			InstallMode:     yApp.InstallMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
 			Autostart:       yApp.Autostart,
