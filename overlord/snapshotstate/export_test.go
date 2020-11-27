@@ -151,6 +151,14 @@ func MockBackendImport(f func(context.Context, uint64, io.Reader) ([]string, err
 	}
 }
 
+func MockBackenCleanupAbandondedImports(f func() (int, error)) (restore func()) {
+	old := backendCleanupAbandondedImports
+	backendCleanupAbandondedImports = f
+	return func() {
+		backendCleanupAbandondedImports = old
+	}
+}
+
 func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error)) (restore func()) {
 	old := backendEstimateSnapshotSize
 	backendEstimateSnapshotSize = f
@@ -176,6 +184,6 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 }
 
 // For testing only
-func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 	mgr.lastForgetExpiredSnapshotTime = t
 }
