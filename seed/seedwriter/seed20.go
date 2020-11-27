@@ -81,7 +81,7 @@ func (pol *policy20) extraSnapDefaultChannel() string {
 	return "latest/stable"
 }
 
-func (pol *policy20) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
+func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error {
 	base := info.Base
 	if base == "" {
 		if info.Type() != snap.TypeGadget && info.Type() != snap.TypeApp {
@@ -90,32 +90,50 @@ func (pol *policy20) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 		base = "core"
 	}
 
-	if availableSnaps.Contains(naming.Snap(base)) {
+	if pol.checkAvailable(naming.Snap(base), modes, availableByMode) {
 		return nil
 	}
 
 	whichBase := fmt.Sprintf("its base %q", base)
 	if base == "core16" {
-		if availableSnaps.Contains(naming.Snap("core")) {
+		if pol.checkAvailable(naming.Snap("core"), modes, availableByMode) {
 			return nil
 		}
 		whichBase += ` (or "core")`
 	}
 
-	return fmt.Errorf("cannot add snap %q without also adding %s explicitly", info.SnapName(), whichBase)
+	return fmt.Errorf("cannot add snap %q without also adding %s explicitly%s", info.SnapName(), whichBase, errorMsgForModesSuffix(modes))
 }
 
-func (pol *policy20) needsImplicitSnaps(*naming.SnapSet) (bool, error) {
+func (pol *policy20) checkAvailable(snapRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool {
+	// checks that snapRef is available in all modes
+	for _, mode := range modes {
+		byMode := availableByMode[mode]
+		if !byMode.Contains(snapRef) {
+			if mode == "run" || mode == "ephemeral" {
+				return false
+			}
+			// consider ephemeral as well
+			ephem := availableByMode["ephemeral"]
+			if ephem == nil || !ephem.Contains(snapRef) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (pol *policy20) needsImplicitSnaps(map[string]*naming.SnapSet) (bool, error) {
 	// no implicit snaps with Core 20
 	// TODO: unless we want to support them for extra snaps
 	return false, nil
 }
 
-func (pol *policy20) implicitSnaps(*naming.SnapSet) []*asserts.ModelSnap {
+func (pol *policy20) implicitSnaps(map[string]*naming.SnapSet) []*asserts.ModelSnap {
 	return nil
 }
 
-func (pol *policy20) implicitExtraSnaps(*naming.SnapSet) []*OptionsSnap {
+func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSnap {
 	return nil
 }
 
