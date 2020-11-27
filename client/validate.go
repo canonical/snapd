@@ -111,15 +111,13 @@ func (client *Client) ValidationSet(account, name string, sequence int) (*Valida
 		return nil, xerrors.Errorf("cannot get validation set without account and name")
 	}
 
-	var qvalue string
 	q := url.Values{}
 	if sequence != 0 {
 		q.Set("sequence", fmt.Sprintf("%d", sequence))
-		qvalue = fmt.Sprintf("?%s", q.Encode())
 	}
 
 	var res *ValidationSetResult
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s%s", account, name, qvalue)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	_, err := client.doSync("GET", path, q, nil, nil, &res)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot get validation set: %v", err)
