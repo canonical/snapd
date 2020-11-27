@@ -201,8 +201,8 @@ jobs:
         - centos-8-64
         - debian-9-64
         - debian-sid-64
-        - fedora-31-64
         - fedora-32-64
+        - fedora-33-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64
@@ -219,6 +219,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        # spread uses tags as delta reference
+        fetch-depth: 0
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -268,6 +271,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-20.10-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2

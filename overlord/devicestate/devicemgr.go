@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -141,6 +142,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
+
+	// wire FDE kernel hook support into boot
+	boot.HasFDESetupHook = m.hasFDESetupHook
 
 	return m, nil
 }
@@ -1352,4 +1356,32 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	return hasFDESetupHookInKernel(kernelInfo), nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
+func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
+	// TODO: run the fde-setup hook with "op":"features".  If the
+	//       hooks returns any {"features":} reply we consider the
+	//       hardware supported. If the hook errors or if it
+	//       returns {"error":"hardware-unsupported"} we don't.
+	return nil
 }

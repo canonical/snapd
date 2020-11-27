@@ -2382,9 +2382,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -3455,6 +3452,92 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		}},
 		userID: 1,
 	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	makeTestRefreshConfig(s.state)
+
+	var someSnapValidation bool
+
+	// override validate-snap handler set by AddForeignTaskHandlers.
+	s.o.TaskRunner().AddHandler("validate-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		t.State().Lock()
+		defer t.State().Unlock()
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		if snapsup.SnapName() == "some-snap" {
+			someSnapValidation = true
+			return fmt.Errorf("boom")
+		}
+		return nil
+	}, nil)
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+		c.Check(refreshes, HasLen, 2)
+		c.Check(ignoreValidation, HasLen, 0)
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = validateRefreshes
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.IsReady(), Equals, false)
+	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// not updated
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+
+	// updated
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Fetch and check assertions for snap \"some-snap\" \\(11\\) \\(boom\\)")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// check-rerefresh is last
+	tasks := chg.Tasks()
+	checkRerefresh := tasks[len(tasks)-1]
+	c.Check(checkRerefresh.Kind(), Equals, "check-rerefresh")
+	c.Check(checkRerefresh.Status(), Equals, state.DoneStatus)
+
+	// sanity
+	c.Check(someSnapValidation, Equals, true)
 }
 
 var orthogonalAutoAliasesScenarios = []struct {
@@ -5228,16 +5311,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesSavesSnapSetupLastActiveDisabledS
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t1.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
-
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisabledServices(c *C) {
@@ -5245,7 +5326,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	defer s.state.Unlock()
 
 	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
-	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1", "svc2"}
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1"}
 
 	// reset the services to what they were before after the test is done
 	defer func() {
@@ -5258,6 +5339,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		},
 		Current: snap.R(11),
 		Active:  true,
+		LastActiveDisabledServices: []string{"svc2"},
 	})
 
 	snapsup := &snapstate.SnapSetup{
@@ -5282,15 +5364,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
