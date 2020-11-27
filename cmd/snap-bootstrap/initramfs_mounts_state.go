@@ -66,7 +66,7 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
 	}
 
-	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read model assertion: %v", err)
 	}

@@ -2,10 +2,8 @@ summary: Ensure that lxd works
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO:UC20: enable for UC20
 # TODO: enable for ubuntu-16-32 again
-# TODO: enable ubuntu-20.10-64 once the image is available
-systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-20.04*, ubuntu-core-1*]
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -148,7 +146,8 @@ execute: |
     # Ensure that we can run lxd as a snap inside a container to create a nested
     # container
 
-    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ] && [ "$REFRESH_APP_AWARENESS_OUTER" = false ] && [ "$REFRESH_APP_AWARENESS_INNER" = true ]; then
+    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+        # related bug: https://bugs.launchpad.net/snapd/+bug/1892468
         echo "Not running old xenial combination which lacks proper patches"
         exit 0
     fi

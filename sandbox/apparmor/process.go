@@ -25,10 +25,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 func labelFromPid(pid int) (string, error) {
-	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
+	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
+	// back to the old path if that doesn't exist
+	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
+	if !osutil.FileExists(procFile) {
+		// fallback
+		procFile = filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
+	}
 	contents, err := ioutil.ReadFile(procFile)
 	if os.IsNotExist(err) {
 		return "unconfined", nil

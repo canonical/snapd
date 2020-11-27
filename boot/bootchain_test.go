@@ -1146,6 +1146,10 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 }
 
 func (s *sealSuite) TestReadWriteBootChains(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	chains := []boot.BootChain{
 		{
 			BrandID:        "mybrand",

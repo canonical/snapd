@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -235,7 +236,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		if opts.Label == "" {
 			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
 		}
-		if err := validateSystemLabel(opts.Label); err != nil {
+		if err := internal.ValidateUC20SeedSystemLabel(opts.Label); err != nil {
 			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
@@ -536,7 +537,13 @@ func (w *Writer) InfoDerived() error {
 // SetInfo sets Info of the SeedSnap and possibly computes its
 // destination Path.
 func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
+	if info.Confinement == snap.DevModeConfinement {
+		if err := w.policy.allowsDangerousFeatures(); err != nil {
+			return err
+		}
+	}
 	sn.Info = info
+
 	if sn.local {
 		// nothing more to do
 		return nil
@@ -546,7 +553,6 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	if err != nil {
 		return err
 	}
-
 	sn.Path = p
 	return nil
 }

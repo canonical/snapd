@@ -88,6 +88,30 @@ type Mountpoint struct {
 	IsDecryptedDevice bool
 }
 
+// MockDeviceNameDisksToPartitionMapping will mock DiskFromDeviceName such that
+// the provided map of device names to mock disks is used instead of the actual
+// implementation using udev.
+func MockDeviceNameDisksToPartitionMapping(mockedMountPoints map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	// note that devices can have many names that are recognized by
+	// udev/kernel, so we don't do any validation of the mapping here like we do
+	// for MockMountPointDisksToPartitionMapping
+
+	old := diskFromDeviceName
+	diskFromDeviceName = func(deviceName string) (Disk, error) {
+		disk, ok := mockedMountPoints[deviceName]
+		if !ok {
+			return nil, fmt.Errorf("device name %q not mocked", deviceName)
+		}
+		return disk, nil
+	}
+
+	return func() {
+		diskFromDeviceName = old
+	}
+}
+
 // MockMountPointDisksToPartitionMapping will mock DiskFromMountPoint such that
 // the specified mapping is returned/used. Specifically, keys in the provided
 // map are mountpoints, and the values for those keys are the disks that will
@@ -96,9 +120,23 @@ type Mountpoint struct {
 func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*MockDiskMapping) (restore func()) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
-	// verify that all unique MockDiskMapping's have unique DevNum's
+	// verify that all unique MockDiskMapping's have unique DevNum's and that
+	// the srcMntPt's are all consistent
+	// we can't have the same mountpoint exist both as a decrypted device and
+	// not as a decrypted device, this is an impossible mapping, but we need to
+	// expose functionality to mock the same mountpoint as a decrypted device
+	// and as an unencrypyted device for different tests, but never at the same
+	// time with the same mapping
 	alreadySeen := make(map[string]*MockDiskMapping, len(mockedMountPoints))
-	for _, mockDisk := range mockedMountPoints {
+	seenSrcMntPts := make(map[string]bool, len(mockedMountPoints))
+	for srcMntPt, mockDisk := range mockedMountPoints {
+		if decryptedVal, ok := seenSrcMntPts[srcMntPt.Mountpoint]; ok {
+			if decryptedVal != srcMntPt.IsDecryptedDevice {
+				msg := fmt.Sprintf("mocked source mountpoint %s is duplicated with different options - previous option for IsDecryptedDevice was %t, current option is %t", srcMntPt.Mountpoint, decryptedVal, srcMntPt.IsDecryptedDevice)
+				panic(msg)
+			}
+		}
+		seenSrcMntPts[srcMntPt.Mountpoint] = srcMntPt.IsDecryptedDevice
 		if old, ok := alreadySeen[mockDisk.DevNum]; ok {
 			if mockDisk != old {
 				// we already saw a disk with this DevNum as a different pointer

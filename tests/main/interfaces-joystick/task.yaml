@@ -4,9 +4,7 @@ details: |
     The joystick interface allows reading and writing to joystick devices.
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     # Create device files which are going to be used so simulate a real device and input data
     # In case the device already exists, it is going to be backed up

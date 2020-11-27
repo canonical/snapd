@@ -186,6 +186,9 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
 
 	for i := 0; i < timeout; i++ {
+		// TODO: we could also check cli.Maintenance() here too in case snapd is
+		// down semi-permanently for a refresh, but what message do we show to
+		// the user or what do we do if we know snapd is down for maintenance?
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
@@ -1011,6 +1014,22 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
+	} else {
+		if info.Type() == snap.TypeKernel {
+			// kernels have no explicit base, we use the boot base
+			modelAssertion, err := x.client.CurrentModelAssertion()
+			if err != nil {
+				if hook != "" {
+					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
+				} else {
+					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
+				}
+			}
+			modelBase := modelAssertion.Base()
+			if modelBase != "" {
+				cmd = append(cmd, "--base", modelBase)
+			}
+		}
 	}
 	cmd = append(cmd, securityTag)
 

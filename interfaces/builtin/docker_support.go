@@ -91,7 +91,7 @@ unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 # Wide read access to /proc, but somewhat limited writes for now
 @{PROC}/ r,
 @{PROC}/** r,
-@{PROC}/[0-9]*/attr/exec w,
+@{PROC}/[0-9]*/attr/{,apparmor/}exec w,
 @{PROC}/[0-9]*/oom_score_adj w,
 
 # Limited read access to specific bits of /sys

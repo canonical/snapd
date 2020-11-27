@@ -20,30 +20,41 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdRecovery struct {
 	clientMixin
 	colorMixin
+
+	ShowKeys bool `long:"show-keys"`
 }
 
 var shortRecoveryHelp = i18n.G("List available recovery systems")
 var longRecoveryHelp = i18n.G(`
 The recovery command lists the available recovery systems.
+
+With --show-keys it displays recovery keys that can be used to unlock the encrypted partitions if the device-specific automatic unlocking does not work.
 `)
 
 func init() {
 	addCommand("recovery", shortRecoveryHelp, longRecoveryHelp, func() flags.Commander {
 		// XXX: if we want more/nicer details we can add `snap recovery <system>` later
 		return &cmdRecovery{}
-	}, nil, nil)
+	}, colorDescs.also(
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"show-keys": i18n.G("Show recovery keys (if available) to unlock encrypted partitions."),
+		}), nil)
 }
 
 func notesForSystem(sys *client.System) string {
@@ -53,9 +64,31 @@ func notesForSystem(sys *client.System) string {
 	return "-"
 }
 
+func (x *cmdRecovery) showKeys(w io.Writer) error {
+	if release.OnClassic {
+		return errors.New(`command "show-keys" is not available on classic systems`)
+	}
+	var srk *client.SystemRecoveryKeysResponse
+	err := x.client.SystemRecoveryKeys(&srk)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "recovery:\t%s\n", srk.RecoveryKey)
+	fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
+	return nil
+}
+
 func (x *cmdRecovery) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	esc := x.getEscapes()
+	w := tabWriter()
+	defer w.Flush()
+
+	if x.ShowKeys {
+		return x.showKeys(w)
 	}
 
 	systems, err := x.client.ListSystems()
@@ -67,9 +100,6 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return nil
 	}
 
-	esc := x.getEscapes()
-	w := tabWriter()
-	defer w.Flush()
 	fmt.Fprintf(w, i18n.G("Label\tBrand\tModel\tNotes\n"))
 	for _, sys := range systems {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s

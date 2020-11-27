@@ -1,11 +1,8 @@
 summary: Check that install hooks in snaps can start services
 
 execute: |
-  # shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
-
   echo "Verify that the snap installs"
-  install_local test-snapd-install-hook-runs-svc
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-install-hook-runs-svc
 
   echo "Verify that the snap service is still disabled"
   snap services | MATCH "test-snapd-install-hook-runs-svc\\.svc\\s+disabled\\s+inactive"

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -72,14 +73,14 @@ func (l *lk) dir() string {
 	return filepath.Join(l.rootdir, "/boot/lk/")
 }
 
-func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
-	systemFile := l.ConfigFile()
+	systemFile := l.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (l *lk) ConfigFile() string {
-	return l.envFile()
+func (l *lk) Present() (bool, error) {
+	return osutil.FileExists(l.envFile()), nil
 }
 
 func (l *lk) envFile() string {
@@ -94,7 +95,7 @@ func (l *lk) envFile() string {
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -141,12 +142,12 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)
 
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	bootPartition, err := env.FindFreeBootPartition(blobName)
+	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
 	if err != nil {
 		return err
 	}
@@ -191,7 +192,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
 	}
-	if err := env.SetBootPartition(bootPartition, blobName); err != nil {
+	if err := env.SetBootPartitionKernel(bootPartition, blobName); err != nil {
 		return err
 	}
 
@@ -201,12 +202,14 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
 	logger.Debugf("RemoveKernelAssets (%s)", blobName)
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	dirty, _ := env.FreeBootPartition(blobName)
-	if dirty {
+	err := env.RemoveKernelFromBootPartition(blobName)
+	if err == nil {
+		// found and removed the revision from the bootimg matrix, need to
+		// update the env to persist the change
 		return env.Save()
 	}
 	return nil

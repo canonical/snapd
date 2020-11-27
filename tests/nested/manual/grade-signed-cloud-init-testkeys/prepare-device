@@ -1,0 +1,3 @@
+#!/bin/sh
+# 10.0.2.2 is the host from a nested VM
+snapctl set device-service.url=http://10.0.2.2:11029

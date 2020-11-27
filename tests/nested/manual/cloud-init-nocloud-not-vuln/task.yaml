@@ -26,12 +26,11 @@ prepare: |
     # second boot - attacker drive
     nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
+    "$TESTSTOOLS"/nested-state build-image core 
+
     # first boot uses seed1 to create the normal-user in addition to the 
     # system-user assertion
-    NESTED_PARAM_CD="-cdrom $(pwd)/seed.iso"
-
-    nested_create_core_vm
-    nested_start_core_vm
+    "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
@@ -49,7 +48,6 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-
 
     # the VM here will use both system-user assertions and cloud-init to create
     # users on the system, the system-user assertion is for the user1 user, and 
@@ -121,13 +119,13 @@ execute: |
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
     boot_id="$(nested_get_boot_id)"
-    nested_shutdown
+    "$TESTSTOOLS"/nested-state stop-vm
 
     # replace the seed.iso with the new attacker iso
     mv seed2.iso seed.iso
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    nested_force_start_vm
+    "$TESTSTOOLS"/nested-state start-vm
     nested_wait_for_reboot "${boot_id}"
 
     # cloud-init will actually still run because it was not disabled and we

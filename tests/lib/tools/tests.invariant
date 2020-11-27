@@ -80,6 +80,7 @@ check_stray_dbus_daemon() {
 	n="$1" # invariant name
 	(
 		skipped_system=0
+		skipped_root_session=0
 		for pid in $(pgrep dbus-daemon); do
 			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
 			# Ignore one dbus-daemon responsible for the system bus.
@@ -87,15 +88,20 @@ check_stray_dbus_daemon() {
 				skipped_system=1
 				continue
 			fi
+			if echo "$cmdline" | grep -q 'dbus-daemon --session' && [ "$(stat -c %u "/proc/$pid")" -eq 0 ] && [ "$skipped_root_session" -eq 0 ]; then
+				skipped_root_session=1
+				continue
+			fi
 			# Ignore dbus-daemon running the sessions of the "external" or "gdm" users.
 			# This may happen when testing a core device or a desktop instance using the
 			# ad-hoc backend. These users are never used by tests explicitly.
 			pid_user="$(stat -c %U "/proc/$pid")"
 			if [ "$pid_user" = "external" ] || [ "$pid_user" = "gdm" ]; then
+			if [ "$user" = "external" ]; then
 				continue
 			fi
 			# Report stray dbus-daemon.
-			echo "pid:$pid cmdline:$cmdline"
+			echo "pid:$pid user:$user cmdline:$cmdline"
 		done
 	) > "/tmp/tests.invariant.$n"
 	if [ -s "/tmp/tests.invariant.$n" ]; then

@@ -244,6 +244,10 @@ type Systemd interface {
 	Mask(service string) error
 	// Unmask the given service.
 	Unmask(service string) error
+	// Mount requests a mount of what under where with options.
+	Mount(what, where string, options ...string) error
+	// Umount requests a mount from what or at where to be unmounted.
+	Umount(whatOrWhere string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -270,8 +274,14 @@ type reporter interface {
 	Notify(string)
 }
 
-// New returns a Systemd that uses the given rootDir
-func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+// New returns a Systemd that uses the default root directory and omits
+// --root argument when executing systemctl.
+func New(mode InstanceMode, rep reporter) Systemd {
+	return &systemd{mode: mode, reporter: rep}
+}
+
+// NewUnderRoot returns a Systemd that operates on the given rootdir.
+func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
@@ -290,7 +300,7 @@ func NewEmulationMode(rootDir string) Systemd {
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
-// refers to the the instance launched to manage the user's desktop
+// refers to the instance launched to manage the user's desktop
 // session.  GlobalUserMode controls configuration respected by all
 // user instances on the system.
 //
@@ -353,22 +363,42 @@ func (s *systemd) DaemonReexec() error {
 }
 
 func (s *systemd) Enable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+	} else {
+		_, err = s.systemctl("enable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	} else {
+		_, err = s.systemctl("unmask", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Disable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+	} else {
+		_, err = s.systemctl("disable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Mask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	} else {
+		_, err = s.systemctl("mask", serviceName)
+	}
 	return err
 }
 
@@ -544,7 +574,12 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	} else {
+		_, err = s.systemctl("is-enabled", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
@@ -561,7 +596,12 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-active with GlobalUserMode")
 	}
-	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	} else {
+		_, err = s.systemctl("is-active", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
@@ -873,4 +913,23 @@ func (s *systemd) ReloadOrRestart(serviceName string) error {
 	}
 	_, err := s.systemctl("reload-or-restart", serviceName)
 	return err
+}
+
+func (s *systemd) Mount(what, where string, options ...string) error {
+	args := make([]string, 0, 2+len(options))
+	if len(options) > 0 {
+		args = append(args, options...)
+	}
+	args = append(args, what, where)
+	if output, err := exec.Command("systemd-mount", args...).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func (s *systemd) Umount(whatOrWhere string) error {
+	if output, err := exec.Command("systemd-mount", "--umount", whatOrWhere).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }

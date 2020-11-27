@@ -25,10 +25,7 @@ prepare: |
     setup_portals
     tests.session -u test prepare
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
     # Configure fake web browser
     tests.session -u test exec mkdir -p ~test/.local/share/applications

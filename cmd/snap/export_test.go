@@ -72,6 +72,7 @@ var (
 	LongSnapDescription     = longSnapDescription
 	SnapUsage               = snapUsage
 	SnapHelpCategoriesIntro = snapHelpCategoriesIntro
+	SnapHelpAllIntro        = snapHelpAllIntro
 	SnapHelpAllFooter       = snapHelpAllFooter
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
@@ -381,5 +382,21 @@ func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts i
 	downloadDirect = f
 	return func() {
 		downloadDirect = old
+	}
+}
+
+func MockSnapdAPIInterval(t time.Duration) (restore func()) {
+	old := snapdAPIInterval
+	snapdAPIInterval = t
+	return func() {
+		snapdAPIInterval = old
+	}
+}
+
+func MockSnapdWaitForFullSystemReboot(t time.Duration) (restore func()) {
+	old := snapdWaitForFullSystemReboot
+	snapdWaitForFullSystemReboot = t
+	return func() {
+		snapdWaitForFullSystemReboot = old
 	}
 }

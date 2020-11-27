@@ -48,11 +48,17 @@ execute: |
     f2="$(tar -tf "${SET_ID}_export-2.snapshot" )"
     test "$f1" = "$f2"
 
+    # and is importable
+    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
+    # and is valid
+    snap check-snapshot "$RESTORE_ID"
+
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
 
-    # remove the exports
+    # remove the exports and import
     rm "${SET_ID}"_export*.snapshot
+    snap forget "$RESTORE_ID"
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
@@ -125,3 +131,16 @@ execute: |
     # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
     # The threshold in this test is set to about 40MB
     test "$(cat memory-kb.txt)" -lt 40000
+
+    # check that snapshot set id from the filename has authority
+    snap install test-snapd-sh
+    snap save test-snapd-sh
+    SNAPSHOT_FILE=$(ls /var/lib/snapd/snapshots/*test-snapd-sh*.zip)
+    NEWSNAPSHOT_FILE=$(echo "$SNAPSHOT_FILE" | sed -e's/[1-9]\+_/123_/')
+    # rename the snapshot file to force a new set id.
+    mv "$SNAPSHOT_FILE" "$NEWSNAPSHOT_FILE"
+    snap saved | MATCH "123 +test-snapd-sh"
+    # make sure there is just one such snapshot
+    [[ $(snap saved | grep -c test-snapd-sh) == "1" ]]
+    snap saved --id=123 | MATCH "123 .+test-snapd-sh"
+    snap restore 123 test-snapd-sh
