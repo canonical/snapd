@@ -137,14 +137,17 @@ func (c *Context) writing() {
 	}
 }
 
-func (c *Context) initEphemeralContextData(m map[string]interface{}) error {
-	if m == nil {
+func (c *Context) initForRun(handler Handler, contextData map[string]interface{}) error {
+	c.handler = handler
+	if contextData == nil {
 		return nil
 	}
+
 	if !c.IsEphemeral() {
-		return fmt.Errorf("internal error: called initEphemeralContextData for non-ephemeral context %v", c)
+		return fmt.Errorf("internal error: cannot pass contextData to initForRun for %v", c)
 	}
-	serialized, err := json.Marshal(m)
+
+	serialized, err := json.Marshal(contextData)
 	if err != nil {
 		return err
 	}

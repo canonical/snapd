@@ -341,12 +341,6 @@ func (m *HookManager) runHookReturnContext(task *state.Task, tomb *tomb.Tomb, sn
 	if err != nil {
 		return nil, err
 	}
-	// init of conextData is only needed for ephemeral hooks, task
-	// based ones get the ephemeral data via HookTask() and it's
-	// stored in the task
-	if err := context.initEphemeralContextData(contextData); err != nil {
-		return nil, err
-	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
 	// possible for regular expressions to overlap, but multiple handlers is an
@@ -365,7 +359,9 @@ func (m *HookManager) runHookReturnContext(task *state.Task, tomb *tomb.Tomb, sn
 	if handlersCount > 1 {
 		return nil, fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
 	}
-	context.handler = handlers[0]
+	if err := context.initForRun(handlers[0], contextData); err != nil {
+		return nil, err
+	}
 
 	contextID := context.ID()
 	m.contextsMutex.Lock()
