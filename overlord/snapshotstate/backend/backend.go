@@ -486,29 +486,13 @@ type multiError struct {
 // the given format string that explains what operation potentially
 // want wrong. multiError can be nested and will render correctly
 // in these cases.
-//
-// Note that "Append" needs to get called to add actual errors.
-func newMultiError(format string, v ...interface{}) *multiError {
-	return &multiError{header: fmt.Sprintf(format, v...)}
-}
-
-// Append appends an error to the multiError.
-func (me *multiError) Append(e error) {
-	me.errs = append(me.errs, e)
+func newMultiError(header string, errs []error) error {
+	return &multiError{header: header, errs: errs}
 }
 
 // Error formats the error string.
 func (me *multiError) Error() string {
 	return me.nestedError(0, make(map[error]struct{}))
-}
-
-// Err returns nil if no errors where added to the multiError helper
-// and otherwise it returns a multiError.
-func (me *multiError) Err() error {
-	if len(me.errs) == 0 {
-		return nil
-	}
-	return me
 }
 
 // helper to ensure formating of nested multiErrors works.
@@ -607,16 +591,19 @@ func (t *importTransaction) Cancel() error {
 	if err != nil {
 		return err
 	}
-	errs := newMultiError("cannot cancel import for set id %d", t.id)
+	var errs []error
 	for _, p := range inProgressImports {
 		if err := os.Remove(p); err != nil {
-			errs.Append(err)
+			errs = append(errs, err)
 		}
 	}
 	if err := t.unlock(); err != nil {
-		errs.Append(err)
+		errs = append(errs, err)
 	}
-	return errs.Err()
+	if len(errs) > 0 {
+		return newMultiError(fmt.Sprintf("cannot cancel import for set id %d", t.id), errs)
+	}
+	return nil
 }
 
 // Commit will commit a given transaction
@@ -651,20 +638,23 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 		return 0, err
 	}
 
-	errs := newMultiError("cannot cleanup imports")
+	var errs []error
 	for _, p := range inProgressSnapshots {
 		tr, err := newImportTransactionFromImportFile(p)
 		if err != nil {
-			errs.Append(err)
+			errs = append(errs, err)
 			continue
 		}
 		if err := tr.Cancel(); err != nil {
-			errs.Append(err)
+			errs = append(errs, err)
 		} else {
 			cleaned++
 		}
 	}
-	return cleaned, errs.Err()
+	if len(errs) > 0 {
+		return cleaned, newMultiError("cannot cleanup imports", errs)
+	}
+	return cleaned, nil
 }
 
 // Import a snapshot from the export file format
