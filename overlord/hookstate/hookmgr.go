@@ -261,7 +261,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
 // undoRunHook runs the undo-hook that was requested.
@@ -280,12 +280,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
-}
-
-func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
-	_, err := m.runHookReturnContext(task, tomb, snapst, hooksup, nil)
-	return err
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
 func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
@@ -299,10 +294,15 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 		return nil, fmt.Errorf("cannot run ephemeral hook %s: %v", hooksup.Hook, err)
 	}
 
-	return m.runHookReturnContext(nil, tomb, &snapst, hooksup, contextData)
+	return m.runHookCommon(nil, tomb, &snapst, hooksup, contextData)
 }
 
-func (m *HookManager) runHookReturnContext(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
+	_, err := m.runHookCommon(task, tomb, snapst, hooksup, nil)
+	return err
+}
+
+func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
