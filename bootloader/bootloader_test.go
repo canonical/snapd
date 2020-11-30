@@ -114,7 +114,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 			opts:       &bootloader.Options{Role: bootloader.RoleRecovery},
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
-		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
+		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin", opts: &bootloader.Options{PrepareImageTime: true}},
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()

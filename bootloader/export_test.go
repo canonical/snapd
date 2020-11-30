@@ -103,9 +103,9 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 	}
 
 	l := &lk{
-		rootdir:       rootdir,
-		inRuntimeMode: !opts.PrepareImageTime,
-		role:          opts.Role,
+		rootdir:          rootdir,
+		prepareImageTime: opts.PrepareImageTime,
+		role:             opts.Role,
 	}
 
 	var version lkenv.Version
@@ -191,7 +191,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 
 func LkRuntimeMode(b Bootloader) bool {
 	lk := b.(*lk)
-	return lk.inRuntimeMode
+	return !lk.prepareImageTime
 }
 
 func MockAddBootloaderToFind(blConstructor func(string, *Options) Bootloader) (restore func()) {

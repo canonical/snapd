@@ -35,8 +35,8 @@ import (
 )
 
 type lk struct {
-	rootdir       string
-	inRuntimeMode bool
+	rootdir          string
+	prepareImageTime bool
 
 	// blDisk is what disk the bootloader informed us to use to look for the
 	// bootloader structure partitions
@@ -60,7 +60,7 @@ func (l *lk) processOpts(opts *Options) {
 		//
 		// determine mode we are in, runtime or image build
 
-		l.inRuntimeMode = !opts.PrepareImageTime
+		l.prepareImageTime = opts.PrepareImageTime
 
 		l.role = opts.Role
 	}
@@ -84,29 +84,28 @@ func (l *lk) Name() string {
 }
 
 func (l *lk) dir() string {
-	// we have two scenarios, image building and runtime
-	// during image building we store environment into file, while at runtime
-	// the environment is written directly into dedicated partition
-	if l.inRuntimeMode {
-		switch l.role {
-		case RoleSole:
-			// TODO: this should be adjusted to use the kernel cmdline parameter
-			//       for the disk that the bootloader says to find the partition
-			//       on, since like the UC20 case, but that involves changing
-			//       many more tests, so let's do that in a followup PR
-			return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
-		case RoleRecovery, RoleRunMode:
-			// TODO: maybe panic'ing here is a bit harsh...
-			panic("internal error: shouldn't be using lk.dir() for uc20 runtime modes!")
-		default:
-			panic("unexpected bootloader role for lk dir")
-		}
+	if l.prepareImageTime {
+		// at prepare-image time, then use rootdir and look for /boot/lk/ -
+		// this is only used in prepare-image time where the binary files exist
+		// extracted from the gadget
+		return filepath.Join(l.rootdir, "/boot/lk/")
 	}
 
-	// if not in runtime mode, then use rootdir and look for /boot/lk/ this is
-	// only used in prepare-image time where the binary files exist extracted
-	// from the gadget
-	return filepath.Join(l.rootdir, "/boot/lk/")
+	// for runtime, we should only be using dir() for V1 and the dir is just
+	// the udev by-partlabel directory
+	switch l.role {
+	case RoleSole:
+		// TODO: this should be adjusted to use the kernel cmdline parameter
+		//       for the disk that the bootloader says to find the partition
+		//       on, since like the UC20 case, but that involves changing
+		//       many more tests, so let's do that in a followup PR
+		return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
+	case RoleRecovery, RoleRunMode:
+		// TODO: maybe panic'ing here is a bit harsh...
+		panic("internal error: shouldn't be using lk.dir() for uc20 runtime modes!")
+	default:
+		panic("unexpected bootloader role for lk dir")
+	}
 }
 
 func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
@@ -123,7 +122,7 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 func (l *lk) Present() (bool, error) {
 	partitionLabel := l.partLabelForRoleAndTime()
 	// if we are not in runtime mode or in V1, just check the config file
-	if !l.inRuntimeMode || l.role == RoleSole {
+	if l.prepareImageTime || l.role == RoleSole {
 		return osutil.FileExists(filepath.Join(l.dir(), partitionLabel)), nil
 	}
 
@@ -151,7 +150,7 @@ func (l *lk) partLabelForRoleAndTime() string {
 	default:
 		panic(fmt.Sprintf("unknown bootloader role for littlekernel: %s", l.role))
 	}
-	if !l.inRuntimeMode {
+	if l.prepareImageTime {
 		// conf files at build time have .bin suffix, so technically this now
 		// becomes not a partition label but a filename, but meh names are hard
 		label += ".bin"
@@ -162,22 +161,22 @@ func (l *lk) partLabelForRoleAndTime() string {
 func (l *lk) envFile() (string, error) {
 	// as for dir, we have two scenarios, image building and runtime
 	partLabel := l.partLabelForRoleAndTime()
-	if l.inRuntimeMode {
-		if l.role == RoleSole {
-			// see TODO: in l.dir(), this should eventually also be using
-			// envFileForPartName() too
-			return filepath.Join(l.dir(), partLabel), nil
-		}
-
-		// for RoleRun or RoleRecovery, we need to find the partition securely
-		envFile, _, err := l.envFileForPartName(partLabel)
-		if err != nil {
-			return "", err
-		}
-		return envFile, nil
+	if l.prepareImageTime {
+		return filepath.Join(l.dir(), partLabel), nil
 	}
 
-	return filepath.Join(l.dir(), partLabel), nil
+	if l.role == RoleSole {
+		// see TODO: in l.dir(), this should eventually also be using
+		// envFileForPartName() too
+		return filepath.Join(l.dir(), partLabel), nil
+	}
+
+	// for RoleRun or RoleRecovery, we need to find the partition securely
+	envFile, _, err := l.envFileForPartName(partLabel)
+	if err != nil {
+		return "", err
+	}
+	return envFile, nil
 }
 
 // envFileForPartName returns the environment file in /dev for the partition
@@ -309,7 +308,7 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 		return err
 	}
 
-	if l.inRuntimeMode {
+	if !l.prepareImageTime {
 		// error case, we cannot be extracting a recovery kernel and also be
 		// called with !opts.PrepareImageTime (yet)
 
@@ -356,7 +355,13 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		return err
 	}
 
-	if l.inRuntimeMode {
+	if l.prepareImageTime {
+		// we are preparing image, just extract boot image to bootloader directory
+		logger.Debugf("ExtractKernelAssets handling image prepare")
+		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
+			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
+		}
+	} else {
 		logger.Debugf("ExtractKernelAssets handling run time usecase")
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has to be updated with
@@ -399,13 +404,8 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		if _, err := io.Copy(bpf, bif); err != nil {
 			return err
 		}
-	} else {
-		// we are preparing image, just extract boot image to bootloader directory
-		logger.Debugf("ExtractKernelAssets handling image prepare")
-		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
-			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
-		}
 	}
+
 	if err := env.SetBootPartitionKernel(bootPartition, blobName); err != nil {
 		return err
 	}
