@@ -286,7 +286,9 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Run spread tests
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
+      # run if the commit is pushed to the release/* branch or there is a 'Run
+      # nested' label set on the PR
+      if: "(contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')) && steps.cached-results.outputs.already-ran != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
