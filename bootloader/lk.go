@@ -120,17 +120,17 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 }
 
 func (l *lk) Present() (bool, error) {
-	partitionLabel := l.partLabelForRoleAndTime()
+	partitionLabelOrConfFile := l.partLabelForRoleAndTime()
 	// if we are not in runtime mode or in V1, just check the config file
 	if l.prepareImageTime || l.role == RoleSole {
-		return osutil.FileExists(filepath.Join(l.dir(), partitionLabel)), nil
+		return osutil.FileExists(filepath.Join(l.dir(), partitionLabelOrConfFile)), nil
 	}
 
 	// otherwise for V2, non-sole bootloader roles we need to check on the
 	// partition name existing, note that envFileForPartName will only return
 	// partiallyFound as true if it reasonably concludes that this is a lk
 	// device, so in that case forward err, otherwise return err as nil
-	_, partiallyFound, err := l.envFileForPartName(partitionLabel)
+	_, partiallyFound, err := l.envFileForPartName(partitionLabelOrConfFile)
 	if partiallyFound {
 		return partiallyFound, err
 	}
