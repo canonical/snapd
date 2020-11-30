@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -304,9 +305,9 @@ var (
 		},
 	))
 
-	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
+	peekRetryStrategy = retry.LimitCount(6, retry.LimitTime(44*time.Second,
 		retry.Exponential{
-			Initial: 300 * time.Millisecond,
+			Initial: 500 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
@@ -346,6 +347,8 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
 			logger.Debugf("fetching repair %s-%d", brandID, repairID)
+
+			// TODO: use something like TransferSpeedMonitoringWriter to avoid stalling here
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,
@@ -438,6 +441,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 	var rsp peekResp
 
 	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		// TODO: setup a overall request timeout using contexts
+		// can be many minutes but not unlimited like now
 		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
 			return nil, err
@@ -575,11 +580,9 @@ func (run *Runner) initState() error {
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
 	// initialize time lower bound with image built time/seed.yaml time
-	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
-	if err != nil {
+	if err := run.findTimeLowerBound(); err != nil {
 		return err
 	}
-	run.moveTimeLowerBound(info.ModTime())
 	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
@@ -655,16 +658,67 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 	return nil
 }
 
-func (run *Runner) initDeviceInfo() error {
-	const errPrefix = "cannot set device information: "
+func (run *Runner) findTimeLowerBound() error {
+	timeLowerBoundSources := []string{
+		// uc16
+		filepath.Join(dirs.SnapSeedDir, "seed.yaml"),
+		// uc20+
+		dirs.SnapModeenvFile,
+	}
+	// add all model files from uc20 seeds
+	allModels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems/*/model"))
+	if err != nil {
+		return err
+	}
+	timeLowerBoundSources = append(timeLowerBoundSources, allModels...)
 
+	// use all files as potential time inputs
+	for _, p := range timeLowerBoundSources {
+		info, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		run.moveTimeLowerBound(info.ModTime())
+	}
+	return nil
+}
+
+func findBrandAndModel() (string, string, error) {
+	if osutil.FileExists(dirs.SnapModeenvFile) {
+		return findBrandAndModel20()
+	}
+	return findBrandAndModel16()
+}
+
+func findBrandAndModel20() (brand, model string, err error) {
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
+		return "", "", err
+	}
+	brandAndModel, err := cfg.Get("", "model")
+	if err != nil {
+		return "", "", err
+	}
+	l := strings.SplitN(brandAndModel, "/", 2)
+	if len(l) != 2 {
+		return "", "", fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
+	}
+
+	return l[0], l[1], nil
+}
+
+func findBrandAndModel16() (brand, model string, err error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	var model *asserts.Model
+	var modelAs *asserts.Model
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		f, err := os.Open(fn)
@@ -681,37 +735,45 @@ func (run *Runner) initDeviceInfo() error {
 			}
 			switch a.Type() {
 			case asserts.ModelType:
-				if model != nil {
-					return fmt.Errorf(errPrefix + "multiple models in seed assertions")
+				if modelAs != nil {
+					return "", "", fmt.Errorf("multiple models in seed assertions")
 				}
-				model = a.(*asserts.Model)
+				modelAs = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
 				workBS.Put(a.Type(), a)
 			}
 		}
 	}
-	if model == nil {
-		return fmt.Errorf(errPrefix + "no model assertion in seed data")
+	if modelAs == nil {
+		return "", "", fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
-	if err := verifySignatures(model, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
+		return "", "", err
 	}
-	acctPK := []string{model.BrandID()}
+	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
 	acct, err := trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 	if err != nil {
 		var err error
 		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 		if err != nil {
-			return fmt.Errorf(errPrefix + "no brand account assertion in seed data")
+			return "", "", fmt.Errorf("no brand account assertion in seed data")
 		}
 	}
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+		return "", "", err
 	}
-	run.state.Device.Brand = model.BrandID()
-	run.state.Device.Model = model.Model()
+	return modelAs.BrandID(), modelAs.Model(), nil
+}
+
+func (run *Runner) initDeviceInfo() error {
+	brandID, model, err := findBrandAndModel()
+	if err != nil {
+		return fmt.Errorf("cannot set device information: %v", err)
+	}
+	run.state.Device.Brand = brandID
+	run.state.Device.Model = model
 	return nil
 }
 

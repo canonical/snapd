@@ -176,3 +176,11 @@ func (s *emulation) Unmask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "unmask", service)
 	return err
 }
+
+func (s *emulation) Mount(what, where string, options ...string) error {
+	return errNotImplemented
+}
+
+func (s *emulation) Umount(whatOrWhere string) error {
+	return errNotImplemented
+}

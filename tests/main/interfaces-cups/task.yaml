@@ -9,10 +9,8 @@ details: |
     server.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-provider
-    install_local test-snapd-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-provider
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-consumer
 
     if [ -e /run/cups ]; then
         mv /run/cups /run/cups.orig

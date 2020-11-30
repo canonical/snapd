@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
@@ -89,16 +90,17 @@ type Overlord struct {
 	// restarts
 	restartBehavior RestartBehavior
 	// managers
-	inited    bool
-	startedUp bool
-	runner    *state.TaskRunner
-	snapMgr   *snapstate.SnapManager
-	assertMgr *assertstate.AssertManager
-	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
-	deviceMgr *devicestate.DeviceManager
-	cmdMgr    *cmdstate.CommandManager
-	shotMgr   *snapshotstate.SnapshotManager
+	inited     bool
+	startedUp  bool
+	runner     *state.TaskRunner
+	snapMgr    *snapstate.SnapManager
+	serviceMgr *servicestate.ServiceManager
+	assertMgr  *assertstate.AssertManager
+	ifaceMgr   *ifacestate.InterfaceManager
+	hookMgr    *hookstate.HookManager
+	deviceMgr  *devicestate.DeviceManager
+	cmdMgr     *cmdstate.CommandManager
+	shotMgr    *snapshotstate.SnapshotManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -157,6 +159,9 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 	}
 	o.addManager(snapMgr)
 
+	serviceMgr := servicestate.Manager(s, o.runner)
+	o.addManager(serviceMgr)
+
 	assertMgr, err := assertstate.Manager(s, o.runner)
 	if err != nil {
 		return nil, err
@@ -204,6 +209,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.hookMgr = x
 	case *snapstate.SnapManager:
 		o.snapMgr = x
+	case *servicestate.ServiceManager:
+		o.serviceMgr = x
 	case *assertstate.AssertManager:
 		o.assertMgr = x
 	case *ifacestate.InterfaceManager:

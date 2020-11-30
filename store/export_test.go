@@ -25,6 +25,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
@@ -58,6 +59,8 @@ var (
 
 	JsonContentType  = jsonContentType
 	SnapActionFields = snapActionFields
+
+	Cancelled = cancelled
 )
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
@@ -83,6 +86,29 @@ func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	t.AddCleanup(func() {
 		connCheckStrategy = originalConnCheckStrategy
 	})
+}
+
+func MockDownloadSpeedParams(measureWindow time.Duration, minSpeed float64) (restore func()) {
+	oldSpeedMeasureWindow := downloadSpeedMeasureWindow
+	oldSpeedMin := downloadSpeedMin
+	downloadSpeedMeasureWindow = measureWindow
+	downloadSpeedMin = minSpeed
+	return func() {
+		downloadSpeedMeasureWindow = oldSpeedMeasureWindow
+		downloadSpeedMin = oldSpeedMin
+	}
+}
+
+func IsTransferSpeedError(err error) (ok bool, speed float64) {
+	de, ok := err.(*transferSpeedError)
+	if !ok {
+		return false, 0
+	}
+	return true, de.Speed
+}
+
+func (w *TransferSpeedMonitoringWriter) MeasuredWindowsCount() int {
+	return w.measuredWindows
 }
 
 func (cm *CacheManager) CacheDir() string {

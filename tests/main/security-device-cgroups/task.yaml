@@ -77,9 +77,7 @@ execute: |
     fi
 
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Then the device is not assigned to that snap"
     udevadm info "$UDEVADM_PATH" | not MATCH "E: TAGS=.*snap_test-snapd-sh_sh"

@@ -19,8 +19,6 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     # Stop snapd and remove existing state, modify and repack gadget
     # snap and provide developer assertions in order to force first
@@ -77,8 +75,6 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 
@@ -122,8 +118,6 @@ execute: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 
