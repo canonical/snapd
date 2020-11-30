@@ -39,6 +39,12 @@ type Disk interface {
 	// were encountered, a PartitionNotFoundError will be returned.
 	FindMatchingPartitionUUIDWithFsLabel(string) (string, error)
 
+	// FindMatchingPartitionUUIDWithPartLabel is like
+	// FindMatchingPartitionUUIDWithFsLabel, but searches for a partition that
+	// has a matching partition label instead of the filesystem label. The same
+	// encoding scheme is performed on the label as in that function.
+	FindMatchingPartitionUUIDWithPartLabel(string) (string, error)
+
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
 	// and mountpoints found when the disk was identified with
