@@ -42,10 +42,14 @@ func (d *Daemon) Overlord() *overlord.Overlord {
 	return d.overlord
 }
 
-func MockEnsureStateSoon(mock func(*state.State)) (restore func()) {
+func (d *Daemon) RequestedRestart() state.RestartType {
+	return d.requestedRestart
+}
+
+func MockEnsureStateSoon(mock func(*state.State)) (original func(*state.State), restore func()) {
 	oldEnsureStateSoon := ensureStateSoon
 	ensureStateSoon = mock
-	return func() {
+	return ensureStateSoonImpl, func() {
 		ensureStateSoon = oldEnsureStateSoon
 	}
 }

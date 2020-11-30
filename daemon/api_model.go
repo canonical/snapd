@@ -57,7 +57,7 @@ type postModelData struct {
 	NewModel string `json:"new-model"`
 }
 
-type modelAssertJSONResponse struct {
+type modelAssertJSON struct {
 	Headers map[string]interface{} `json:"headers,omitempty"`
 	Body    string                 `json:"body,omitempty"`
 }
@@ -124,7 +124,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		modelJSON := modelAssertJSONResponse{}
+		modelJSON := modelAssertJSON{}
 
 		modelJSON.Headers = model.Headers()
 		if !opts.headersOnly {
@@ -134,7 +134,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return SyncResponse(modelJSON, nil)
 	}
 
-	return AssertResponse([]asserts.Assertion{model}, true)
+	return AssertResponse([]asserts.Assertion{model}, false)
 }
 
 // getSerial gets the current serial assertion using the DeviceManager
@@ -169,7 +169,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		serialJSON := modelAssertJSONResponse{}
+		serialJSON := modelAssertJSON{}
 
 		serialJSON.Headers = serial.Headers()
 		if !opts.headersOnly {
@@ -179,5 +179,5 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return SyncResponse(serialJSON, nil)
 	}
 
-	return AssertResponse([]asserts.Assertion{serial}, true)
+	return AssertResponse([]asserts.Assertion{serial}, false)
 }
