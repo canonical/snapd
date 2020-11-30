@@ -295,6 +295,15 @@ func (l *lk) SetBootVars(values map[string]string) error {
 }
 
 func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.PlaceInfo, snapf snap.Container) error {
+	if !l.prepareImageTime {
+		// error case, we cannot be extracting a recovery kernel and also be
+		// called with !opts.PrepareImageTime (yet)
+
+		// TODO:UC20: however this codepath will likely be exercised when we
+		//            support creating new recovery systems from runtime
+		return fmt.Errorf("internal error: ExtractRecoveryKernelAssets not yet implemented for a runtime lk bootloader")
+	}
+
 	env, err := l.newenv()
 	if err != nil {
 		return err
@@ -310,15 +319,6 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 	bootPartition, err := env.FindFreeRecoverySystemBootPartition(recoverySystem)
 	if err != nil {
 		return err
-	}
-
-	if !l.prepareImageTime {
-		// error case, we cannot be extracting a recovery kernel and also be
-		// called with !opts.PrepareImageTime (yet)
-
-		// TODO:UC20: however this codepath will likely be exercised when we
-		//            support creating new recovery systems from runtime
-		return fmt.Errorf("internal error: ExtractRecoveryKernelAssets not yet implemented for a runtime lk bootloader")
 	}
 
 	// we are preparing a recovery system, just extract boot image to bootloader
