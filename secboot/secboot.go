@@ -143,3 +143,10 @@ type UnlockResult struct {
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }
+
+// HasFDERevealKey return true if the current system has a "fde-reveal-key"
+// binary (usually used in the initrd).
+//
+// This will be setup by devicestate to support device-specific full
+// disk encryption implementations.
+var HasFDERevealKey = func() bool { return false }
