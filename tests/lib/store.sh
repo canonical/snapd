@@ -147,6 +147,9 @@ setup_fake_store(){
 teardown_fake_store(){
     local top_dir=$1
     systemctl stop fakestore || true
+    # when a unit fails, systemd may keep its status, resetting it allows to
+    # start the unit again with a clean slate
+    systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store
