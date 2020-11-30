@@ -64,10 +64,10 @@ execute: |
     file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
     echo "Check that the filesystems were not auto-mounted"
-    mount | not MATCH /run/mnt/ubuntu-seed
-    mount | not MATCH /run/mnt/ubuntu-boot
-    mount | not MATCH /run/mnt/ubuntu-save
-    mount | not MATCH /run/mnt/ubuntu-data
+    mount | NOMATCH /run/mnt/ubuntu-seed
+    mount | NOMATCH /run/mnt/ubuntu-boot
+    mount | NOMATCH /run/mnt/ubuntu-save
+    mount | NOMATCH /run/mnt/ubuntu-data
 
     # we used "lsblk --fs" here but it was unreliable
     mkdir -p ./mnt
