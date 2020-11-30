@@ -34,13 +34,13 @@ type Options struct {
 //            for a disk for better user error reporting, i.e. /dev/vda3 is much
 //            more helpful than 252:3
 type Disk interface {
-	// FindMatchingPartitionUUID finds the partition uuid for a partition
-	// matching the specified filesystem label on the disk. Note that for
-	// non-ascii labels like "Some label", the label will be encoded using
+	// FindMatchingPartitionUUIDFromFsLabel finds the partition uuid for a
+	// partition matching the specified filesystem label on the disk. Note that
+	// for non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
 	// were encountered, a FilesystemLabelNotFoundError will be returned.
-	FindMatchingPartitionUUID(string) (string, error)
+	FindMatchingPartitionUUIDFromFsLabel(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
@@ -60,16 +60,29 @@ type Disk interface {
 	HasPartitions() bool
 }
 
-// FilesystemLabelNotFoundError is an error where the specified label was not
-// found on the disk.
-type FilesystemLabelNotFoundError struct {
-	Label string
+// PartitionNotFoundError is an error where a partition matching the SearchType
+// was not found. SearchType can be either "partition-label" or
+// "filesystem-label" to indicate searching by the partition label or the
+// filesystem label on a given disk. SearchQuery is the specific query
+// parameter attempted to be used.
+type PartitionNotFoundError struct {
+	SearchType  string
+	SearchQuery string
 }
 
-func (e FilesystemLabelNotFoundError) Error() string {
-	return fmt.Sprintf("filesystem label %q not found", e.Label)
+func (e PartitionNotFoundError) Error() string {
+	t := ""
+	switch e.SearchType {
+	case "partition-label":
+		t = "partition label"
+	case "filesystem-label":
+		t = "filesystem label"
+	default:
+		return fmt.Sprintf("searching with unknown search type %q and search query %q did not return a partition", e.SearchType, e.SearchQuery)
+	}
+	return fmt.Sprintf("%s %q not found", t, e.SearchQuery)
 }
 
 var (
-	_ = error(FilesystemLabelNotFoundError{})
+	_ = error(PartitionNotFoundError{})
 )
