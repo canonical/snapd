@@ -277,6 +277,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		CurrentRecoverySystems:           []string{recoverySystemLabel},
 		CurrentTrustedBootAssets:         currentTrustedBootAssets,
 		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
+		// kernel command lines are set later once a boot config is
+		// installed
+		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
@@ -355,6 +358,16 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// partition has been populated with gadget data
 		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
+		}
+		// determine the expected command line
+		cmdline, err := ComposeCandidateCommandLine(model)
+		if err != nil {
+			return fmt.Errorf("cannot compose the candidate command line: %v", err)
+		}
+		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+		// update the modeenv on disk
+		if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+			return fmt.Errorf("cannot write modeenv: %v", err)
 		}
 	}
 
