@@ -161,6 +161,9 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 		FilesystemLabelToPartUUID: map[string]string{
 			"label1": "part1",
 		},
+		PartitionLabelToPartUUID: map[string]string{
+			"part-label1": "part1",
+		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
@@ -168,6 +171,9 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d2 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"label2": "part2",
+		},
+		PartitionLabelToPartUUID: map[string]string{
+			"part-label2": "part2",
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
@@ -186,10 +192,15 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	foundDisk, err := disks.DiskFromMountPoint("mount1", nil)
 	c.Assert(err, IsNil)
 
-	// and it has labels
-	label, err := foundDisk.FindMatchingPartitionUUIDFromFsLabel("label1")
+	// and it has filesystem labels
+	uuid, err := foundDisk.FindMatchingPartitionUUIDFromFsLabel("label1")
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "part1")
+	c.Assert(uuid, Equals, "part1")
+
+	// and partition labels
+	uuid, err = foundDisk.FindMatchingPartitionUUIDFromPartLabel("part-label1")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "part1")
 
 	// the same mount point is always from the same disk
 	matches, err := foundDisk.MountPointIsFromDisk("mount1", nil)
@@ -211,9 +222,14 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, IsNil)
 
 	// we can find label2 from mount3's disk
-	label, err = foundDisk2.FindMatchingPartitionUUIDFromFsLabel("label2")
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDFromFsLabel("label2")
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "part2")
+	c.Assert(uuid, Equals, "part2")
+
+	// and the partition label
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDFromPartLabel("part-label2")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "part2")
 
 	// we can't find label1 from mount1's or mount2's disk
 	_, err = foundDisk2.FindMatchingPartitionUUIDFromFsLabel("label1")
@@ -221,6 +237,13 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "label1",
+	})
+
+	_, err = foundDisk2.FindMatchingPartitionUUIDFromPartLabel("part-label1")
+	c.Assert(err, ErrorMatches, "partition label \"part-label1\" not found")
+	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: "part-label1",
 	})
 
 	// mount1 and mount2 do not match mount3 disk

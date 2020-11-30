@@ -545,7 +545,7 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
 
-	// finally we can't find the bios-boot partition because it has no fs label
+	// we can't find the bios-boot partition because it has no fs label
 	_, err = ubuntuBootDisk.FindMatchingPartitionUUIDFromFsLabel("bios-boot")
 	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
@@ -560,7 +560,22 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		SearchQuery: "bios-boot",
 	})
 
-	// however we can find bios-boot by it's partition label
+	// however we can find it via the partition label
+	uuid, err := ubuntuBootDisk.FindMatchingPartitionUUIDFromPartLabel("BIOS Boot")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "bios-boot-partuuid")
+
+	uuid, err = ubuntuDataDisk.FindMatchingPartitionUUIDFromPartLabel("BIOS Boot")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "bios-boot-partuuid")
+
+	// trying to find an unknown partition label fails however
+	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDFromPartLabel("NOT BIOS Boot")
+	c.Assert(err, ErrorMatches, "partition label \"NOT BIOS Boot\" not found")
+	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: "NOT BIOS Boot",
+	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
