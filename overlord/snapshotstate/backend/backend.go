@@ -476,50 +476,48 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
-// XXX: move to a new errutil ?
-//
-// MultiError is a helper to handle mutliple errors.
-type MultiError struct {
+// multiError is a helper to handle mutliple errors.
+type multiError struct {
 	header string
 	errs   []error
 }
 
-// NewMultiError returns a new MultiError struct initialized with
+// newMultiError returns a new multiError struct initialized with
 // the given format string that explains what operation potentially
-// want wrong. MultiError can be nested and will render correctly
+// want wrong. multiError can be nested and will render correctly
 // in these cases.
 //
 // Note that "Append" needs to get called to add actual errors.
-func NewMultiError(format string, v ...interface{}) *MultiError {
-	return &MultiError{header: fmt.Sprintf(format, v...)}
+func newMultiError(format string, v ...interface{}) *multiError {
+	return &multiError{header: fmt.Sprintf(format, v...)}
 }
 
-// Append appends an error to the MultiError.
-func (me *MultiError) Append(e error) {
+// Append appends an error to the multiError.
+func (me *multiError) Append(e error) {
 	me.errs = append(me.errs, e)
 }
 
 // Error formats the error string.
-func (me *MultiError) Error() string {
+func (me *multiError) Error() string {
 	return me.nestedError(0, make(map[error]struct{}))
 }
 
-// Err returns nil if no errors where added to the MultiError helper
-// and otherwise it returns a MultiError.
-func (me *MultiError) Err() error {
+// Err returns nil if no errors where added to the multiError helper
+// and otherwise it returns a multiError.
+func (me *multiError) Err() error {
 	if len(me.errs) == 0 {
 		return nil
 	}
 	return me
 }
 
-// helper to ensure formating of nested MultiErrors works.
-func (me *MultiError) nestedError(level int, seen map[error]struct{}) string {
+// helper to ensure formating of nested multiErrors works.
+func (me *multiError) nestedError(level int, seen map[error]struct{}) string {
 	indent := strings.Repeat(" ", level)
 	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
 	for i, err := range me.errs {
 		switch v := err.(type) {
-		case *MultiError:
+		case *multiError:
 			if _, ok := seen[err]; ok {
 				fmt.Fprintf(buf, "%s- cycle detected to %q", indent, v.header)
 			} else {
@@ -609,7 +607,7 @@ func (t *importTransaction) Cancel() error {
 	if err != nil {
 		return err
 	}
-	errs := NewMultiError("cannot cancel import for set id %d", t.id)
+	errs := newMultiError("cannot cancel import for set id %d", t.id)
 	for _, p := range inProgressImports {
 		if err := os.Remove(p); err != nil {
 			errs.Append(err)
@@ -653,7 +651,7 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 		return 0, err
 	}
 
-	errs := NewMultiError("cannot cleanup imports")
+	errs := newMultiError("cannot cleanup imports")
 	for _, p := range inProgressSnapshots {
 		tr, err := newImportTransactionFromImportFile(p)
 		if err != nil {

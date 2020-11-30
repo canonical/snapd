@@ -35,6 +35,8 @@ var (
 	PickUserWrapper = pickUserWrapper
 
 	IsSnapshotFilename = isSnapshotFilename
+
+	NewMultiError = newMultiError
 )
 
 func MockIsTesting(newIsTesting bool) func() {
