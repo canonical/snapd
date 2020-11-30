@@ -56,3 +56,24 @@ sc_distro sc_classify_distro(void)
 		return SC_DISTRO_CLASSIC;
 	}
 }
+
+bool sc_is_debian_like(void)
+{
+	FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
+	if (f == NULL) {
+           return false;
+	}
+
+	char buf[255] = { 0 };
+	while (fgets(buf, sizeof buf, f) != NULL) {
+		size_t len = strlen(buf);
+		if (len > 0 && buf[len - 1] == '\n') {
+			buf[len - 1] = '\0';
+		}
+		if (sc_streq(buf, "ID_LIKE=\"debian\"") || sc_streq(buf, "ID_LIKE=debian")) {
+                   return true;
+		}
+	}
+
+        return false;
+}

@@ -30,4 +30,7 @@ typedef enum sc_distro {
 
 sc_distro sc_classify_distro(void);
 
+// Returns true if it's a debian_like distro
+bool sc_is_debian_like(void);
+
 #endif

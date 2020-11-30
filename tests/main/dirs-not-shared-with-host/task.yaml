@@ -16,6 +16,10 @@ systems: [-ubuntu-core-*]
 prepare: |
     echo "Having installed the test snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    touch "$DIRECTORY"/file-from-host
+
+restore: |
+    rm -f "$DIRECTORY"/file-from-host
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
@@ -27,7 +31,15 @@ execute: |
     else
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/ubuntu-core/current/$DIRECTORY")
     fi
-    effective_inode=$(test-snapd-sh.sh -c "stat -c '%i' $DIRECTORY")
-    echo "The inode number as seen from a confined snap should be that of the $DIRECTORY from the core snap"
     [ "$host_inode" != "$core_inode" ]
-    [ "$effective_inode" = "$core_inode" ]
+
+    effective_inode=$(test-snapd-sh.sh -c "stat -c '%i' $DIRECTORY")
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* ]] || [[ "$SPREAD_SYSTEM" = debian-* ]]; then
+         echo "On Ubuntu/Debian the inode as seen from the confined snap should be that of the host snap for /etc/ssl"
+         [ "$effective_inode" = "$host_inode" ]
+         test-snapd-sh.sh -c "test -e $DIRECTORY/file-from-host"
+    else
+         echo "The inode number as seen from a confined snap should be that of the $DIRECTORY from the core snap"
+         [ "$effective_inode" = "$core_inode" ]
+         test-snapd-sh.sh -c "test ! -e $DIRECTORY/file-from-host"
+    fi
