@@ -137,7 +137,13 @@ func (c *Context) writing() {
 	}
 }
 
-func (c *Context) initContextData(m map[string]interface{}) error {
+func (c *Context) initEphemeralContextData(m map[string]interface{}) error {
+	if m == nil {
+		return nil
+	}
+	if !c.IsEphemeral() {
+		return fmt.Errorf("internal error: called initEphemeralContextData for non-ephemeral context %v", c)
+	}
 	serialized, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -146,12 +152,7 @@ func (c *Context) initContextData(m map[string]interface{}) error {
 	if err := json.Unmarshal(serialized, &data); err != nil {
 		return err
 	}
-
-	if c.IsEphemeral() {
-		c.cache["ephemeral-context"] = data
-	} else {
-		c.task.Set("hook-context", &data)
-	}
+	c.cache["ephemeral-context"] = data
 	return nil
 }
 
