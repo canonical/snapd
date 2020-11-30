@@ -292,7 +292,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 	c.Assert(disk.Dev(), Equals, "42:0")
 	c.Assert(disk.HasPartitions(), Equals, true)
 	// searching for the single label we have for this partition will succeed
-	label, err := disk.FindMatchingPartitionUUIDFromFsLabel("some-label")
+	label, err := disk.FindMatchingPartitionUUIDWithFsLabel("some-label")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "some-uuid")
 
@@ -301,7 +301,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 	c.Assert(matches, Equals, true)
 
 	// trying to search for any other labels though will fail
-	_, err = disk.FindMatchingPartitionUUIDFromFsLabel("ubuntu-boot")
+	_, err = disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
 	c.Assert(err, ErrorMatches, "filesystem label \"ubuntu-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
@@ -514,7 +514,7 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"} {
-		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDFromFsLabel(label)
+		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label)
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}
@@ -534,7 +534,7 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"} {
-		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDFromFsLabel(label)
+		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label)
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}
@@ -545,15 +545,15 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
 
-	// we can't find the bios-boot partition because it has no fs label
-	_, err = ubuntuBootDisk.FindMatchingPartitionUUIDFromFsLabel("bios-boot")
+	// finally we can't find the bios-boot partition because it has no fs label
+	_, err = ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot")
 	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "bios-boot",
 	})
 
-	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDFromFsLabel("bios-boot")
+	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel("bios-boot")
 	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
@@ -561,16 +561,16 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	})
 
 	// however we can find it via the partition label
-	uuid, err := ubuntuBootDisk.FindMatchingPartitionUUIDFromPartLabel("BIOS Boot")
+	uuid, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "bios-boot-partuuid")
 
-	uuid, err = ubuntuDataDisk.FindMatchingPartitionUUIDFromPartLabel("BIOS Boot")
+	uuid, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "bios-boot-partuuid")
 
 	// trying to find an unknown partition label fails however
-	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDFromPartLabel("NOT BIOS Boot")
+	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("NOT BIOS Boot")
 	c.Assert(err, ErrorMatches, "partition label \"NOT BIOS Boot\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "partition-label",
@@ -697,7 +697,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data-enc"} {
-		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDFromFsLabel(label)
+		id, err := ubuntuDataDisk.FindMatchingPartitionUUIDWithFsLabel(label)
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}
@@ -717,7 +717,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data-enc"} {
-		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDFromFsLabel(label)
+		id, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithFsLabel(label)
 		c.Assert(err, IsNil)
 		c.Assert(id, Equals, label+"-partuuid")
 	}

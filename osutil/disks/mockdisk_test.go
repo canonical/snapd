@@ -193,12 +193,12 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, IsNil)
 
 	// and it has filesystem labels
-	uuid, err := foundDisk.FindMatchingPartitionUUIDFromFsLabel("label1")
+	uuid, err := foundDisk.FindMatchingPartitionUUIDWithFsLabel("label1")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part1")
 
 	// and partition labels
-	uuid, err = foundDisk.FindMatchingPartitionUUIDFromPartLabel("part-label1")
+	uuid, err = foundDisk.FindMatchingPartitionUUIDWithPartLabel("part-label1")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part1")
 
@@ -222,24 +222,24 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, IsNil)
 
 	// we can find label2 from mount3's disk
-	uuid, err = foundDisk2.FindMatchingPartitionUUIDFromFsLabel("label2")
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label2")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part2")
 
 	// and the partition label
-	uuid, err = foundDisk2.FindMatchingPartitionUUIDFromPartLabel("part-label2")
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label2")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part2")
 
 	// we can't find label1 from mount1's or mount2's disk
-	_, err = foundDisk2.FindMatchingPartitionUUIDFromFsLabel("label1")
+	_, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label1")
 	c.Assert(err, ErrorMatches, "filesystem label \"label1\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "label1",
 	})
 
-	_, err = foundDisk2.FindMatchingPartitionUUIDFromPartLabel("part-label1")
+	_, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label1")
 	c.Assert(err, ErrorMatches, "partition label \"part-label1\" not found")
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "partition-label",
@@ -283,12 +283,12 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 	c.Assert(err, IsNil)
 
 	// next we find ubuntu-seed (also not decrypted)
-	label, err := d.FindMatchingPartitionUUIDFromFsLabel("ubuntu-seed")
+	label, err := d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ubuntu-seed-part")
 
 	// then we find ubuntu-data-enc, which is not a decrypted device
-	label, err = d.FindMatchingPartitionUUIDFromFsLabel("ubuntu-data-enc")
+	label, err = d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-data-enc")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ubuntu-data-enc-part")
 
