@@ -33,7 +33,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -43,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -66,7 +64,6 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var api = []*Command{
@@ -138,19 +135,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getSnapInfo,
 		POST:     postSnap,
-	}
-
-	appsCmd = &Command{
-		Path:   "/v2/apps",
-		UserOK: true,
-		GET:    getAppsInfo,
-		POST:   postApps,
-	}
-
-	logsCmd = &Command{
-		Path:     "/v2/logs",
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getLogs,
 	}
 
 	snapConfCmd = &Command{
@@ -1803,138 +1787,4 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(res, nil)
-}
-
-func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-
-	opts := appInfoOptions{}
-	switch sel := query.Get("select"); sel {
-	case "":
-		// nothing to do
-	case "service":
-		opts.service = true
-	default:
-		return BadRequest("invalid select parameter: %q", sel)
-	}
-
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
-	if rsp != nil {
-		return rsp
-	}
-
-	sd := servicestate.NewStatusDecorator(progress.Null)
-
-	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
-	if err != nil {
-		return InternalError("%v", err)
-	}
-
-	return SyncResponse(clientAppInfos, nil)
-}
-
-func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-	n := 10
-	if s := query.Get("n"); s != "" {
-		m, err := strconv.ParseInt(s, 0, 32)
-		if err != nil {
-			return BadRequest(`invalid value for n: %q: %v`, s, err)
-		}
-		n = int(m)
-	}
-	follow := false
-	if s := query.Get("follow"); s != "" {
-		f, err := strconv.ParseBool(s)
-		if err != nil {
-			return BadRequest(`invalid value for follow: %q: %v`, s, err)
-		}
-		follow = f
-	}
-
-	// only services have logs for now
-	opts := appInfoOptions{service: true}
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
-	if rsp != nil {
-		return rsp
-	}
-	if len(appInfos) == 0 {
-		return AppNotFound("no matching services")
-	}
-
-	serviceNames := make([]string, len(appInfos))
-	for i, appInfo := range appInfos {
-		serviceNames[i] = appInfo.ServiceName()
-	}
-
-	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	reader, err := sysd.LogReader(serviceNames, n, follow)
-	if err != nil {
-		return InternalError("cannot get logs: %v", err)
-	}
-
-	return &journalLineReaderSeqResponse{
-		ReadCloser: reader,
-		follow:     follow,
-	}
-}
-
-func namesToSnapNames(inst *servicestate.Instruction) []string {
-	seen := make(map[string]struct{}, len(inst.Names))
-	for _, snapOrSnapDotApp := range inst.Names {
-		snapName, _ := snap.SplitSnapApp(snapOrSnapDotApp)
-		seen[snapName] = struct{}{}
-	}
-	names := make([]string, 0, len(seen))
-	for k := range seen {
-		names = append(names, k)
-	}
-	// keep stable ordering
-	sort.Strings(names)
-	return names
-}
-
-var servicestateControl = servicestate.Control
-
-func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	var inst servicestate.Instruction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("cannot decode request body into service operation: %v", err)
-	}
-	// XXX: decoder.More()
-	if len(inst.Names) == 0 {
-		// on POST, don't allow empty to mean all
-		return BadRequest("cannot perform operation on services without a list of services to operate on")
-	}
-
-	st := c.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, inst.Names, appInfoOptions{service: true})
-	if rsp != nil {
-		return rsp
-	}
-	if len(appInfos) == 0 {
-		// can't happen: appInfosFor with a non-empty list of services
-		// shouldn't ever return an empty appInfos with no error response
-		return InternalError("no services found")
-	}
-
-	// do not pass flags - only create service-control tasks, do not create
-	// exec-command tasks for old snapd. These are not needed since we are
-	// handling momentary snap service commands.
-	st.Lock()
-	defer st.Unlock()
-	tss, err := servicestateControl(st, appInfos, &inst, nil, nil)
-	if err != nil {
-		// TODO: use errToResponse here too and introduce a proper error kind ?
-		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
-			return Conflict(err.Error())
-		}
-		return BadRequest(err.Error())
-	}
-	// names received in the request can be snap or snap.app, we need to
-	// extract the actual snap names before associating them with a change
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
-	st.EnsureBefore(0)
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
