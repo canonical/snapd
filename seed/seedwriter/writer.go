@@ -92,6 +92,8 @@ type SeedSnap struct {
 
 func (sn *SeedSnap) modes() []string {
 	if sn.modelSnap == nil {
+		// run is the assumed mode for extra snaps not listed
+		// in the model
 		return []string{"run"}
 	}
 	return sn.modelSnap.Modes

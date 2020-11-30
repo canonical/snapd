@@ -111,9 +111,16 @@ func (pol *policy20) checkAvailable(snapRef naming.SnapRef, modes []string, avai
 		byMode := availableByMode[mode]
 		if !byMode.Contains(snapRef) {
 			if mode == "run" || mode == "ephemeral" {
+				// no additional fallback for these
+				// cases:
+				// * run is not ephemeral,
+				//   is covered only by run
+				// * ephemeral is only covered by ephemeral
 				return false
 			}
-			// consider ephemeral as well
+			// all non-run modes (e.g. recover) are
+			// considered ephemeral, as a fallback check
+			// if the snap is listed under the ephemeral mode label
 			ephem := availableByMode["ephemeral"]
 			if ephem == nil || !ephem.Contains(snapRef) {
 				return false
