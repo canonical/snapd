@@ -137,7 +137,7 @@ func (c *Context) writing() {
 	}
 }
 
-func (c *Context) InitContextData(m map[string]interface{}) error {
+func (c *Context) initContextData(m map[string]interface{}) error {
 	serialized, err := json.Marshal(m)
 	if err != nil {
 		return err

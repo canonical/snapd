@@ -343,7 +343,7 @@ func (m *HookManager) runHookReturnContext(task *state.Task, tomb *tomb.Tomb, sn
 	}
 	// XXX: ugly
 	if contextData != nil {
-		context.InitContextData(contextData)
+		context.initContextData(contextData)
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
