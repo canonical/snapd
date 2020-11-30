@@ -492,22 +492,20 @@ func newMultiError(header string, errs []error) error {
 
 // Error formats the error string.
 func (me *multiError) Error() string {
-	return me.nestedError(0, make(map[error]struct{}))
+	return me.nestedError(0)
 }
 
 // helper to ensure formating of nested multiErrors works.
-func (me *multiError) nestedError(level int, seen map[error]struct{}) string {
+func (me *multiError) nestedError(level int) string {
 	indent := strings.Repeat(" ", level)
 	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
+	if level > 5 {
+		return "cannot nest multi errors deeper than 5 levels"
+	}
 	for i, err := range me.errs {
 		switch v := err.(type) {
 		case *multiError:
-			if _, ok := seen[err]; ok {
-				fmt.Fprintf(buf, "%s- cycle detected to %q", indent, v.header)
-			} else {
-				seen[err] = struct{}{}
-				fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1, seen))
-			}
+			fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1))
 		default:
 			fmt.Fprintf(buf, "%s- %v", indent, err)
 		}

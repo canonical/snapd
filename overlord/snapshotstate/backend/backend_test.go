@@ -1445,11 +1445,20 @@ func (s *snapshotSuite) TestMultiError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
-	me1 := backend.NewMultiError("he1", []error{fmt.Errorf("e1")})
-	me := backend.NewMultiError("he", []error{me1, me1})
+	me6 := backend.NewMultiError("he6", []error{fmt.Errorf("e6")})
+	me5 := backend.NewMultiError("he5", []error{me6, fmt.Errorf("e5")})
+	me4 := backend.NewMultiError("he4", []error{me5})
+	me3 := backend.NewMultiError("he3", []error{me4})
+	me2 := backend.NewMultiError("he3", []error{me3})
+	me1 := backend.NewMultiError("he1", []error{me2})
+	me := backend.NewMultiError("he", []error{me1})
 
 	c.Check(me, check.ErrorMatches, `he:
 - he1:
- - e1
-- cycle detected to "he1"`)
+ - he3:
+  - he3:
+   - he4:
+    - he5:
+     - cannot nest multi errors deeper than 5 levels
+     - e5`)
 }
