@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -46,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
@@ -161,8 +159,6 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	secboot.HasFDERevealKey = hasFDERevealKey
-
 	// system mode is explicitly set on UC20
 	// TODO:UC20: ubuntu-save needs to be mounted for recover too
 	if !release.OnClassic && m.systemMode == "run" {
@@ -1380,13 +1376,6 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok
-}
-
-func hasFDERevealKey() bool {
-	// XXX: should we record during initial sealing that the fde-setup
-	//      was used and only use fde-reveal-key in that case?
-	_, err := exec.LookPath("fde-reveal-key")
-	return err == nil
 }
 
 func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {

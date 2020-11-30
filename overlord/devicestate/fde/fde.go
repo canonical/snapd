@@ -17,11 +17,28 @@
  *
  */
 
-package hookstate
+package fde
 
-// FDESetupRequest carries the operation and parameters for the fde-setup hooks
+import (
+	"os/exec"
+
+	"github.com/snapcore/snapd/secboot"
+)
+
+func init() {
+	secboot.HasFDERevealKey = hasFDERevealKey
+}
+
+func hasFDERevealKey() bool {
+	// XXX: should we record during initial sealing that the fde-setup
+	//      was used and only use fde-reveal-key in that case?
+	_, err := exec.LookPath("fde-reveal-key")
+	return err == nil
+}
+
+// SetupRequest carries the operation and parameters for the fde-setup hooks
 // made available to them via the snapctl fde-setup-request command.
-type FDESetupRequest struct {
+type SetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
@@ -38,10 +55,10 @@ type FDESetupRequest struct {
 	//       tpm sealing
 }
 
-// FDERevealKeyRequest carries the operation and parameters for the
+// RevealKeyRequest carries the operation and parameters for the
 // fde-reveal-key binary to support unsealing key that were sealed
 // with the "fde-setup" hook.
-type FDERevealKeyRequest struct {
+type RevealKeyRequest struct {
 	Op string `json:"op"`
 
 	SealedKey     []byte `json:"sealed-key"`
