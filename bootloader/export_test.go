@@ -123,7 +123,9 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		// then we need to setup some additional files - namely the kernel
 		// command line and a mock disk for that
 		lkBootDisk := &disks.MockDiskMapping{
-			FilesystemLabelToPartUUID: map[string]string{
+			// mock the partition labels, since these structures won't have
+			// filesystems, but they will have partition labels
+			PartitionLabelToPartUUID: map[string]string{
 				"snapbootsel":        "snapbootsel-partuuid",
 				"snapbootselbak":     "snapbootselbak-partuuid",
 				"snaprecoverysel":    "snaprecoverysel-partuuid",
@@ -173,7 +175,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		for _, label := range []string{"boot_a", "boot_b"} {
 			disk, err := disks.DiskFromDeviceName("lk-boot-disk")
 			c.Assert(err, IsNil)
-			partUUID, err := disk.FindMatchingPartitionUUID(label)
+			partUUID, err := disk.FindMatchingPartitionUUIDFromPartLabel(label)
 			c.Assert(err, IsNil)
 			bootFile := filepath.Join(rootdir, "/dev/disk/by-partuuid", partUUID)
 			c.Assert(os.MkdirAll(filepath.Dir(bootFile), 0755), IsNil)
