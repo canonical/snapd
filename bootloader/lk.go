@@ -270,6 +270,8 @@ func (l *lk) SetBootVars(values map[string]string) error {
 	if err != nil {
 		return err
 	}
+	// if we couldn't find the env, that's okay, as this may be the first thing
+	// to write boot vars to the env
 	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -297,7 +299,9 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 	if err != nil {
 		return err
 	}
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	// if we couldn't find the env, that's okay, as this may be the first thing
+	// to initialize the env when we add the recovery system kernel asset there
+	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
@@ -346,7 +350,9 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	if err != nil {
 		return err
 	}
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	// if we couldn't find the env, that's okay, as this may be the first thing
+	// to initialize the env when we add the kernel asset there
+	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
@@ -420,7 +426,12 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	if err != nil {
 		return err
 	}
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	if err := env.Load(); err != nil {
+		// don't handle os.ErrNotExist specially here, it doesn't really make
+		// sense to delete kernel assets if we can't load the existing env,
+		// since then the caller would just see an error about not being able
+		// to find the kernel blob name, when in reality the reason one can't
+		// find that kernel blob name is because we couldn't read the env file
 		return err
 	}
 	err = env.RemoveKernelFromBootPartition(blobName)
