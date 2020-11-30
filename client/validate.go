@@ -100,7 +100,7 @@ func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
 	_, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot get validation sets: %v", err)
+		return nil, xerrors.Errorf("cannot list validation sets: %v", err)
 	}
 	return res, nil
 }
@@ -108,7 +108,7 @@ func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 // ValidationSet queries the given validation set identified by account/name.
 func (client *Client) ValidationSet(account, name string, sequence int) (*ValidationSetResult, error) {
 	if account == "" || name == "" {
-		return nil, xerrors.Errorf("cannot get validation set without account and name")
+		return nil, xerrors.Errorf("cannot query validation set without account and name")
 	}
 
 	q := url.Values{}
@@ -120,7 +120,7 @@ func (client *Client) ValidationSet(account, name string, sequence int) (*Valida
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	_, err := client.doSync("GET", path, q, nil, nil, &res)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot get validation set: %v", err)
+		return nil, xerrors.Errorf("cannot query validation set: %v", err)
 	}
 	return res, nil
 }
