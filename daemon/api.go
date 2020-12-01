@@ -44,13 +44,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -133,12 +130,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getSnapInfo,
 		POST:     postSnap,
-	}
-
-	snapConfCmd = &Command{
-		Path: "/v2/snaps/{name}/conf",
-		GET:  getSnapConf,
-		PUT:  setSnapConf,
 	}
 
 	buyCmd = &Command{
@@ -1414,87 +1405,6 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	name := vars["name"]
 
 	return iconGet(c.d.overlord.State(), name)
-}
-
-func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	vars := muxVars(r)
-	snapName := configstate.RemapSnapFromRequest(vars["name"])
-
-	keys := strutil.CommaSeparatedList(r.URL.Query().Get("keys"))
-
-	s := c.d.overlord.State()
-	s.Lock()
-	tr := config.NewTransaction(s)
-	s.Unlock()
-
-	currentConfValues := make(map[string]interface{})
-	// Special case - return root document
-	if len(keys) == 0 {
-		keys = []string{""}
-	}
-	for _, key := range keys {
-		var value interface{}
-		if err := tr.Get(snapName, key, &value); err != nil {
-			if config.IsNoOption(err) {
-				if key == "" {
-					// no configuration - return empty document
-					currentConfValues = make(map[string]interface{})
-					break
-				}
-				return SyncResponse(&resp{
-					Type: ResponseTypeError,
-					Result: &errorResult{
-						Message: err.Error(),
-						Kind:    client.ErrorKindConfigNoSuchOption,
-						Value:   err,
-					},
-					Status: 400,
-				}, nil)
-			} else {
-				return InternalError("%v", err)
-			}
-		}
-		if key == "" {
-			if len(keys) > 1 {
-				return BadRequest("keys contains zero-length string")
-			}
-			return SyncResponse(value, nil)
-		}
-
-		currentConfValues[key] = value
-	}
-
-	return SyncResponse(currentConfValues, nil)
-}
-
-func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	vars := muxVars(r)
-	snapName := configstate.RemapSnapFromRequest(vars["name"])
-
-	var patchValues map[string]interface{}
-	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
-		return BadRequest("cannot decode request body into patch values: %v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
-	if err != nil {
-		// TODO: just return snap-not-installed instead ?
-		if _, ok := err.(*snap.NotInstalledError); ok {
-			return SnapNotFound(snapName, err)
-		}
-		return errToResponse(err, []string{snapName}, InternalError, "%v")
-	}
-
-	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
-	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
-
-	st.EnsureBefore(0)
-
-	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
 func convertBuyError(err error) Response {
