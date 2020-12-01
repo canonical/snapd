@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/snap"
 )
 
 type validationSetsSuite struct{}
@@ -261,5 +262,219 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 			ce := err.(*snapasserts.ValidationSetsConflictError)
 			c.Check(ce.Sets, DeepEquals, cSets)
 		}
+	}
+}
+
+func (s *validationSetsSuite) TestCheckInstalledSnapsNoValidationSets(c *C) {
+	valsets := snapasserts.NewValidationSets()
+	snaps := []*snapasserts.InstalledSnap{{SnapID: "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", Revision: snap.R(1)}}
+	invalid := valsets.CheckInstalledSnaps(snaps)
+	c.Assert(invalid, HasLen, 0)
+}
+
+func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
+	// require: snapB rev 3, snapC rev 2.
+	// invalid: snapA
+	vs1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "fooname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "snap-b",
+				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				"revision": "3",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "snap-c",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"revision": "2",
+				"presence": "optional",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	// require: snapD any rev
+	// optional: snapE any rev
+	vs2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "barname",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-d",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "snap-e",
+				"id":       "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee",
+				"presence": "optional",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	// optional: snapE any rev
+	// note: since it only has an optional snap, acme/bazname is not expected
+	// not be invalid by any of the checks.
+	vs3 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "bazname",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-e",
+				"id":       "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee",
+				"presence": "optional",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	// invalid: snapA
+	vs4 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "booname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"presence": "invalid",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(vs1), IsNil)
+	c.Assert(valsets.Add(vs2), IsNil)
+	c.Assert(valsets.Add(vs3), IsNil)
+	c.Assert(valsets.Add(vs4), IsNil)
+
+	snapA := &snapasserts.InstalledSnap{SnapID: "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", Revision: snap.R(1)}
+	snapB := &snapasserts.InstalledSnap{SnapID: "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", Revision: snap.R(3)}
+	snapBinvRev := &snapasserts.InstalledSnap{SnapID: "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", Revision: snap.R(8)}
+	snapC := &snapasserts.InstalledSnap{SnapID: "mysnapcccccccccccccccccccccccccc", Revision: snap.R(2)}
+	snapCinvRev := &snapasserts.InstalledSnap{SnapID: "mysnapcccccccccccccccccccccccccc", Revision: snap.R(99)}
+	snapD := &snapasserts.InstalledSnap{SnapID: "mysnapdddddddddddddddddddddddddd", Revision: snap.R(2)}
+	snapDrev99 := &snapasserts.InstalledSnap{SnapID: "mysnapdddddddddddddddddddddddddd", Revision: snap.R(99)}
+	snapE := &snapasserts.InstalledSnap{SnapID: "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", Revision: snap.R(2)}
+	// extra snap, not referenced by any validation set
+	snapZ := &snapasserts.InstalledSnap{SnapID: "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", Revision: snap.R(1)}
+
+	tests := []struct {
+		snaps           []*snapasserts.InstalledSnap
+		expectedInvalid []string
+	}{
+		{
+			// required snaps not installed, both sets are invalid.
+			nil, []string{"acme/fooname", "acme/barname"},
+		},
+		{
+			// required snaps not installed, both sets are invalid.
+			[]*snapasserts.InstalledSnap{
+				snapZ,
+			}, []string{"acme/fooname", "acme/barname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set
+				snapB,
+				// covered by acme/barname validation-set. snap-e not installed but optional
+				snapDrev99},
+			[]string{}, // ale fine
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set, snap-a presence is invalid => invalid
+				snapA,
+				snapB,
+				// covered by acme/barname validation-set. snap-e not installed but optional
+				snapDrev99},
+			[]string{"acme/fooname", "acme/booname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname and acme/booname validation-sets, snapB missing, snap-a presence is invalid => invalid
+				snapA,
+				// covered by acme/barname validation-set. snap-e not installed but optional
+				snapDrev99},
+			[]string{"acme/fooname", "acme/booname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set
+				snapB,
+				snapC,
+				// covered by acme/barname validation-set. snap-e not installed but optional
+				snapD},
+			[]string{}, // ale fine
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set, snap-c optional but wrong revision => invalid
+				snapB,
+				snapCinvRev,
+				// covered by acme/barname validation-set. snap-e not installed but optional
+				snapD},
+			[]string{"acme/fooname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set but wrong revision => invalid
+				snapBinvRev,
+				// covered by acme/barname validation-set.
+				snapD},
+			[]string{"acme/fooname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set
+				snapB,
+				// covered by acme/barname validation-set. snap-d not installed => invalid.
+				snapE},
+			[]string{"acme/barname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// required snaps from acme/fooname are not installed.
+				// covered by acme/barname validation-set
+				snapDrev99,
+				snapE},
+			[]string{"acme/fooname"},
+		},
+		{
+			[]*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set, required missing.
+				snapC,
+				// covered by acme/barname validation-set, required missing.
+				snapE},
+			[]string{"acme/fooname", "acme/barname"},
+		},
+	}
+
+	for i, tc := range tests {
+		invalid := valsets.CheckInstalledSnaps(tc.snaps)
+		for _, inv := range tc.expectedInvalid {
+			c.Check(invalid[inv], Equals, true, Commentf("#%d: expected %s", i, inv))
+		}
+		c.Check(len(invalid), Equals, len(tc.expectedInvalid), Commentf("#%d, got: %q", i, invalid))
 	}
 }

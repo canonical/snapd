@@ -29,6 +29,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// InstalledSnap holds the minimal details about an installed snap required to
+// check the validation set.
+type InstalledSnap struct {
+	SnapID string
+	Revision snap.Revision
+}
+
 // ValidationSetsConflictError describes an error where multiple
 // validation sets are in conflict about snaps.
 type ValidationSetsConflictError struct {
@@ -280,4 +287,37 @@ func (v *ValidationSets) Conflict() error {
 		}
 	}
 	return nil
+}
+
+// CheckInstalledSnaps checks installed snaps against the validation sets.
+func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) (invalid map[string]bool) {
+	installed := make(map[string]*InstalledSnap)
+	for _, sn := range snaps {
+		installed[sn.SnapID] = sn
+	}
+
+	invalid = make(map[string]bool)
+	for snapID, cstrs := range v.snaps {
+		snap, isInstalled := installed[snapID]
+		if !isInstalled && cstrs.presence != asserts.PresenceRequired {
+			continue
+		}
+		for rev, revCstr := range cstrs.revisions {
+			for _, rc := range revCstr {
+				switch {
+				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
+					invalid[rc.validationSetKey] = true
+				case isInstalled: // presence is either optional or required
+					if rev != unspecifiedRevision && rev != snap.Revision {
+						invalid[rc.validationSetKey] = true
+					}
+				default:
+					// not installed but required
+					invalid[rc.validationSetKey] = true
+				}
+			}
+		}
+	}
+
+	return invalid
 }
