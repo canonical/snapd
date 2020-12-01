@@ -1176,17 +1176,33 @@ func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
 }
 
 func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
+	contextData := map[string]interface{}{
+		"key":  "value",
+		"key2": "value2",
+	}
+	s.testEphemeralRunHook(c, contextData)
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHookNoContextData(c *C) {
+	var contextData map[string]interface{} = nil
+	s.testEphemeralRunHook(c, contextData)
+}
+
+func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]interface{}) {
 	var hookInvokeCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		c.Check(ctx.HookName(), Equals, "configure")
 		hookInvokeCalled = append(hookInvokeCalled, ctx.HookName())
 
+		// check that context data was set correctly
 		var s string
 		ctx.Lock()
-		ctx.Get("key", &s)
-		ctx.Set("key-from-hook", "value-from-hook")
-		ctx.Unlock()
-		c.Check(s, Equals, "value")
+		defer ctx.Unlock()
+		for k, v := range contextData {
+			ctx.Get(k, &s)
+			c.Check(s, Equals, v)
+		}
+		ctx.Set("key-set-from-hook", "value-set-from-hook")
 
 		return []byte("some output"), nil
 	}
@@ -1198,18 +1214,35 @@ func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
 		Revision: snap.R(1),
 		Hook:     "configure",
 	}
-	contextData := map[string]interface{}{
-		"key": "value",
-	}
 	context, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
 	c.Assert(err, IsNil)
 	c.Check(hookInvokeCalled, DeepEquals, []string{"configure"})
 
 	var value string
 	context.Lock()
-	context.Get("key-from-hook", &value)
+	context.Get("key-set-from-hook", &value)
 	context.Unlock()
-	c.Check(value, Equals, "value-from-hook")
+	c.Check(value, Equals, "value-set-from-hook")
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		c.Fatalf("hook should not be invoced in this test")
+		return nil, nil
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "not-installed-snap",
+		Revision: snap.R(1),
+		Hook:     "configure",
+	}
+	contextData := map[string]interface{}{
+		"key": "value",
+	}
+	_, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
+	c.Assert(err, ErrorMatches, `cannot run ephemeral hook "configure" for snap "not-installed-snap": no state entry for key`)
 }
 
 type parallelInstancesHookManagerSuite struct {

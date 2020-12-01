@@ -291,7 +291,7 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
 	m.state.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("cannot run ephemeral hook %s: %v", hooksup.Hook, err)
+		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
 	}
 
 	return m.runHookCommon(nil, tomb, &snapst, hooksup, contextData)
