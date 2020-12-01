@@ -1155,7 +1155,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *C) {
 	n := 0
-	restore := secboot.MockHasFDERevealKey(func() bool {
+	restore := secboot.MockFdeHasRevealKey(func() bool {
 		n++
 		return true
 	})
