@@ -73,7 +73,8 @@ func (s *lkTestSuite) TestNewLkUC20Run(c *C) {
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,
 	}
-	l := bootloader.NewLk(s.rootdir, opts)
+	// use ubuntu-boot as the root dir
+	l := bootloader.NewLk(boot.InitramfsUbuntuBootDir, opts)
 	c.Assert(l, NotNil)
 	c.Assert(l.Name(), Equals, "lk")
 
@@ -90,6 +91,8 @@ func (s *lkTestSuite) TestNewLkUC20Run(c *C) {
 	c.Check(bootloader.LkRuntimeMode(l), Equals, true)
 	f, err := bootloader.LkConfigFile(l)
 	c.Assert(err, IsNil)
+	// note that the config file here is not relative to ubuntu-boot dir we used
+	// when creating the bootloader, it is relative to the rootdir
 	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid", "snapbootsel-partuuid"))
 }
 
@@ -98,7 +101,8 @@ func (s *lkTestSuite) TestNewLkUC20Recovery(c *C) {
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRecovery,
 	}
-	l := bootloader.NewLk(s.rootdir, opts)
+	// use ubuntu-seed as the root dir
+	l := bootloader.NewLk(boot.InitramfsUbuntuSeedDir, opts)
 	c.Assert(l, NotNil)
 	c.Assert(l.Name(), Equals, "lk")
 
@@ -115,6 +119,8 @@ func (s *lkTestSuite) TestNewLkUC20Recovery(c *C) {
 	c.Check(bootloader.LkRuntimeMode(l), Equals, true)
 	f, err := bootloader.LkConfigFile(l)
 	c.Assert(err, IsNil)
+	// note that the config file here is not relative to ubuntu-boot dir we used
+	// when creating the bootloader, it is relative to the rootdir
 	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid", "snaprecoverysel-partuuid"))
 }
 

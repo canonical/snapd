@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -226,7 +227,14 @@ func (l *lk) envFileForPartName(partName string) (string, bool, error) {
 	if err != nil {
 		return "", true, err
 	}
-	return filepath.Join(l.rootdir, "/dev/disk/by-partuuid", partitionUUID), true, nil
+
+	// for the runtime lk bootloader we should never prefix with the bootloader
+	// rootdir and instead always use dirs.GlobalRootDir, since the file we are
+	// providing is at an absolute location for all bootloaders, regardless of
+	// role, in /dev, so using dirs.GlobalRootDir ensures that we are still able
+	// to mock things in test functions, but that we never end up trying to use
+	// a path like /run/mnt/ubuntu-boot/dev/disk/by-partuuid/... for example
+	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partitionUUID), true, nil
 }
 
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
