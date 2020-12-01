@@ -30,31 +30,22 @@ type Options struct {
 }
 
 // Disk is a single physical disk device that contains partitions.
-// TODO:UC20: add function to get some properties like an associated /dev node
-//            for a disk for better user error reporting, i.e. /dev/vda3 is much
-//            more helpful than 252:3
 type Disk interface {
-	// FindMatchingPartitionUUIDFromFsLabel finds the partition uuid for a
+	// FindMatchingPartitionUUIDWithFsLabel finds the partition uuid for a
 	// partition matching the specified filesystem label on the disk. Note that
 	// for non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
-	// were encountered, a FilesystemLabelNotFoundError will be returned.
-	FindMatchingPartitionUUIDFromFsLabel(string) (string, error)
-
-	// FindMatchingPartitionUUIDFromPartLabel is like
-	// FindMatchingPartitionUUIDFromFsLabel, but searches for a partition that
-	// has a matching partition label instead of the filesystem label. The same
-	// encoding scheme is performed on the label as in that function.
-	FindMatchingPartitionUUIDFromPartLabel(string) (string, error)
+	// were encountered, a PartitionNotFoundError will be returned.
+	FindMatchingPartitionUUIDWithFsLabel(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
 	// and mountpoints found when the disk was identified with
 	// DiskFromMountPoint.
-	// TODO:UC20: make this function return what a Disk of where the mount point
-	//            is actually from if it is not from the same disk for better
-	//            error reporting
+	// TODO: make this function return what a Disk of where the mount point
+	//       is actually from if it is not from the same disk for better
+	//       error reporting
 	MountPointIsFromDisk(string, *Options) (bool, error)
 
 	// Dev returns the string "major:minor" number for the disk device.
@@ -64,6 +55,10 @@ type Disk interface {
 	// disk will have partitions, but a mapper device will just be a volume that
 	// does not have partitions for example.
 	HasPartitions() bool
+
+	// TODO: add function to get some properties like an associated /dev node
+	//       for a disk for better user error reporting, i.e. /dev/vda3 is much
+	//       more helpful than 252:3
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType
