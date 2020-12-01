@@ -381,7 +381,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	disk, err := disks.DiskFromDeviceName("lk-boot-disk")
 	c.Assert(err, IsNil)
 
-	partuuid, err := disk.FindMatchingPartitionUUIDFromPartLabel("snapbootsel")
+	partuuid, err := disk.FindMatchingPartitionUUIDWithPartLabel("snapbootsel")
 	c.Assert(err, IsNil)
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", partuuid)
 	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V2Run)
@@ -411,7 +411,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 
 	// and validate it went to the "boot_a" partition
 
-	bootAPartUUID, err := disk.FindMatchingPartitionUUIDFromPartLabel("boot_a")
+	bootAPartUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel("boot_a")
 	c.Assert(err, IsNil)
 	bootA := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", bootAPartUUID)
 	content, err := ioutil.ReadFile(bootA)
@@ -419,7 +419,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	c.Assert(string(content), Equals, "I'm the default boot image name")
 
 	// also validate that bootB is empty
-	bootBPartUUID, err := disk.FindMatchingPartitionUUIDFromPartLabel("boot_b")
+	bootBPartUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel("boot_b")
 	c.Assert(err, IsNil)
 	bootB := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", bootBPartUUID)
 	content, err = ioutil.ReadFile(bootB)

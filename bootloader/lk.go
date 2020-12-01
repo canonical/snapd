@@ -222,7 +222,7 @@ func (l *lk) envFileForPartName(partName string) (string, bool, error) {
 		l.blDisk = disk
 	}
 
-	partitionUUID, err := l.blDisk.FindMatchingPartitionUUIDFromPartLabel(partName)
+	partitionUUID, err := l.blDisk.FindMatchingPartitionUUIDWithPartLabel(partName)
 	if err != nil {
 		return "", true, err
 	}
