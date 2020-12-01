@@ -925,8 +925,6 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 		return false, err
 	}
 
-	// TODO: w.policy.resetChecks()
-
 	var considered []*SeedSnap
 	switch w.toDownload {
 	default:
