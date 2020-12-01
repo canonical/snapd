@@ -54,14 +54,10 @@ func (pol *policy20) allowsDangerousFeatures() error {
 }
 
 func (pol *policy20) checkDefaultChannel(channel.Channel) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
@@ -76,8 +72,9 @@ func (pol *policy20) modelSnapDefaultChannel() string {
 }
 
 func (pol *policy20) extraSnapDefaultChannel() string {
-	// We will use latest/stable as default
-	// TODO: consider using just "stable" for these?
+	// We will use latest/stable as default for consistency with
+	// model snaps, this means not taking into account default-tracks
+	// by default
 	return "latest/stable"
 }
 
