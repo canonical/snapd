@@ -390,11 +390,7 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		}
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
-			if task != nil {
-				task.State().Lock()
-				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-				task.State().Unlock()
-			}
+			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
 		} else {
 			if handlerErr := context.Handler().Error(err); handlerErr != nil {
 				return nil, handlerErr

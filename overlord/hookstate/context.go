@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
@@ -284,4 +285,29 @@ func (c *Context) ChangeID() string {
 		}
 	}
 	return ""
+}
+
+// Logf logs to the context, either to the logger for ephemeral contexts
+// or the task log.
+func (c *Context) Logf(fmt string, args ...interface{}) {
+	if c.IsEphemeral() {
+		logger.Noticef(fmt, args...)
+	} else {
+		c.state.Lock()
+		c.task.Logf(fmt, args...)
+		c.state.Unlock()
+	}
+}
+
+// Errorf logs errors to the context, either to the logger for
+// ephemeral contexts or the task log.
+func (c *Context) Errorf(fmt string, args ...interface{}) {
+	if c.IsEphemeral() {
+		// XXX: loger has no Errorf() :/
+		logger.Noticef(fmt, args...)
+	} else {
+		c.state.Lock()
+		c.task.Errorf(fmt, args...)
+		c.state.Unlock()
+	}
 }
