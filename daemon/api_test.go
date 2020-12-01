@@ -49,8 +49,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/healthstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -4705,59 +4703,6 @@ func (s *apiSuite) TestInstallPathUnaliased(c *check.C) {
 	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
-}
-
-func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
-	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-	c.Assert(err, check.IsNil)
-	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 403)
-}
-
-func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
-	_ = s.daemon(c)
-
-	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
-	}
-	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.ForbiddenCommandError{}
-	}
-	defer func() { ctlcmdRun = ctlcmd.Run }()
-
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-	c.Assert(err, check.IsNil)
-	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 403)
-}
-
-func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
-	_ = s.daemon(c)
-
-	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
-	}
-	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
-
-	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
-	}
-	defer func() { ctlcmdRun = ctlcmd.Run }()
-
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
-	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
-	c.Assert(err, check.IsNil)
-	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindUnsuccessful)
-	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
-		"stdout":    "",
-		"stderr":    "",
-		"exit-code": 123,
-	})
 }
 
 func (s *apiSuite) TestLogsNoServices(c *check.C) {
