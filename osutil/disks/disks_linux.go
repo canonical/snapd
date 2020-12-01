@@ -419,6 +419,10 @@ func (d *disk) populatePartitions() error {
 			// last while populating will be the one that the Find*()
 			// functions locate first while iterating over the disk's partitions
 			// this behavior matches what udev does
+			// TODO: perhaps we should just explicitly not support disks with
+			// non-unique filesystem labels or non-unique partition labels (or
+			// even non-unique partition uuids)? then we would just error if we
+			// encounter a duplicated value for a partition
 			d.partitions = append([]partition{part}, d.partitions...)
 		}
 	}
@@ -492,5 +496,8 @@ func (d *disk) Dev() string {
 }
 
 func (d *disk) HasPartitions() bool {
+	// TODO: instead of saving this value when we create/discover the disk, we
+	//       could instead populate the partitions here and then return whether
+	//       d.partitions is empty or not
 	return d.hasPartitions
 }
