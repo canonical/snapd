@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 remap_one() {
     case "$1" in
@@ -24,8 +24,11 @@ remap_one() {
         python3-gi)
             echo "python-gobject"
             ;;
-        test-snapd-pkg)
+        test-snapd-pkg-1)
             echo "curseofwar"
+            ;;
+        test-snapd-pkg-2)
+            echo "robotfindskitten"
             ;;
         *)
             echo "$1"
@@ -35,24 +38,26 @@ remap_one() {
 
 cmd_install() {
     set -x
-    pacman -S --noconfirm "$@"
+    # shellcheck disable=SC2068
+    pacman -S --noconfirm $@
     set +x
 }
 
 cmd_is_installed() {
     set -x
-    pacman -Qi "$@" >/dev/null 2>&1
+    pacman -Qi "$1" >/dev/null 2>&1
     set +x
 }
 
 cmd_query() {
     set -x
-    pacman -Si "$@"
+    pacman -Si "$1"
     set +x
 }
 
 cmd_remove() {
     set -x
-    pacman -Rnsc --noconfirm "$@"
+    # shellcheck disable=SC2068
+    pacman -Rnsc --noconfirm $@
     set +x
 }

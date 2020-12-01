@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 show_help() {
     echo "usage: tests.pkgs {install,remove} [PACKAGE...]"
@@ -19,6 +19,16 @@ cmd_install() {
     unsupported
 }
 
+cmd_is_installed() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_query() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
 cmd_remove() {
     # This is re-defined by the backend file.
     unsupported
@@ -30,9 +40,16 @@ remap_one() {
 }
 
 remap_many() {
+    local many
+    many=""
     for pkg in "$@"; do
-        remap_one "$pkg"
+        if [ -z "$many" ]; then
+            many="$(remap_one $pkg)"
+        else
+            many="$many $(remap_one $pkg)"
+        fi
     done
+    echo "$many"
 }
 
 import_backend() {

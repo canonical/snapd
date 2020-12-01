@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 remap_one() {
     case "$1" in
@@ -16,8 +16,11 @@ remap_one() {
                 echo "$1"
             fi
             ;;
-        test-snapd-pkg)
+        test-snapd-pkg-1)
             echo "curseofwar"
+            ;;
+        test-snapd-pkg-2)
+            echo "robotfindskitten"
             ;;
         *)
             echo "$1"
@@ -27,24 +30,26 @@ remap_one() {
 
 cmd_install() {
     set -x
-    apt-get install --yes "$@"
+    # shellcheck disable=SC2068
+    apt-get install --yes $@
     set +x
 }
 
 cmd_is_installed() {
     set -x
-    dpkg -S "$@" >/dev/null 2>&1
+    dpkg -S "$1" >/dev/null 2>&1
     set +x
 }
 
 cmd_query() {
     set -x
-    apt-cache policy "$@"
+    apt-cache policy "$1"
     set +x
 }
 
 cmd_remove() {
     set -x
-    apt-get remove --yes "$@"
+    # shellcheck disable=SC2068
+    apt-get remove --yes $@
     set +x
 }

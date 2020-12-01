@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 remap_one() {
     case "$1" in
@@ -18,8 +18,11 @@ remap_one() {
         python3-gi)
             echo "python3-gobject"
             ;;
-        test-snapd-pkg)
+        test-snapd-pkg-1)
             echo "nudoku"
+            ;;
+        test-snapd-pkg-2)
+            echo "system-user-games"
             ;;
         *)
             echo "$1"
@@ -29,24 +32,26 @@ remap_one() {
 
 cmd_install() {
     set -x
-    zypper install -y "$@"
+    # shellcheck disable=SC2068
+    zypper install -y $@
     set +x
 }
 
 cmd_is_installed() {
     set -x
-    rpm -qi "$@" >/dev/null 2>&1
+    rpm -qi "$1" >/dev/null 2>&1
     set +x
 }
 
 cmd_query() {
     set -x
-    zypper info "$@"
+    zypper info "$1"
     set +x
 }
 
 cmd_remove() {
     set -x
-    zypper remove -y "$@"
+    # shellcheck disable=SC2068
+    zypper remove -y $@
     set +x
 }
