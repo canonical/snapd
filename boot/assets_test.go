@@ -2562,8 +2562,9 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 			"asset": {"assethash"},
 			"shim":  {"shimhash"},
 		},
-		CurrentRecoverySystems: []string{"system"},
-		CurrentKernels:         []string{"pc-kernel_1.snap"},
+		CurrentRecoverySystems:    []string{"system"},
+		CurrentKernels:            []string{"pc-kernel_1.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)

@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -241,4 +242,51 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 	}
 	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineExpected}
 	return newM, nil
+}
+
+// observeCommandLineUpdate observes a pending kernel command line change caused
+// by an update of boot config. When needed, the modeenv is updated with a
+// candidate command line and the encryption keys are resealed. This helper
+// should be called right before updating the managed boot config.
+func observeCommandLineUpdate(model *asserts.Model) error {
+	// TODO:UC20: consider updating a recovery system command line
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	if err != nil {
+		return err
+	}
+	// this is the current expected command line
+	cmdline, err := ComposeCommandLine(model)
+	if err != nil {
+		return err
+	}
+	if cmdline != cmdlineBootedWith {
+		return fmt.Errorf("internal error: unexpected current kernel command line content: %q expected: %q",
+			cmdlineBootedWith, cmdline)
+	}
+	// this is the new expected command line
+	candidateCmdline, err := ComposeCandidateCommandLine(model)
+	if err != nil {
+		return err
+	}
+	if cmdline == candidateCmdline {
+		// no change in command line contents, nothing to do
+		return nil
+	}
+	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
+
+	if err := m.Write(); err != nil {
+		return err
+	}
+
+	expectReseal := true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, model, m, expectReseal); err != nil {
+		return err
+	}
+	return nil
 }

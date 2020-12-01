@@ -182,7 +182,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
 
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string(modeenv.CurrentKernelCommandLines))
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -340,12 +340,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	cmdline, err := ComposeCommandLine(model)
-	if err != nil {
-		return fmt.Errorf("cannot compose the run mode command line: %v", err)
-	}
-
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string{cmdline})
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -506,12 +501,21 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdlines []string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv) ([]bootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
-
+	cmdlines := []string(modeenv.CurrentKernelCommandLines)
+	if len(cmdlines) == 0 {
+		// XXX: do we need this fallback for when the boot command lines
+		// in modeenv have not been set yet?
+		cmdline, err := ComposeCommandLine(model)
+		if err != nil {
+			return nil, err
+		}
+		cmdlines = []string{cmdline}
+	}
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
 	for _, k := range modeenv.CurrentKernels {
 		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
