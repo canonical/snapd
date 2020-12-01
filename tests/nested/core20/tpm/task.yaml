@@ -58,3 +58,11 @@ execute: |
     cmdline="$(nested_exec "cat /proc/cmdline")"
     test "$cmdline" = "$cmdline_modeenv"
     echo "$cmdline" | MATCH "snapd_recovery_mode=run "
+
+    # check that kernel command lines is restored when booted successfully
+    nested_exec "sudo sed -i -e 's/current_kernel_command_lines=.*/current_kernel_command_lines=/' /var/lib/snapd/modeenv"
+    boot_id="$( nested_get_boot_id )"
+    nested_exec "sudo reboot" || true
+    nested_wait_for_reboot "${boot_id}"
+    cmdline_modeenv_restored="$(grep current_kernel_command_lines= < modeenv  | sed -e 's/current_kernel_command_lines=//' | jq -r '.[0]')"
+    test "$cmdline_modeenv_restored" = "$cmdline_modeenv"
