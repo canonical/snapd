@@ -402,13 +402,18 @@ func (d *disk) populatePartitions() error {
 			}
 
 			// on MBR disks we may not have a partition label, so this may be
-			// the empty string
+			// the empty string. Note that this value is encoded similarly to
+			// libblkid and should be compared with normal Go strings that are
+			// encoded using BlkIDEncodeLabel.
 			part.partLabel = udevProps["ID_PART_ENTRY_NAME"]
 
 			// a partition doesn't need to have a filesystem, and such may not
 			// have a filesystem label; the bios-boot partition in the amd64 pc
 			// gadget is such an example of a partition GPT that does not have a
-			// filesystem
+			// filesystem.
+			// Note that this value is also encoded similarly to
+			// ID_PART_ENTRY_NAME and thus should only be compared with normal
+			// Go strings that are encoded with BlkIDEncodeLabel.
 			part.fsLabel = udevProps["ID_FS_LABEL_ENC"]
 
 			// prepend the partition to the front, this has the effect that if
