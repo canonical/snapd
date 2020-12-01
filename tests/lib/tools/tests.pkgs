@@ -44,9 +44,9 @@ remap_many() {
     many=""
     for pkg in "$@"; do
         if [ -z "$many" ]; then
-            many="$(remap_one $pkg)"
+            many="$(remap_one "$pkg")"
         else
-            many="$many $(remap_one $pkg)"
+            many="$many $(remap_one "$pkg")"
         fi
     done
     echo "$many"
