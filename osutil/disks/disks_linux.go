@@ -433,7 +433,7 @@ func (d *disk) populatePartitions() error {
 	return nil
 }
 
-func (d *disk) FindMatchingPartitionUUIDFromFsLabel(label string) (string, error) {
+func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)
 

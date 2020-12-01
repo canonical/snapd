@@ -42,9 +42,9 @@ type MockDiskMapping struct {
 	DevNum                   string
 }
 
-// FindMatchingPartitionUUIDFromFsLabel returns a matching PartitionUUID
+// FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
 // for the specified filesystem label if it exists. Part of the Disk interface.
-func (d *MockDiskMapping) FindMatchingPartitionUUIDFromFsLabel(label string) (string, error) {
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	if partuuid, ok := d.FilesystemLabelToPartUUID[label]; ok {
 		return partuuid, nil

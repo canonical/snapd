@@ -34,13 +34,13 @@ type Options struct {
 //            for a disk for better user error reporting, i.e. /dev/vda3 is much
 //            more helpful than 252:3
 type Disk interface {
-	// FindMatchingPartitionUUIDFromFsLabel finds the partition uuid for a
+	// FindMatchingPartitionUUIDWithFsLabel finds the partition uuid for a
 	// partition matching the specified filesystem label on the disk. Note that
 	// for non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
 	// were encountered, a FilesystemLabelNotFoundError will be returned.
-	FindMatchingPartitionUUIDFromFsLabel(string) (string, error)
+	FindMatchingPartitionUUIDWithFsLabel(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
 	// to a partition on the disk. Note that this only considers partitions
