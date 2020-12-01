@@ -1245,6 +1245,40 @@ func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
 	c.Assert(err, ErrorMatches, `cannot run ephemeral hook "configure" for snap "not-installed-snap": no state entry for key`)
 }
 
+func (s *hookManagerSuite) TestEphemeralRunHookContextCanCancel(c *C) {
+	tombDying := 0
+	hookRunning := make(chan struct{})
+
+	hookInvoke := func(_ *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		close(hookRunning)
+
+		select {
+		case <-tomb.Dying():
+			tombDying++
+		case <-time.After(10 * time.Second):
+			c.Fatalf("hook not canceled after 10s")
+		}
+		return nil, nil
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Revision: snap.R(1),
+		Hook:     "configure",
+	}
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go func() {
+		<-hookRunning
+		cancelFunc()
+	}()
+	_, err := s.manager.EphemeralRunHook(ctx, hooksup, nil)
+	c.Assert(err, IsNil)
+	c.Check(tombDying, Equals, 1)
+}
+
 type parallelInstancesHookManagerSuite struct {
 	baseHookManagerSuite
 }
