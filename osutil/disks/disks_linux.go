@@ -163,8 +163,8 @@ type disk struct {
 	major int
 	minor int
 	// partitions is the set of discovered partitions for the disk, each
-	// partition must have a partition label and partition uuid, and may or may
-	// not have a filesystem label
+	// partition must have a partition uuid, but may or may not have either a
+	// partition label or a filesystem label
 	partitions []partition
 
 	// whether the disk device has partitions, and thus is of type "disk", or
@@ -392,10 +392,10 @@ func (d *disk) populatePartitions() error {
 
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
-			// we will always have the partition label, but may not have a
+			// the partition label is optional, and may or may not have a
 			// filesystem on the partition, on MBR we will never have a
-			// partition label, but may have a filesystem label. It's unclear if
-			// MBR disks can have partitions without a filesystem label.
+			// partition label, and we also may or may not have a filesystem on
+			// the partition
 			part.partUUID = udevProps["ID_PART_ENTRY_UUID"]
 			if part.partUUID == "" {
 				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
