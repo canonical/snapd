@@ -36,7 +36,7 @@ type Disk interface {
 	// for non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
-	// were encountered, a FilesystemLabelNotFoundError will be returned.
+	// were encountered, a PartitionNotFoundError will be returned.
 	FindMatchingPartitionUUIDWithFsLabel(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
