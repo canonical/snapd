@@ -296,6 +296,8 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 	if err != nil {
 		return nil, err
 	}
+
+	tomb, _ := tomb.WithContext(ctx)
 	if err := m.runHook(context, &snapst, hooksup, tomb); err != nil {
 		return nil, err
 	}
