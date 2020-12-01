@@ -26,6 +26,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
+
+	// this import will init "boot.FDEHasRevealKey" correctly
+	_ "github.com/snapcore/snapd/overlord/devicestate/fde"
 )
 
 var (

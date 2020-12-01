@@ -26,7 +26,13 @@ package fde
 
 import (
 	"os/exec"
+
+	"github.com/snapcore/snapd/secboot"
 )
+
+func init() {
+	secboot.FDEHasRevealKey = HasRevealKey
+}
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).

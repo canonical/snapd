@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/overlord/devicestate/fde"
 )
 
 const (
@@ -145,4 +144,6 @@ type UnlockResult struct {
 	UnlockMethod UnlockMethod
 }
 
-var FDEHasRevealKey = fde.HasRevealKey
+// FDEHasReveal is setup by devicestate/fde to support device-specific
+// full disk encryption implementations.
+var FDEHasRevealKey = func() bool { return false }
