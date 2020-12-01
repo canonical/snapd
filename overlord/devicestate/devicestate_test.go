@@ -1318,15 +1318,15 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 
 func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	st := s.state
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	kernelInfo := makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
 	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	})
+	st.Unlock()
 
 	var hookCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
