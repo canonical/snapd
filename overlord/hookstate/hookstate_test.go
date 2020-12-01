@@ -1227,7 +1227,7 @@ func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]int
 
 func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-		c.Fatalf("hook should not be invoced in this test")
+		c.Fatalf("hook should not be invoked in this test")
 		return nil, nil
 	}
 	restore := hookstate.MockRunHook(hookInvoke)

@@ -284,8 +284,6 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
-	tomb, _ := tomb.WithContext(ctx)
-
 	var snapst snapstate.SnapState
 	m.state.Lock()
 	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
@@ -294,6 +292,7 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
 	}
 
+	tomb, _ := tomb.WithContext(ctx)
 	return m.runHookCommon(nil, tomb, &snapst, hooksup, contextData)
 }
 
