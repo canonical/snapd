@@ -88,6 +88,9 @@ func init() {
 	// system.timezone
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
+	// users.create
+	addFSOnlyHandler(nil, handleUsersCreateConfiguration, coreOnly)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
 		return filesystemOnlyApply(rootDir, plainCoreConfig(defaults), options)
 	}

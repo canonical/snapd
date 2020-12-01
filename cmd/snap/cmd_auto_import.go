@@ -24,6 +24,9 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -279,6 +282,12 @@ func init() {
 }
 
 func (x *cmdAutoImport) autoAddUsers() error {
+	// only create users if auto-creation is not specifically disabled
+	if osutil.FileExists(dirs.SnapAssertsUsersCreateDisabledFile) {
+		fmt.Fprintf(Stderr, "auto-import user creation is disabled by config\n")
+		return nil
+	}
+
 	options := client.CreateUserOptions{
 		Automatic: true,
 	}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,6 +70,8 @@ var (
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
 	SnapSeqDir            string
+
+	SnapAssertsUsersCreateDisabledFile string
 
 	SnapStateFile     string
 	SnapSystemKeyFile string
@@ -347,6 +349,8 @@ func SetRootDir(rootdir string) {
 	SnapCookieDir = filepath.Join(rootdir, snappyDir, "cookie")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
+
+	SnapAssertsUsersCreateDisabledFile = filepath.Join(rootdir, snappyDir, "users-create/disabled")
 
 	SnapStateFile = SnapStateFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
