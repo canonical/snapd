@@ -145,4 +145,4 @@ type UnlockResult struct {
 	UnlockMethod UnlockMethod
 }
 
-var FdeHasRevealKey = fde.HasRevealKey
+var FDEHasRevealKey = fde.HasRevealKey
