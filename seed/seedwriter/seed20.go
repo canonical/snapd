@@ -142,7 +142,8 @@ func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSn
 }
 
 type tree20 struct {
-	opts *Options
+	grade asserts.ModelGrade
+	opts  *Options
 
 	snapsDirPath string
 	systemDir    string
@@ -341,7 +342,9 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	}
 
 	if len(optionsSnaps) != 0 {
-		// XXX internal error if we get here and grade != dangerous
+		if tr.grade != asserts.ModelDangerous {
+			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
 		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {
 			return err
