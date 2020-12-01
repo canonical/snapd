@@ -111,7 +111,7 @@ func (c *Context) Handler() Handler {
 	return c.handler
 }
 
-// Lock acquires the lock for this context (required for Set/Get, Cache/Cached),
+// Lock acquires the lock for this context (required for Set/Get, Cache/Cached, Logf/Errorf),
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
@@ -138,8 +138,7 @@ func (c *Context) writing() {
 	}
 }
 
-func (c *Context) initForRun(handler Handler, contextData map[string]interface{}) error {
-	c.handler = handler
+func (c *Context) initEphemeralContextData(contextData map[string]interface{}) error {
 	if contextData == nil {
 		return nil
 	}
@@ -289,25 +288,27 @@ func (c *Context) ChangeID() string {
 
 // Logf logs to the context, either to the logger for ephemeral contexts
 // or the task log.
+//
+// Context must be locked.
 func (c *Context) Logf(fmt string, args ...interface{}) {
+	c.writing()
 	if c.IsEphemeral() {
 		logger.Noticef(fmt, args...)
 	} else {
-		c.state.Lock()
 		c.task.Logf(fmt, args...)
-		c.state.Unlock()
 	}
 }
 
 // Errorf logs errors to the context, either to the logger for
 // ephemeral contexts or the task log.
+//
+// Context must be locked.
 func (c *Context) Errorf(fmt string, args ...interface{}) {
+	c.writing()
 	if c.IsEphemeral() {
 		// XXX: loger has no Errorf() :/
 		logger.Noticef(fmt, args...)
 	} else {
-		c.state.Lock()
 		c.task.Errorf(fmt, args...)
-		c.state.Unlock()
 	}
 }

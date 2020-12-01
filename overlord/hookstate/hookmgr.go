@@ -292,32 +292,45 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
 	}
 
-	tomb, _ := tomb.WithContext(ctx)
-	return m.runHookCommon(nil, tomb, &snapst, hooksup, contextData)
+	context, err := NewContext(nil, m.state, hooksup, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if err := context.initEphemeralContextData(contextData); err != nil {
+		return nil, err
+	}
+
+	if err := m.runHook(context, &snapst, hooksup, tomb); err != nil {
+		return nil, err
+	}
+	return context, nil
 }
 
 func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
-	_, err := m.runHookCommon(task, tomb, snapst, hooksup, nil)
-	return err
+	context, err := NewContext(task, m.state, hooksup, nil, "")
+	if err != nil {
+		return err
+	}
+	return m.runHook(context, snapst, hooksup, tomb)
 }
 
-func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
 		// not hijacked, snap must be installed
 		if !snapst.IsInstalled() {
-			return nil, fmt.Errorf("cannot find %q snap", hooksup.Snap)
+			return fmt.Errorf("cannot find %q snap", hooksup.Snap)
 		}
 
 		info, err := snapst.CurrentInfo()
 		if err != nil {
-			return nil, fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
 		}
 
 		hookExists = info.Hooks[hooksup.Hook] != nil
 		if !hookExists && !hooksup.Optional {
-			return nil, fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 		}
 	}
 
@@ -325,7 +338,7 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		// we will run something, not a noop
 		if ok, _ := m.state.Restarting(); ok {
 			// don't start running a hook if we are restarting
-			return nil, &state.Retry{}
+			return &state.Retry{}
 		}
 
 		// keep count of running hooks
@@ -333,12 +346,7 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		defer atomic.AddInt32(&m.runningHooks, -1)
 	} else if !hooksup.Always {
 		// a noop with no 'always' flag: bail
-		return nil, nil
-	}
-
-	context, err := NewContext(task, m.state, hooksup, nil, "")
-	if err != nil {
-		return nil, err
+		return nil
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
@@ -351,16 +359,14 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		// This is to avoid issues when downgrading to an old core snap that doesn't know about
 		// particular hook type and a task for it exists (e.g. "post-refresh" hook).
 		if hooksup.Optional {
-			return nil, nil
+			return nil
 		}
-		return nil, fmt.Errorf("internal error: no registered handlers for hook %q", hooksup.Hook)
+		return fmt.Errorf("internal error: no registered handlers for hook %q", hooksup.Hook)
 	}
 	if handlersCount > 1 {
-		return nil, fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
+		return fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
 	}
-	if err := context.initForRun(handlers[0], contextData); err != nil {
-		return nil, err
-	}
+	context.handler = handlers[0]
 
 	contextID := context.ID()
 	m.contextsMutex.Lock()
@@ -373,11 +379,12 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		m.contextsMutex.Unlock()
 	}()
 
-	if err = context.Handler().Before(); err != nil {
-		return nil, err
+	if err := context.Handler().Before(); err != nil {
+		return err
 	}
 
 	// some hooks get hijacked, e.g. the core configuration
+	var err error
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
 		err = f(context)
@@ -390,27 +397,29 @@ func (m *HookManager) runHookCommon(task *state.Task, tomb *tomb.Tomb, snapst *s
 		}
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
+			context.Lock()
 			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+			context.Unlock()
 		} else {
 			if handlerErr := context.Handler().Error(err); handlerErr != nil {
-				return nil, handlerErr
+				return handlerErr
 			}
 
-			return nil, fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
+			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
 		}
 	}
 
 	if err = context.Handler().Done(); err != nil {
-		return nil, err
+		return err
 	}
 
 	context.Lock()
 	defer context.Unlock()
 	if err = context.Done(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return context, nil
+	return nil
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
