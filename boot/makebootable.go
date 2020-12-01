@@ -287,9 +287,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}
-	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot write modeenv: %v", err)
-	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
@@ -365,10 +362,12 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
-		// update the modeenv on disk
-		if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
-			return fmt.Errorf("cannot write modeenv: %v", err)
-		}
+	}
+
+	// all fields that needed to be set in the modeenv must have been set by
+	// now, write modeenv to disk
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
 	if sealer != nil {
