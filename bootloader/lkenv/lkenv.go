@@ -153,7 +153,9 @@ type Env struct {
 	path string
 	// pathbak is the backup lkenv object file, it too can either be a regular
 	// file during build time, or a partition device node at run time, and it is
-	// always given by "<path>" + "bak", i.e. $PWD/lk.conf and $PWD/lk.confbak.
+	// typically at prepare-image time given by "<path>" + "bak", i.e.
+	// $PWD/lk.conf and $PWD/lk.confbak but will be different device nodes for
+	// different partitions at runtime.
 	pathbak string
 	// version is the configured version of the lkenv object from NewEnv.
 	version Version
@@ -194,10 +196,15 @@ func copyString(b []byte, s string) {
 // is expected to be a valid lkenv object, then the object should be loaded with
 // the Load() method, otherwise the lkenv object can be manipulated in memory
 // and later written to disk with Save().
-func NewEnv(path string, version Version) *Env {
+func NewEnv(path, backuppath string, version Version) *Env {
+	if backuppath == "" {
+		// legacy behavior is for the backup file to be the same name/dir, but
+		// with "bak" appended to it
+		backuppath = path + "bak"
+	}
 	e := &Env{
 		path:    path,
-		pathbak: path + "bak",
+		pathbak: backuppath,
 		version: version,
 	}
 
