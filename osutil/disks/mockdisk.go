@@ -35,7 +35,7 @@ type MockDiskMapping struct {
 	// FilesystemLabelToPartUUID is a mapping of the udev encoded filesystem
 	// labels to the expected partition uuids.
 	FilesystemLabelToPartUUID map[string]string
-	// FilesystemLabelToPartUUID is a mapping of the udev encoded partition
+	// PartitionLabelToPartUUID is a mapping of the udev encoded partition
 	// labels to the expected partition uuids.
 	PartitionLabelToPartUUID map[string]string
 	DiskHasPartitions        bool
