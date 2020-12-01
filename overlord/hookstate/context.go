@@ -75,6 +75,25 @@ func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler 
 	}, nil
 }
 
+func newEphemeralContext(st *state.State, setup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+	context, err := NewContext(nil, st, setup, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if contextData != nil {
+		serialized, err := json.Marshal(contextData)
+		if err != nil {
+			return nil, err
+		}
+		var data map[string]*json.RawMessage
+		if err := json.Unmarshal(serialized, &data); err != nil {
+			return nil, err
+		}
+		context.cache["ephemeral-context"] = data
+	}
+	return context, nil
+}
+
 // InstanceName returns the name of the snap instance containing the hook.
 func (c *Context) InstanceName() string {
 	return c.setup.Snap
@@ -136,27 +155,6 @@ func (c *Context) writing() {
 	if atomic.LoadInt32(&c.mutexChecker) != 1 {
 		panic("internal error: accessing context without lock")
 	}
-}
-
-func (c *Context) initEphemeralContextData(contextData map[string]interface{}) error {
-	if contextData == nil {
-		return nil
-	}
-
-	if !c.IsEphemeral() {
-		return fmt.Errorf("internal error: cannot pass contextData to initForRun for %v", c)
-	}
-
-	serialized, err := json.Marshal(contextData)
-	if err != nil {
-		return err
-	}
-	var data map[string]*json.RawMessage
-	if err := json.Unmarshal(serialized, &data); err != nil {
-		return err
-	}
-	c.cache["ephemeral-context"] = data
-	return nil
 }
 
 // Set associates value with key. The provided value must properly marshal and
