@@ -25,9 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -35,8 +33,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -47,11 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -59,8 +51,6 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
-	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -135,7 +125,7 @@ apps:
          listen-stream: $SNAP_COMMON/other-run.sock
 `)
 	df := s.mkInstalledDesktopFile(c, "foo_cmd.desktop", "[Desktop]\nExec=foo.cmd %U")
-	s.sysctlBufs = [][]byte{
+	s.SysctlBufs = [][]byte{
 		[]byte(`Type=simple
 Id=snap.foo.svc1.service
 ActiveState=fumbling
@@ -1144,7 +1134,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			Validation:  "unproven",
 		},
 	}}
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)
@@ -1174,7 +1164,7 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 		},
 	}}
 
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	var snapst snapstate.SnapState
 	st := s.d.overlord.State()
@@ -1314,7 +1304,7 @@ func (s *apiSuite) TestFindCommonID(c *check.C) {
 		},
 		CommonIDs: []string{"org.foo"},
 	}}
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1341,7 +1331,7 @@ func (s *apiSuite) TestFindByCommonID(c *check.C) {
 		},
 		CommonIDs: []string{"org.foo"},
 	}}
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1373,7 +1363,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 			},
 		},
 	}}
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1401,7 +1391,7 @@ func (s *apiSuite) TestFindOneNotFound(c *check.C) {
 	s.daemon(c)
 
 	s.err = store.ErrSnapNotFound
-	s.mockSnap(c, "name: store\nversion: 1.0")
+	s.MockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
@@ -2711,7 +2701,7 @@ func (s *apiSuite) TestGetConfBadKey(c *check.C) {
 
 func (s *apiSuite) TestSetConf(c *check.C) {
 	d := s.daemon(c)
-	s.mockSnap(c, configYaml)
+	s.MockSnap(c, configYaml)
 
 	// Mock the hook runner
 	hookRunner := testutil.MockCommand(c, "snap", "")
@@ -2759,7 +2749,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 
 func (s *apiSuite) TestSetConfCoreSystemAlias(c *check.C) {
 	d := s.daemon(c)
-	s.mockSnap(c, `
+	s.MockSnap(c, `
 name: core
 version: 1
 `)
@@ -2812,7 +2802,7 @@ version: 1
 
 func (s *apiSuite) TestSetConfNumber(c *check.C) {
 	d := s.daemon(c)
-	s.mockSnap(c, configYaml)
+	s.MockSnap(c, configYaml)
 
 	// Mock the hook runner
 	hookRunner := testutil.MockCommand(c, "snap", "")
@@ -2885,24 +2875,11 @@ func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 		"type": "error"})
 }
 
-func simulateConflict(o *overlord.Overlord, name string) {
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-	t := st.NewTask("link-snap", "...")
-	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
-		RealName: name,
-	}}
-	t.Set("snap-setup", snapsup)
-	chg := st.NewChange("manip", "...")
-	chg.AddTask(t)
-}
-
 func (s *apiSuite) TestSetConfChangeConflict(c *check.C) {
-	d := s.daemon(c)
-	s.mockSnap(c, configYaml)
+	s.daemon(c)
+	s.MockSnap(c, configYaml)
 
-	simulateConflict(d.overlord, "config-snap")
+	s.SimulateConflict("config-snap")
 
 	text, err := json.Marshal(map[string]interface{}{"key": "value"})
 	c.Assert(err, check.IsNil)
@@ -3912,961 +3889,6 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 	return snaps
 }
 
-// inverseCaseMapper implements SnapMapper to use lower case internally and upper case externally.
-type inverseCaseMapper struct {
-	ifacestate.IdentityMapper // Embed the identity mapper to reuse empty state mapping functions.
-}
-
-func (m *inverseCaseMapper) RemapSnapFromRequest(snapName string) string {
-	return strings.ToLower(snapName)
-}
-
-func (m *inverseCaseMapper) RemapSnapToResponse(snapName string) string {
-	return strings.ToUpper(snapName)
-}
-
-func (m *inverseCaseMapper) SystemSnapName() string {
-	return "core"
-}
-
-// Tests for GET /v2/interfaces
-
-func (s *apiSuite) TestInterfacesLegacy(c *check.C) {
-	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer restore()
-	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
-	defer restore()
-
-	d := s.daemon(c)
-
-	var anotherConsumerYaml = `
-name: another-consumer-%s
-version: 1
-apps:
- app:
-plugs:
- plug:
-  interface: test
-  key: value
-  label: label
-`
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
-	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
-	s.mockSnap(c, producerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	st := s.d.overlord.State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-			"auto":      true,
-		},
-		"another-consumer-def:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-			"by-gadget": true,
-			"auto":      true,
-		},
-		"another-consumer-abc:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-			"by-gadget": true,
-			"auto":      true,
-		},
-	})
-	st.Unlock()
-
-	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.GET(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap":      "another-consumer-abc",
-					"plug":      "plug",
-					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
-					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
-					},
-				},
-				map[string]interface{}{
-					"snap":      "another-consumer-def",
-					"plug":      "plug",
-					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
-					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
-					},
-				},
-				map[string]interface{}{
-					"snap":      "consumer",
-					"plug":      "plug",
-					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
-					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "slot": "slot"},
-					},
-				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap":      "producer",
-					"slot":      "slot",
-					"interface": "test",
-					"attrs":     map[string]interface{}{"key": "value"},
-					"apps":      []interface{}{"app"},
-					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{"snap": "another-consumer-abc", "plug": "plug"},
-						map[string]interface{}{"snap": "another-consumer-def", "plug": "plug"},
-						map[string]interface{}{"snap": "consumer", "plug": "plug"},
-					},
-				},
-			},
-		},
-		"status":      "OK",
-		"status-code": 200.0,
-		"type":        "sync",
-	})
-}
-
-func (s *apiSuite) TestInterfacesModern(c *check.C) {
-	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer restore()
-	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
-	defer restore()
-
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.GET(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": []interface{}{
-			map[string]interface{}{
-				"name": "test",
-				"plugs": []interface{}{
-					map[string]interface{}{
-						"snap":  "consumer",
-						"plug":  "plug",
-						"label": "label",
-						"attrs": map[string]interface{}{
-							"key": "value",
-						},
-					}},
-				"slots": []interface{}{
-					map[string]interface{}{
-						"snap":  "producer",
-						"slot":  "slot",
-						"label": "label",
-						"attrs": map[string]interface{}{
-							"key": "value",
-						},
-					},
-				},
-			},
-		},
-		"status":      "OK",
-		"status-code": 200.0,
-		"type":        "sync",
-	})
-}
-
-// Test for POST /v2/interfaces
-
-func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer restore()
-	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
-	defer restore()
-
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "CONSUMER", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "PRODUCER", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 1)
-	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}})
-}
-
-func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "different"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, differentProducerYaml)
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "cannot connect consumer:plug (\"test\" interface) to producer:slot (\"different\" interface)",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-	repo := d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 0)
-}
-
-func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	// there is no consumer, no plug defined
-	s.mockSnap(c, producerYaml)
-	s.mockSnap(c, consumerYaml)
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "missingplug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "snap \"consumer\" has no plug named \"missingplug\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-
-	repo := d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 0)
-}
-
-func (s *apiSuite) TestConnectAlreadyConnected(c *check.C) {
-	d := s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	// there is no consumer, no plug defined
-	s.mockSnap(c, producerYaml)
-	s.mockSnap(c, consumerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-	conns := map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"auto": false,
-		},
-	}
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("conns", conns)
-	st.Unlock()
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st.Lock()
-	chg := st.Change(id)
-	c.Assert(chg.Tasks(), check.HasLen, 0)
-	c.Assert(chg.Status(), check.Equals, state.DoneStatus)
-	st.Unlock()
-}
-
-func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-	// there is no producer, no slot defined
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "missingslot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "snap \"producer\" has no slot named \"missingslot\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-
-	repo := d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 0)
-}
-
-func (s *apiSuite) TestConnectPlugChangeConflict(c *check.C) {
-	d := s.daemon(c)
-
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-	// there is no producer, no slot defined
-
-	simulateConflict(d.overlord, "consumer")
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 409)
-
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"status-code": 409.,
-		"status":      "Conflict",
-		"result": map[string]interface{}{
-			"message": `snap "consumer" has "manip" change in progress`,
-			"kind":    "snap-change-conflict",
-			"value": map[string]interface{}{
-				"change-kind": "manip",
-				"snap-name":   "consumer",
-			},
-		},
-		"type": "error"})
-}
-
-func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, coreProducerYaml)
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	action := &interfaceAction{
-		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st := d.overlord.State()
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 1)
-	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}})
-}
-
-func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
-	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer restore()
-	// Install an inverse case mapper to exercise the interface mapping at the same time.
-	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
-	defer restore()
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-		},
-	})
-	st.Unlock()
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: plugSnap, Name: plugName}},
-		Slots:  []slotJSON{{Snap: slotSnap, Name: slotName}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 0)
-}
-
-func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	s.testDisconnect(c, "CONSUMER", "plug", "PRODUCER", "slot")
-}
-
-func (s *apiSuite) TestDisconnectPlugSuccessWithEmptyPlug(c *check.C) {
-	s.testDisconnect(c, "", "", "PRODUCER", "slot")
-}
-
-func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
-	s.testDisconnect(c, "CONSUMER", "plug", "", "")
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	s.daemon(c)
-
-	// there is no consumer, no plug defined
-	s.mockSnap(c, producerYaml)
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "snap \"consumer\" has no plug named \"plug\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "", Name: ""}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "nothing to do",
-			"kind":    "interfaces-unchanged",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	// there is no producer, no slot defined
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "snap \"producer\" has no slot named \"slot\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "cannot disconnect consumer:plug from producer:slot, it is not connected",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Forget: true,
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "cannot forget connection consumer:plug from producer:slot, it was not connected",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestDisconnectConflict(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{
-			"interface": "test",
-		},
-	})
-	st.Unlock()
-
-	simulateConflict(d.overlord, "consumer")
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-
-	c.Check(rec.Code, check.Equals, 409)
-
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"status-code": 409.,
-		"status":      "Conflict",
-		"result": map[string]interface{}{
-			"message": `snap "consumer" has "manip" change in progress`,
-			"kind":    "snap-change-conflict",
-			"value": map[string]interface{}{
-				"change-kind": "manip",
-				"snap-name":   "consumer",
-			},
-		},
-		"type": "error"})
-}
-
-func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
-	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
-	defer revert()
-	d := s.daemon(c)
-
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, coreProducerYaml)
-
-	repo := d.overlord.InterfaceManager().Repository()
-	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
-	}
-	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, check.IsNil)
-
-	st := d.overlord.State()
-	st.Lock()
-	st.Set("conns", map[string]interface{}{
-		"consumer:plug core:slot": map[string]interface{}{
-			"interface": "test",
-		},
-	})
-	st.Unlock()
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 202)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	id := body["change"].(string)
-
-	st.Lock()
-	chg := st.Change(id)
-	st.Unlock()
-	c.Assert(chg, check.NotNil)
-
-	<-chg.Ready()
-
-	st.Lock()
-	err = chg.Err()
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, check.HasLen, 0)
-}
-
-func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
-	buf := bytes.NewBuffer([]byte(`garbage`))
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "cannot decode request body into an interface action: invalid character 'g' looking for beginning of value",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
-	action := &interfaceAction{}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "interface action not specified",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
-func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
-	s.daemon(c)
-	action := &interfaceAction{Action: "foo"}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "unsupported interface action: \"foo\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
-}
-
 const validBuyInput = `{
 		  "snap-id": "the-snap-id-1234abcd",
 		  "snap-name": "the snap name",
@@ -5078,7 +4100,7 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5128,11 +4150,11 @@ func (s *apiSuite) TestAliasSuccess(c *check.C) {
 func (s *apiSuite) TestAliasChangeConflict(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.daemon(c)
+	s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
-	simulateConflict(d.overlord, "alias-snap")
+	s.SimulateConflict("alias-snap")
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5213,7 +4235,7 @@ func (s *apiSuite) TestUnaliasSnapSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5267,7 +4289,7 @@ func (s *apiSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5322,7 +4344,7 @@ func (s *apiSuite) TestUnaliasAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5404,7 +4426,7 @@ func (s *apiSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5487,7 +4509,7 @@ func (s *apiSuite) TestPreferSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
-	s.mockSnap(c, aliasYaml)
+	s.MockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -5738,312 +4760,6 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	})
 }
 
-type appSuite struct {
-	APIBaseSuite
-	cmd *testutil.MockCmd
-
-	infoA, infoB, infoC, infoD *snap.Info
-}
-
-var _ = check.Suite(&appSuite{})
-
-func (s *appSuite) SetUpTest(c *check.C) {
-	s.APIBaseSuite.SetUpTest(c)
-	s.cmd = testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
-	s.daemon(c)
-	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
-	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
-	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
-	s.infoD = s.mkInstalledInState(c, s.d, "snap-d", "dev", "v1", snap.R(1), true, "apps: {cmd2: {}, cmd3: {}}")
-	s.d.overlord.Loop()
-}
-
-func (s *appSuite) TearDownTest(c *check.C) {
-	s.d.overlord.Stop()
-	s.cmd.Restore()
-	s.APIBaseSuite.TearDownTest(c)
-}
-
-func (s *appSuite) TestSplitAppName(c *check.C) {
-	type T struct {
-		name string
-		snap string
-		app  string
-	}
-
-	for _, x := range []T{
-		{name: "foo.bar", snap: "foo", app: "bar"},
-		{name: "foo", snap: "foo", app: ""},
-		{name: "foo.bar.baz", snap: "foo", app: "bar.baz"},
-		{name: ".", snap: "", app: ""}, // SISO
-	} {
-		snap, app := splitAppName(x.name)
-		c.Check(x.snap, check.Equals, snap, check.Commentf(x.name))
-		c.Check(x.app, check.Equals, app, check.Commentf(x.name))
-	}
-}
-
-func (s *appSuite) TestGetAppsInfo(c *check.C) {
-	svcNames := []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}
-	for _, name := range svcNames {
-		s.sysctlBufs = append(s.sysctlBufs, []byte(fmt.Sprintf(`
-Id=snap.%s.service
-Type=simple
-ActiveState=active
-UnitFileState=enabled
-`[1:], name)))
-	}
-
-	req, err := http.NewRequest("GET", "/v2/apps", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
-	apps := rsp.Result.([]client.AppInfo)
-	c.Assert(apps, check.HasLen, 6)
-
-	for _, name := range svcNames {
-		snap, app := splitAppName(name)
-		needle := client.AppInfo{
-			Snap:   snap,
-			Name:   app,
-			Daemon: "simple",
-		}
-		if snap != "snap-b" {
-			// snap-b is not active (all the others are)
-			needle.Active = true
-			needle.Enabled = true
-		}
-		c.Check(apps, testutil.DeepContains, needle)
-	}
-
-	for _, name := range []string{"snap-b.cmd1", "snap-d.cmd2", "snap-d.cmd3"} {
-		snap, app := splitAppName(name)
-		c.Check(apps, testutil.DeepContains, client.AppInfo{
-			Snap: snap,
-			Name: app,
-		})
-	}
-
-	appNames := make([]string, len(apps))
-	for i, app := range apps {
-		appNames[i] = app.Snap + "." + app.Name
-	}
-	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
-}
-
-func (s *appSuite) TestGetAppsInfoNames(c *check.C) {
-
-	req, err := http.NewRequest("GET", "/v2/apps?names=snap-d", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
-	apps := rsp.Result.([]client.AppInfo)
-	c.Assert(apps, check.HasLen, 2)
-
-	for _, name := range []string{"snap-d.cmd2", "snap-d.cmd3"} {
-		snap, app := splitAppName(name)
-		c.Check(apps, testutil.DeepContains, client.AppInfo{
-			Snap: snap,
-			Name: app,
-		})
-	}
-
-	appNames := make([]string, len(apps))
-	for i, app := range apps {
-		appNames[i] = app.Snap + "." + app.Name
-	}
-	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
-}
-
-func (s *appSuite) TestGetAppsInfoServices(c *check.C) {
-	svcNames := []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}
-	for _, name := range svcNames {
-		s.sysctlBufs = append(s.sysctlBufs, []byte(fmt.Sprintf(`
-Id=snap.%s.service
-Type=simple
-ActiveState=active
-UnitFileState=enabled
-`[1:], name)))
-	}
-
-	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
-	svcs := rsp.Result.([]client.AppInfo)
-	c.Assert(svcs, check.HasLen, 3)
-
-	for _, name := range svcNames {
-		snap, app := splitAppName(name)
-		needle := client.AppInfo{
-			Snap:   snap,
-			Name:   app,
-			Daemon: "simple",
-		}
-		if snap != "snap-b" {
-			// snap-b is not active (all the others are)
-			needle.Active = true
-			needle.Enabled = true
-		}
-		c.Check(svcs, testutil.DeepContains, needle)
-	}
-
-	appNames := make([]string, len(svcs))
-	for i, svc := range svcs {
-		appNames[i] = svc.Snap + "." + svc.Name
-	}
-	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
-}
-
-func (s *appSuite) TestGetAppsInfoBadSelect(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/apps?select=potato", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestGetAppsInfoBadName(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/apps?names=potato", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getAppsInfo(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestAppInfosForOne(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-a.svc1"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.IsNil)
-	c.Assert(appInfos, check.HasLen, 1)
-	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[0].Name, check.Equals, "svc1")
-}
-
-func (s *appSuite) TestAppInfosForAll(c *check.C) {
-	type T struct {
-		opts  appInfoOptions
-		snaps []*snap.Info
-		names []string
-	}
-
-	for _, t := range []T{
-		{
-			opts:  appInfoOptions{service: true},
-			names: []string{"svc1", "svc2", "svc3"},
-			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB},
-		},
-		{
-			opts:  appInfoOptions{},
-			names: []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3"},
-			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD},
-		},
-	} {
-		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.opts))
-
-		st := s.d.overlord.State()
-		appInfos, rsp := appInfosFor(st, nil, t.opts)
-		c.Assert(rsp, check.IsNil, check.Commentf("%s", t.opts))
-		names := make([]string, len(appInfos))
-		for i, appInfo := range appInfos {
-			names[i] = appInfo.Name
-		}
-		c.Assert(names, check.DeepEquals, t.names, check.Commentf("%s", t.opts))
-
-		for i := range appInfos {
-			c.Check(appInfos[i].Snap, check.DeepEquals, t.snaps[i], check.Commentf("%s: %s", t.opts, t.names[i]))
-		}
-	}
-}
-
-func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.IsNil)
-	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(snap.AppInfoBySnapApp(appInfos))
-
-	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[0].Name, check.Equals, "svc1")
-	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[1].Name, check.Equals, "svc2")
-}
-
-func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.IsNil)
-	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(snap.AppInfoBySnapApp(appInfos))
-
-	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[0].Name, check.Equals, "svc1")
-	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[1].Name, check.Equals, "svc2")
-}
-
-func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{
-		"snap-b.svc3",
-		"snap-a.svc2",
-		"snap-a.svc1",
-		"snap-a.svc2",
-		"snap-b.svc3",
-		"snap-a.svc1",
-		"snap-b",
-		"snap-a",
-	}, appInfoOptions{service: true})
-	c.Assert(rsp, check.IsNil)
-	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(snap.AppInfoBySnapApp(appInfos))
-
-	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[0].Name, check.Equals, "svc1")
-	c.Check(appInfos[1].Snap, check.DeepEquals, s.infoA)
-	c.Check(appInfos[1].Name, check.Equals, "svc2")
-	c.Check(appInfos[2].Snap, check.DeepEquals, s.infoB)
-	c.Check(appInfos[2].Name, check.Equals, "svc3")
-}
-
-func (s *appSuite) TestAppInfosForAppless(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-c"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.FitsTypeOf, &resp{})
-	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindAppNotFound)
-	c.Assert(appInfos, check.IsNil)
-}
-
-func (s *appSuite) TestAppInfosForMissingApp(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-c.whatever"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.FitsTypeOf, &resp{})
-	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindAppNotFound)
-	c.Assert(appInfos, check.IsNil)
-}
-
-func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
-	st := s.d.overlord.State()
-	appInfos, rsp := appInfosFor(st, []string{"snap-x"}, appInfoOptions{service: true})
-	c.Assert(rsp, check.FitsTypeOf, &resp{})
-	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindSnapNotFound)
-	c.Assert(appInfos, check.IsNil)
-}
-
 func (s *apiSuite) TestLogsNoServices(c *check.C) {
 	// NOTE this is *apiSuite, not *appSuite, so there are no
 	// installed snaps with services
@@ -6060,296 +4776,6 @@ func (s *apiSuite) TestLogsNoServices(c *check.C) {
 	rsp := getLogs(logsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 404)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestLogs(c *check.C) {
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
-{"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
-{"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
-{"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
-{"MESSAGE": "hello4", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "48"}
-{"MESSAGE": "hello5", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "50"}
-	`))}
-
-	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
-	c.Assert(err, check.IsNil)
-
-	rec := httptest.NewRecorder()
-	getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
-
-	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
-	c.Check(s.jctlNs, check.DeepEquals, []int{42})
-	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
-
-	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
-	c.Check(rec.Body.String(), check.Equals, `
-{"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
-{"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
-{"timestamp":"1970-01-01T00:00:00.000046Z","message":"hello3","sid":"xyzzy","pid":"42"}
-{"timestamp":"1970-01-01T00:00:00.000048Z","message":"hello4","sid":"xyzzy","pid":"42"}
-{"timestamp":"1970-01-01T00:00:00.00005Z","message":"hello5","sid":"xyzzy","pid":"42"}
-`[1:])
-}
-
-func (s *appSuite) TestLogsN(c *check.C) {
-	type T struct {
-		in  string
-		out int
-	}
-
-	for _, t := range []T{
-		{in: "", out: 10},
-		{in: "0", out: 0},
-		{in: "-1", out: -1},
-		{in: strconv.Itoa(math.MinInt32), out: math.MinInt32},
-		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
-	} {
-
-		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
-		s.jctlNs = nil
-
-		req, err := http.NewRequest("GET", "/v2/logs?n="+t.in, nil)
-		c.Assert(err, check.IsNil)
-
-		rec := httptest.NewRecorder()
-		getLogs(logsCmd, req, nil).ServeHTTP(rec, req)
-
-		c.Check(s.jctlNs, check.DeepEquals, []int{t.out})
-	}
-}
-
-func (s *appSuite) TestLogsBadN(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/logs?n=hello", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(logsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestLogsFollow(c *check.C) {
-	s.jctlRCs = []io.ReadCloser{
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
-	}
-
-	reqT, err := http.NewRequest("GET", "/v2/logs?follow=true", nil)
-	c.Assert(err, check.IsNil)
-	reqF, err := http.NewRequest("GET", "/v2/logs?follow=false", nil)
-	c.Assert(err, check.IsNil)
-	reqN, err := http.NewRequest("GET", "/v2/logs", nil)
-	c.Assert(err, check.IsNil)
-
-	rec := httptest.NewRecorder()
-	getLogs(logsCmd, reqT, nil).ServeHTTP(rec, reqT)
-	getLogs(logsCmd, reqF, nil).ServeHTTP(rec, reqF)
-	getLogs(logsCmd, reqN, nil).ServeHTTP(rec, reqN)
-
-	c.Check(s.jctlFollows, check.DeepEquals, []bool{true, false, false})
-}
-
-func (s *appSuite) TestLogsBadFollow(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/logs?follow=hello", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(logsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestLogsBadName(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/logs?names=hello", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(logsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) TestLogsSad(c *check.C) {
-	s.jctlErrs = []error{errors.New("potato")}
-	req, err := http.NewRequest("GET", "/v2/logs", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(logsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 500)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-}
-
-func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, servicecmds []serviceControlArgs) *state.Change {
-	postBody, err := json.Marshal(inst)
-	c.Assert(err, check.IsNil)
-
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
-	c.Assert(err, check.IsNil)
-
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 202)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Change, check.Matches, `[0-9]+`)
-
-	st := s.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	chg := st.Change(rsp.Change)
-	c.Assert(chg, check.NotNil)
-	c.Check(chg.Tasks(), check.HasLen, len(servicecmds))
-
-	st.Unlock()
-	<-chg.Ready()
-	st.Lock()
-
-	c.Check(s.serviceControlCalls, check.DeepEquals, servicecmds)
-	return chg
-}
-
-func (s *appSuite) TestPostAppsStartOne(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
-	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc2"}},
-	}
-	chg := s.testPostApps(c, inst, expected)
-	chg.State().Lock()
-	defer chg.State().Unlock()
-
-	var names []string
-	err := chg.Get("snap-names", &names)
-	c.Assert(err, check.IsNil)
-	c.Assert(names, check.DeepEquals, []string{"snap-a"})
-}
-
-func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
-	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}},
-	}
-	chg := s.testPostApps(c, inst, expected)
-
-	chg.State().Lock()
-	defer chg.State().Unlock()
-
-	var names []string
-	err := chg.Get("snap-names", &names)
-	c.Assert(err, check.IsNil)
-	c.Assert(names, check.DeepEquals, []string{"snap-a"})
-}
-
-func (s *appSuite) TestPostAppsStartThree(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
-	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}},
-	}
-	chg := s.testPostApps(c, inst, expected)
-	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "Running service command")
-	chg.State().Lock()
-	defer chg.State().Unlock()
-
-	var names []string
-	err := chg.Get("snap-names", &names)
-	c.Assert(err, check.IsNil)
-	c.Assert(names, check.DeepEquals, []string{"snap-a", "snap-b"})
-}
-
-func (s *appSuite) TestPostAppsStop(c *check.C) {
-	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
-	expected := []serviceControlArgs{
-		{action: "stop", names: []string{"snap-a.svc2"}},
-	}
-	s.testPostApps(c, inst, expected)
-}
-
-func (s *appSuite) TestPostAppsRestart(c *check.C) {
-	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
-	expected := []serviceControlArgs{
-		{action: "restart", names: []string{"snap-a.svc2"}},
-	}
-	s.testPostApps(c, inst, expected)
-}
-
-func (s *appSuite) TestPostAppsReload(c *check.C) {
-	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
-	inst.Reload = true
-	expected := []serviceControlArgs{
-		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}},
-	}
-	s.testPostApps(c, inst, expected)
-}
-
-func (s *appSuite) TestPostAppsEnableNow(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
-	inst.Enable = true
-	expected := []serviceControlArgs{
-		{action: "start", options: "enable", names: []string{"snap-a.svc2"}},
-	}
-	s.testPostApps(c, inst, expected)
-}
-
-func (s *appSuite) TestPostAppsDisableNow(c *check.C) {
-	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
-	inst.Disable = true
-	expected := []serviceControlArgs{
-		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}},
-	}
-	s.testPostApps(c, inst, expected)
-}
-
-func (s *appSuite) TestPostAppsBadJSON(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`'junk`))
-	c.Assert(err, check.IsNil)
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, ".*cannot decode request body.*")
-}
-
-func (s *appSuite) TestPostAppsBadOp(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"random": "json"}`))
-	c.Assert(err, check.IsNil)
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, ".*cannot perform operation on services without a list of services.*")
-}
-
-func (s *appSuite) TestPostAppsBadSnap(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-c"]}`))
-	c.Assert(err, check.IsNil)
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-c" has no services`)
-}
-
-func (s *appSuite) TestPostAppsBadApp(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-a.what"]}`))
-	c.Assert(err, check.IsNil)
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has no service "what"`)
-}
-
-func (s *appSuite) TestPostAppsServiceControlError(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
-	c.Assert(err, check.IsNil)
-	s.serviceControlError = fmt.Errorf("total failure")
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `total failure`)
-}
-
-func (s *appSuite) TestPostAppsConflict(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
-	c.Assert(err, check.IsNil)
-	s.serviceControlError = &snapstate.ChangeConflictError{Snap: "snap-a", ChangeKind: "enable"}
-	rsp := postApps(appsCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
 }
 
 type fakeNetError struct {

@@ -12,8 +12,9 @@ check_canaries() {
     c1="Alternative command to run"
     c2="Name of the key to use, otherwise use the default key"
     c3="too many arguments for command"
+    c4="%d days ago, at 15:04 MST"
 
-    for canary in "$c1" "$c2" "$c3"; do
+    for canary in "$c1" "$c2" "$c3" "$c4"; do
 	if ! grep -q "$canary" "$OUTPUT"; then
 	    echo "canary '$canary' not found, pot extraction broken"
 	    ls -lh "$OUTPUT"
@@ -47,7 +48,7 @@ find "$HERE" -type d \( -name "vendor" -o -name "_build" -o -name ".git" \) -pru
     --package-name=snappy\
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
     --keyword=i18n.G \
-    --keyword-plural=i18n.DG
+    --keyword-plural=i18n.NG
 
 # check canary
 check_canaries

@@ -596,9 +596,10 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	defer restore()
 
 	soon := 0
-	defer daemon.MockEnsureStateSoon(func(st *state.State) {
+	_, restore = daemon.MockEnsureStateSoon(func(st *state.State) {
 		soon++
-	})()
+	})
+	defer restore()
 
 	// Setup
 	d := s.Daemon(c)

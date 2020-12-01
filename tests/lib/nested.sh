@@ -518,15 +518,18 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        if [ "$NESTED_ENABLE_TPM" = "true" ] || [ "${NESTED_ADD_UBUNTU_SAVE:-}" = "true" ]; then
-                            # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
-                            # lands there is no ubuntu-save in the gadget, make sure we have one
-                            nested_ensure_ubuntu_save pc-gadget --add
-                            touch ubuntu-save-added
-                        else
-                            nested_ensure_ubuntu_save pc-gadget --remove
-                            touch ubuntu-save-removed
-                        fi
+                        case "${NESTED_UBUNTU_SAVE:-}" in
+                            add)
+                                # ensure that ubuntu-save is present
+                                nested_ensure_ubuntu_save pc-gadget --add
+                                touch ubuntu-save-added
+                                ;;
+                            remove)
+                                # ensure that ubuntu-save is removed
+                                nested_ensure_ubuntu_save pc-gadget --remove
+                                touch ubuntu-save-removed
+                                ;;
+                        esac
 
                         # also make logging persistent for easier debugging of
                         # test failures, otherwise we have no way to see what

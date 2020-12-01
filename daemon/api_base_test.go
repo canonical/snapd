@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -47,9 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -66,6 +63,8 @@ import (
 // to only the relevant suite when possible
 
 type APIBaseSuite struct {
+	testutil.BaseTest
+
 	storetest.Store
 
 	rsnaps            []*snap.Info
@@ -87,31 +86,13 @@ type APIBaseSuite struct {
 	Brands       *assertstest.SigningAccounts
 
 	systemctlRestorer func()
-	sysctlBufs        [][]byte
-
-	journalctlRestorer func()
-	jctlSvcses         [][]string
-	jctlNs             []int
-	jctlFollows        []bool
-	jctlRCs            []io.ReadCloser
-	jctlErrs           []error
-
-	serviceControlError error
-	serviceControlCalls []serviceControlArgs
+	SysctlBufs        [][]byte
 
 	connectivityResult     map[string]bool
 	loginUserStoreMacaroon string
 	loginUserDischarge     string
 
 	restoreSanitize func()
-
-	testutil.BaseTest
-}
-
-type serviceControlArgs struct {
-	action  string
-	options string
-	names   []string
 }
 
 func (s *APIBaseSuite) PokeStateLock() {
@@ -209,7 +190,6 @@ func (s *APIBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
-	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
@@ -217,31 +197,14 @@ func (s *APIBaseSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
 	s.restoreRelease()
 	s.systemctlRestorer()
-	s.journalctlRestorer()
 	s.restoreSanitize()
 }
 
 func (s *APIBaseSuite) systemctl(args ...string) (buf []byte, err error) {
-	if len(s.sysctlBufs) > 0 {
-		buf, s.sysctlBufs = s.sysctlBufs[0], s.sysctlBufs[1:]
+	if len(s.SysctlBufs) > 0 {
+		buf, s.SysctlBufs = s.SysctlBufs[0], s.SysctlBufs[1:]
 	}
-
 	return buf, err
-}
-
-func (s *APIBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
-	s.jctlSvcses = append(s.jctlSvcses, svcs)
-	s.jctlNs = append(s.jctlNs, n)
-	s.jctlFollows = append(s.jctlFollows, follow)
-
-	if len(s.jctlErrs) > 0 {
-		err, s.jctlErrs = s.jctlErrs[0], s.jctlErrs[1:]
-	}
-	if len(s.jctlRCs) > 0 {
-		rc, s.jctlRCs = s.jctlRCs[0], s.jctlRCs[1:]
-	}
-
-	return rc, err
 }
 
 var (
@@ -251,12 +214,10 @@ var (
 func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 
-	s.sysctlBufs = nil
-	s.jctlSvcses = nil
-	s.jctlNs = nil
-	s.jctlFollows = nil
-	s.jctlRCs = nil
-	s.jctlErrs = nil
+	ctlcmds := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
+	s.AddCleanup(ctlcmds.Restore)
+
+	s.SysctlBufs = nil
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
@@ -300,13 +261,6 @@ func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
 	snapstateSwitch = nil
-
-	devicestateRemodel = nil
-
-	s.serviceControlCalls = nil
-	s.serviceControlError = nil
-	restoreServicestateCtrl := MockServicestateControl(s.fakeServiceControl)
-	s.AddCleanup(restoreServicestateCtrl)
 }
 
 func (s *APIBaseSuite) TearDownTest(c *check.C) {
@@ -333,47 +287,14 @@ func (s *APIBaseSuite) TearDownTest(c *check.C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-var modelDefaults = map[string]interface{}{
-	"architecture": "amd64",
-	"gadget":       "gadget",
-	"kernel":       "kernel",
-}
-
-func (s *APIBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
-	if flags != nil {
-		panic("flags are not expected")
-	}
-
-	if s.serviceControlError != nil {
-		return nil, s.serviceControlError
-	}
-
-	serviceCommand := serviceControlArgs{action: inst.Action}
-	if inst.RestartOptions.Reload {
-		serviceCommand.options = "reload"
-	}
-	// only one flag should ever be set (depending on Action), but appending
-	// them below acts as an extra sanity check.
-	if inst.StartOptions.Enable {
-		serviceCommand.options += "enable"
-	}
-	if inst.StopOptions.Disable {
-		serviceCommand.options += "disable"
-	}
-	for _, app := range appInfos {
-		serviceCommand.names = append(serviceCommand.names, fmt.Sprintf("%s.%s", app.Snap.InstanceName(), app.Name))
-	}
-	s.serviceControlCalls = append(s.serviceControlCalls, serviceCommand)
-
-	t := st.NewTask("dummy", "")
-	ts := state.NewTaskSet(t)
-	return []*state.TaskSet{ts}, nil
-}
-
-func (s *APIBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
+func (s *APIBaseSuite) MockModel(c *check.C, st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
-		model = s.Brands.Model("can0nical", "pc", modelDefaults)
+		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
+			"architecture": "amd64",
+			"gadget":       "gadget",
+			"kernel":       "kernel",
+		})
 	}
 
 	snapstate.DeviceCtx = devicestate.DeviceCtx
@@ -389,7 +310,7 @@ func (s *APIBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 
 func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *Daemon {
 	if s.d != nil {
-		panic("called daemon() twice")
+		panic("called Daemon*() twice")
 	}
 	d, err := New()
 	c.Assert(err, check.IsNil)
@@ -404,7 +325,7 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	s.mockModel(c, st, nil)
+	s.MockModel(c, st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -413,6 +334,10 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 
 	s.d = d
 	return d
+}
+
+func (s *APIBaseSuite) ResetDaemon() {
+	s.d = nil
 }
 
 func (s *APIBaseSuite) Daemon(c *check.C) *Daemon {
@@ -424,9 +349,14 @@ func (s *APIBaseSuite) daemon(c *check.C) *Daemon {
 	return s.DaemonWithStore(c, s)
 }
 
+// XXX this one will go away
 func (s *APIBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
+	return s.DaemonWithOverlordMock(c)
+}
+
+func (s *APIBaseSuite) DaemonWithOverlordMock(c *check.C) *Daemon {
 	if s.d != nil {
-		panic("called daemon() twice")
+		panic("called Daemon*() twice")
 	}
 	d, err := New()
 	c.Assert(err, check.IsNil)
@@ -491,7 +421,12 @@ func (s *APIBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	return df
 }
 
+// XXX this one will go away
 func (s *APIBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	return s.MkInstalledInState(c, daemon, instanceName, developer, version, revision, active, extraYaml)
+}
+
+func (s *APIBaseSuite) MkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 
 	if revision.Local() && developer != "" {
@@ -604,6 +539,10 @@ func handlerCommand(c *check.C, d *Daemon, req *http.Request) (cmd *Command, var
 }
 
 func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
 	cmd, _ := handlerCommand(c, s.d, req)
 	c.Check(cmd.POST, check.IsNil)
 	c.Check(cmd.PUT, check.IsNil)
@@ -611,6 +550,10 @@ func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
 }
 
 func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Response {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
 	var f ResponseFunc
@@ -628,4 +571,33 @@ func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Res
 		c.Fatalf("no support for %q for %q", req.Method, req.URL)
 	}
 	return f(cmd, req, u)
+}
+
+func (s *APIBaseSuite) ServeHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	cmd, vars := handlerCommand(c, s.d, req)
+	s.vars = vars
+
+	cmd.ServeHTTP(w, req)
+}
+
+func (s *APIBaseSuite) SimulateConflict(name string) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	o := s.d.overlord
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
+		RealName: name,
+	}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("manip", "...")
+	chg.AddTask(t)
 }
