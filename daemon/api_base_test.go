@@ -261,8 +261,6 @@ func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
 	snapstateSwitch = nil
-
-	devicestateRemodel = nil
 }
 
 func (s *APIBaseSuite) TearDownTest(c *check.C) {
@@ -289,16 +287,14 @@ func (s *APIBaseSuite) TearDownTest(c *check.C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-var modelDefaults = map[string]interface{}{
-	"architecture": "amd64",
-	"gadget":       "gadget",
-	"kernel":       "kernel",
-}
-
-func (s *APIBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
+func (s *APIBaseSuite) MockModel(c *check.C, st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
-		model = s.Brands.Model("can0nical", "pc", modelDefaults)
+		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
+			"architecture": "amd64",
+			"gadget":       "gadget",
+			"kernel":       "kernel",
+		})
 	}
 
 	snapstate.DeviceCtx = devicestate.DeviceCtx
@@ -314,7 +310,7 @@ func (s *APIBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 
 func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *Daemon {
 	if s.d != nil {
-		panic("called daemon() twice")
+		panic("called Daemon*() twice")
 	}
 	d, err := New()
 	c.Assert(err, check.IsNil)
@@ -329,7 +325,7 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	s.mockModel(c, st, nil)
+	s.MockModel(c, st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -338,6 +334,10 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 
 	s.d = d
 	return d
+}
+
+func (s *APIBaseSuite) ResetDaemon() {
+	s.d = nil
 }
 
 func (s *APIBaseSuite) Daemon(c *check.C) *Daemon {
@@ -349,9 +349,14 @@ func (s *APIBaseSuite) daemon(c *check.C) *Daemon {
 	return s.DaemonWithStore(c, s)
 }
 
+// XXX this one will go away
 func (s *APIBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
+	return s.DaemonWithOverlordMock(c)
+}
+
+func (s *APIBaseSuite) DaemonWithOverlordMock(c *check.C) *Daemon {
 	if s.d != nil {
-		panic("called daemon() twice")
+		panic("called Daemon*() twice")
 	}
 	d, err := New()
 	c.Assert(err, check.IsNil)
@@ -566,6 +571,17 @@ func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Res
 		c.Fatalf("no support for %q for %q", req.Method, req.URL)
 	}
 	return f(cmd, req, u)
+}
+
+func (s *APIBaseSuite) ServeHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	cmd, vars := handlerCommand(c, s.d, req)
+	s.vars = vars
+
+	cmd.ServeHTTP(w, req)
 }
 
 func (s *APIBaseSuite) SimulateConflict(name string) {
