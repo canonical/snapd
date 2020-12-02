@@ -21,12 +21,12 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -64,9 +64,6 @@ func init() {
 	}})
 }
 
-// this is reused for both account and set name of "account/name" argument
-var validName = regexp.MustCompile("^[a-z][0-9a-z]+$")
-
 func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
 	parts := strings.Split(arg, "=")
 	if len(parts) > 2 {
@@ -86,10 +83,10 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 	account = parts[0]
 	name = parts[1]
-	if !validName.MatchString(account) {
+	if !asserts.IsValidAccountID(account) {
 		return "", "", 0, fmt.Errorf("invalid account name %q", account)
 	}
-	if !validName.MatchString(name) {
+	if !asserts.IsValidValidationSetName(name) {
 		return "", "", 0, fmt.Errorf("invalid name %q", name)
 	}
 
