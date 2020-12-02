@@ -64,16 +64,3 @@ type SetupRequest struct {
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
 }
-
-// RevealKeyRequest carries the operation and parameters for the
-// fde-reveal-key binary to support unsealing key that were sealed
-// with the "fde-setup" hook.
-type RevealKeyRequest struct {
-	Op string `json:"op"`
-
-	SealedKey     []byte `json:"sealed-key"`
-	SealedKeyName string `json:"sealed-key-name"`
-
-	VolumeName       string `json:"volume-name"`
-	SourceDevicePath string `json:"source-device-path"`
-}
