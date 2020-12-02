@@ -132,16 +132,6 @@ var (
 		POST:     postSnap,
 	}
 
-	buyCmd = &Command{
-		Path: "/v2/buy",
-		POST: postBuy,
-	}
-
-	readyToBuyCmd = &Command{
-		Path: "/v2/buy/ready",
-		GET:  readyToBuy,
-	}
-
 	sectionsCmd = &Command{
 		Path:   "/v2/sections",
 		UserOK: true,
@@ -1405,83 +1395,6 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	name := vars["name"]
 
 	return iconGet(c.d.overlord.State(), name)
-}
-
-func convertBuyError(err error) Response {
-	switch err {
-	case nil:
-		return nil
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
-	case store.ErrUnauthenticated:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindLoginRequired,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrTOSNotAccepted:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindTermsNotAccepted,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrNoPaymentMethods:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindNoPaymentMethods,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrPaymentDeclined:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindPaymentDeclined,
-			},
-			Status: 400,
-		}, nil)
-	default:
-		return InternalError("%v", err)
-	}
-}
-
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts client.BuyOptions
-
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
-
-	s := getStore(c)
-
-	buyResult, err := s.Buy(&opts, user)
-
-	if resp := convertBuyError(err); resp != nil {
-		return resp
-	}
-
-	return SyncResponse(buyResult, nil)
-}
-
-func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
-		return resp
-	}
-
-	return SyncResponse(true, nil)
 }
 
 // aliasAction is an action performed on aliases

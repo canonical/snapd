@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -77,8 +76,6 @@ type APIBaseSuite struct {
 	ctx               context.Context
 	currentSnaps      []*store.CurrentSnap
 	actions           []*store.SnapAction
-	buyOptions        *client.BuyOptions
-	buyResult         *client.BuyResult
 
 	restoreRelease func()
 
@@ -155,21 +152,6 @@ func (s *APIBaseSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *APIBaseSuite) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
-	s.PokeStateLock()
-
-	s.buyOptions = options
-	s.user = user
-	return s.buyResult, s.err
-}
-
-func (s *APIBaseSuite) ReadyToBuy(user *auth.UserState) error {
-	s.PokeStateLock()
-
-	s.user = user
-	return s.err
-}
-
 func (s *APIBaseSuite) ConnectivityCheck() (map[string]bool, error) {
 	s.PokeStateLock()
 
@@ -239,9 +221,6 @@ func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	s.actions = nil
 	// Disable real security backends for all API tests
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
-
-	s.buyOptions = nil
-	s.buyResult = nil
 
 	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
