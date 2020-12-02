@@ -68,7 +68,7 @@ func (m *inverseCaseMapper) SystemSnapName() string {
 
 // Tests for POST /v2/interfaces
 
-var (
+const (
 	consumerYaml = `
 name: consumer
 version: 1

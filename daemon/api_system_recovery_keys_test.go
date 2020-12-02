@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"encoding/hex"
@@ -30,9 +30,16 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 )
+
+var _ = Suite(&recoveryKeysSuite{})
+
+type recoveryKeysSuite struct {
+	daemon.APIBaseSuite
+}
 
 func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
@@ -51,18 +58,18 @@ func mockSystemRecoveryKeys(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *apiSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
+func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	if (secboot.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
 
-	s.daemon(c)
+	s.Daemon(c)
 	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := getSystemRecoveryKeys(systemRecoveryKeysCmd, req, nil).(*resp)
+	rsp := s.Req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
@@ -71,17 +78,15 @@ func (s *apiSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	})
 }
 
-func (s *apiSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
-	s.daemon(c)
+func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
+	s.Daemon(c)
 	mockSystemRecoveryKeys(c)
 
-	req, err := http.NewRequest("GET", "/v2/system-recovery-key", nil)
+	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rec := httptest.NewRecorder()
-	systemsActionCmd.ServeHTTP(rec, req)
-
-	systemRecoveryKeysCmd.ServeHTTP(rec, req)
+	s.ServeHTTP(c, rec, req)
 	c.Assert(rec.Code, Equals, 401)
 }

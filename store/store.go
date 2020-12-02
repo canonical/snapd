@@ -69,7 +69,7 @@ const (
 // Timeout value
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 350 * time.Millisecond,
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))

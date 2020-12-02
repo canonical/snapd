@@ -124,12 +124,8 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	cmdline, err := ComposeCandidateCommandLine(model)
-	if err != nil {
-		return fmt.Errorf("cannot compose the candidate command line: %v", err)
-	}
 
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string(modeenv.CurrentKernelCommandLines))
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -309,7 +305,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		return fmt.Errorf("cannot compose the run mode command line: %v", err)
 	}
 
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string{cmdline})
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -470,7 +466,7 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdlines []string) ([]bootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
@@ -504,7 +500,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 			AssetChain:     assetChain,
 			Kernel:         info.SnapName(),
 			KernelRevision: kernelRev,
-			KernelCmdlines: []string{cmdline},
+			KernelCmdlines: cmdlines,
 			model:          model,
 			kernelBootFile: kbf,
 		})
