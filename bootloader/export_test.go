@@ -102,11 +102,8 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		}
 	}
 
-	l := &lk{
-		rootdir:          rootdir,
-		prepareImageTime: opts.PrepareImageTime,
-		role:             opts.Role,
-	}
+	l := &lk{rootdir: rootdir}
+	l.processOpts(opts)
 
 	var version lkenv.Version
 	switch opts.Role {
@@ -164,14 +161,14 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 	c.Assert(err, IsNil)
 
 	// now write env in it with correct crc
-	env := lkenv.NewEnv(f, version)
+	env := lkenv.NewEnv(f, "", version)
 	env.InitializeBootPartitions("boot_a", "boot_b")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	// also make the empty files for the boot_a and boot_b partitions for uc20
-	// roles
+	// also make the empty files for the boot_a and boot_b partitions
 	if opts.Role == RoleRunMode || opts.Role == RoleRecovery {
+		// for uc20 roles we need to mock the files in /dev/disk/by-partuuid
 		for _, label := range []string{"boot_a", "boot_b"} {
 			disk, err := disks.DiskFromDeviceName("lk-boot-disk")
 			c.Assert(err, IsNil)
@@ -180,6 +177,15 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 			bootFile := filepath.Join(rootdir, "/dev/disk/by-partuuid", partUUID)
 			c.Assert(os.MkdirAll(filepath.Dir(bootFile), 0755), IsNil)
 			c.Assert(ioutil.WriteFile(bootFile, nil, 0755), IsNil)
+		}
+	} else {
+		// for non-uc20 roles just mock the files in /dev/disk/by-partlabel
+		for _, partName := range []string{"boot_a", "boot_b"} {
+			mockPart := filepath.Join(rootdir, "/dev/disk/by-partlabel/", partName)
+			err := os.MkdirAll(filepath.Dir(mockPart), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(mockPart, nil, 0600)
+			c.Assert(err, IsNil)
 		}
 	}
 	return func() {

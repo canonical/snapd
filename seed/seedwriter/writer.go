@@ -252,7 +252,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
-		treeImpl = &tree20{opts: opts}
+		treeImpl = &tree20{grade: model.Grade(), opts: opts}
 	} else {
 		pol = &policy16{model: model, opts: opts, warningf: w.warningf}
 		treeImpl = &tree16{opts: opts}
@@ -924,8 +924,6 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 	if err := w.checkStep(downloadedStep); err != nil {
 		return false, err
 	}
-
-	// TODO: w.policy.resetChecks()
 
 	var considered []*SeedSnap
 	switch w.toDownload {

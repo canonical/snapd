@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,17 +20,13 @@
 package daemon
 
 import (
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) error) (restore func()) {
-	old := deviceManagerReboot
-	deviceManagerReboot = f
+func MockCtlcmdRun(mock func(*hookstate.Context, []string, uint32) ([]byte, []byte, error)) (restore func()) {
+	oldCtlcmdRun := ctlcmdRun
+	ctlcmdRun = mock
 	return func() {
-		deviceManagerReboot = old
+		ctlcmdRun = oldCtlcmdRun
 	}
 }
-
-type (
-	SystemsResponse = systemsResponse
-)

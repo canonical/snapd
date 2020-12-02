@@ -110,11 +110,6 @@ type Bootloader interface {
 	RemoveKernelAssets(s snap.PlaceInfo) error
 }
 
-type installableBootloader interface {
-	Bootloader
-	setRootDir(string)
-}
-
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error

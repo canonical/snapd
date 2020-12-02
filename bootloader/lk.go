@@ -76,10 +76,6 @@ func newLk(rootdir string, opts *Options) Bootloader {
 	return l
 }
 
-func (l *lk) setRootDir(rootdir string) {
-	l.rootdir = rootdir
-}
-
 func (l *lk) Name() string {
 	return "lk"
 }
@@ -270,7 +266,7 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lkenv.NewEnv(f, version), nil
+	return lkenv.NewEnv(f, "", version), nil
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
@@ -358,9 +354,11 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	if err != nil {
 		return err
 	}
-	// if we couldn't find the env, that's okay, as this may be the first thing
-	// to initialize the env when we add the kernel asset there
-	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
+	// don't handle os.ErrNotExist here, since we need to have boot image
+	// partition labels set in the  env file before we can extract a kernel
+	// asset to a specific boot image partition, so if we don't have the
+	// file then we should fail
+	if err := env.Load(); err != nil {
 		return err
 	}
 
@@ -430,6 +428,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
 	logger.Debugf("RemoveKernelAssets (%s)", blobName)
+
 	env, err := l.newenv()
 	if err != nil {
 		return err

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1391,4 +1391,82 @@ func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
 	// id2 cleaned
 	c.Check(snapshotFiles[2][0], testutil.FileAbsent)
 	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
+}
+
+func (s *snapshotSuite) TestCleanupAbandondedImportsFailMany(c *check.C) {
+	restore := backend.MockFilepathGlob(func(string) ([]string, error) {
+		return []string{
+			"/var/lib/snapd/snapshots/NaN_importing",
+			"/var/lib/snapd/snapshots/11_importing",
+			"/var/lib/snapd/snapshots/22_importing",
+		}, nil
+	})
+	defer restore()
+
+	_, err := backend.CleanupAbandondedImports()
+	c.Assert(err, check.ErrorMatches, `cannot cleanup imports:
+- cannot determine snapshot id from "/var/lib/snapd/snapshots/NaN_importing"
+- cannot cancel import for set id 11:
+ - remove /.*/var/lib/snapd/snapshots/11_importing: no such file or directory
+- cannot cancel import for set id 22:
+ - remove /.*/var/lib/snapd/snapshots/22_importing: no such file or directory`)
+}
+
+func (s *snapshotSuite) TestMultiError(c *check.C) {
+	me2 := backend.NewMultiError("deeper nested wrongness", []error{
+		fmt.Errorf("some error in level 2"),
+	})
+	me1 := backend.NewMultiError("nested wrongness", []error{
+		fmt.Errorf("some error in level 1"),
+		me2,
+		fmt.Errorf("other error in level 1"),
+	})
+	me := backend.NewMultiError("many things went wrong", []error{
+		fmt.Errorf("some normal error"),
+		me1,
+	})
+
+	c.Check(me, check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+
+	// do it again
+	c.Check(me, check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+}
+
+func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
+	errs := []error{nil, fmt.Errorf("e5")}
+	me5 := backend.NewMultiError("he5", errs)
+	// very hard to happen in practice
+	errs[0] = me5
+	me4 := backend.NewMultiError("he4", []error{me5})
+	me3 := backend.NewMultiError("he3", []error{me4})
+	me2 := backend.NewMultiError("he3", []error{me3})
+	me1 := backend.NewMultiError("he1", []error{me2})
+	me := backend.NewMultiError("he", []error{me1})
+
+	c.Check(me, check.ErrorMatches, `he:
+- he1:
+ - he3:
+  - he3:
+   - he4:
+    - he5:
+     - he5:
+      - he5:
+       - he5:
+        - circular or too deep error nesting \(max 8\)\?!
+        - e5
+       - e5
+      - e5
+     - e5`)
 }

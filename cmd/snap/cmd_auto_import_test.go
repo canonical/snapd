@@ -512,6 +512,9 @@ func (s *SnapSuite) TestAutoImportAssertsManagedEmptyReply(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	_, restore = logger.MockLogger()
+	defer restore()
+
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0

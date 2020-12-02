@@ -54,14 +54,10 @@ func (pol *policy20) allowsDangerousFeatures() error {
 }
 
 func (pol *policy20) checkDefaultChannel(channel.Channel) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
@@ -76,8 +72,9 @@ func (pol *policy20) modelSnapDefaultChannel() string {
 }
 
 func (pol *policy20) extraSnapDefaultChannel() string {
-	// We will use latest/stable as default
-	// TODO: consider using just "stable" for these?
+	// We will use latest/stable as default for consistency with
+	// model snaps, this means not taking into account default-tracks
+	// by default
 	return "latest/stable"
 }
 
@@ -145,7 +142,8 @@ func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSn
 }
 
 type tree20 struct {
-	opts *Options
+	grade asserts.ModelGrade
+	opts  *Options
 
 	snapsDirPath string
 	systemDir    string
@@ -344,7 +342,9 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	}
 
 	if len(optionsSnaps) != 0 {
-		// XXX internal error if we get here and grade != dangerous
+		if tr.grade != asserts.ModelDangerous {
+			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
 		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {
 			return err

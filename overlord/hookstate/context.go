@@ -137,6 +137,28 @@ func (c *Context) writing() {
 	}
 }
 
+func (c *Context) initForRun(handler Handler, contextData map[string]interface{}) error {
+	c.handler = handler
+	if contextData == nil {
+		return nil
+	}
+
+	if !c.IsEphemeral() {
+		return fmt.Errorf("internal error: cannot pass contextData to initForRun for %v", c)
+	}
+
+	serialized, err := json.Marshal(contextData)
+	if err != nil {
+		return err
+	}
+	var data map[string]*json.RawMessage
+	if err := json.Unmarshal(serialized, &data); err != nil {
+		return err
+	}
+	c.cache["ephemeral-context"] = data
+	return nil
+}
+
 // Set associates value with key. The provided value must properly marshal and
 // unmarshal with encoding/json. Note that the context needs to be locked and
 // unlocked by the caller.

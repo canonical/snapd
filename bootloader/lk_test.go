@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
@@ -263,7 +264,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	// first configure custom boot image file name
 	f, err := bootloader.LkConfigFile(l)
 	c.Assert(err, IsNil)
-	env := lkenv.NewEnv(f, lkenv.V1)
+	env := lkenv.NewEnv(f, "", lkenv.V1)
 	env.Load()
 	env.Set("bootimg_file_name", "boot-2.img")
 	err = env.Save()
@@ -298,29 +299,23 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
 	opts := &bootloader.Options{
 		Role: bootloader.RoleSole,
 	}
-	r := bootloader.MockLkFiles(c, s.rootdir, opts)
+	r = bootloader.MockLkFiles(c, s.rootdir, opts)
 	defer r()
 	lk := bootloader.NewLk(s.rootdir, opts)
 	c.Assert(lk, NotNil)
 
-	// create mock bootsel, boot_a, boot_b partitions
-	for _, partName := range []string{"snapbootsel", "boot_a", "boot_b"} {
-		mockPart := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/", partName)
-		err := os.MkdirAll(filepath.Dir(mockPart), 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(mockPart, nil, 0600)
-		c.Assert(err, IsNil)
-	}
 	// ensure we have a valid boot env
 	// TODO: this will follow the same logic as RoleRunMode eventually
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
-	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V1)
-	lkenv.InitializeBootPartitions("boot_a", "boot_b")
-	err := lkenv.Save()
-	c.Assert(err, IsNil)
+	lkenv := lkenv.NewEnv(bootselPartition, "", lkenv.V1)
+
+	// don't need to initialize this env, the same file will already have been
+	// setup by MockLkFiles()
 
 	// mock a kernel snap that has a boot.img
 	files := [][]string{
@@ -369,13 +364,18 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
 	c.Assert(bootPart, Equals, "")
+
+	c.Assert(logbuf.String(), Equals, "")
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,
 	}
-	r := bootloader.MockLkFiles(c, s.rootdir, opts)
+	r = bootloader.MockLkFiles(c, s.rootdir, opts)
 	defer r()
 	lk := bootloader.NewLk(s.rootdir, opts)
 	c.Assert(lk, NotNil)
@@ -390,7 +390,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	partuuid, err := disk.FindMatchingPartitionUUIDWithPartLabel("snapbootsel")
 	c.Assert(err, IsNil)
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", partuuid)
-	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V2Run)
+	lkenv := lkenv.NewEnv(bootselPartition, "", lkenv.V2Run)
 
 	lkenv.InitializeBootPartitions("boot_a", "boot_b")
 	err = lkenv.Save()
@@ -448,4 +448,6 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
 	c.Assert(bootPart, Equals, "")
+
+	c.Assert(logbuf.String(), Equals, "")
 }
