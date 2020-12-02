@@ -121,7 +121,6 @@ func (pol *policy16) needsImplicitSnaps(availableByMode map[string]*naming.SnapS
 	hasCore := availableSnaps.Contains(naming.Snap("core"))
 	if len(pol.needsCore) != 0 && !hasCore {
 		if pol.model.Base() != "" {
-			// TODO: later turn this into an error? for sure for UC20
 			pol.warningf("model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended", pol.model.Base(), strutil.Quoted(pol.needsCore))
 		}
 		return true, nil
