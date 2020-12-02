@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -476,7 +476,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
-// multiError is a helper to handle mutliple errors.
+// multiError collects multiple errors that affected an operation.
 type multiError struct {
 	header string
 	errs   []error
@@ -484,7 +484,7 @@ type multiError struct {
 
 // newMultiError returns a new multiError struct initialized with
 // the given format string that explains what operation potentially
-// want wrong. multiError can be nested and will render correctly
+// went wrong. multiError can be nested and will render correctly
 // in these cases.
 func newMultiError(header string, errs []error) error {
 	return &multiError{header: header, errs: errs}
@@ -499,8 +499,8 @@ func (me *multiError) Error() string {
 func (me *multiError) nestedError(level int) string {
 	indent := strings.Repeat(" ", level)
 	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
-	if level > 5 {
-		return "cannot nest multi errors deeper than 5 levels"
+	if level > 8 {
+		return "circular or too deep error nesting (max 8)?!"
 	}
 	for i, err := range me.errs {
 		switch v := err.(type) {

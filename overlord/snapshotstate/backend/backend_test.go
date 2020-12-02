@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1445,8 +1445,10 @@ func (s *snapshotSuite) TestMultiError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
-	me6 := backend.NewMultiError("he6", []error{fmt.Errorf("e6")})
-	me5 := backend.NewMultiError("he5", []error{me6, fmt.Errorf("e5")})
+	errs := []error{nil, fmt.Errorf("e5")}
+	me5 := backend.NewMultiError("he5", errs)
+	// very hard to happen in practice
+	errs[0] = me5
 	me4 := backend.NewMultiError("he4", []error{me5})
 	me3 := backend.NewMultiError("he3", []error{me4})
 	me2 := backend.NewMultiError("he3", []error{me3})
@@ -1459,6 +1461,12 @@ func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
   - he3:
    - he4:
     - he5:
-     - cannot nest multi errors deeper than 5 levels
+     - he5:
+      - he5:
+       - he5:
+        - circular or too deep error nesting \(max 8\)\?!
+        - e5
+       - e5
+      - e5
      - e5`)
 }
