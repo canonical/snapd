@@ -865,6 +865,7 @@ type AppInfo struct {
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
+	InstallMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

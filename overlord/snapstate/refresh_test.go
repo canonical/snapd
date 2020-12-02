@@ -20,6 +20,10 @@
 package snapstate_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -145,6 +149,26 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 }
 
+func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
+	err := snapstate.NewBusySnapError(s.info, nil, nil, nil)
+	refreshInfo := err.PendingSnapRefreshInfo()
+	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
+	// The information about a busy app is not populated because
+	// the original error did not have the corresponding information.
+	c.Check(refreshInfo.BusyAppName, Equals, "")
+	c.Check(refreshInfo.BusyAppDesktopEntry, Equals, "")
+
+	// If we create a matching desktop entry then relevant meta-data is added.
+	err = snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil)
+	desktopFile := s.info.Apps["app"].DesktopFile()
+	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(desktopFile, nil, 0644), IsNil)
+	refreshInfo = err.PendingSnapRefreshInfo()
+	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
+	c.Check(refreshInfo.BusyAppName, Equals, "app")
+	c.Check(refreshInfo.BusyAppDesktopEntry, Equals, "pkg_app")
+}
+
 func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate.SnapState, *snap.Info) {
 	snapName := snapst.Sequence[0].RealName
 	snapstate.Set(s.state, snapName, snapst)
@@ -194,7 +218,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-		return &snapstate.BusySnapError{SnapName: info.InstanceName()}
+		return &snapstate.BusySnapError{SnapInfo: info}
 	})
 	defer restore()
 
@@ -245,7 +269,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-		return &snapstate.BusySnapError{SnapName: info.InstanceName()}
+		return &snapstate.BusySnapError{SnapInfo: info}
 	})
 	defer restore()
 

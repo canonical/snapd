@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget/edition"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -52,8 +52,20 @@ const (
 	SystemSeed = "system-seed"
 	SystemSave = "system-save"
 
-	bootImage  = "system-boot-image"
+	// extracted kernels for all uc systems
+	bootImage = "system-boot-image"
+
+	// extracted kernels for recovery kernels for uc20 specifically
+	seedBootImage = "system-seed-image"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting normal run mode on uc20 and all modes on
+	// uc16 and uc18
 	bootSelect = "system-boot-select"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting recovery systems on uc20, i.e. recover or install
+	seedBootSelect = "system-seed-select"
 
 	// implicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
@@ -108,13 +120,13 @@ type VolumeStructure struct {
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset *Size `yaml:"offset"`
+	Offset *quantity.Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
 	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the structure
-	Size Size `yaml:"size"`
+	Size quantity.Size `yaml:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
 	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
 	// partitioning schemes, or 'bare' when the structure is not considered
@@ -125,7 +137,7 @@ type VolumeStructure struct {
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of
 	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
-	// 'system-boot-select'. Structures of type 'mbr', must have a
+	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -187,14 +199,14 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset *Size `yaml:"offset"`
+	Offset *quantity.Size `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
 	OffsetWrite *RelativeOffset `yaml:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
-	Size Size `yaml:"size"`
+	Size quantity.Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
 }
@@ -425,12 +437,15 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	state := &validationState{}
-	previousEnd := Size(0)
+	previousEnd := quantity.Size(0)
+	// TODO: should we also validate that if there is a system-recovery-select
+	// role there should also be at least 2 system-recovery-image roles and
+	// same for system-boot-select and at least 2 system-boot-image roles?
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start Size
+		var start quantity.Size
 		if s.Offset != nil {
 			start = *s.Offset
 		} else {
@@ -517,6 +532,10 @@ func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 }
 
 func ensureVolumeConsistencyWithConstraints(state *validationState, model Model) error {
+	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
+	//       roles too? they should only be used on uc20 systems, so models that
+	//       have a grade set and are not classic
+
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
 		if wantsSystemSeed(model) {
@@ -579,7 +598,7 @@ func ensureSystemSaveConsistency(state *validationState) error {
 }
 
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
-	previousEnd := Size(0)
+	previousEnd := quantity.Size(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
@@ -787,7 +806,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, bootImage, bootSelect, "":
+	case SystemBoot, bootImage, bootSelect, seedBootSelect, seedBootImage, "":
 		// noop
 	case legacyBootImage, legacyBootSelect:
 		// noop
@@ -834,90 +853,13 @@ func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
 	return nil
 }
 
-// Size describes the size of a structure item or an offset within the
-// structure.
-type Size uint64
-
 const (
-	SizeKiB = Size(1 << 10)
-	SizeMiB = Size(1 << 20)
-	SizeGiB = Size(1 << 30)
-
 	// SizeMBR is the maximum byte size of a structure of role 'mbr'
-	SizeMBR = Size(446)
+	SizeMBR = quantity.Size(446)
 	// SizeLBA48Pointer is the byte size of a pointer value written at the
 	// location described by 'offset-write'
-	SizeLBA48Pointer = Size(4)
+	SizeLBA48Pointer = quantity.Size(4)
 )
-
-func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var gs string
-	if err := unmarshal(&gs); err != nil {
-		return errors.New(`cannot unmarshal gadget size`)
-	}
-
-	var err error
-	*s, err = parseSize(gs)
-	if err != nil {
-		return fmt.Errorf("cannot parse size %q: %v", gs, err)
-	}
-	return err
-}
-
-// parseSize parses a string expressing size in gadget declaration. The
-// accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
-func parseSize(gs string) (Size, error) {
-	number, unit, err := strutil.SplitUnit(gs)
-	if err != nil {
-		return 0, err
-	}
-	if number < 0 {
-		return 0, errors.New("size cannot be negative")
-	}
-	var size Size
-	switch unit {
-	case "M":
-		// MiB
-		size = Size(number) * SizeMiB
-	case "G":
-		// GiB
-		size = Size(number) * SizeGiB
-	case "":
-		// straight bytes
-		size = Size(number)
-	default:
-		return 0, fmt.Errorf("invalid suffix %q", unit)
-	}
-	return size, nil
-}
-
-func (s *Size) String() string {
-	if s == nil {
-		return "unspecified"
-	}
-	return fmt.Sprintf("%d", *s)
-}
-
-// IECString formats the size using multiples from IEC units (i.e. kibibytes,
-// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
-// decimal points.
-func (s *Size) IECString() string {
-	maxFloat := float64(1023.5)
-	r := float64(*s)
-	unit := "B"
-	for _, rangeUnit := range []string{"KiB", "MiB", "GiB", "TiB", "PiB"} {
-		if r < maxFloat {
-			break
-		}
-		r /= 1024
-		unit = rangeUnit
-	}
-	precision := 0
-	if math.Floor(r) != r {
-		precision = 2
-	}
-	return fmt.Sprintf("%.*f %s", precision, r, unit)
-}
 
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
@@ -927,7 +869,7 @@ type RelativeOffset struct {
 	// address write will be calculated.
 	RelativeTo string
 	// Offset is a 32-bit value
-	Offset Size
+	Offset quantity.Size
 }
 
 func (r *RelativeOffset) String() string {
@@ -955,11 +897,11 @@ func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := parseSize(sizeSpec)
+	size, err := quantity.ParseSize(sizeSpec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
-	if size > 4*SizeGiB {
+	if size > 4*quantity.SizeGiB {
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
@@ -1020,12 +962,6 @@ func IsCompatible(current, new *Info) error {
 // PositionedVolumeFromGadget takes a gadget rootdir and positions the
 // partitions as specified.
 func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	// TODO:UC20: since this is unconstrained via the model, it returns an
-	//            err == nil and an empty info when the gadgetRoot does not
-	//            actually contain the required gadget.yaml file (for example
-	//            when you have a typo in the args to snap-bootstrap
-	//            create-partitions). anyways just verify this more because
-	//            otherwise it's unhelpful :-/
 	info, err := ReadInfo(gadgetRoot, nil)
 	if err != nil {
 		return nil, err
@@ -1036,7 +972,7 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 	}
 
 	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        512,
 	}
 

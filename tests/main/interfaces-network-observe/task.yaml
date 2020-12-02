@@ -1,6 +1,7 @@
 summary: Ensure that the network-observe interface works
 
-systems: [-fedora-*, -opensuse-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
 
 details: |
     The network-observe interface allows a snap to query the network status information.
@@ -14,7 +15,6 @@ details: |
 
 environment:
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
 
 prepare: |
@@ -24,14 +24,10 @@ prepare: |
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    systemctl stop "$SERVICE_NAME"
 
 execute: |
     echo "The interface is disconnected by default"
