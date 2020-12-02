@@ -202,7 +202,7 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if os.query is-fedora; then
         # Fedora images we use come with a number of preinstalled package, among
         # them gtk3. Those packages are needed to run the tests. The
         # xdg-desktop-portal-gtk package uses this in the spec:
@@ -449,7 +449,7 @@ distro_install_build_snapd(){
 
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
+        if os.query is-trusty && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
     elif [ -n "$PPA_VALIDATION_NAME" ]; then
@@ -509,7 +509,7 @@ distro_install_build_snapd(){
                 ;;
         esac
 
-        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        if os.query is-arch; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
