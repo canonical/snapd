@@ -196,15 +196,15 @@ func copyString(b []byte, s string) {
 // is expected to be a valid lkenv object, then the object should be loaded with
 // the Load() method, otherwise the lkenv object can be manipulated in memory
 // and later written to disk with Save().
-func NewEnv(path, backuppath string, version Version) *Env {
-	if backuppath == "" {
+func NewEnv(path, backupPath string, version Version) *Env {
+	if backupPath == "" {
 		// legacy behavior is for the backup file to be the same name/dir, but
 		// with "bak" appended to it
-		backuppath = path + "bak"
+		backupPath = path + "bak"
 	}
 	e := &Env{
 		path:    path,
-		pathbak: backuppath,
+		pathbak: backupPath,
 		version: version,
 	}
 
