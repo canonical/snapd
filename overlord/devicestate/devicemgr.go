@@ -1443,7 +1443,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookPara
 	err = context.Get("fde-setup-result", &hookResult)
 	context.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get sealed key result in fde-setup-hook %s: %v", op, err)
+		return nil, fmt.Errorf("cannot get fde-setup-hook result for %s: %v", op, err)
 	}
 
 	return hookResult, nil
