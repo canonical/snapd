@@ -60,7 +60,7 @@ func init() {
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<validation-set>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account/name[=seq]"),
+		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account-id/name[=seq]"),
 	}})
 	// XXX: remove once api has landed
 	cmd.hidden = true
@@ -86,7 +86,7 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 	account = parts[0]
 	name = parts[1]
 	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account name %q", account)
+		return "", "", 0, fmt.Errorf("invalid account ID name %q", account)
 	}
 	if !asserts.IsValidValidationSetName(name) {
 		return "", "", 0, fmt.Errorf("invalid name %q", name)
@@ -125,11 +125,11 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		return fmt.Errorf("missing validation set argument")
 	}
 
-	var account, name string
+	var accountID, name string
 	var seq int
 	var err error
 	if cmd.Positional.ValidationSet != "" {
-		account, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
+		accountID, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
 		if err != nil {
 			return fmt.Errorf("cannot parse validation set %q: %v", cmd.Positional.ValidationSet, err)
 		}
@@ -138,14 +138,14 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	if action != "" {
 		// forget
 		if cmd.Forget {
-			return cmd.client.ForgetValidationSet(account, name, seq)
+			return cmd.client.ForgetValidationSet(accountID, name, seq)
 		}
 		// apply
 		opts := &client.ValidateApplyOptions{
 			Mode:     action,
 			Sequence: seq,
 		}
-		return cmd.client.ApplyValidationSet(account, name, opts)
+		return cmd.client.ApplyValidationSet(accountID, name, opts)
 	}
 
 	// no validation set argument, print list with extended info
@@ -179,7 +179,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		}
 		w.Flush()
 	} else {
-		vset, err := cmd.client.ValidationSet(account, name, seq)
+		vset, err := cmd.client.ValidationSet(accountID, name, seq)
 		if err != nil {
 			return err
 		}
