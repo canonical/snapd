@@ -1393,9 +1393,23 @@ func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
 }
 
 func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookParams) ([]byte, error) {
+	st := m.state
+
+	st.Lock()
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	st.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	st.Lock()
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	st.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
 	hooksup := &hookstate.HookSetup{
-		Snap:     params.KernelInfo.InstanceName(),
-		Revision: params.KernelInfo.Revision,
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
 		Hook:     "fde-setup",
 		// XXX: should this be configurable somehow?
 		Timeout: 5 * time.Minute,

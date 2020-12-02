@@ -63,8 +63,7 @@ type FdeSetupHookParams struct {
 	Key     *secboot.EncryptionKey
 	KeyName string
 
-	KernelInfo *snap.Info
-	Model      *asserts.Model
+	Model *asserts.Model
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
