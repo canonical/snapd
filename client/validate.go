@@ -67,7 +67,8 @@ func (client *Client) ForgetValidationSet(account, name string, sequence int) er
 	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot forget validation set: %w", err)
+		fmt := "cannot forget validation set: %w"
+		return xerrors.Errorf(fmt, err)
 	}
 	return nil
 }
@@ -90,7 +91,8 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot apply validation set: %w", err)
+		fmt := "cannot apply validation set: %w"
+		return xerrors.Errorf(fmt, err)
 	}
 	return nil
 }
@@ -99,7 +101,8 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
 	if _, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res); err != nil {
-		return nil, xerrors.Errorf("cannot list validation sets: %w", err)
+		fmt := "cannot list validation sets: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	return res, nil
 }
@@ -118,7 +121,8 @@ func (client *Client) ValidationSet(account, name string, sequence int) (*Valida
 	var res *ValidationSetResult
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
 	if _, err := client.doSync("GET", path, q, nil, nil, &res); err != nil {
-		return nil, xerrors.Errorf("cannot query validation set: %w", err)
+		fmt := "cannot query validation set: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	return res, nil
 }
