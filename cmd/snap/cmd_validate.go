@@ -98,9 +98,9 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 func fmtValid(res *client.ValidationSetResult) string {
 	if res.Valid {
-		return fmt.Sprintf("valid")
+		return fmt.Sprint("valid")
 	}
-	return fmt.Sprintf("invalid")
+	return fmt.Sprint("invalid")
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
@@ -156,6 +156,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			return err
 		}
 		if len(vsets) == 0 {
+			fmt.Fprintln(Stderr, i18n.G("No validations are available"))
 			return nil
 		}
 
@@ -178,8 +179,6 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			fmt.Fprintln(w, strings.Join(line, "\t"))
 		}
 		w.Flush()
-		fmt.Fprintln(Stdout)
-
 	} else {
 		vset, err := cmd.client.ValidationSet(account, name, seq)
 		if err != nil {

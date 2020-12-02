@@ -43,7 +43,7 @@ type ValidationSetResult struct {
 	// TODO: flags/states for notes column
 }
 
-type postData struct {
+type postValidationSetData struct {
 	Action   string `json:"action"`
 	Mode     string `json:"mode,omitempty"`
 	Sequence int    `json:"sequence,omitempty"`
@@ -56,7 +56,7 @@ func (client *Client) ForgetValidationSet(account, name string, sequence int) er
 		return xerrors.Errorf("cannot forget validation set without account and name")
 	}
 
-	data := &postData{
+	data := &postValidationSetData{
 		Action:   "forget",
 		Sequence: sequence,
 	}
@@ -78,7 +78,7 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 		return xerrors.Errorf("cannot apply validation set without account and name")
 	}
 
-	data := &postData{
+	data := &postValidationSetData{
 		Action:   "apply",
 		Mode:     opts.Mode,
 		Sequence: opts.Sequence,
@@ -98,8 +98,7 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 // ListValidationsSets queries all validation sets.
 func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
-	_, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res)
-	if err != nil {
+	if _, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res); err != nil {
 		return nil, xerrors.Errorf("cannot list validation sets: %v", err)
 	}
 	return res, nil
@@ -118,8 +117,7 @@ func (client *Client) ValidationSet(account, name string, sequence int) (*Valida
 
 	var res *ValidationSetResult
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
-	_, err := client.doSync("GET", path, q, nil, nil, &res)
-	if err != nil {
+	if _, err := client.doSync("GET", path, q, nil, nil, &res); err != nil {
 		return nil, xerrors.Errorf("cannot query validation set: %v", err)
 	}
 	return res, nil
