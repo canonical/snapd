@@ -106,6 +106,7 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 		{[]string{"--enforce"}, `missing validation set argument`},
 		{[]string{"--monitor"}, `missing validation set argument`},
 		{[]string{"--forget"}, `missing validation set argument`},
+		{[]string{"--forget", "foo/-"}, `cannot parse validation set "foo/-": invalid validation set name "-"`},
 	} {
 		s.stdout.Reset()
 		s.stderr.Reset()
