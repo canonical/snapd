@@ -196,7 +196,7 @@ func observeSuccessfulCommandLine(model *asserts.Model, m *Modeenv) (*Modeenv, e
 // observeSuccessfulCommandLineUpdate observes a successful boot with a command
 // line which is expected to be listed among the current kernel command line
 // entries carried in the modeenv. One of those entries must match the current
-// kernel command line of a running system.
+// kernel command line of a running system and will be recorded alone as in use.
 func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 	newM, err := m.Copy()
 	if err != nil {
@@ -209,7 +209,7 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 		return nil, err
 	}
 	if !strutil.ListContains([]string(m.CurrentKernelCommandLines), cmdlineBootedWith) {
-		return nil, fmt.Errorf("internal error: current command line content %q not matching any expected entry",
+		return nil, fmt.Errorf("current command line content %q not matching any expected entry",
 			cmdlineBootedWith)
 	}
 	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineBootedWith}

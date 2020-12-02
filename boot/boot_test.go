@@ -2678,7 +2678,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
-	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: internal error: current command line content "snapd_recovery_mode=run different" not matching any expected entry`)
+	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: current command line content "snapd_recovery_mode=run different" not matching any expected entry`)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBootSuccessful(c *C) {
