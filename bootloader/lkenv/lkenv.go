@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+	"regexp"
+	"runtime"
 
 	"golang.org/x/xerrors"
 
@@ -227,6 +229,23 @@ func (l *Env) Load() error {
 	return nil
 }
 
+type compatErrNotExist struct {
+	err error
+}
+
+func (e compatErrNotExist) Error() string {
+	return e.err.Error()
+}
+
+func (e compatErrNotExist) Unwrap() error {
+	// for go 1.9 xerrors compatibility
+	go1_9Regex := regexp.MustCompile(`go1\.9(\.[0-9]+){0,1}$`)
+	if go1_9Regex.MatchString(runtime.Version()) {
+		return os.ErrNotExist
+	}
+	return e.err
+}
+
 // LoadEnv loads the lk bootloader environment from the specified file. The
 // bootloader environment in the referenced file must be of the same version
 // that the Env object was created with using NewEnv.
@@ -235,6 +254,14 @@ func (l *Env) Load() error {
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
+		// XXX: when we drop support for Go 1.9, this code can go away, in Go
+		//      1.9 *os.PathError does not implement Unwrap(), and so trying to
+		//      call xerrors.Is(err,os.ErrNotExist) will fail, so instead we do
+		//      our own wrapping first such that when Unwrap() is called by
+		//      xerrors.Is() it will see os.ErrNotExist directly
+		if os.IsNotExist(err) {
+			err = compatErrNotExist{err: err}
+		}
 		fmtStr := "cannot open LK env file: %w"
 		return xerrors.Errorf(fmtStr, err)
 	}
