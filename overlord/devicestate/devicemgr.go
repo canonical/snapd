@@ -1436,7 +1436,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookPara
 	defer st.Lock()
 	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
 	if err != nil {
-		return nil, fmt.Errorf("cannot run fde-setup hook for %s: %v", op, err)
+		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
 	}
 	// the hook is expected to call "snapctl fde-setup-result" which
 	// wil set the "fde-setup-result" value on the task
@@ -1445,7 +1445,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookPara
 	err = context.Get("fde-setup-result", &hookResult)
 	context.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get fde-setup-hook result for %s: %v", op, err)
+		return nil, fmt.Errorf("cannot get result from %q: %v", op, err)
 	}
 
 	return hookResult, nil

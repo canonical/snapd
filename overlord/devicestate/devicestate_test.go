@@ -1376,6 +1376,43 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	c.Check(hookCalled, DeepEquals, []string{"pc-kernel"})
 }
 
+func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
+	st := s.state
+
+	st.Lock()
+	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	st.Unlock()
+
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
+	}
+
+	rhk := hookstate.MockRunHook(hookInvoke)
+	defer rhk()
+
+	s.o.Loop()
+	defer s.o.Stop()
+
+	params := &boot.FdeSetupHookParams{
+		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		KeyName: "some-key-name",
+		Model:   mockModel,
+	}
+	st.Lock()
+	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	st.Unlock()
+	c.Assert(err, ErrorMatches, `cannot run hook for "initial-setup": run hook "fde-setup": hook failed`)
+}
+
 type startOfOperationTimeSuite struct {
 	state  *state.State
 	mgr    *devicestate.DeviceManager
