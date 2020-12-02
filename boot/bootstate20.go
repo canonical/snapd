@@ -741,14 +741,7 @@ func (ba20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (boot
 		return update, nil
 	}
 
-	var newM *Modeenv
-	if len(u20.modeenv.CurrentKernelCommandLines) == 0 {
-		// no command lines tracked in modeenv yet, this can happen when
-		// having booted with a newer snapd
-		newM, err = observeSuccessfulCommandLineCompatBoot(ba20.dev.Model(), u20.writeModeenv)
-	} else {
-		newM, err = observeSuccessfulCommandLine(u20.writeModeenv)
-	}
+	newM, err := observeSuccessfulCommandLine(ba20.dev.Model(), u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)
 	}

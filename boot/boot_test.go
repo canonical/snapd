@@ -2569,13 +2569,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	})
 }
 
-func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, cmdlines boot.BootCommandLines) *boot.Modeenv {
+func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, mode string, cmdlines boot.BootCommandLines) *boot.Modeenv {
 	// mock some state in the cache
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-one"), nil, 0644), IsNil)
 	// a pending kernel command line change
 	m := &boot.Modeenv{
-		Mode:           "run",
+		Mode:           mode,
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -2592,7 +2592,7 @@ func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, cmdlines boo
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run candidate panic=-1")
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
-	m := s.setupMarkBootSuccessful20CommandLine(c, boot.BootCommandLines{
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
 		"snapd_recovery_mode=run panic=-1",
 		"snapd_recovery_mode=run candidate panic=-1",
 	})
@@ -2626,7 +2626,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
-	m := s.setupMarkBootSuccessful20CommandLine(c, boot.BootCommandLines{
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
 		"snapd_recovery_mode=run panic=-1",
 		"snapd_recovery_mode=run candidate panic=-1",
 	})
@@ -2659,7 +2659,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run different")
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
-	m := s.setupMarkBootSuccessful20CommandLine(c, boot.BootCommandLines{
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
 		"snapd_recovery_mode=run",
 		"snapd_recovery_mode=run candidate",
 	})
@@ -2685,7 +2685,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 	tab.StaticCommandLine = "panic=-1"
-	m := s.setupMarkBootSuccessful20CommandLine(c, nil)
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", nil)
 	r := setupUC20Bootenv(
 		c,
 		tab.MockBootloader,
@@ -2716,7 +2716,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1 unexpected")
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 	tab.StaticCommandLine = "panic=-1"
-	m := s.setupMarkBootSuccessful20CommandLine(c, nil)
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", nil)
 	r := setupUC20Bootenv(
 		c,
 		tab.MockBootloader,
@@ -2733,6 +2733,43 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: unexpected current command line: "snapd_recovery_mode=run panic=-1 unexpected"`)
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
+	// recover mode
+	s.mockCmdline(c, "snapd_recovery_mode=recover snapd_recovery_system=1234 panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab.StaticCommandLine = "panic=-1"
+	// current command line does not match any of the run mode command lines
+	m := s.setupMarkBootSuccessful20CommandLine(c, "recover", boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
 }
 
 type recoveryBootenv20Suite struct {
