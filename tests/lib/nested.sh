@@ -885,6 +885,10 @@ nested_start_core_vm_unit() {
             OVMF_VARS="snakeoil"
         fi
 
+        if [ "$NESTED_ENABLE_OVMF" = "true" ]; then
+            PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+        fi
+        
         if [ "$NESTED_ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
