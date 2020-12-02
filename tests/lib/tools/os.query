@@ -1,15 +1,10 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: is-core"
-    echo "       is-core16"
-    echo "       is-core18"
-    echo "       is-core20"
-    echo "       is-classic"
-    echo "       is-trusty"
-    echo "       is-xenial"
-    echo "       is-bionic"
-    echo "       is-focal"
+    echo "usage: is-core, is-classic"
+    echo "       is-core16, is-core18, is-core20"
+    echo "       is-trusty, is-xenial, is-bionic, is-focal"
+    echo "       is-debian, is-fedora, is-amazon-linux, is-arch, is-centos, is-opensuse"
     echo ""
     echo "Get general information about the current system"
 }
@@ -48,6 +43,30 @@ is_bionic() {
 
 is_focal() {
     grep -qFx 'UBUNTU_CODENAME=focal' /etc/os-release
+}
+
+is_debian() {
+    grep -qFx 'ID=debian' /etc/os-release
+}
+
+is_fedora() {
+    grep -qFx 'ID=fedora' /etc/os-release
+}
+
+is_amazon_linux() {
+    grep -qFx 'ID="amzn"' /etc/os-release
+}
+
+is_centos() {
+    grep -qFx 'ID="centos"' /etc/os-release
+}
+
+is_arch() {
+    grep -qFx 'ID=arch' /etc/os-release
+}
+
+is_opensuse() {
+    grep -qFx 'ID="opensuse-leap"' /etc/os-release || grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
 }
 
 main() {
