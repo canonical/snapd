@@ -1368,7 +1368,9 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		KeyName: "some-key-name",
 		Model:   mockModel,
 	}
+	st.Lock()
 	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	st.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "sealed-key")
 	c.Check(hookCalled, DeepEquals, []string{"pc-kernel"})
