@@ -55,10 +55,6 @@ func newLk(rootdir string, opts *Options) Bootloader {
 	return l
 }
 
-func (l *lk) setRootDir(rootdir string) {
-	l.rootdir = rootdir
-}
-
 func (l *lk) Name() string {
 	return "lk"
 }
