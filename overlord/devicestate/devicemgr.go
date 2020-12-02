@@ -69,8 +69,7 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	state *state.State
-
+	state   *state.State
 	hookMgr *hookstate.HookManager
 
 	cachedKeypairMgr asserts.KeypairManager
