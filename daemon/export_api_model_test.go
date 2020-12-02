@@ -20,17 +20,19 @@
 package daemon
 
 import (
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) error) (restore func()) {
-	old := deviceManagerReboot
-	deviceManagerReboot = f
+func MockDevicestateRemodel(mock func(*state.State, *asserts.Model) (*state.Change, error)) (restore func()) {
+	oldDevicestateRemodel := devicestateRemodel
+	devicestateRemodel = mock
 	return func() {
-		deviceManagerReboot = old
+		devicestateRemodel = oldDevicestateRemodel
 	}
 }
 
 type (
-	SystemsResponse = systemsResponse
+	PostModelData   = postModelData
+	ModelAssertJSON = modelAssertJSON
 )
