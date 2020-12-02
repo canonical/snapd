@@ -49,7 +49,7 @@ The validate command lists or applies validations sets
 `)
 
 func init() {
-	addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, colorDescs.also(map[string]string{
+	cmd := addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, colorDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"monitor": i18n.G("Monitor the given validations set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -62,6 +62,8 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account/name[=seq]"),
 	}})
+	// XXX: remove once api has landed
+	cmd.hidden = true
 }
 
 func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
