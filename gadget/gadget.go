@@ -625,8 +625,11 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 
 var (
 	reservedLabels = []string{
-		ubuntuBootLabel, ubuntuSeedLabel,
-		ubuntuDataLabel, ubuntuSaveLabel,
+		// 2020-12-02 disabled because of customer gadget hotfix
+		/*ubuntuBootLabel,*/
+		ubuntuSeedLabel,
+		ubuntuDataLabel,
+		ubuntuSaveLabel,
 	}
 )
 
