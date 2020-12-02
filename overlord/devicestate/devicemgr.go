@@ -1365,6 +1365,7 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
 	st := m.state
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
@@ -1397,7 +1398,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookPara
 	// that we never run this when the kernel is not fully configured
 	// i.e. when there are no security profiles for the hook
 
-	// state is must be locked
+	// state must be locked
 	st := m.state
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)

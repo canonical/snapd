@@ -48,7 +48,8 @@ var (
 )
 
 // Hook functions setup by devicestate to support device-specific full
-// disk encryption implementations.
+// disk encryption implementations. The state much be locked when these
+// functions are called.
 var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
