@@ -245,7 +245,9 @@ func (e compatErrNotExist) Error() string {
 func (e compatErrNotExist) Unwrap() error {
 	// for go 1.9 (and 1.10) xerrors compatibility, we check if os.PathError
 	// implements Unwrap(), and if not return os.ErrNotExist directly
-	if _, ok := e.err.(interface{ Unwrap() error }); !ok {
+	if _, ok := e.err.(interface {
+		Unwrap() error
+	}); !ok {
 		return os.ErrNotExist
 	}
 	return e.err
