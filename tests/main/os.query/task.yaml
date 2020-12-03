@@ -73,7 +73,7 @@ execute: |
             os.query is-opensuse
             ;;
         arch-*)
-            os.query is-arch
+            os.query is-arch-linux
             ;;
         debian-*)
             os.query is-debian

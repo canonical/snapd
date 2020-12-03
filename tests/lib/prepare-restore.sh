@@ -279,7 +279,7 @@ prepare_project() {
 
     distro_update_package_db
 
-    if os.query is-arch; then
+    if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
         if [[ "$SPREAD_REBOOT" == 0 ]]; then

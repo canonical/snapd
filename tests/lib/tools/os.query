@@ -65,7 +65,7 @@ is_centos() {
     grep -qFx 'ID="centos"' /etc/os-release
 }
 
-is_arch() {
+is_arch_linux() {
     grep -qFx 'ID=arch' /etc/os-release
 }
 

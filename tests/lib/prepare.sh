@@ -316,7 +316,7 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
-    if os.query is-arch; then
+    if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
         # inotify watch on that path
