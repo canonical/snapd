@@ -44,16 +44,25 @@ type lk struct {
 	rootdir          string
 	prepareImageTime bool
 
-	// blDisk is what disk the bootloader informed us to use to look for the
-	// bootloader structure partitions
-	blDisk disks.Disk
-
 	// role is what bootloader role we are, which also maps to which version of
 	// the underlying lkenv struct we use for bootenv
 	// * RoleSole == uc16 -> v1
 	// * RoleRecovery == uc20 + recovery -> v2 recovery
 	// * RoleRunMode == uc20 + run -> v2 run
 	role Role
+
+	// blDisk is what disk the bootloader informed us to use to look for the
+	// bootloader structure partitions
+	blDisk disks.Disk
+}
+
+// newLk create a new lk bootloader object
+func newLk(rootdir string, opts *Options) Bootloader {
+	l := &lk{rootdir: rootdir}
+
+	l.processOpts(opts)
+
+	return l
 }
 
 func (l *lk) processOpts(opts *Options) {
@@ -70,15 +79,6 @@ func (l *lk) processOpts(opts *Options) {
 
 		l.role = opts.Role
 	}
-}
-
-// newLk create a new lk bootloader object
-func newLk(rootdir string, opts *Options) Bootloader {
-	l := &lk{rootdir: rootdir}
-
-	l.processOpts(opts)
-
-	return l
 }
 
 func (l *lk) Name() string {
@@ -256,24 +256,6 @@ func (l *lk) devPathForPartName(partName string) (string, bool, error) {
 	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partitionUUID), true, nil
 }
 
-func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
-	out := make(map[string]string)
-
-	env, err := l.newenv()
-	if err != nil {
-		return nil, err
-	}
-	if err := env.Load(); err != nil {
-		return nil, err
-	}
-
-	for _, name := range names {
-		out[name] = env.Get(name)
-	}
-
-	return out, nil
-}
-
 func (l *lk) newenv() (*lkenv.Env, error) {
 	// check which role we are, it affects which struct is used for the env
 	var version lkenv.Version
@@ -296,6 +278,24 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 	}
 
 	return lkenv.NewEnv(f, backup, version), nil
+}
+
+func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
+	out := make(map[string]string)
+
+	env, err := l.newenv()
+	if err != nil {
+		return nil, err
+	}
+	if err := env.Load(); err != nil {
+		return nil, err
+	}
+
+	for _, name := range names {
+		out[name] = env.Get(name)
+	}
+
+	return out, nil
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
