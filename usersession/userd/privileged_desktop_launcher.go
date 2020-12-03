@@ -26,16 +26,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil/shlex"
-	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 const privilegedLauncherIntrospectionXML = `
@@ -258,41 +254,4 @@ func parseExecCommand(exec_command string, icon string) ([]string, error) {
 		}
 	}
 	return args, nil
-}
-
-func (s *PrivilegedDesktopLauncher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender dbus.Sender) *dbus.Error {
-	// godbus transfers ownership of this file descriptor to us
-	fd := int(clientFd)
-	defer syscall.Close(fd)
-
-	filename, err := fdToFilename(fd)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-	dialog, err := ui.New()
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-	answeredYes := dialog.YesNo(
-		i18n.G("Allow opening file?"),
-		fmt.Sprintf(i18n.G("Allow snap %q to open file %q?"), snap, filename),
-		&ui.DialogOptions{
-			Timeout: 5 * 60 * time.Second,
-			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
-		},
-	)
-	if !answeredYes {
-		return dbus.MakeFailedError(fmt.Errorf("permission denied"))
-	}
-
-	if err = exec.Command("xdg-open", filename).Run(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
-	}
-
-	return nil
 }
