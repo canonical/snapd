@@ -1428,7 +1428,6 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 			"signkey-id": params.Model.SignKeyID(),
 		},
 		// TODO: include boot chains
-
 	}
 	contextData := map[string]interface{}{
 		"fde-setup-request": req,
