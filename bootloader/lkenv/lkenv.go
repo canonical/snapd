@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
-	"regexp"
-	"runtime"
 
 	"golang.org/x/xerrors"
 
@@ -245,9 +243,9 @@ func (e compatErrNotExist) Error() string {
 }
 
 func (e compatErrNotExist) Unwrap() error {
-	// for go 1.9 xerrors compatibility
-	go1_9Regex := regexp.MustCompile(`go1\.9(\.[0-9]+){0,1}$`)
-	if go1_9Regex.MatchString(runtime.Version()) {
+	// for go 1.9 (and 1.10) xerrors compatibility, we check if os.PathError
+	// implements Unwrap(), and if not return os.ErrNotExist directly
+	if _, ok := e.err.(interface{ Unwrap() error }); !ok {
 		return os.ErrNotExist
 	}
 	return e.err
@@ -262,10 +260,12 @@ func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		// TODO: when we drop support for Go 1.9, this code can go away, in Go
-		//       1.9 *os.PathError does not implement Unwrap(), and so trying to
-		//       call xerrors.Is(err,os.ErrNotExist) will fail, so instead we do
-		//       our own wrapping first such that when Unwrap() is called by
-		//       xerrors.Is() it will see os.ErrNotExist directly
+		//       1.9 *os.PathError does not implement Unwrap(), and so callers
+		//       that try to call xerrors.Is(err,os.ErrNotExist) will fail, so
+		//       instead we do our own wrapping first such that when Unwrap() is
+		//       called by xerrors.Is() it will see os.ErrNotExist directly when
+		//       compiled with a version of Go that does not implement Unwrap()
+		//       on os.PathError
 		if os.IsNotExist(err) {
 			err = compatErrNotExist{err: err}
 		}
