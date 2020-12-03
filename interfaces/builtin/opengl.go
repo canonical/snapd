@@ -54,9 +54,11 @@ const openglConnectedPlugAppArmor = `
 # Support reading the GLVND EGL vendor files
 /var/lib/snapd/lib/glvnd/ r,
 /var/lib/snapd/lib/glvnd/** r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/ r,
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
 
 # Support Nvidia EGL external platform
+/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/ r,
 /var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
