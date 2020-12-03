@@ -35,6 +35,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	backupStorage  = true
+	primaryStorage = false
+)
+
 type lk struct {
 	rootdir          string
 	prepareImageTime bool
@@ -109,7 +114,10 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 	// make sure that the opts are put into the object
 	l.processOpts(opts)
 	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
-	systemFile, err := l.envFile()
+	// since we are just installing static files from the gadget, there is no
+	// backup to copy, the backup will be created automatically (if allowed) by
+	// lkenv when we go to Save() the environment file.
+	systemFile, err := l.envBackstore(primaryStorage)
 	if err != nil {
 		return err
 	}
@@ -117,24 +125,30 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 }
 
 func (l *lk) Present() (bool, error) {
-	partitionLabelOrConfFile := l.partLabelForRoleAndTime()
-	// if we are not in runtime mode or in V1, just check the config file
+	// if we are in prepare-image mode or in V1, just check the env file
 	if l.prepareImageTime || l.role == RoleSole {
-		return osutil.FileExists(filepath.Join(l.dir(), partitionLabelOrConfFile)), nil
+		// TODO: should we try checking the backup file first before returning
+		//       if the primary doesn't exist?
+		envFile, err := l.envBackstore(primaryStorage)
+		if err != nil {
+			return false, err
+		}
+		return osutil.FileExists(envFile), nil
 	}
 
 	// otherwise for V2, non-sole bootloader roles we need to check on the
-	// partition name existing, note that envFileForPartName will only return
+	// partition name existing, note that devPathForPartName will only return
 	// partiallyFound as true if it reasonably concludes that this is a lk
 	// device, so in that case forward err, otherwise return err as nil
-	_, partiallyFound, err := l.envFileForPartName(partitionLabelOrConfFile)
+	partitionLabel := l.partLabelForRole()
+	_, partiallyFound, err := l.devPathForPartName(partitionLabel)
 	if partiallyFound {
 		return partiallyFound, err
 	}
 	return false, nil
 }
 
-func (l *lk) partLabelForRoleAndTime() string {
+func (l *lk) partLabelForRole() string {
 	// TODO: should the partition labels be fetched from gadget.yaml instead? we
 	//       have roles that we could use in the gadget.yaml structures to find
 	//       them
@@ -147,67 +161,50 @@ func (l *lk) partLabelForRoleAndTime() string {
 	default:
 		panic(fmt.Sprintf("unknown bootloader role for littlekernel: %s", l.role))
 	}
-	if l.prepareImageTime {
-		// conf files at build time have .bin suffix, so technically this now
-		// becomes not a partition label but a filename, but meh names are hard
-		label += ".bin"
-	}
 	return label
 }
 
-func (l *lk) envFile() (string, error) {
-	// as for dir, we have two scenarios, image building and runtime
-	partitionLabelOrConfFile := l.partLabelForRoleAndTime()
+// envBackstore returns a filepath for the lkenv bootloader environment file.
+// For prepare-image time operations, it will be a normal config file; for
+// runtime operations it will be a device file from a udev-created symlink in
+// /dev/disk. If backup is true then the filename is suffixed with "bak" or at
+// runtime the partition label is suffixed with "bak".
+func (l *lk) envBackstore(backup bool) (string, error) {
+	partitionLabelOrConfFile := l.partLabelForRole()
+	if backup {
+		partitionLabelOrConfFile += "bak"
+	}
 	if l.prepareImageTime {
-		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
+		// at prepare-image time, we just use the env file, but append .bin
+		// since it is a file from the gadget we will evenutally install into
+		// a partition when flashing the image
+		return filepath.Join(l.dir(), partitionLabelOrConfFile+".bin"), nil
 	}
 
 	if l.role == RoleSole {
+		// for V1, we just use the partition label directly, dir() here will be
+		// the udev by-partlabel symlink dir.
 		// see TODO: in l.dir(), this should eventually also be using
-		// envFileForPartName() too
+		// devPathForPartName() too
 		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
 	}
 
 	// for RoleRun or RoleRecovery, we need to find the partition securely
-	envFile, _, err := l.envFileForPartName(partitionLabelOrConfFile)
+	envFile, _, err := l.devPathForPartName(partitionLabelOrConfFile)
 	if err != nil {
 		return "", err
 	}
 	return envFile, nil
 }
 
-// backupEnvFile returns the backup environment file, which in the case of a
-// config file is just another file, but in the runtime case is a different
-// partition.
-func (l *lk) backupEnvFile() (string, error) {
-	// for the backup file, just append "bak" to the label / file
-	partitionLabelOrConfFile := l.partLabelForRoleAndTime() + "bak"
-	if l.prepareImageTime {
-		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
-	}
-
-	if l.role == RoleSole {
-		// see TODO: in l.dir(), this should eventually also be using
-		// envFileForPartName() too
-		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
-	}
-
-	// for RoleRun or RoleRecovery, we need to find the partition securely
-	backupEnvFile, _, err := l.envFileForPartName(partitionLabelOrConfFile)
-	if err != nil {
-		return "", err
-	}
-	return backupEnvFile, nil
-}
-
-// envFileForPartName returns the environment file in /dev for the partition
+// devPathForPartName returns the environment file in /dev for the partition
 // name, which will always be a partition on the disk given by
 // the kernel command line parameter "snapd_lk_boot_disk" set by the bootloader.
 // It returns a boolean as the second parameter which is primarily used by
 // Present() to indicate if the searching process got "far enough" to reasonably
 // conclude that the device is using a lk bootloader, but we had errors finding
 // it. This feature is mainly for better error reporting in logs.
-func (l *lk) envFileForPartName(partName string) (string, bool, error) {
+func (l *lk) devPathForPartName(partName string) (string, bool, error) {
 	// lazily initialize l.blDisk if it hasn't yet been initialized
 	if l.blDisk == nil {
 		// For security, we want to restrict our search for the partition
@@ -288,12 +285,12 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 	case RoleRunMode:
 		version = lkenv.V2Run
 	}
-	f, err := l.envFile()
+	f, err := l.envBackstore(primaryStorage)
 	if err != nil {
 		return nil, err
 	}
 
-	backup, err := l.backupEnvFile()
+	backup, err := l.envBackstore(backupStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +430,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		if l.role == RoleSole {
 			bpart = filepath.Join(l.dir(), bootPartition)
 		} else {
-			bpart, _, err = l.envFileForPartName(bootPartition)
+			bpart, _, err = l.devPathForPartName(bootPartition)
 			if err != nil {
 				return err
 			}

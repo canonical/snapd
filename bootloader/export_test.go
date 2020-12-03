@@ -83,9 +83,10 @@ func NewLk(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootloader
 	return newLk(rootdir, opts).(ExtractedRecoveryKernelImageBootloader)
 }
 
+// LkConfigFile returns the primary lk bootloader environment file.
 func LkConfigFile(b Bootloader) (string, error) {
 	lk := b.(*lk)
-	return lk.envFile()
+	return lk.envBackstore(primaryStorage)
 }
 
 func UbootConfigFile(b Bootloader) string {
@@ -155,7 +156,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 
 	// next create empty env file
 	buf := make([]byte, 4096)
-	f, err := l.envFile()
+	f, err := l.envBackstore(primaryStorage)
 	c.Assert(err, IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
