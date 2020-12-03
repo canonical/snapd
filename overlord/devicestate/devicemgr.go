@@ -149,7 +149,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
 	boot.RunFDESetupHook = m.runFDESetupHook
-	hookManager.Register(regexp.MustCompile("^fde-setup"), newFdeSetupHandler)
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
 }
@@ -1392,7 +1392,7 @@ func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
 	return nil
 }
 
-func (m *DeviceManager) runFDESetupHook(op string, params *boot.FdeSetupHookParams) ([]byte, error) {
+func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	// TODO:UC20: when this runs on refresh we need to be very careful
 	// that we never run this when the kernel is not fully configured
 	// i.e. when there are no security profiles for the hook

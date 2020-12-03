@@ -294,6 +294,6 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 	return mgr.hasFDESetupHook()
 }
 
-func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FdeSetupHookParams) ([]byte, error) {
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	return mgr.runFDESetupHook(op, params)
 }

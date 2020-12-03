@@ -54,13 +54,13 @@ var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
-	RunFDESetupHook = func(op string, params *FdeSetupHookParams) ([]byte, error) {
+	RunFDESetupHook = func(op string, params *FDESetupHookParams) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
 
-// FdeSetupHookParams contains the inputs for the fde-setup hook
-type FdeSetupHookParams struct {
+// FDESetupHookParams contains the inputs for the fde-setup hook
+type FDESetupHookParams struct {
 	Key     *secboot.EncryptionKey
 	KeyName string
 

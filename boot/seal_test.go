@@ -913,7 +913,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	}
 	oldRunFDESetupHook := boot.RunFDESetupHook
 	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
-	boot.RunFDESetupHook = func(string, *boot.FdeSetupHookParams) ([]byte, error) {
+	boot.RunFDESetupHook = func(string, *boot.FDESetupHookParams) ([]byte, error) {
 		c.Fatalf("hook runner should not be called yet")
 		return nil, fmt.Errorf("hook runner should not be called yet")
 	}
