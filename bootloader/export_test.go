@@ -127,8 +127,12 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 				"snapbootselbak":     "snapbootselbak-partuuid",
 				"snaprecoverysel":    "snaprecoverysel-partuuid",
 				"snaprecoveryselbak": "snaprecoveryselbak-partuuid",
-				"boot_a":             "boot-a-partuuid",
-				"boot_b":             "boot-b-partuuid",
+				// for run mode kernel snaps
+				"boot_a": "boot-a-partuuid",
+				"boot_b": "boot-b-partuuid",
+				// for recovery system kernel snaps
+				"boot_ra": "boot-ra-partuuid",
+				"boot_rb": "boot-rb-partuuid",
 			},
 			DiskHasPartitions: true,
 			DevNum:            "lk-boot-disk-dev-num",
@@ -141,8 +145,6 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		// mock the disk
 		r := disks.MockDeviceNameDisksToPartitionMapping(m)
 		cleanups = append(cleanups, r)
-
-		// create the disk files so they exist for
 
 		// now mock the kernel command line
 		cmdLine := filepath.Join(c.MkDir(), "cmdline")
@@ -162,14 +164,21 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 
 	// now write env in it with correct crc
 	env := lkenv.NewEnv(f, "", version)
-	env.InitializeBootPartitions("boot_a", "boot_b")
+	if version == lkenv.V2Recovery {
+		env.InitializeBootPartitions("boot_ra", "boot_rb")
+	} else {
+		env.InitializeBootPartitions("boot_a", "boot_b")
+	}
+
 	err = env.Save()
 	c.Assert(err, IsNil)
 
 	// also make the empty files for the boot_a and boot_b partitions
 	if opts.Role == RoleRunMode || opts.Role == RoleRecovery {
 		// for uc20 roles we need to mock the files in /dev/disk/by-partuuid
-		for _, label := range []string{"boot_a", "boot_b"} {
+		// and we also need to mock the snapbootselbak file (the snapbootsel
+		// was created above when we created envFile())
+		for _, label := range []string{"boot_a", "boot_b", "boot_ra", "boot_rb", "snapbootselbak"} {
 			disk, err := disks.DiskFromDeviceName("lk-boot-disk")
 			c.Assert(err, IsNil)
 			partUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel(label)

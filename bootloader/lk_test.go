@@ -444,8 +444,8 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	// in the backup too
 	err = backupEnv.Load()
 	c.Assert(logbuf.String(), Equals, "")
-
 	c.Assert(err, IsNil)
+
 	bootPart, err = backupEnv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, IsNil)
 	c.Assert(bootPart, Equals, "boot_a")
@@ -466,3 +466,6 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 
 	c.Assert(logbuf.String(), Equals, "")
 }
+
+// TODO:UC20: when runtime addition (and deletion) of recovery systems is
+//            implemented, add tests for that here with lkenv
