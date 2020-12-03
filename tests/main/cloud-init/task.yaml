@@ -17,9 +17,8 @@ execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
 
-        if os.query is-ubuntu && not os.query is-trusty && not os.query is-core20; then
-            # we expect the test to run on all Ubuntu images,
-            # excluding 14.04/core20
+        if os.query is-ubuntu && not os.query is-trusty; then
+            # we expect the test to run on all Ubuntu images excluding 14.04
             echo "the test expected to run on $SPREAD_SYSTEM"
             exit 1
         fi
