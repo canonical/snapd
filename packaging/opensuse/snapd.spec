@@ -23,7 +23,7 @@
 # Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
 # N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
 # did not support what we needed to be able to turn on basic integration.
-%if 0%{?suse_version} >= 1550
+%if 0%{?suse_version} >= 1500
 %bcond_without apparmor
 %else
 %bcond_with apparmor
