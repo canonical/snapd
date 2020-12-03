@@ -910,25 +910,41 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	oldHasFDESetupHook := boot.HasFDESetupHook
-	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
-	boot.HasFDESetupHook = func() (bool, error) {
+	restore := boot.MockHasFDESetupHook(func() (bool, error) {
 		return true, nil
-	}
-	oldRunFDESetupHook := boot.RunFDESetupHook
-	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
-	boot.RunFDESetupHook = func(string, *boot.FDESetupHookParams) ([]byte, error) {
-		c.Fatalf("hook runner should not be called yet")
-		return nil, fmt.Errorf("hook runner should not be called yet")
-	}
+	})
+	defer restore()
+
+	var runFDESetupHookParams []*boot.FDESetupHookParams
+	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+		c.Assert(op, Equals, "initial-setup")
+		runFDESetupHookParams = append(runFDESetupHookParams, params)
+
+		return []byte("sealed-key: " + params.KeyName), nil
+	})
+	defer restore()
 
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
-	c.Assert(err, ErrorMatches, "cannot use fde-setup hook yet")
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	c.Assert(err, IsNil)
+	// check that runFDESetupHook was called the expected way
+	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
+		{KeyName: "ubuntu-data.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Model: model},
+		{KeyName: "ubuntu-data.recovery.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Model: model},
+		{KeyName: "ubuntu-save.recovery.sealed-key", Key: secboot.EncryptionKey{5, 6, 7, 8}, Model: model},
+	})
+	// check that the sealed keys got written to the expected places
+	for _, p := range []string{
+		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+	} {
+		c.Check(p, testutil.FileEquals, "sealed-key: "+filepath.Base(p))
+	}
 }

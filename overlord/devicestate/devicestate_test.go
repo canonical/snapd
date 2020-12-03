@@ -1370,7 +1370,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &mockKey,
+		Key:     mockKey,
 		KeyName: "some-key-name",
 		Model:   mockModel,
 	}
@@ -1409,7 +1409,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
 		Model:   mockModel,
 	}
@@ -1453,7 +1453,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
 		Model:   mockModel,
 	}

@@ -61,7 +61,7 @@ var (
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
 type FDESetupHookParams struct {
-	Key     *secboot.EncryptionKey
+	Key     secboot.EncryptionKey
 	KeyName string
 
 	Model *asserts.Model
@@ -82,6 +82,19 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+	// make sure relevant locations exist
+	for _, p := range []string{
+		InitramfsSeedEncryptionKeyDir,
+		InitramfsBootEncryptionKeyDir,
+		InstallHostFDEDataDir,
+		InstallHostFDESaveDir,
+	} {
+		// XXX: should that be 0700 ?
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
@@ -93,8 +106,46 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
 }
 
+func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		},
+	}
+}
+
+func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		},
+		{
+			Key:     saveKey,
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		},
+	}
+}
+
 func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
-	return fmt.Errorf("cannot use fde-setup hook yet")
+	// TODO: support full boot chains
+
+	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
+		params := &FDESetupHookParams{
+			Key:     skr.Key,
+			KeyName: filepath.Base(skr.KeyFile),
+			Model:   model,
+		}
+		sealedKey, err := RunFDESetupHook("initial-setup", params)
+		if err != nil {
+			return fmt.Errorf("cannot run fde-setup hook for %s: %v", params.KeyName, err)
+		}
+		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), sealedKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot store %s key: %v", params.KeyName, err)
+		}
+	}
+	return nil
 }
 
 func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -135,19 +186,6 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
 		bootloader.RoleRunMode:  bl.Name(),
-	}
-
-	// make sure relevant locations exist
-	for _, p := range []string{
-		InitramfsSeedEncryptionKeyDir,
-		InitramfsBootEncryptionKeyDir,
-		InstallHostFDEDataDir,
-		InstallHostFDESaveDir,
-	} {
-		// XXX: should that be 0700 ?
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
 	}
 
 	// the boot chains we seal the fallback object to
@@ -203,13 +241,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
@@ -230,17 +262,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		},
-		{
-			Key:     saveKey,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
