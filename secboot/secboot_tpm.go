@@ -21,11 +21,14 @@
 package secboot
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/canonical/go-tpm2"
@@ -273,9 +276,73 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	}
 }
 
+// FDERevealKeyRequest carries the operation and parameters for the
+// fde-reveal-key binary to support unsealing keys that were sealed
+// with the "fde-setup" hook.
+type FDERevealKeyRequest struct {
+	Op string `json:"op"`
+
+	SealedKey     []byte `json:"sealed-key"`
+	SealedKeyName string `json:"sealed-key-name"`
+
+	// TODO: add VolumeName,SourceDevicePath later
+}
+
+// fdeRevealKeyRuntimeMax is the maximum runtime a fde-reveal-key can execute
+// XXX: what is a reasonable default here?
+var fdeRevealKeyRuntimeMax = "2m"
+
+// fdeRevealKeyCommand returns a *exec.Cmd that is suitable to run
+// fde-reveal-key using systemd-run
+func fdeRevealKeyCommand() *exec.Cmd {
+	return exec.Command(
+		"systemd-run",
+		"--pipe", "--same-dir", "--wait", "--collect",
+		"--service-type=exec",
+		"--quiet",
+		// ensure we get some result from the hook within a
+		// reasonable timeout and output from systemd if
+		// things go wrong
+		fmt.Sprintf("--property=RuntimeMaxSec=%s", fdeRevealKeyRuntimeMax),
+		`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
+		// do not allow mounting, this ensures hooks in initrd
+		// can not mess around with ubuntu-data
+		"--property=SystemCallFilter=~@mount",
+		// fde-reveal-key is what we actually need to run
+		"fde-reveal-key",
+	)
+}
+
 func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
-	return res, fmt.Errorf("cannot use fde-reveal-key yet")
+
+	sealedKey, err := ioutil.ReadFile(sealedEncryptionKeyFile)
+	if err != nil {
+		return res, fmt.Errorf("cannot read sealed key file: %v", err)
+	}
+	buf, err := json.Marshal(FDERevealKeyRequest{
+		Op:            "reveal",
+		SealedKey:     sealedKey,
+		SealedKeyName: name,
+	})
+	if err != nil {
+		return res, fmt.Errorf("cannot build request for fde-reveal-key: %v", err)
+	}
+	cmd := fdeRevealKeyCommand()
+	cmd.Stdin = bytes.NewReader(buf)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return res, fmt.Errorf("cannot run fde-reveal-key: %v", osutil.OutputErr(output, err))
+	}
+
+	// the output of fde-reveal-key is the unsealed key
+	unsealedKey := output
+	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
+		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
+	}
+
+	res.UnlockMethod = UnlockedWithSealedKey
+	return res, nil
 }
 
 func unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
