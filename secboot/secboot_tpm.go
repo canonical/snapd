@@ -340,7 +340,7 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
 	}
-
+	res.FsDevice = targetDevice
 	res.UnlockMethod = UnlockedWithSealedKey
 	return res, nil
 }

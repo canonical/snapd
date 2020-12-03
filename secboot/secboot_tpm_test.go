@@ -1160,6 +1160,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *
 	})
 	defer restore()
 
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
 	mockDiskWithEncDev := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"name-enc": "enc-dev-partuuid",
@@ -1191,6 +1196,7 @@ printf "unsealed-key-from-hook"
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/name-random-uuid-for-test",
 	})
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{
