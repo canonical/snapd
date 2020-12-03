@@ -157,23 +157,47 @@ func (l *lk) partLabelForRoleAndTime() string {
 
 func (l *lk) envFile() (string, error) {
 	// as for dir, we have two scenarios, image building and runtime
-	partLabel := l.partLabelForRoleAndTime()
+	partitionLabelOrConfFile := l.partLabelForRoleAndTime()
 	if l.prepareImageTime {
-		return filepath.Join(l.dir(), partLabel), nil
+		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
 	}
 
 	if l.role == RoleSole {
 		// see TODO: in l.dir(), this should eventually also be using
 		// envFileForPartName() too
-		return filepath.Join(l.dir(), partLabel), nil
+		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
 	}
 
 	// for RoleRun or RoleRecovery, we need to find the partition securely
-	envFile, _, err := l.envFileForPartName(partLabel)
+	envFile, _, err := l.envFileForPartName(partitionLabelOrConfFile)
 	if err != nil {
 		return "", err
 	}
 	return envFile, nil
+}
+
+// backupEnvFile returns the backup environment file, which in the case of a
+// config file is just another file, but in the runtime case is a different
+// partition.
+func (l *lk) backupEnvFile() (string, error) {
+	// for the backup file, just append "bak" to the label / file
+	partitionLabelOrConfFile := l.partLabelForRoleAndTime() + "bak"
+	if l.prepareImageTime {
+		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
+	}
+
+	if l.role == RoleSole {
+		// see TODO: in l.dir(), this should eventually also be using
+		// envFileForPartName() too
+		return filepath.Join(l.dir(), partitionLabelOrConfFile), nil
+	}
+
+	// for RoleRun or RoleRecovery, we need to find the partition securely
+	backupEnvFile, _, err := l.envFileForPartName(partitionLabelOrConfFile)
+	if err != nil {
+		return "", err
+	}
+	return backupEnvFile, nil
 }
 
 // envFileForPartName returns the environment file in /dev for the partition
@@ -266,7 +290,13 @@ func (l *lk) newenv() (*lkenv.Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lkenv.NewEnv(f, "", version), nil
+
+	backup, err := l.backupEnvFile()
+	if err != nil {
+		return nil, err
+	}
+
+	return lkenv.NewEnv(f, backup, version), nil
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {

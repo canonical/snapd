@@ -389,12 +389,15 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 
 	partuuid, err := disk.FindMatchingPartitionUUIDWithPartLabel("snapbootsel")
 	c.Assert(err, IsNil)
-	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", partuuid)
-	lkenv := lkenv.NewEnv(bootselPartition, "", lkenv.V2Run)
 
-	lkenv.InitializeBootPartitions("boot_a", "boot_b")
-	err = lkenv.Save()
+	// also confirm that we can load the backup file partition too
+	backupPartuuid, err := disk.FindMatchingPartitionUUIDWithPartLabel("snapbootselbak")
 	c.Assert(err, IsNil)
+
+	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", partuuid)
+	bootselPartitionBackup := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", backupPartuuid)
+	env := lkenv.NewEnv(bootselPartition, "", lkenv.V2Run)
+	backupEnv := lkenv.NewEnv(bootselPartitionBackup, "", lkenv.V2Run)
 
 	// mock a kernel snap that has a boot.img
 	files := [][]string{
@@ -416,7 +419,6 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	c.Assert(err, IsNil)
 
 	// and validate it went to the "boot_a" partition
-
 	bootAPartUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel("boot_a")
 	c.Assert(err, IsNil)
 	bootA := filepath.Join(s.rootdir, "/dev/disk/by-partuuid", bootAPartUUID)
@@ -433,9 +435,18 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	c.Assert(content, HasLen, 0)
 
 	// test that boot partition got set
-	err = lkenv.Load()
+	err = env.Load()
 	c.Assert(err, IsNil)
-	bootPart, err := lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	bootPart, err := env.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, IsNil)
+	c.Assert(bootPart, Equals, "boot_a")
+
+	// in the backup too
+	err = backupEnv.Load()
+	c.Assert(logbuf.String(), Equals, "")
+
+	c.Assert(err, IsNil)
+	bootPart, err = backupEnv.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, IsNil)
 	c.Assert(bootPart, Equals, "boot_a")
 
@@ -443,11 +454,15 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	err = lk.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 	// and ensure its no longer available in the boot partitions
-	err = lkenv.Load()
+	err = env.Load()
 	c.Assert(err, IsNil)
-	bootPart, err = lkenv.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	_, err = env.GetKernelBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
-	c.Assert(bootPart, Equals, "")
+	err = backupEnv.Load()
+	c.Assert(err, IsNil)
+	// in the backup too
+	_, err = backupEnv.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find kernel %[1]q: no boot image partition has value %[1]q", "ubuntu-kernel_42.snap"))
 
 	c.Assert(logbuf.String(), Equals, "")
 }
