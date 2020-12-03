@@ -44,6 +44,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnv{rm,dc,imp,os}*.so{,.*} rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -54,6 +55,9 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/glvnd/ r,
 /var/lib/snapd/lib/glvnd/** r,
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+
+# Support Nvidia EGL external platform
+/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
