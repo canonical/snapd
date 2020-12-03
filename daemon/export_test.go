@@ -20,15 +20,14 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
-
-type Resp = resp
-type ErrorResult = errorResult
 
 var MinLane = minLane
 
@@ -76,4 +75,22 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	return func() {
 		shutdownTimeout = old
 	}
+}
+
+func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstall := snapstateInstall
+	snapstateInstall = mock
+	return func() {
+		snapstateInstall = oldSnapstateInstall
+	}
+}
+
+type (
+	Resp            = resp
+	ErrorResult     = errorResult
+	SnapInstruction = snapInstruction
+)
+
+func (inst *snapInstruction) Dispatch() snapActionFunc {
+	return inst.dispatch()
 }
