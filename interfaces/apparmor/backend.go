@@ -82,6 +82,12 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil && opts.Preseed {
 		b.preseed = true
 	}
+	snapConfineLocation := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
+	// usually: usr.lib.snapd.snap-confine
+	snapConfineProfileName, err := apparmor_sandbox.ProfileNameForPath(snapConfineLocation)
+	if err != nil {
+		return fmt.Errorf("cannot generate profile name for %q: %v", snapConfineLocation, err)
+	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
 	// do this in the Setup function below. I sadly don't think this is
@@ -160,14 +166,15 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// not.  If we do then we prefer the file ending with the name .real as
 	// that is the more recent name we use.
 	var profilePath string
-	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		profilePath = filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(profilePath); err != nil {
+	for _, profileFname := range []string{snapConfineProfileName + ".real", snapConfineProfileName} {
+		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
+		if _, err := os.Stat(maybeProfilePath); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
 			return err
 		}
+		profilePath = maybeProfilePath
 		break
 	}
 	if profilePath == "" {
@@ -193,6 +200,9 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 // snapConfineFromSnapProfile returns the apparmor profile for
 // snap-confine in the given core/snapd snap.
 func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]osutil.FileState, err error) {
+	// TODO: fix this for distros using /usr/libexec/snapd when those start
+	// to use reexec
+
 	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
 
 	// We must test the ".real" suffix first, this is a workaround for

@@ -169,6 +169,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
 
 	apparmor.MockRuntimeNumCPU(func() int { return 99 })
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -1422,11 +1424,26 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 // Ensure that both names of the snap-confine apparmor profile are supported.
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS1(c *C) {
-	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine")
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, scProfileName)
 }
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
-	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine.real")
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, scProfileName+".real")
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSUsrLibexec(c *C) {
+	// a snapshot known to be using /usr/libexec
+	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20201203"}))
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(scProfileName, Matches, `.*\.usr\.libexec\.snapd\.snap-confine`)
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, scProfileName)
 }
 
 // snap-confine policy when NFS is used and snapd has not re-executed.
@@ -1632,7 +1649,9 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Create the directory where system apparmor profiles are stored and Write
 	// the system apparmor profile of snap-confine.
 	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(apparmor_sandbox.ConfDir, "usr.lib.snapd.snap-confine"), []byte(""), 0644), IsNil)
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Assert(err, IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(apparmor_sandbox.ConfDir, scProfileName), []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
 	err = (&apparmor.Backend{}).Initialize(nil)
@@ -1747,11 +1766,26 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 // Ensure that both names of the snap-confine apparmor profile are supported.
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay1(c *C) {
-	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine")
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, scProfileName)
 }
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay2(c *C) {
-	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine.real")
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, scProfileName+".real")
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay3UsrLibexec(c *C) {
+	// a snapshot known to be using /usr/libexec
+	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20201203"}))
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	scProfileName, err := apparmor_sandbox.ProfileNameForPath(filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(scProfileName, Matches, `.*\.usr\.libexec\.snapd\.snap-confine`)
+	c.Assert(err, IsNil)
+	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, scProfileName)
 }
 
 // snap-confine policy when overlay is used and snapd has not re-executed.
