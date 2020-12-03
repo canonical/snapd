@@ -210,11 +210,12 @@ func (l *lk) backupEnvFile() (string, error) {
 func (l *lk) envFileForPartName(partName string) (string, bool, error) {
 	// lazily initialize l.blDisk if it hasn't yet been initialized
 	if l.blDisk == nil {
-		// for security, we want to restrict our search for the partition
+		// For security, we want to restrict our search for the partition
 		// that the binary structure exists on to only the disk that the
 		// bootloader tells us to search on - it uses a kernel cmdline
 		// parameter "snapd_lk_boot_disk" to indicated which disk we should look
-		// for partitions on
+		// for partitions on. In typical boot scenario this will be something like
+		// "snapd_lk_boot_disk=mmcblk0".
 		m, err := osutil.KernelCommandLineKeyValues("snapd_lk_boot_disk")
 		if err != nil {
 			// return false, since we don't have enough info to conclude there
@@ -248,12 +249,13 @@ func (l *lk) envFileForPartName(partName string) (string, bool, error) {
 		return "", true, err
 	}
 
-	// for the runtime lk bootloader we should never prefix with the bootloader
-	// rootdir and instead always use dirs.GlobalRootDir, since the file we are
-	// providing is at an absolute location for all bootloaders, regardless of
-	// role, in /dev, so using dirs.GlobalRootDir ensures that we are still able
-	// to mock things in test functions, but that we never end up trying to use
-	// a path like /run/mnt/ubuntu-boot/dev/disk/by-partuuid/... for example
+	// for the runtime lk bootloader we should never prefix the path with the
+	// bootloader rootdir and instead always use dirs.GlobalRootDir, since the
+	// file we are providing is at an absolute location for all bootloaders,
+	// regardless of role, in /dev, so using dirs.GlobalRootDir ensures that we
+	// are still able to mock things in test functions, but that we never end up
+	// trying to use a path like /run/mnt/ubuntu-boot/dev/disk/by-partuuid/...
+	// for example
 	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partitionUUID), true, nil
 }
 
