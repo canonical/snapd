@@ -258,6 +258,20 @@ func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
 	c.Assert(err, ErrorMatches, "bootloader \"mock\" found but not usable: boom")
 }
 
+func (s *bootenvTestSuite) TestBootloaderFindBadOptions(c *C) {
+	_, err := bootloader.Find("", &bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode,
+	})
+	c.Assert(err, ErrorMatches, "internal error: cannot use run mode bootloader at prepare-image time")
+
+	_, err = bootloader.Find("", &bootloader.Options{
+		NoSlashBoot: true,
+		Role:        bootloader.RoleSole,
+	})
+	c.Assert(err, ErrorMatches, "internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
+}
+
 func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	for _, tc := range []struct {
 		name    string
