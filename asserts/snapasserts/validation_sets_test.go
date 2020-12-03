@@ -381,16 +381,16 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 
 	tests := []struct {
 		snaps            []*snapasserts.InstalledSnap
-		expectedInvalid  map[string]map[string]bool
-		expectedMissing  map[string]map[string]bool
-		expectedWrongRev map[string]map[string]bool
+		expectedInvalid  map[string][]string
+		expectedMissing  map[string][]string
+		expectedWrongRev map[string][]string
 	}{
 		{
 			// required snaps not installed
 			snaps: nil,
-			expectedMissing: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
-				"snap-d": {"acme/barname": true},
+			expectedMissing: map[string][]string{
+				"snap-b": {"acme/fooname"},
+				"snap-d": {"acme/barname"},
 			},
 		},
 		{
@@ -398,9 +398,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 			snaps: []*snapasserts.InstalledSnap{
 				snapZ,
 			},
-			expectedMissing: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
-				"snap-d": {"acme/barname": true},
+			expectedMissing: map[string][]string{
+				"snap-b": {"acme/fooname"},
+				"snap-d": {"acme/barname"},
 			},
 		},
 		{
@@ -418,8 +418,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapB,
 				// covered by acme/barname validation-set. snap-e not installed but optional
 				snapDrev99},
-			expectedInvalid: map[string]map[string]bool{
-				"snap-a": {"acme/fooname": true, "acme/booname": true},
+			expectedInvalid: map[string][]string{
+				"snap-a": {"acme/booname", "acme/fooname"},
 			},
 		},
 		{
@@ -428,11 +428,11 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapA,
 				// covered by acme/barname validation-set. snap-e not installed but optional
 				snapDrev99},
-			expectedInvalid: map[string]map[string]bool{
-				"snap-a": {"acme/fooname": true, "acme/booname": true},
+			expectedInvalid: map[string][]string{
+				"snap-a": {"acme/booname", "acme/fooname"},
 			},
-			expectedMissing: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
+			expectedMissing: map[string][]string{
+				"snap-b": {"acme/fooname"},
 			},
 		},
 		{
@@ -451,8 +451,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapCinvRev,
 				// covered by acme/barname validation-set. snap-e not installed but optional
 				snapD},
-			expectedWrongRev: map[string]map[string]bool{
-				"snap-c": {"acme/fooname": true},
+			expectedWrongRev: map[string][]string{
+				"snap-c": {"acme/fooname"},
 			},
 		},
 		{
@@ -461,8 +461,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapBinvRev,
 				// covered by acme/barname validation-set.
 				snapD},
-			expectedWrongRev: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
+			expectedWrongRev: map[string][]string{
+				"snap-b": {"acme/fooname"},
 			},
 		},
 		{
@@ -471,8 +471,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapB,
 				// covered by acme/barname validation-set. snap-d not installed.
 				snapE},
-			expectedMissing: map[string]map[string]bool{
-				"snap-d": {"acme/barname": true},
+			expectedMissing: map[string][]string{
+				"snap-d": {"acme/barname"},
 			},
 		},
 		{
@@ -481,8 +481,8 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/barname validation-set
 				snapDrev99,
 				snapE},
-			expectedMissing: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
+			expectedMissing: map[string][]string{
+				"snap-b": {"acme/fooname"},
 			},
 		},
 		{
@@ -491,27 +491,21 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapC,
 				// covered by acme/barname validation-set, required missing.
 				snapE},
-			expectedMissing: map[string]map[string]bool{
-				"snap-b": {"acme/fooname": true},
-				"snap-d": {"acme/barname": true},
+			expectedMissing: map[string][]string{
+				"snap-b": {"acme/fooname"},
+				"snap-d": {"acme/barname"},
 			},
 		},
 	}
 
-	f := func(in map[string]map[string]*asserts.ValidationSet) map[string]map[string]bool {
-		if len(in) == 0 {
-			return nil
-		}
-		res := make(map[string]map[string]bool)
-		for snapName, sets := range in {
-			for setKey := range sets {
-				if res[snapName] == nil {
-					res[snapName] = make(map[string]bool)
-				}
-				res[snapName][setKey] = true
+	checkSets := func(snapsToValidationSets map[string][]string, vs map[string]*asserts.ValidationSet) {
+		for _, vsetKeys := range snapsToValidationSets {
+			for _, key := range vsetKeys {
+				vset, ok := vs[key]
+				c.Assert(ok, Equals, true)
+				c.Assert(vset.AccountID()+"/"+vset.Name(), Equals, key)
 			}
 		}
-		return res
 	}
 
 	for i, tc := range tests {
@@ -524,12 +518,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		}
 		verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		c.Assert(ok, Equals, true, Commentf("#%d", i))
-		gotInvalid := f(verr.InvalidSnaps)
-		gotMissing := f(verr.MissingSnaps)
-		gotWrongRev := f(verr.WrongRevisionSnaps)
-
-		c.Assert(tc.expectedInvalid, DeepEquals, gotInvalid, Commentf("#%d", i))
-		c.Assert(tc.expectedMissing, DeepEquals, gotMissing, Commentf("#%d", i))
-		c.Assert(tc.expectedWrongRev, DeepEquals, gotWrongRev, Commentf("#%d", i))
+		c.Assert(tc.expectedInvalid, DeepEquals, verr.InvalidSnaps, Commentf("#%d", i))
+		c.Assert(tc.expectedMissing, DeepEquals, verr.MissingSnaps, Commentf("#%d", i))
+		c.Assert(tc.expectedWrongRev, DeepEquals, verr.WrongRevisionSnaps, Commentf("#%d", i))
+		checkSets(verr.InvalidSnaps, verr.Sets)
 	}
 }

@@ -52,11 +52,14 @@ func (e *ValidationSetsConflictError) Error() string {
 	return buf.String()
 }
 
+// ValidationSetsValidationError describes an error arising
+// from validation of snaps against ValidationSets.
 type ValidationSetsValidationError struct {
-	// snapName -> validationSetKey -> validation set
-	MissingSnaps       map[string]map[string]*asserts.ValidationSet
-	InvalidSnaps       map[string]map[string]*asserts.ValidationSet
-	WrongRevisionSnaps map[string]map[string]*asserts.ValidationSet
+	// snapName -> validationSetKey
+	MissingSnaps       map[string][]string
+	InvalidSnaps       map[string][]string
+	WrongRevisionSnaps map[string][]string
+	Sets               map[string]*asserts.ValidationSet
 }
 
 func (e *ValidationSetsValidationError) Error() string {
@@ -309,9 +312,10 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	}
 
 	// snapName -> validationSet key -> validation set
-	invalid := make(map[string]map[string]*asserts.ValidationSet)
-	missing := make(map[string]map[string]*asserts.ValidationSet)
-	wrongrev := make(map[string]map[string]*asserts.ValidationSet)
+	invalid := make(map[string]map[string]bool)
+	missing := make(map[string]map[string]bool)
+	wrongrev := make(map[string]map[string]bool)
+	sets := make(map[string]*asserts.ValidationSet)
 
 	for snapID, cstrs := range v.snaps {
 		snap, isInstalled := installed[snapID]
@@ -324,32 +328,51 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 				switch {
 				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
 					if invalid[rc.Name] == nil {
-						invalid[rc.Name] = make(map[string]*asserts.ValidationSet)
+						invalid[rc.Name] = make(map[string]bool)
 					}
-					invalid[rc.Name][rc.validationSetKey] = v.sets[rc.validationSetKey]
+					invalid[rc.Name][rc.validationSetKey] = true
+					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				case isInstalled: // presence is either optional or required
 					if rev != unspecifiedRevision && rev != snap.Revision {
 						if wrongrev[rc.Name] == nil {
-							wrongrev[rc.Name] = make(map[string]*asserts.ValidationSet)
+							wrongrev[rc.Name] = make(map[string]bool)
 						}
-						wrongrev[rc.Name][rc.validationSetKey] = v.sets[rc.validationSetKey]
+						wrongrev[rc.Name][rc.validationSetKey] = true
+						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
 				default:
 					// not installed but required
 					if missing[rc.Name] == nil {
-						missing[rc.Name] = make(map[string]*asserts.ValidationSet)
+						missing[rc.Name] = make(map[string]bool)
 					}
-					missing[rc.Name][rc.validationSetKey] = v.sets[rc.validationSetKey]
+					missing[rc.Name][rc.validationSetKey] = true
+					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				}
 			}
 		}
 	}
 
+	flatten := func(in map[string]map[string]bool) map[string][]string {
+		if len(in) == 0 {
+			return nil
+		}
+		out := make(map[string][]string)
+		for snap, sets := range in {
+			out[snap] = make([]string, 0, len(sets))
+			for validationSetKey := range sets {
+				out[snap] = append(out[snap], validationSetKey)
+			}
+			sort.Strings(out[snap])
+		}
+		return out
+	}
+
 	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
 		return &ValidationSetsValidationError{
-			InvalidSnaps:       invalid,
-			MissingSnaps:       missing,
-			WrongRevisionSnaps: wrongrev,
+			InvalidSnaps:       flatten(invalid),
+			MissingSnaps:       flatten(missing),
+			WrongRevisionSnaps: flatten(wrongrev),
+			Sets:               sets,
 		}
 	}
 
