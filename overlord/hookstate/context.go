@@ -75,7 +75,7 @@ func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler 
 	}, nil
 }
 
-func newEphemeralContext(st *state.State, setup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+func newEphemeralHookContextWithData(st *state.State, setup *HookSetup, contextData map[string]interface{}) (*Context, error) {
 	context, err := NewContext(nil, st, setup, nil, "")
 	if err != nil {
 		return nil, err

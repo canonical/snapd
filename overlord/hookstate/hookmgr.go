@@ -292,7 +292,7 @@ func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, 
 		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
 	}
 
-	context, err := newEphemeralContext(m.state, hooksup, contextData)
+	context, err := newEphemeralHookContextWithData(m.state, hooksup, contextData)
 	if err != nil {
 		return nil, err
 	}
