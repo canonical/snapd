@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1339,7 +1340,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 
 		// check that the context has the right data
 		c.Check(ctx.HookName(), Equals, "fde-setup")
-		var fdeSetup hookstate.FDESetupRequest
+		var fdeSetup fde.SetupRequest
 		ctx.Get("fde-setup-request", &fdeSetup)
 		c.Check(fdeSetup.Op, Equals, "initial-setup")
 		c.Check(fdeSetup.KeyName, Equals, "some-key-name")

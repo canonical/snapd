@@ -169,3 +169,76 @@ func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
 func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
 	return composeCommandLine(model, candidateEdition, ModeRecover, system)
 }
+
+// observeSuccessfulCommandLine observes a successful boot with a command line
+// and takes an action based on the contents of the modeenv. The current kernel
+// command lines in the modeenv can have up to 2 entries when the managed
+// bootloader boot config gets updated.
+func observeSuccessfulCommandLine(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+	// TODO:UC20 only care about run mode for now
+	if m.Mode != "run" {
+		return m, nil
+	}
+
+	switch len(m.CurrentKernelCommandLines) {
+	case 0:
+		// compatibility scenario, no command lines tracked in modeenv
+		// yet, this can happen when having booted with a newer snapd
+		return observeSuccessfulCommandLineCompatBoot(model, m)
+	case 1:
+		// no command line update
+		return m, nil
+	default:
+		return observeSuccessfulCommandLineUpdate(m)
+	}
+}
+
+// observeSuccessfulCommandLineUpdate observes a successful boot with a command
+// line which is expected to be listed among the current kernel command line
+// entries carried in the modeenv. One of those entries must match the current
+// kernel command line of a running system and will be recorded alone as in use.
+func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
+	newM, err := m.Copy()
+	if err != nil {
+		return nil, err
+	}
+
+	// get the current command line
+	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	if err != nil {
+		return nil, err
+	}
+	if !strutil.ListContains([]string(m.CurrentKernelCommandLines), cmdlineBootedWith) {
+		return nil, fmt.Errorf("current command line content %q not matching any expected entry",
+			cmdlineBootedWith)
+	}
+	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineBootedWith}
+
+	return newM, nil
+}
+
+// observeSuccessfulCommandLineCompatBoot observes a successful boot with a
+// kernel command line, where the list of current kernel command lines in the
+// modeenv is unpopulated. This handles a compatibility scenario with systems
+// that were installed using a previous version of snapd. It verifies that the
+// expected kernel command line matches the one the system booted with and
+// populates modeenv kernel command line list accordingly.
+func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+	cmdlineExpected, err := ComposeCommandLine(model)
+	if err != nil {
+		return nil, err
+	}
+	cmdlineBootedWith, err := osutil.KernelCommandLine()
+	if err != nil {
+		return nil, err
+	}
+	if cmdlineExpected != cmdlineBootedWith {
+		return nil, fmt.Errorf("unexpected current command line: %q", cmdlineBootedWith)
+	}
+	newM, err := m.Copy()
+	if err != nil {
+		return nil, err
+	}
+	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineExpected}
+	return newM, nil
+}

@@ -62,12 +62,6 @@ func (s *APIBaseSuite) MockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-var configYaml = `
-name: config-snap
-version: 1
-hooks:
-    configure:
-`
 var aliasYaml = `
 name: alias-snap
 version: 1

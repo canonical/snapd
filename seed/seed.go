@@ -132,9 +132,6 @@ func Open(seedDir, label string) (Seed, error) {
 		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
-	// TODO: consider if systems is present to open the Core 20
-	// system if there is only one, or the lexicographically
-	// highest label one?
 	return &seed16{seedDir: seedDir}, nil
 }
 

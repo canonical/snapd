@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1415,7 +1416,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 		// XXX: should this be configurable somehow?
 		Timeout: 5 * time.Minute,
 	}
-	req := &hookstate.FDESetupRequest{
+	req := &fde.SetupRequest{
 		Op:      op,
 		Key:     params.Key,
 		KeyName: params.KeyName,

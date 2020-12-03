@@ -139,7 +139,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	c.Assert(l, NotNil)
 
 	// first configure custom boot image file name
-	env := lkenv.NewEnv(bootloader.LkConfigFile(l), lkenv.V1)
+	env := lkenv.NewEnv(bootloader.LkConfigFile(l), "", lkenv.V1)
 	env.Load()
 	env.Set("bootimg_file_name", "boot-2.img")
 	err := env.Save()
@@ -188,7 +188,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	}
 	// ensure we have a valid boot env
 	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
-	lkenv := lkenv.NewEnv(bootselPartition, lkenv.V1)
+	lkenv := lkenv.NewEnv(bootselPartition, "", lkenv.V1)
 	lkenv.InitializeBootPartitions("boot_a", "boot_b")
 	err := lkenv.Save()
 	c.Assert(err, IsNil)

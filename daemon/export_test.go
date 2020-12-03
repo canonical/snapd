@@ -46,6 +46,14 @@ func (d *Daemon) RequestedRestart() state.RestartType {
 	return d.requestedRestart
 }
 
+func MockUcrednetGet(mock func(remoteAddr string) (pid int32, uid uint32, socket string, err error)) (restore func()) {
+	oldUcrednetGet := ucrednetGet
+	ucrednetGet = mock
+	return func() {
+		ucrednetGet = oldUcrednetGet
+	}
+}
+
 func MockEnsureStateSoon(mock func(*state.State)) (original func(*state.State), restore func()) {
 	oldEnsureStateSoon := ensureStateSoon
 	ensureStateSoon = mock

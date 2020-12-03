@@ -85,6 +85,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap"},
+
+			CurrentKernelCommandLines: boot.BootCommandLines{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			},
 		}
 
 		// mock asset cache
