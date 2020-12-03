@@ -412,3 +412,14 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	}
 
 }
+
+// ProfileNameForPath returns he name of the profile for an executable at given
+// path.
+func ProfileNameForPath(path string) (string, error) {
+	path = filepath.Clean(path)
+	relToRoot, err := filepath.Rel("/", path)
+	if err != nil {
+		return "", fmt.Errorf("cannot make path %q relative to /", path)
+	}
+	return strings.Replace(relToRoot, "/", ".", -1), nil
+}

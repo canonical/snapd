@@ -303,3 +303,21 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	_, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
 }
+
+func (s *apparmorSuite) TestProfileNameForPath(c *C) {
+	p, err := apparmor.ProfileNameForPath("/usr/lib/snapd/snap-confine")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, "usr.lib.snapd.snap-confine")
+
+	p, err = apparmor.ProfileNameForPath("/usr/lib/snapd/snap-confine.real")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, "usr.lib.snapd.snap-confine.real")
+
+	p, err = apparmor.ProfileNameForPath("/usr/libexec/snapd/snap-confine")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, "usr.libexec.snapd.snap-confine")
+
+	p, err = apparmor.ProfileNameForPath("usr/lib/snapd/snap-confine")
+	c.Assert(err, ErrorMatches, `cannot make path "usr/lib/snapd/snap-confine" relative to /`)
+	c.Check(p, Equals, "")
+}
