@@ -405,6 +405,39 @@ func (s *APIBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceNa
 	return s.MkInstalledInState(c, daemon, instanceName, developer, version, revision, active, extraYaml)
 }
 
+func (s *APIBaseSuite) MockSnap(c *check.C, yamlText string) *snap.Info {
+	if s.d == nil {
+		panic("call s.Daemon(c) etc in your test first")
+	}
+
+	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
+
+	st := s.d.overlord.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	// Put a side info into the state
+	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{
+				RealName: snapInfo.SnapName(),
+				Revision: snapInfo.Revision,
+				SnapID:   "ididid",
+			},
+		},
+		Current:  snapInfo.Revision,
+		SnapType: string(snapInfo.Type()),
+	})
+
+	// Put the snap into the interface repository
+	repo := s.d.overlord.InterfaceManager().Repository()
+	err := repo.AddSnap(snapInfo)
+	c.Assert(err, check.IsNil)
+	return snapInfo
+}
+
 func (s *APIBaseSuite) MkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 
