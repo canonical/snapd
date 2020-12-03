@@ -261,11 +261,11 @@ func (e compatErrNotExist) Unwrap() error {
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		// XXX: when we drop support for Go 1.9, this code can go away, in Go
-		//      1.9 *os.PathError does not implement Unwrap(), and so trying to
-		//      call xerrors.Is(err,os.ErrNotExist) will fail, so instead we do
-		//      our own wrapping first such that when Unwrap() is called by
-		//      xerrors.Is() it will see os.ErrNotExist directly
+		// TODO: when we drop support for Go 1.9, this code can go away, in Go
+		//       1.9 *os.PathError does not implement Unwrap(), and so trying to
+		//       call xerrors.Is(err,os.ErrNotExist) will fail, so instead we do
+		//       our own wrapping first such that when Unwrap() is called by
+		//       xerrors.Is() it will see os.ErrNotExist directly
 		if os.IsNotExist(err) {
 			err = compatErrNotExist{err: err}
 		}
