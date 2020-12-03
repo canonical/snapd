@@ -720,3 +720,37 @@ func trustedAssetsBootState(dev Device) *bootState20BootAssets {
 		dev: dev,
 	}
 }
+
+// bootState20CommandLine implements the successfulBootState interface for
+// kernel command line
+type bootState20CommandLine struct {
+	dev Device
+}
+
+func (ba20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+	if len(u20.modeenv.CurrentTrustedBootAssets) == 0 && len(u20.modeenv.CurrentTrustedRecoveryBootAssets) == 0 {
+		// XXX: does this change when we expose the ability to add
+		// things to the command line?
+
+		// not using trusted boot assets, bootloader config is not
+		// managed and command line can be manipulated externally
+		return update, nil
+	}
+
+	newM, err := observeSuccessfulCommandLine(ba20.dev.Model(), u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)
+	}
+	u20.writeModeenv = newM
+	return u20, nil
+}
+
+func trustedCommandLineBootState(dev Device) *bootState20CommandLine {
+	return &bootState20CommandLine{
+		dev: dev,
+	}
+}
