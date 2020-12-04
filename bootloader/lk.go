@@ -137,7 +137,14 @@ func (l *lk) Present() (bool, error) {
 			return true, nil
 		}
 
-		// if the primary backstore doesn't exist, check the backup storage
+		// at prepare-image time, we won't have a backup file from the gadget,
+		// so just give up here
+		if l.prepareImageTime {
+			return false, nil
+		}
+
+		// but at runtime we should check the backup in case the primary
+		// partition got corrupted
 		backup, err := l.envBackstore(backupStorage)
 		if err != nil {
 			return false, err
