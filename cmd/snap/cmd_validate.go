@@ -86,7 +86,7 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 	account = parts[0]
 	name = parts[1]
 	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account ID name %q", account)
+		return "", "", 0, fmt.Errorf("invalid account ID %q", account)
 	}
 	if !asserts.IsValidValidationSetName(name) {
 		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
