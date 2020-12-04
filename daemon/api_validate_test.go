@@ -82,18 +82,13 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		status   int
 	}{
 		{
-			validationSet: "abc/1foo",
-			message:       `invalid name "1foo"`,
+			validationSet: "abc/Xfoo",
+			message:       `invalid name "Xfoo"`,
 			status:        400,
 		},
 		{
-			validationSet: "1foo/bar",
-			message:       `invalid account name "1foo"`,
-			status:        400,
-		},
-		{
-			validationSet: "foo/1abc",
-			message:       `invalid name "1abc"`,
+			validationSet: "Xfoo/bar",
+			message:       `invalid account ID "Xfoo"`,
 			status:        400,
 		},
 		{
@@ -121,7 +116,6 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		},
 	} {
 		q := url.Values{}
-		q.Set("validation-set", tc.validationSet)
 		if tc.sequence != "" {
 			q.Set("sequence", tc.sequence)
 		}
@@ -368,19 +362,19 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		{
 			validationSet: "0/zzz",
 			mode:          "monitor",
-			message:       `invalid account name "0"`,
+			message:       `invalid account ID "0"`,
 			status:        400,
 		},
 		{
-			validationSet: "1foo/bar",
+			validationSet: "Xfoo/bar",
 			mode:          "monitor",
-			message:       `invalid account name "1foo"`,
+			message:       `invalid account ID "Xfoo"`,
 			status:        400,
 		},
 		{
-			validationSet: "foo/1abc",
+			validationSet: "foo/Xabc",
 			mode:          "monitor",
-			message:       `invalid name "1abc"`,
+			message:       `invalid name "Xabc"`,
 			status:        400,
 		},
 		{

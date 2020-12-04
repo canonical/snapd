@@ -23,12 +23,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,9 +73,6 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 	}
 }
 
-// XXX: share this with client-side validation?
-var validName = regexp.MustCompile("^[a-z][0-9a-z]+$")
-
 func validationSetAccountAndName(validationSet string) (accountID, name string, err error) {
 	parts := strings.Split(validationSet, "/")
 	if len(parts) != 2 {
@@ -83,13 +80,12 @@ func validationSetAccountAndName(validationSet string) (accountID, name string, 
 	}
 	accountID = parts[0]
 	name = parts[1]
-	if !validName.MatchString(accountID) {
-		return "", "", fmt.Errorf("invalid account name %q", accountID)
+	if !asserts.IsValidAccountID(accountID) {
+		return "", "", fmt.Errorf("invalid account ID %q", accountID)
 	}
-	if !validName.MatchString(name) {
-		return "", "", fmt.Errorf("invalid name %q", name)
+	if !asserts.IsValidValidationSetName(name) {
+		return "", "", fmt.Errorf("invalid validation set name %q", name)
 	}
-
 	return accountID, name, nil
 }
 
@@ -134,10 +130,10 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 	accountID := vars["account"]
 	name := vars["name"]
 
-	if !validName.MatchString(accountID) {
-		return BadRequest("invalid account name %q", accountID)
+	if !asserts.IsValidAccountID(accountID) {
+		return BadRequest("invalid account ID %q", accountID)
 	}
-	if !validName.MatchString(name) {
+	if !asserts.IsValidValidationSetName(name) {
 		return BadRequest("invalid name %q", name)
 	}
 
@@ -196,10 +192,10 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	accountID := vars["account"]
 	name := vars["name"]
 
-	if !validName.MatchString(accountID) {
-		return BadRequest("invalid account name %q", accountID)
+	if !asserts.IsValidAccountID(accountID) {
+		return BadRequest("invalid account ID %q", accountID)
 	}
-	if !validName.MatchString(name) {
+	if !asserts.IsValidValidationSetName(name) {
 		return BadRequest("invalid name %q", name)
 	}
 
