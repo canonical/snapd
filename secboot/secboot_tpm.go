@@ -310,8 +310,12 @@ func fdeRevealKeyCommand() *exec.Cmd {
 		fmt.Sprintf("--property=RuntimeMaxSec=%s", fdeRevealKeyRuntimeMax),
 		// this ensures we get useful output for e.g. segfaults
 		`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
-		// do not allow mounting, this ensures hooks in initrd
-		// can not mess around with ubuntu-data
+		// Do not allow mounting, this ensures hooks in initrd
+		// can not mess around with ubuntu-data.
+		//
+		// Note that this is not about perfect confinement, more about
+		// making sure that people using the hook know that we do not
+		// want them to mess around outside of just providing unseal.
 		"--property=SystemCallFilter=~@mount",
 	)
 	if fdeRevealKeyCommandExtra != nil {
