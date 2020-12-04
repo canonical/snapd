@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
