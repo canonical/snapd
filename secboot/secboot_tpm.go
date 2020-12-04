@@ -292,11 +292,14 @@ type FDERevealKeyRequest struct {
 // XXX: what is a reasonable default here?
 var fdeRevealKeyRuntimeMax = "2m"
 
+// overriden in tests
+var fdeRevealKeyCommandExtra []string
+
 // fdeRevealKeyCommand returns a *exec.Cmd that is suitable to run
 // fde-reveal-key using systemd-run
 func fdeRevealKeyCommand() *exec.Cmd {
 	// TODO: put this into a new "systemd/run" package
-	return exec.Command(
+	cmd := exec.Command(
 		"systemd-run",
 		"--pipe", "--same-dir", "--wait", "--collect",
 		"--service-type=exec",
@@ -309,9 +312,13 @@ func fdeRevealKeyCommand() *exec.Cmd {
 		// do not allow mounting, this ensures hooks in initrd
 		// can not mess around with ubuntu-data
 		"--property=SystemCallFilter=~@mount",
-		// fde-reveal-key is what we actually need to run
-		"fde-reveal-key",
 	)
+	if fdeRevealKeyCommandExtra != nil {
+		cmd.Args = append(cmd.Args, fdeRevealKeyCommandExtra...)
+	}
+	// fde-reveal-key is what we actually need to run
+	cmd.Args = append(cmd.Args, "fde-reveal-key")
+	return cmd
 }
 
 func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
@@ -322,9 +329,9 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 		return res, fmt.Errorf("cannot read sealed key file: %v", err)
 	}
 	buf, err := json.Marshal(FDERevealKeyRequest{
-		Op:            "reveal",
-		SealedKey:     sealedKey,
-		SealedKeyName: name,
+		Op:        "reveal",
+		SealedKey: sealedKey,
+		KeyName:   name,
 	})
 	if err != nil {
 		return res, fmt.Errorf("cannot build request for fde-reveal-key: %v", err)
