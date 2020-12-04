@@ -383,7 +383,7 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 
 	// we are preparing a recovery system, just extract boot image to bootloader
 	// directory
-	logger.Debugf("ExtractRecoveryKernelAssets handling image prepare")
+	logger.Debugf("extracting recovery kernel %s to %s with lk bootloader", sn.SnapName(), recoverySystem)
 	if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
 		return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 	}
@@ -404,7 +404,7 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := s.Filename()
 
-	logger.Debugf("ExtractKernelAssets (%s)", blobName)
+	logger.Debugf("extracting kernel %s with lk bootloader", s.SnapName())
 
 	env, err := l.newenv()
 	if err != nil {
@@ -428,12 +428,10 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 	if l.prepareImageTime {
 		// we are preparing image, just extract boot image to bootloader directory
-		logger.Debugf("ExtractKernelAssets handling image prepare")
 		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
 			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
 	} else {
-		logger.Debugf("ExtractKernelAssets handling run time usecase")
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has to be updated with
 		// new kernel snap to bootimg partition mapping
@@ -486,7 +484,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
-	logger.Debugf("RemoveKernelAssets (%s)", blobName)
+	logger.Debugf("removing kernel assets for %s with lk bootloader", s.SnapName())
 
 	env, err := l.newenv()
 	if err != nil {

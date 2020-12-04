@@ -305,7 +305,7 @@ func (l *Env) LoadEnv(path string) error {
 	if crc != l.variant.currentCrc32() {
 		return fmt.Errorf("cannot validate %s: expected checksum 0x%X, got 0x%X", path, crc, l.variant.currentCrc32())
 	}
-	logger.Debugf("Load: validated crc32 (0x%X)", l.variant.currentCrc32())
+	logger.Debugf("validated crc32 as 0x%X for lkenv loaded from file %s", l.variant.currentCrc32(), path)
 
 	return nil
 }
@@ -323,7 +323,7 @@ func (l *Env) Save() error {
 
 	// calculate crc32
 	newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
-	logger.Debugf("calculated lk bootloader environment crc32: 0x%X", newCrc32)
+	logger.Debugf("calculated lk bootloader environment crc32 as 0x%X to save", newCrc32)
 	// note for efficiency's sake to avoid re-writing the whole structure, we
 	// re-write _just_ the crc32 to w as little-endian
 	buf.Truncate(ss - 4)
