@@ -54,7 +54,6 @@ func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
 	entries := []osutil.MountEntry{
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
-		// this would get sorted before /var/bar if looked at name only
 		{Dir: "/snap/bar/baz", Options: []string{osutil.XSnapdOriginLayout()}},
 		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/a/b-1/3"},
