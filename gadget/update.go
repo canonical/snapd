@@ -224,7 +224,7 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.EffectiveRole() == schemaMBR
+	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
@@ -245,8 +245,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
 		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
 	}
-	if from.EffectiveRole() != to.EffectiveRole() {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.EffectiveRole(), to.EffectiveRole())
+	if from.Role != to.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.Role, to.Role)
 	}
 	if from.Type != to.Type {
 		if !isLegacyMBRTransition(from, to) {
@@ -302,7 +302,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
-	if from.EffectiveRole() == schemaMBR {
+	if from.Role == schemaMBR {
 		return false
 	}
 	return true

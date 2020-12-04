@@ -319,7 +319,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 		}, {
 			// implicit legacy role to proper explicit role
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
@@ -331,7 +331,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			err: `cannot change structure type from "bare" to "mbr"`,
 		}, {

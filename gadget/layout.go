@@ -125,7 +125,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	for idx, s := range volume.Structure {
 		var start quantity.Size
 		if s.Offset == nil {
-			if s.EffectiveRole() != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
+			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
 				start = constraints.NonMBRStartOffset
 			} else {
 				start = previousEnd
@@ -141,7 +141,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			Index:           idx,
 		}
 
-		if ps.EffectiveRole() != schemaMBR {
+		if ps.Role != schemaMBR {
 			if s.Size%constraints.SectorSize != 0 {
 				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)

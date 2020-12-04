@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -73,13 +72,10 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 }
 
 func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
-	var gi gadget.Info
-	err := yaml.Unmarshal([]byte(gadgetYaml), &gi)
+	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
 	c.Assert(err, IsNil)
 	v, ok := gi.Volumes[volume]
 	c.Assert(ok, Equals, true, Commentf("volume %q not found in gadget", volume))
-	err = gadget.ValidateVolume("foo", v, nil)
-	c.Assert(err, IsNil)
 	return v
 }
 

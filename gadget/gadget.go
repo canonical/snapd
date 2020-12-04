@@ -151,28 +151,13 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
-	return vs.Type != "bare" && vs.EffectiveRole() != schemaMBR
-}
-
-// EffectiveRole returns the role of given structure
-func (vs *VolumeStructure) EffectiveRole() string {
-	if vs.Role != "" {
-		return vs.Role
-	}
-	if vs.Role == "" && vs.Type == schemaMBR {
-		return schemaMBR
-	}
-	if vs.Label == SystemBoot {
-		// for gadgets that only specify a filesystem-label, eg. pc
-		return SystemBoot
-	}
-	return ""
+	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
 // EffectiveFilesystemLabel returns the effective filesystem label, either
 // explicitly provided or implied by the structure's role
 func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.EffectiveRole() == SystemData {
+	if vs.Role == SystemData {
 		return implicitSystemDataLabel
 	}
 	return vs.Label
@@ -384,10 +369,47 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	return &gi, nil
 }
 
+type volRuleset int
+
+const (
+	volRulesetUnknown volRuleset = iota
+	volRuleset16
+	volRuleset20
+)
+
+func whichVolRuleset(model Model) volRuleset {
+	if model == nil {
+		return volRulesetUnknown
+	}
+	if model.Grade() != asserts.ModelGradeUnset {
+		return volRuleset20
+	}
+	return volRuleset16
+}
+
 func setImplicitForVolume(name string, vol *Volume, model Model) error {
+	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
+	}
+	for i := range vol.Structure {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
+	if vs.Role == "" && vs.Type == schemaMBR {
+		vs.Role = schemaMBR
+		return nil
+	}
+	if rs == volRuleset16 && vs.Role == "" && vs.Label == SystemBoot {
+		// legacy behavior, for gadgets that only specify a filesystem-label, eg. pc
+		vs.Role = SystemBoot
+		return nil
 	}
 	return nil
 }
@@ -486,6 +508,17 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
+// isMBR returns whether the structure is the MBR and  can be used before setImplicitForVolume
+func isMBR(vs *VolumeStructure) bool {
+	if vs.Role == schemaMBR {
+		return true
+	}
+	if vs.Role == "" && vs.Type == schemaMBR {
+		return true
+	}
+	return false
+}
+
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
 	previousEnd := quantity.Size(0)
 	// cross structure validation:
@@ -493,7 +526,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if ps.EffectiveRole() == schemaMBR {
+		if isMBR(ps.VolumeStructure) {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
@@ -567,10 +600,6 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
 		return err
 	}
-
-	/*if err := validateReservedLabels(vs); err != nil {
-		return err
-	}*/
 
 	// TODO: validate structure size against sector-size; ubuntu-image uses
 	// a tmp file to find out the default sector size of the device the tmp
