@@ -91,7 +91,7 @@ func (l *lk) envFile() string {
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
-	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -138,7 +138,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)
 
-	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -198,7 +198,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
 	logger.Debugf("RemoveKernelAssets (%s)", blobName)
-	env := lkenv.NewEnv(l.envFile(), lkenv.V1)
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}

@@ -442,6 +442,26 @@ func (d *disk) populatePartitions() error {
 	return nil
 }
 
+func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	// always encode the label
+	encodedLabel := BlkIDEncodeLabel(label)
+
+	if err := d.populatePartitions(); err != nil {
+		return "", err
+	}
+
+	for _, p := range d.partitions {
+		if p.partLabel == encodedLabel {
+			return p.partUUID, nil
+		}
+	}
+
+	return "", PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: label,
+	}
+}
+
 func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)

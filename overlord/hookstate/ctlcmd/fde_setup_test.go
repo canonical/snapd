@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -75,7 +76,7 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	fdeSetup := &fde.SetupRequest{
 		Op: "invalid-and-unknown",
 	}
 	s.mockContext.Lock()
@@ -111,7 +112,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	fdeSetup := &fde.SetupRequest{
 		Op: "features",
 	}
 	s.mockContext.Lock()
@@ -125,7 +126,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	fdeSetup := &fde.SetupRequest{
 		Op:      "initial-setup",
 		Key:     []byte("key-to-seal"),
 		KeyName: "the-key-name",

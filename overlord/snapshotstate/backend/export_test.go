@@ -35,6 +35,8 @@ var (
 	PickUserWrapper = pickUserWrapper
 
 	IsSnapshotFilename = isSnapshotFilename
+
+	NewMultiError = newMultiError
 )
 
 func MockIsTesting(newIsTesting bool) func() {
@@ -128,5 +130,13 @@ func MockSnapshot(setID uint64, snapName string, revision snap.Revision, size in
 		Time:     timeNow(),
 		SHA3_384: shaSums,
 		Size:     size,
+	}
+}
+
+func MockFilepathGlob(new func(pattern string) (matches []string, err error)) (restore func()) {
+	oldFilepathGlob := filepathGlob
+	filepathGlob = new
+	return func() {
+		filepathGlob = oldFilepathGlob
 	}
 }
