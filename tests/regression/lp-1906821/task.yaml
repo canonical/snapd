@@ -34,4 +34,4 @@ execute: |
     #shellcheck disable=SC2016
     test-snapd-complex-layout_prime.sh -c 'test -e $SNAP/certs/prime-instance'
     #shellcheck disable=SC2016
-    ! test-snapd-complex-layout_prime.sh -c 'test -e $SNAP/certs/non-instance'
+    not test-snapd-complex-layout_prime.sh -c 'test -e $SNAP/certs/non-instance'
