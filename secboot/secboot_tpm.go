@@ -292,7 +292,7 @@ type FDERevealKeyRequest struct {
 // XXX: what is a reasonable default here?
 var fdeRevealKeyRuntimeMax = "2m"
 
-// overriden in tests
+// overridden in tests
 var fdeRevealKeyCommandExtra []string
 
 // fdeRevealKeyCommand returns a *exec.Cmd that is suitable to run
@@ -308,6 +308,7 @@ func fdeRevealKeyCommand() *exec.Cmd {
 		// reasonable timeout and output from systemd if
 		// things go wrong
 		fmt.Sprintf("--property=RuntimeMaxSec=%s", fdeRevealKeyRuntimeMax),
+		// this ensures we get useful output for e.g. segfaults
 		`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
 		// do not allow mounting, this ensures hooks in initrd
 		// can not mess around with ubuntu-data
