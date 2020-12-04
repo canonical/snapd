@@ -143,7 +143,7 @@ func (l *lk) Present() (bool, error) {
 	partitionLabel := l.partLabelForRole()
 	_, partiallyFound, err := l.devPathForPartName(partitionLabel)
 	if partiallyFound {
-		return partiallyFound, err
+		return true, err
 	}
 	return false, nil
 }
@@ -190,11 +190,11 @@ func (l *lk) envBackstore(backup bool) (string, error) {
 	}
 
 	// for RoleRun or RoleRecovery, we need to find the partition securely
-	envFile, _, err := l.devPathForPartName(partitionLabelOrConfFile)
+	partitionFile, _, err := l.devPathForPartName(partitionLabelOrConfFile)
 	if err != nil {
 		return "", err
 	}
-	return envFile, nil
+	return partitionFile, nil
 }
 
 // devPathForPartName returns the environment file in /dev for the partition
