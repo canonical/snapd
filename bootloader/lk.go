@@ -305,8 +305,21 @@ func (l *lk) SetBootVars(values map[string]string) error {
 	}
 	// if we couldn't find the env, that's okay, as this may be the first thing
 	// to write boot vars to the env
-	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
-		return err
+	if err := env.Load(); err != nil {
+		// if the error was something other than file not found, it is fatal
+		if !xerrors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		// otherwise at prepare-image time it is okay to not have the file
+		// existing, but we should always have it at runtime as it is a
+		// partition, so it is highly unexpected for it to be missing and we
+		// cannot proceed
+		// also note that env.Load() will automatically try the backup, so if
+		// Load() failed to get the backup at runtime there's nothing left to
+		// try here
+		if !l.prepareImageTime {
+			return err
+		}
 	}
 
 	// update environment only if something changes
@@ -341,9 +354,14 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 	if err != nil {
 		return err
 	}
-	// if we couldn't find the env, that's okay, as this may be the first thing
-	// to initialize the env when we add the recovery system kernel asset there
-	if err := env.Load(); err != nil && !xerrors.Is(err, os.ErrNotExist) {
+	if err := env.Load(); err != nil {
+		// don't handle os.ErrNotExist specially here, it doesn't really make
+		// sense to extract kernel assets if we can't load the existing env,
+		// since then the caller would just see an error about not being able
+		// to find the kernel blob name (as they will all be empty in the env),
+		// when in reality the reason one can't find an available boot image
+		// partition is because we couldn't read the env file and so returning
+		// that error is better
 		return err
 	}
 
@@ -383,11 +401,14 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	if err != nil {
 		return err
 	}
-	// don't handle os.ErrNotExist here, since we need to have boot image
-	// partition labels set in the  env file before we can extract a kernel
-	// asset to a specific boot image partition, so if we don't have the
-	// file then we should fail
 	if err := env.Load(); err != nil {
+		// don't handle os.ErrNotExist specially here, it doesn't really make
+		// sense to extract kernel assets if we can't load the existing env,
+		// since then the caller would just see an error about not being able
+		// to find the kernel blob name (as they will all be empty in the env),
+		// when in reality the reason one can't find an available boot image
+		// partition is because we couldn't read the env file and so returning
+		// that error is better
 		return err
 	}
 
