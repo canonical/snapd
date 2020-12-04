@@ -267,7 +267,9 @@ func (s *validationSetsSuite) TestIntersections(c *C) {
 
 func (s *validationSetsSuite) TestCheckInstalledSnapsNoValidationSets(c *C) {
 	valsets := snapasserts.NewValidationSets()
-	snaps := []*snapasserts.InstalledSnap{{SnapID: "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", Revision: snap.R(1)}}
+	snaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1)),
+	}
 	err := valsets.CheckInstalledSnaps(snaps)
 	c.Assert(err, IsNil)
 }
@@ -368,16 +370,19 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	c.Assert(valsets.Add(vs3), IsNil)
 	c.Assert(valsets.Add(vs4), IsNil)
 
-	snapA := &snapasserts.InstalledSnap{Name: "snap-a", SnapID: "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", Revision: snap.R(1)}
-	snapB := &snapasserts.InstalledSnap{Name: "snap-b", SnapID: "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", Revision: snap.R(3)}
-	snapBinvRev := &snapasserts.InstalledSnap{Name: "snap-b", SnapID: "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", Revision: snap.R(8)}
-	snapC := &snapasserts.InstalledSnap{Name: "snap-c", SnapID: "mysnapcccccccccccccccccccccccccc", Revision: snap.R(2)}
-	snapCinvRev := &snapasserts.InstalledSnap{Name: "snap-c", SnapID: "mysnapcccccccccccccccccccccccccc", Revision: snap.R(99)}
-	snapD := &snapasserts.InstalledSnap{Name: "snap-d", SnapID: "mysnapdddddddddddddddddddddddddd", Revision: snap.R(2)}
-	snapDrev99 := &snapasserts.InstalledSnap{Name: "snap-d", SnapID: "mysnapdddddddddddddddddddddddddd", Revision: snap.R(99)}
-	snapE := &snapasserts.InstalledSnap{Name: "snap-e", SnapID: "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", Revision: snap.R(2)}
+	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
+	snapAlocal := snapasserts.NewInstalledSnap("snap-a", "", snap.R("x2"))
+	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3))
+	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8))
+	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
+	snapC := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(2))
+	snapCinvRev := snapasserts.NewInstalledSnap("snap-c", "mysnapcccccccccccccccccccccccccc", snap.R(99))
+	snapD := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(2))
+	snapDrev99 := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(99))
+	snapDlocal := snapasserts.NewInstalledSnap("snap-d", "", snap.R("x3"))
+	snapE := snapasserts.NewInstalledSnap("snap-e", "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", snap.R(2))
 	// extra snap, not referenced by any validation set
-	snapZ := &snapasserts.InstalledSnap{Name: "snap-z", SnapID: "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", Revision: snap.R(1)}
+	snapZ := snapasserts.NewInstalledSnap("snap-z", "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", snap.R(1))
 
 	tests := []struct {
 		snaps            []*snapasserts.InstalledSnap
@@ -496,6 +501,36 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				"snap-d": {"acme/barname"},
 			},
 		},
+		// local snaps
+		{
+			snaps: []*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set.
+				snapB,
+				// covered by acme/barname validation-set, local snap-d.
+				snapDlocal},
+			// all fine
+		},
+		{
+			snaps: []*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set, snap-a is invalid.
+				snapAlocal,
+				snapB,
+				// covered by acme/barname validation-set.
+				snapD},
+			expectedInvalid: map[string][]string{
+				"snap-a": {"acme/booname", "acme/fooname"},
+			},
+		},
+		{
+			snaps: []*snapasserts.InstalledSnap{
+				// covered by acme/fooname validation-set, snap-b is wrong rev (local).
+				snapBlocal,
+				// covered by acme/barname validation-set.
+				snapD},
+			expectedWrongRev: map[string][]string{
+				"snap-b": {"acme/fooname"},
+			},
+		},
 	}
 
 	checkSets := func(snapsToValidationSets map[string][]string, vs map[string]*asserts.ValidationSet) {
@@ -522,5 +557,71 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		c.Assert(tc.expectedMissing, DeepEquals, verr.MissingSnaps, Commentf("#%d", i))
 		c.Assert(tc.expectedWrongRev, DeepEquals, verr.WrongRevisionSnaps, Commentf("#%d", i))
 		checkSets(verr.InvalidSnaps, verr.Sets)
+	}
+}
+
+func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
+	vs := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "fooname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-a",
+				"id":       "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "snap-b",
+				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				"revision": "3",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(vs), IsNil)
+
+	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
+	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
+
+	tests := []struct {
+		snaps    []*snapasserts.InstalledSnap
+		errorMsg string
+	}{
+		{
+			nil,
+			"validation sets assertions are not met:\n" +
+				"missing required snaps:\n" +
+				"- snap-b\n" +
+				"  - validation set: acme/fooname",
+		},
+		{
+			[]*snapasserts.InstalledSnap{snapA},
+			"validation sets assertions are not met:\n" +
+				"missing required snaps:\n" +
+				"- snap-b\n" +
+				"  - validation set: acme/fooname\n" +
+				"invalid snaps:\n" +
+				"- snap-a\n" +
+				"  - validation set: acme/fooname",
+		},
+		{
+			[]*snapasserts.InstalledSnap{snapBlocal},
+			"validation sets assertions are not met:\n" +
+				"snaps at wrong revisions:\n" +
+				"- snap-b\n" +
+				"  - validation set: acme/fooname",
+		},
+	}
+
+	for i, tc := range tests {
+		err := valsets.CheckInstalledSnaps(tc.snaps)
+		c.Assert(err, NotNil)
+		c.Assert(err, ErrorMatches, tc.errorMsg, Commentf("#%d: ", i))
 	}
 }

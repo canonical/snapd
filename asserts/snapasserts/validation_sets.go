@@ -27,21 +27,22 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // InstalledSnap holds the minimal details about an installed snap required to
 // check the validation set.
 type InstalledSnap struct {
-	Name     string
-	SnapID   string
+	naming.SnapRef
 	Revision snap.Revision
 }
 
-// ValidationSetsConflictError describes an error where multiple
-// validation sets are in conflict about snaps.
-type ValidationSetsConflictError struct {
-	Sets  map[string]*asserts.ValidationSet
-	Snaps map[string]error
+// NewInstalledSnap creates InstalledSnap.
+func NewInstalledSnap(name, snapID string, revision snap.Revision) *InstalledSnap {
+	return &InstalledSnap{
+		SnapRef:  naming.NewSnapRef(name, snapID),
+		Revision: revision,
+	}
 }
 
 func (e *ValidationSetsConflictError) Error() string {
@@ -62,8 +63,32 @@ type ValidationSetsValidationError struct {
 	Sets               map[string]*asserts.ValidationSet
 }
 
+// ValidationSetsConflictError describes an error where multiple
+// validation sets are in conflict about snaps.
+type ValidationSetsConflictError struct {
+	Sets  map[string]*asserts.ValidationSet
+	Snaps map[string]error
+}
+
 func (e *ValidationSetsValidationError) Error() string {
-	return ""
+	buf := bytes.NewBufferString("validation sets assertions are not met:")
+	printDetails := func(header string, details map[string][]string) {
+		if len(details) == 0 {
+			return
+		}
+		fmt.Fprintf(buf, "\n%s:", header)
+		for snapName, validationSetKeys := range details {
+			fmt.Fprintf(buf, "\n- %s", snapName)
+			for _, key := range validationSetKeys {
+				fmt.Fprintf(buf, "\n  - validation set: %s", key)
+			}
+		}
+	}
+
+	printDetails("missing required snaps", e.MissingSnaps)
+	printDetails("invalid snaps", e.InvalidSnaps)
+	printDetails("snaps at wrong revisions", e.WrongRevisionSnaps)
+	return buf.String()
 }
 
 // ValidationSets can hold a combination of validation-set assertions
@@ -304,11 +329,16 @@ func (v *ValidationSets) Conflict() error {
 	return nil
 }
 
+type snapRef struct {
+	naming.SnapRef
+	revision snap.Revision
+}
+
 // CheckInstalledSnaps checks installed snaps against the validation sets.
 func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
-	installed := make(map[string]*InstalledSnap)
+	installed := naming.NewSnapSet(nil)
 	for _, sn := range snaps {
-		installed[sn.SnapID] = sn
+		installed.Add(sn)
 	}
 
 	// snapName -> validationSet key -> validation set
@@ -317,14 +347,15 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	wrongrev := make(map[string]map[string]bool)
 	sets := make(map[string]*asserts.ValidationSet)
 
-	for snapID, cstrs := range v.snaps {
-		snap, isInstalled := installed[snapID]
-		if !isInstalled && cstrs.presence != asserts.PresenceRequired {
-			continue
-		}
-
+	for _, cstrs := range v.snaps {
 		for rev, revCstr := range cstrs.revisions {
 			for _, rc := range revCstr {
+				ref := naming.NewSnapRef(rc.Name, rc.SnapID)
+				snap := installed.Lookup(ref)
+				isInstalled := snap != nil
+				if !isInstalled && cstrs.presence != asserts.PresenceRequired {
+					continue
+				}
 				switch {
 				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
 					if invalid[rc.Name] == nil {
@@ -333,7 +364,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 					invalid[rc.Name][rc.validationSetKey] = true
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				case isInstalled: // presence is either optional or required
-					if rev != unspecifiedRevision && rev != snap.Revision {
+					if rev != unspecifiedRevision && rev != snap.(*InstalledSnap).Revision {
 						if wrongrev[rc.Name] == nil {
 							wrongrev[rc.Name] = make(map[string]bool)
 						}
