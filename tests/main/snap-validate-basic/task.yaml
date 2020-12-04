@@ -44,3 +44,4 @@ execute: |
   fi
   # expect 2 lines (header, 1 entry)
   [[ $(wc -l < list.txt) == "2" ]]
+
