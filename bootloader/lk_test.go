@@ -69,6 +69,35 @@ func (s *lkTestSuite) TestNewLk(c *C) {
 	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
 }
 
+func (s *lkTestSuite) TestNewLkPresentChecksBackupStorageToo(c *C) {
+	// no files means bl is not present, but we can still create the bl object
+	l := bootloader.NewLk(s.rootdir, &bootloader.Options{
+		Role: bootloader.RoleSole,
+	})
+	c.Assert(l, NotNil)
+	c.Assert(l.Name(), Equals, "lk")
+
+	present, err := l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now mock just the backup env file
+	f, err := bootloader.LkConfigFile(l)
+	c.Assert(err, IsNil)
+	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
+
+	err = os.MkdirAll(filepath.Dir(f), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(f+"bak", nil, 0644)
+	c.Assert(err, IsNil)
+
+	// now the bootloader is present because the backup exists
+	present, err = l.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
+}
+
 func (s *lkTestSuite) TestNewLkUC20Run(c *C) {
 	// no files means bl is not present, but we can still create the bl object
 	opts := &bootloader.Options{
