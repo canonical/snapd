@@ -224,31 +224,19 @@ func LockTPMSealedKeys() error {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(
-	disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions,
-) (UnlockResult, error) {
-	res := UnlockResult{
-		UnlockMethod: NotUnlocked,
-	}
-
-	if opts == nil {
-		opts = &UnlockVolumeUsingSealedKeyOptions{}
-	}
-	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
-	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{}
 
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
-		var errNotFound disks.FilesystemLabelNotFoundError
+		var errNotFound disks.PartitionNotFoundError
 		if !xerrors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			// TODO: need to defer the connection to the default TPM somehow
@@ -256,23 +244,47 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		}
 		// otherwise it is an error not found and we should search for the
 		// unencrypted device
-		partUUID, err = disk.FindMatchingPartitionUUID(name)
+		partUUID, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
 		if err != nil {
 			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
 	}
 
-	res.PartDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
+	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it
 		// the filesystem device for the unencrypted case is the same as the
 		// partition device
+		res.PartDevice = partDevice
 		res.FsDevice = res.PartDevice
 		return res, nil
 	}
 
+	mapperName := name + "-" + randutilRandomKernelUUID()
+	sourceDevice := partDevice
+	targetDevice := filepath.Join("/dev/mapper", mapperName)
+
+	if FDEHasRevealKey() {
+		return unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	} else {
+		return unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	}
+}
+
+func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+	return res, fmt.Errorf("cannot use fde-reveal-key yet")
+}
+
+func unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
+	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
+
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 	// Obtain a TPM connection.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
@@ -287,10 +299,6 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// Also check if the TPM device is enabled. The platform firmware may disable the storage
 	// and endorsement hierarchies, but the device will remain visible to the operating system.
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
-
-	mapperName := name + "-" + randutilRandomKernelUUID()
-	sourceDevice := res.PartDevice
-	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	// if we don't have a tpm, and we allow using a recovery key, do that
 	// directly
@@ -323,7 +331,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 	if err != nil {
 		return unlockRes, err
 	}

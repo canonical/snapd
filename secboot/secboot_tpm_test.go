@@ -1152,3 +1152,25 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 		FsDevice:    "",
 	})
 }
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *C) {
+	n := 0
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		n++
+		return true
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"name-enc": "enc-dev-partuuid",
+		},
+	}
+	defaultDevice := "name"
+	expKeyPath := "vanilla-keyfile"
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, expKeyPath, opts)
+	c.Assert(err, ErrorMatches, "cannot use fde-reveal-key yet")
+	c.Check(n, Equals, 1)
+}

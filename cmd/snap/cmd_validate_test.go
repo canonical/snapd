@@ -106,9 +106,10 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 		{[]string{"--enforce"}, `missing validation set argument`},
 		{[]string{"--monitor"}, `missing validation set argument`},
 		{[]string{"--forget"}, `missing validation set argument`},
+		{[]string{"--forget", "foo/-"}, `cannot parse validation set "foo/-": invalid validation set name "-"`},
 	} {
-		s.stdout.Truncate(0)
-		s.stderr.Truncate(0)
+		s.stdout.Reset()
+		s.stderr.Reset()
 
 		_, err := main.Parser(main.Client()).ParseArgs(append([]string{"validate"}, args.args...))
 		c.Assert(err, check.ErrorMatches, args.err)
@@ -216,6 +217,19 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current       Notes\n"+
 		"foo/bar     monitor  3    valid    \n"+
-		"foo/baz     enforce  1    invalid  \n"+
-		"\n")
+		"foo/baz     enforce  1    invalid  \n",
+	)
+}
+
+func (s *validateSuite) TestValidationSetsListEmpty(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": []}`))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "No validations are available\n")
+	c.Check(s.Stdout(), check.Equals, "")
 }

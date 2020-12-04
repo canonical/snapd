@@ -153,12 +153,19 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPoint(mountpoint, opts)
 }
 
+type partition struct {
+	fsLabel   string
+	partLabel string
+	partUUID  string
+}
+
 type disk struct {
 	major int
 	minor int
-	// fsLabelToPartUUID is a map of filesystem label -> partition uuid for now
-	// eventually this may be expanded to be more generally useful
-	fsLabelToPartUUID map[string]string
+	// partitions is the set of discovered partitions for the disk, each
+	// partition must have a partition uuid, but may or may not have either a
+	// partition label or a filesystem label
+	partitions []partition
 
 	// whether the disk device has partitions, and thus is of type "disk", or
 	// whether the disk device is a volume that is not a physical disk
@@ -320,28 +327,27 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
-func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
-	encodedLabel := BlkIDEncodeLabel(label)
-	// if we haven't found the partitions for this disk yet, do that now
-	if d.fsLabelToPartUUID == nil {
-		d.fsLabelToPartUUID = make(map[string]string)
+func (d *disk) populatePartitions() error {
+	if d.partitions == nil {
+		d.partitions = []partition{}
 
 		// step 1. find the devpath for the disk, then glob for matching
 		//         devices using the devname in that sysfs directory
 		// step 2. iterate over all those devices and save all the ones that are
 		//         partitions using the partition sysfs file
-		// step 3. for all partition devices found, query udev to get the fs
-		//         label and partition uuid
+		// step 3. for all partition devices found, query udev to get the labels
+		//         of the partition and filesystem as well as the partition uuid
+		//         and save for later
 
 		udevProps, err := udevProperties(filepath.Join("/dev/block", d.Dev()))
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		// get the base device name
 		devName := udevProps["DEVNAME"]
 		if devName == "" {
-			return "", fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVNAME\"", d.Dev())
+			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVNAME\"", d.Dev())
 		}
 		// the DEVNAME as returned by udev includes the /dev/mmcblk0 path, we
 		// just want mmcblk0 for example
@@ -350,19 +356,21 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		// get the device path in sysfs
 		devPath := udevProps["DEVPATH"]
 		if devPath == "" {
-			return "", fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVPATH\"", d.Dev())
+			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVPATH\"", d.Dev())
 		}
 
 		// glob for /sys/${devPath}/${devName}*
 		paths, err := filepath.Glob(filepath.Join(dirs.SysfsDir, devPath, devName+"*"))
 		if err != nil {
-			return "", fmt.Errorf("internal error getting udev properties for device %s: %v", err, d.Dev())
+			return fmt.Errorf("internal error getting udev properties for device %s: %v", err, d.Dev())
 		}
 
 		// Glob does not sort, so sort manually to have consistent tests
 		sort.Strings(paths)
 
 		for _, path := range paths {
+			part := partition{}
+
 			// check if this device is a partition - note that the mere
 			// existence of this file is sufficient to indicate that it is a
 			// partition, the file is the partition number of the device, it
@@ -382,44 +390,96 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				continue
 			}
 
-			partUUID := udevProps["ID_PART_ENTRY_UUID"]
-			if partUUID == "" {
-				return "", fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+			// we should always have the partition uuid, and we may not have
+			// either the partition label or the filesystem label, on GPT disks
+			// the partition label is optional, and may or may not have a
+			// filesystem on the partition, on MBR we will never have a
+			// partition label, and we also may or may not have a filesystem on
+			// the partition
+			part.partUUID = udevProps["ID_PART_ENTRY_UUID"]
+			if part.partUUID == "" {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
 			}
 
-			fsLabelEnc := udevProps["ID_FS_LABEL_ENC"]
-			if fsLabelEnc == "" {
-				// it is valid for there to be a partition without a fs
-				// label - such as the bios-boot partition on amd64 pc
-				// gadget systems
-				// in this case just skip this, since we are only matching
-				// by filesystem labels, obviously we cannot ever match to
-				// a partition which does not have a filesystem
-				continue
-			}
+			// on MBR disks we may not have a partition label, so this may be
+			// the empty string. Note that this value is encoded similarly to
+			// libblkid and should be compared with normal Go strings that are
+			// encoded using BlkIDEncodeLabel.
+			part.partLabel = udevProps["ID_PART_ENTRY_NAME"]
 
-			// TODO: maybe save ID_PART_ENTRY_NAME here too, which is the name
-			//       of the partition. this may be useful if this function gets
-			//       used in the gadget update code
+			// a partition doesn't need to have a filesystem, and such may not
+			// have a filesystem label; the bios-boot partition in the amd64 pc
+			// gadget is such an example of a partition GPT that does not have a
+			// filesystem.
+			// Note that this value is also encoded similarly to
+			// ID_PART_ENTRY_NAME and thus should only be compared with normal
+			// Go strings that are encoded with BlkIDEncodeLabel.
+			part.fsLabel = udevProps["ID_FS_LABEL_ENC"]
 
-			// we always overwrite the fsLabelEnc with the last one, this
-			// has the result that the last partition with a given
-			// filesystem label will be set/found
-			// this matches what udev does with the symlinks in /dev
-			d.fsLabelToPartUUID[fsLabelEnc] = partUUID
+			// prepend the partition to the front, this has the effect that if
+			// two partitions have the same label (either filesystem or
+			// partition though it is unclear whether you could actually in
+			// practice create a disk partitioning scheme with the same
+			// partition label for multiple partitions), then the one we look at
+			// last while populating will be the one that the Find*()
+			// functions locate first while iterating over the disk's partitions
+			// this behavior matches what udev does
+			// TODO: perhaps we should just explicitly not support disks with
+			// non-unique filesystem labels or non-unique partition labels (or
+			// even non-unique partition uuids)? then we would just error if we
+			// encounter a duplicated value for a partition
+			d.partitions = append([]partition{part}, d.partitions...)
 		}
 	}
 
-	// if we didn't find any partitions from above then return an error
-	if len(d.fsLabelToPartUUID) == 0 {
-		return "", fmt.Errorf("no partitions found for disk %s", d.Dev())
+	// if we didn't find any partitions from above then return an error, this is
+	// because all disks we search for partitions are expected to have some
+	// partitions
+	if len(d.partitions) == 0 {
+		return fmt.Errorf("no partitions found for disk %s", d.Dev())
 	}
 
-	if partuuid, ok := d.fsLabelToPartUUID[encodedLabel]; ok {
-		return partuuid, nil
+	return nil
+}
+
+func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	// always encode the label
+	encodedLabel := BlkIDEncodeLabel(label)
+
+	if err := d.populatePartitions(); err != nil {
+		return "", err
 	}
 
-	return "", FilesystemLabelNotFoundError{Label: label}
+	for _, p := range d.partitions {
+		if p.partLabel == encodedLabel {
+			return p.partUUID, nil
+		}
+	}
+
+	return "", PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: label,
+	}
+}
+
+func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+	// always encode the label
+	encodedLabel := BlkIDEncodeLabel(label)
+
+	if err := d.populatePartitions(); err != nil {
+		return "", err
+	}
+
+	for _, p := range d.partitions {
+		if p.fsLabel == encodedLabel {
+			return p.partUUID, nil
+		}
+	}
+
+	return "", PartitionNotFoundError{
+		SearchType:  "filesystem-label",
+		SearchQuery: label,
+	}
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
@@ -441,5 +501,8 @@ func (d *disk) Dev() string {
 }
 
 func (d *disk) HasPartitions() bool {
+	// TODO: instead of saving this value when we create/discover the disk, we
+	//       could instead populate the partitions here and then return whether
+	//       d.partitions is empty or not
 	return d.hasPartitions
 }

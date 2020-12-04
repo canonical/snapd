@@ -55,10 +55,6 @@ func newLk(rootdir string, opts *Options) Bootloader {
 	return l
 }
 
-func (l *lk) setRootDir(rootdir string) {
-	l.rootdir = rootdir
-}
-
 func (l *lk) Name() string {
 	return "lk"
 }
@@ -95,7 +91,7 @@ func (l *lk) envFile() string {
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -108,7 +104,7 @@ func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (l *lk) SetBootVars(values map[string]string) error {
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -142,12 +138,12 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)
 
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	bootPartition, err := env.FindFreeBootPartition(blobName)
+	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
 	if err != nil {
 		return err
 	}
@@ -192,7 +188,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
 	}
-	if err := env.SetBootPartition(bootPartition, blobName); err != nil {
+	if err := env.SetBootPartitionKernel(bootPartition, blobName); err != nil {
 		return err
 	}
 
@@ -202,11 +198,11 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := s.Filename()
 	logger.Debugf("RemoveKernelAssets (%s)", blobName)
-	env := lkenv.NewEnv(l.envFile())
+	env := lkenv.NewEnv(l.envFile(), "", lkenv.V1)
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	err := env.RemoveKernelRevisionFromBootPartition(blobName)
+	err := env.RemoveKernelFromBootPartition(blobName)
 	if err == nil {
 		// found and removed the revision from the bootimg matrix, need to
 		// update the env to persist the change

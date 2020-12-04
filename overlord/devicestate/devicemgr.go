@@ -1195,7 +1195,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemMode := m.SystemMode()
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
-			return fmt.Errorf("cannot get curent system: %v", err)
+			return fmt.Errorf("cannot get current system: %v", err)
 		}
 		systemLabel = currentSys.System
 	}

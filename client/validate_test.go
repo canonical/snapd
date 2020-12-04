@@ -53,7 +53,7 @@ func (cs *clientSuite) TestListValidationsSetsError(c *check.C) {
 	cs.rsp = errorResponseJSON
 
 	_, err := cs.cli.ListValidationsSets()
-	c.Assert(err, check.ErrorMatches, "cannot get validation sets: failed")
+	c.Assert(err, check.ErrorMatches, "cannot list validation sets: failed")
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets")
 }
@@ -112,9 +112,9 @@ func (cs *clientSuite) TestApplyValidationSetError(c *check.C) {
 func (cs *clientSuite) TestApplyValidationSetInvalidArgs(c *check.C) {
 	opts := &client.ValidateApplyOptions{}
 	err := cs.cli.ApplyValidationSet("", "bar", opts)
-	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
 	err = cs.cli.ApplyValidationSet("", "bar", opts)
-	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot apply validation set without account ID and name`)
 }
 
 func (cs *clientSuite) TestForgetValidationSet(c *check.C) {
@@ -147,9 +147,9 @@ func (cs *clientSuite) TestForgetValidationSetError(c *check.C) {
 
 func (cs *clientSuite) TestForgetValidationSetInvalidArgs(c *check.C) {
 	err := cs.cli.ForgetValidationSet("", "bar", 0)
-	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account ID and name`)
 	err = cs.cli.ForgetValidationSet("", "bar", 0)
-	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot forget validation set without account ID and name`)
 }
 
 func (cs *clientSuite) TestValidationSet(c *check.C) {
@@ -173,14 +173,14 @@ func (cs *clientSuite) TestValidationSetError(c *check.C) {
 	cs.rsp = errorResponseJSON
 
 	_, err := cs.cli.ValidationSet("foo", "bar", 0)
-	c.Assert(err, check.ErrorMatches, "cannot get validation set: failed")
+	c.Assert(err, check.ErrorMatches, "cannot query validation set: failed")
 }
 
 func (cs *clientSuite) TestValidationSetInvalidArgs(c *check.C) {
 	_, err := cs.cli.ValidationSet("foo", "", 0)
-	c.Assert(err, check.ErrorMatches, `cannot get validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot query validation set without account ID and name`)
 	_, err = cs.cli.ValidationSet("", "bar", 0)
-	c.Assert(err, check.ErrorMatches, `cannot get validation set without account and name`)
+	c.Assert(err, check.ErrorMatches, `cannot query validation set without account ID and name`)
 }
 
 func (cs *clientSuite) TestValidationSetWithSequence(c *check.C) {

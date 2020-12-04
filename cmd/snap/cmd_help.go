@@ -192,7 +192,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),
-		Commands:    []string{"refresh", "revert", "switch", "disable", "enable", "create-cohort", "validate"},
+		Commands:    []string{"refresh", "revert", "switch", "disable", "enable", "create-cohort"},
 	}, {
 		Label:       i18n.G("History"),
 		Description: i18n.G("manage system change transactions"),

@@ -3,9 +3,9 @@ summary: smoke test for the system-state tool
 execute: |
 
     # Check help
-    os.query | MATCH "usage: is-core"
-    os.query -h | MATCH "usage: is-core"
-    os.query --help | MATCH "usage: is-core"
+    os.query | MATCH "usage: is-core, is-classic"
+    os.query -h | MATCH "usage: is-core, is-classic"
+    os.query --help | MATCH "usage: is-core, is-classic"
 
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
@@ -54,5 +54,26 @@ execute: |
             os.query is-classic
             not os.query is-focal
             not os.query is-core
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            os.query is-fedora
+            ;;
+        opensuse-*)
+            os.query is-opensuse
+            ;;
+        arch-*)
+            os.query is-arch
+            ;;
+        debian-*)
+            os.query is-debian
+            ;;
+        amazon-*)
+            os.query is-amazon-linux
+            ;;
+        centos-*)
+            os.query is-centos
             ;;
     esac

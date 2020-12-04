@@ -43,7 +43,7 @@ type ValidationSetResult struct {
 	// TODO: flags/states for notes column
 }
 
-type postData struct {
+type postValidationSetData struct {
 	Action   string `json:"action"`
 	Mode     string `json:"mode,omitempty"`
 	Sequence int    `json:"sequence,omitempty"`
@@ -51,12 +51,12 @@ type postData struct {
 
 // ForgetValidationSet forgets the given validation set identified by account,
 // name and optional sequence (if non-zero).
-func (client *Client) ForgetValidationSet(account, name string, sequence int) error {
-	if account == "" || name == "" {
-		return xerrors.Errorf("cannot forget validation set without account and name")
+func (client *Client) ForgetValidationSet(accountID, name string, sequence int) error {
+	if accountID == "" || name == "" {
+		return xerrors.Errorf("cannot forget validation set without account ID and name")
 	}
 
-	data := &postData{
+	data := &postValidationSetData{
 		Action:   "forget",
 		Sequence: sequence,
 	}
@@ -65,20 +65,21 @@ func (client *Client) ForgetValidationSet(account, name string, sequence int) er
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return err
 	}
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
 	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot forget validation set: %v", err)
+		fmt := "cannot forget validation set: %w"
+		return xerrors.Errorf(fmt, err)
 	}
 	return nil
 }
 
 // ApplyValidationSet applies the given validation set identified by account and name.
-func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApplyOptions) error {
-	if account == "" || name == "" {
-		return xerrors.Errorf("cannot apply validation set without account and name")
+func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) error {
+	if accountID == "" || name == "" {
+		return xerrors.Errorf("cannot apply validation set without account ID and name")
 	}
 
-	data := &postData{
+	data := &postValidationSetData{
 		Action:   "apply",
 		Mode:     opts.Mode,
 		Sequence: opts.Sequence,
@@ -88,9 +89,10 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return err
 	}
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
 	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot apply validation set: %v", err)
+		fmt := "cannot apply validation set: %w"
+		return xerrors.Errorf(fmt, err)
 	}
 	return nil
 }
@@ -98,17 +100,17 @@ func (client *Client) ApplyValidationSet(account, name string, opts *ValidateApp
 // ListValidationsSets queries all validation sets.
 func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
-	_, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot get validation sets: %v", err)
+	if _, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res); err != nil {
+		fmt := "cannot list validation sets: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	return res, nil
 }
 
 // ValidationSet queries the given validation set identified by account/name.
-func (client *Client) ValidationSet(account, name string, sequence int) (*ValidationSetResult, error) {
-	if account == "" || name == "" {
-		return nil, xerrors.Errorf("cannot get validation set without account and name")
+func (client *Client) ValidationSet(accountID, name string, sequence int) (*ValidationSetResult, error) {
+	if accountID == "" || name == "" {
+		return nil, xerrors.Errorf("cannot query validation set without account ID and name")
 	}
 
 	q := url.Values{}
@@ -117,10 +119,10 @@ func (client *Client) ValidationSet(account, name string, sequence int) (*Valida
 	}
 
 	var res *ValidationSetResult
-	path := fmt.Sprintf("/v2/validation-sets/%s/%s", account, name)
-	_, err := client.doSync("GET", path, q, nil, nil, &res)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot get validation set: %v", err)
+	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
+	if _, err := client.doSync("GET", path, q, nil, nil, &res); err != nil {
+		fmt := "cannot query validation set: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	return res, nil
 }

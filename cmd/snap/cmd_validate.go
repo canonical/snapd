@@ -21,12 +21,12 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -49,7 +49,7 @@ The validate command lists or applies validations sets
 `)
 
 func init() {
-	addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, colorDescs.also(map[string]string{
+	cmd := addCommand("validate", shortValidateHelp, longValidateHelp, func() flags.Commander { return &cmdValidate{} }, colorDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"monitor": i18n.G("Monitor the given validations set"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -60,12 +60,11 @@ func init() {
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<validation-set>"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account/name[=seq]"),
+		desc: i18n.G("Validation set with an optional pinned sequence point, i.e. account-id/name[=seq]"),
 	}})
+	// XXX: remove once api has landed
+	cmd.hidden = true
 }
-
-// this is reused for both account and set name of "account/name" argument
-var validName = regexp.MustCompile("^[a-z][0-9a-z]+$")
 
 func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
 	parts := strings.Split(arg, "=")
@@ -86,11 +85,11 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 	account = parts[0]
 	name = parts[1]
-	if !validName.MatchString(account) {
-		return "", "", 0, fmt.Errorf("invalid account name %q", account)
+	if !asserts.IsValidAccountID(account) {
+		return "", "", 0, fmt.Errorf("invalid account ID name %q", account)
 	}
-	if !validName.MatchString(name) {
-		return "", "", 0, fmt.Errorf("invalid name %q", name)
+	if !asserts.IsValidValidationSetName(name) {
+		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
 	}
 
 	return account, name, seq, nil
@@ -98,9 +97,9 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 func fmtValid(res *client.ValidationSetResult) string {
 	if res.Valid {
-		return fmt.Sprintf("valid")
+		return fmt.Sprint("valid")
 	}
-	return fmt.Sprintf("invalid")
+	return fmt.Sprint("invalid")
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
@@ -126,11 +125,11 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		return fmt.Errorf("missing validation set argument")
 	}
 
-	var account, name string
+	var accountID, name string
 	var seq int
 	var err error
 	if cmd.Positional.ValidationSet != "" {
-		account, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
+		accountID, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
 		if err != nil {
 			return fmt.Errorf("cannot parse validation set %q: %v", cmd.Positional.ValidationSet, err)
 		}
@@ -139,14 +138,14 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	if action != "" {
 		// forget
 		if cmd.Forget {
-			return cmd.client.ForgetValidationSet(account, name, seq)
+			return cmd.client.ForgetValidationSet(accountID, name, seq)
 		}
 		// apply
 		opts := &client.ValidateApplyOptions{
 			Mode:     action,
 			Sequence: seq,
 		}
-		return cmd.client.ApplyValidationSet(account, name, opts)
+		return cmd.client.ApplyValidationSet(accountID, name, opts)
 	}
 
 	// no validation set argument, print list with extended info
@@ -156,6 +155,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			return err
 		}
 		if len(vsets) == 0 {
+			fmt.Fprintln(Stderr, i18n.G("No validations are available"))
 			return nil
 		}
 
@@ -178,10 +178,8 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			fmt.Fprintln(w, strings.Join(line, "\t"))
 		}
 		w.Flush()
-		fmt.Fprintln(Stdout)
-
 	} else {
-		vset, err := cmd.client.ValidationSet(account, name, seq)
+		vset, err := cmd.client.ValidationSet(accountID, name, seq)
 		if err != nil {
 			return err
 		}
