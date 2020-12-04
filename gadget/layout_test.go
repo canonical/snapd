@@ -78,9 +78,9 @@ func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
 	c.Assert(err, IsNil)
 	v, ok := gi.Volumes[volume]
 	c.Assert(ok, Equals, true, Commentf("volume %q not found in gadget", volume))
-	err = gadget.ValidateVolume("foo", &v, nil)
+	err = gadget.ValidateVolume("foo", v, nil)
 	c.Assert(err, IsNil)
-	return &v
+	return v
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeMinimal(c *C) {

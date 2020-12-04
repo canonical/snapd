@@ -755,9 +755,10 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 				},
 			},
 		},
@@ -789,9 +790,10 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 					ID:         "123",
 				},
 			},

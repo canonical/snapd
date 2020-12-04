@@ -83,7 +83,7 @@ var (
 )
 
 type Info struct {
-	Volumes map[string]Volume `yaml:"volumes,omitempty"`
+	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
@@ -102,13 +102,6 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
-}
-
-func (v *Volume) EffectiveSchema() string {
-	if v.Schema == "" {
-		return schemaGPT
-	}
-	return v.Schema
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -357,7 +350,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v, model); err != nil {
+		if err := validateVolume(name, v, model); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -377,12 +370,26 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		return nil, fmt.Errorf("too many (%d) bootloaders declared", bootloadersFound)
 	}
 
+	for name, v := range gi.Volumes {
+		if err := setImplicitForVolume(name, v, model); err != nil {
+			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
+		}
+	}
+
 	// XXX non-basic validation, should be done optionally/separately
 	if err := ruleValidateVolumes(gi.Volumes, model); err != nil {
 		return nil, err
 	}
 
 	return &gi, nil
+}
+
+func setImplicitForVolume(name string, vol *Volume, model Model) error {
+	if vol.Schema == "" {
+		// default for schema is gpt
+		vol.Schema = schemaGPT
+	}
+	return nil
 }
 
 func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
@@ -802,6 +809,10 @@ func IsCompatible(current, new *Info) error {
 		return err
 	}
 
+	if currentVol.Schema == "" || newVol.Schema == "" {
+		panic(fmt.Sprintf("unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema))
+	}
+
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
@@ -837,7 +848,7 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 	}
 
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, &vol, constraints)
+		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
 		if err != nil {
 			return nil, err
 		}

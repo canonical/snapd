@@ -1346,9 +1346,10 @@ volumes:
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
 		c.Check(current, DeepEquals, gadget.GadgetData{
 			Info: &gadget.Info{
-				Volumes: map[string]gadget.Volume{
+				Volumes: map[string]*gadget.Volume{
 					"pc": {
 						Bootloader: "grub",
+						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
@@ -1372,9 +1373,10 @@ volumes:
 		})
 		c.Check(update, DeepEquals, gadget.GadgetData{
 			Info: &gadget.Info{
-				Volumes: map[string]gadget.Volume{
+				Volumes: map[string]*gadget.Volume{
 					"pc": {
 						Bootloader: "grub",
+						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",

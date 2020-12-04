@@ -572,7 +572,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 			{Plug: gadget.ConnectionPlug{SnapID: "snapid3", Plug: "process-control"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
 			{Plug: gadget.ConnectionPlug{SnapID: "snapid4", Plug: "pctl4"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
 		},
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -612,7 +612,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"frobinator-image": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -642,6 +642,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
+				Schema: "gpt",
 				Structure: []gadget.VolumeStructure{
 					{
 						Name:   "u-boot",
@@ -745,7 +746,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Check(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"bootloader": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -1745,6 +1746,27 @@ var (
 	}
 )
 
+func (s *gadgetYamlTestSuite) TestGadgetImplicitSchema(c *C) {
+	var minimal = []byte(`
+volumes:
+   one:
+     bootloader: grub
+`)
+
+	tests := map[string][]byte{
+		"one": minimal,
+		"pc":  gadgetYamlPC,
+	}
+
+	for volName, yaml := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(yaml, coreConstraints)
+		c.Assert(err, IsNil)
+
+		vol := giMeta.Volumes[volName]
+		c.Check(vol.Schema, Equals, "gpt")
+	}
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	// this is ok for classic
 	giClassic, err := gadget.InfoFromGadgetYaml([]byte(""), classicConstraints)
@@ -1852,9 +1874,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"pc": {
 				Bootloader: "grub",
+				Schema:     "gpt",
 			},
 		},
 	})

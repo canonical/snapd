@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -136,6 +136,10 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		return err
 	}
 
+	if oldVol.Schema == "" || newVol.Schema == "" {
+		panic(fmt.Sprintf("unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema))
+	}
+
 	// layout old partially, without going deep into the layout of structure
 	// content
 	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
@@ -168,7 +172,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// can update old layout to new layout
 	for _, update := range updates {
-		if err := canUpdateStructure(update.from, update.to, pNew.EffectiveSchema()); err != nil {
+		if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
 			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
 		}
 	}
@@ -194,7 +198,7 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 		return nil, nil, fmt.Errorf("cannot find entry for volume %q in updated gadget info", name)
 	}
 
-	return &oldV, &newV, nil
+	return oldV, newV, nil
 }
 
 func isSameOffset(one *quantity.Size, two *quantity.Size) bool {
@@ -277,8 +281,8 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
-	if from.EffectiveSchema() != to.EffectiveSchema() {
-		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
+	if from.Schema != to.Schema {
+		return fmt.Errorf("cannot change volume schema from %q to %q", from.Schema, to.Schema)
 	}
 	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))

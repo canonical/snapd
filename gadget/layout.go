@@ -359,9 +359,9 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
-	if current.EffectiveSchema() != new.EffectiveSchema() {
+	if current.Schema != new.Schema {
 		return fmt.Errorf("incompatible schema change from %v to %v",
-			current.EffectiveSchema(), new.EffectiveSchema())
+			current.Schema, new.Schema)
 	}
 	if current.Bootloader != new.Bootloader {
 		return fmt.Errorf("incompatible bootloader change from %v to %v",
@@ -379,7 +379,7 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	for i := range current.LaidOutStructure {
 		from := &current.LaidOutStructure[i]
 		to := &new.LaidOutStructure[i]
-		if err := canUpdateStructure(from, to, new.EffectiveSchema()); err != nil {
+		if err := canUpdateStructure(from, to, new.Schema); err != nil {
 			return fmt.Errorf("incompatible structure %v change: %v", to, err)
 		}
 	}
