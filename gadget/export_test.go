@@ -36,6 +36,9 @@ var (
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
 
+	RuleValidateVolumeStructure = ruleValidateVolumeStructure
+	EnsureVolumeRuleConsistency = ensureVolumeRuleConsistency
+
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
@@ -45,8 +48,6 @@ var (
 	RawContentBackupPath = rawContentBackupPath
 
 	UpdaterForStructure = updaterForStructure
-
-	EnsureVolumeConsistency = ensureVolumeConsistency
 
 	Flatten = flatten
 
