@@ -83,12 +83,12 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	exec_command, icon, err := readExecCommandFromDesktopFile(desktopFile)
+	command, icon, err := readExecCommandFromDesktopFile(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	args, err := parseExecCommand(exec_command, icon)
+	args, err := parseExecCommand(command, icon)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -98,7 +98,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 	cmd := exec.Command(args[0], args[1:]...)
 
 	if cmd.Run() != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
+		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", command))
 	}
 
 	return nil
@@ -138,7 +138,6 @@ func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId [
 
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
 func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string) (string, error) {
-
 	// OpenDesktopEntry() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
 	// written by snapd and considered safe for userd to process.
@@ -158,16 +157,16 @@ func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string)
 // verifyDesktopFileLocation checks the desktop file location:
 // we only consider desktop files in dirs.SnapDesktopFilesDir
 func verifyDesktopFileLocation(desktopFile string) error {
+	if filepath.Clean(desktopFile) != desktopFile {
+		return fmt.Errorf("desktop file has unclean path: %q", desktopFile)
+	}
+
 	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir+"/") {
 		// We currently only support launching snap applications from desktop files in
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
 		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
 		return fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
-	}
-
-	if filepath.Clean(desktopFile) != desktopFile {
-		return fmt.Errorf("desktop file has unclean path: %q", desktopFile)
 	}
 
 	return nil
@@ -183,18 +182,18 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	in_desktop_section := false
+	inDesktopSection := false
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
 		if line == "[Desktop Entry]" {
-			in_desktop_section = true
+			inDesktopSection = true
 		} else if strings.HasPrefix(line, "[Desktop Action ") {
 			// maybe later we'll add support here
-			in_desktop_section = false
+			inDesktopSection = false
 		} else if strings.HasPrefix(line, "[") {
-			in_desktop_section = false
-		} else if in_desktop_section {
+			inDesktopSection = false
+		} else if inDesktopSection {
 			if strings.HasPrefix(line, "Exec=") {
 				exec = strings.TrimPrefix(line, "Exec=")
 			} else if strings.HasPrefix(line, "Icon=") {
@@ -203,9 +202,9 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 		}
 	}
 
-	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s "+dirs.SnapBinariesDir, desktopFile)
+	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s %s", desktopFile, dirs.SnapBinariesDir)
 	if !strings.HasPrefix(exec, expectedPrefix) {
-		return "", "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value: %q", desktopFile, exec)
+		return "", "", fmt.Errorf("desktop file %q has an unsupported 'Exec' value: %q", desktopFile, exec)
 	}
 
 	return exec, icon, nil
@@ -217,41 +216,34 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 // implications that must be thought through regarding the influence of the launching
 // snap over the launcher wrt exec variables. For now we simply filter them out.
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
-func parseExecCommand(exec_command string, icon string) ([]string, error) {
-	args, err := shlex.Split(exec_command)
+func parseExecCommand(command string, icon string) ([]string, error) {
+	origArgs, err := shlex.Split(command)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 
-	i := 0
-	for {
+	args := make([]string, 0, len(origArgs))
+	for _, arg := range origArgs {
 		// We want to keep literal '%' (expressed as '%%') but filter our exec variables
 		// like '%foo'
-		if strings.HasPrefix(args[i], "%%") {
-			args[i] = strings.TrimPrefix(args[i], "%")
-			i++
-		} else if strings.HasPrefix(args[i], "%") {
-			switch args[i] {
+		if strings.HasPrefix(arg, "%%") {
+			arg = arg[1:]
+		} else if strings.HasPrefix(arg, "%") {
+			switch arg {
 			case "%f", "%F", "%u", "%U":
-				args = append(args[:i], args[i+1:]...)
+				// If we were launching a file with
+				// the application, these variables
+				// would expand to file names or URIs.
+				// As we're not, they are simply
+				// removed from the argument list.
 			case "%i":
-				pre := args[:i]
-				post := args[i+1:]
-				if icon != "" {
-					post = append([]string{"--icon", icon}, post...)
-					i = i + 2
-				}
-				args = append(pre, post...)
+				args = append(args, "--icon", icon)
 			default:
-				return []string{}, fmt.Errorf("cannot run %q", exec_command)
+				return nil, fmt.Errorf("cannot run %q", command)
 			}
-		} else {
-			i++
+			continue
 		}
-
-		if i == len(args) {
-			break
-		}
+		args = append(args, arg)
 	}
 	return args, nil
 }
