@@ -98,9 +98,10 @@ func (l *lk) dir() string {
 	switch l.role {
 	case RoleSole:
 		// TODO: this should be adjusted to try and use the kernel cmdline
-		//       parameter for the disk that the bootloader says to find the
-		//       partition on, since like the UC20 case, but that involves
-		//       changing many more tests, so let's do that in a followup PR
+		//       parameter for the disk that the bootloader says to find
+		//       the lk partitions on if provided like the UC20 case does, but
+		//       that involves changing many more tests, so let's do that in a
+		//       followup PR
 		return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
 	case RoleRecovery, RoleRunMode:
 		// TODO: maybe panic'ing here is a bit harsh...
