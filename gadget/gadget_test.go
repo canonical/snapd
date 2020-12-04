@@ -1428,7 +1428,8 @@ func (s *gadgetYamlTestSuite) TestValidateStructureReservedLabels(c *C) {
 		role, label, err string
 	}{
 		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
-		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},
+		// 2020-12-02: disable for customer hotfix
+		/*{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},*/
 		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
 		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`},
 		// these are ok
