@@ -282,8 +282,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 type FDERevealKeyRequest struct {
 	Op string `json:"op"`
 
-	SealedKey     []byte `json:"sealed-key"`
-	SealedKeyName string `json:"sealed-key-name"`
+	SealedKey []byte `json:"sealed-key"`
+	KeyName   string `json:"key-name"`
 
 	// TODO: add VolumeName,SourceDevicePath later
 }
