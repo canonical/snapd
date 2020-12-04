@@ -127,13 +127,21 @@ func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) error {
 func (l *lk) Present() (bool, error) {
 	// if we are in prepare-image mode or in V1, just check the env file
 	if l.prepareImageTime || l.role == RoleSole {
-		// TODO: should we try checking the backup file first before returning
-		//       if the primary doesn't exist?
-		envFile, err := l.envBackstore(primaryStorage)
+		primary, err := l.envBackstore(primaryStorage)
 		if err != nil {
 			return false, err
 		}
-		return osutil.FileExists(envFile), nil
+
+		if osutil.FileExists(primary) {
+			return true, nil
+		}
+
+		// if the primary backstore doesn't exist, check the backup storage
+		backup, err := l.envBackstore(backupStorage)
+		if err != nil {
+			return false, err
+		}
+		return osutil.FileExists(backup), nil
 	}
 
 	// otherwise for V2, non-sole bootloader roles we need to check on the
