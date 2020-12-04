@@ -25,8 +25,8 @@ execute: |
   MATCH "foo/bar .+0 " < list.txt
   MATCH "foo/baz=12 .+0 " < list.txt
   MATCH "foo/other=3 .+0 " < list.txt
-  # expect 5 lines (header, 3 entries, newline)
-  [[ $(wc -l < list.txt) == "5" ]]
+  # expect 4 lines (header, 3 entries)
+  [[ $(wc -l < list.txt) == "4" ]]
 
   echo "Check that validation sets can be forgotten"
   snap validate --forget foo/other=3
@@ -42,5 +42,5 @@ execute: |
     echo "didn't expect foo/other"
     exit 1
   fi
-  # expect 3 lines (header, 1 entry, newline)
-  [[ $(wc -l < list.txt) == "3" ]]
+  # expect 2 lines (header, 1 entry)
+  [[ $(wc -l < list.txt) == "2" ]]
