@@ -29,21 +29,21 @@ execute: |
             not os.query is-classic
             os.query is-ubuntu
             ;;
-        ubuntu-14-*)
+        ubuntu-14.04-*)
             os.query is-classic
             os.query is-trusty
             not os.query is-bionic
             not os.query is-core
             os.query is-ubuntu
             ;;
-        ubuntu-16-*)
+        ubuntu-16.04-*)
             os.query is-classic
             os.query is-xenial
             not os.query is-bionic
             not os.query is-core
             os.query is-ubuntu
             ;;
-        ubuntu-18-*)
+        ubuntu-18.04-*)
             os.query is-classic
             os.query is-bionic
             not os.query is-focal
