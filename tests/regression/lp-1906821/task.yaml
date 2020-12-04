@@ -21,9 +21,17 @@ execute: |
 
     mkdir -p /var/snap/test-snapd-complex-layout/current/certs
     mkdir -p /var/snap/test-snapd-complex-layout_prime/current/certs
+    # this file should only be visible in test-snapd-complex-layout snap mount
+    # namespace
     touch /var/snap/test-snapd-complex-layout/current/certs/non-instance
+    # this file should only be visible in test-snapd-complex-layout_prime mount
+    # namespace
     touch /var/snap/test-snapd-complex-layout_prime/current/certs/prime-instance
     #shellcheck disable=SC2016
     test-snapd-complex-layout.sh -c 'test -e $SNAP/certs/non-instance'
     #shellcheck disable=SC2016
+    ! test-snapd-complex-layout.sh -c 'test -e $SNAP/certs/prime-instance'
+    #shellcheck disable=SC2016
     test-snapd-complex-layout_prime.sh -c 'test -e $SNAP/certs/prime-instance'
+    #shellcheck disable=SC2016
+    ! test-snapd-complex-layout_prime.sh -c 'test -e $SNAP/certs/non-instance'
