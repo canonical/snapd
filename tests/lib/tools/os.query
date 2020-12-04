@@ -5,6 +5,7 @@ show_help() {
     echo "       is-core16, is-core18, is-core20"
     echo "       is-trusty, is-xenial, is-bionic, is-focal"
     echo "       is-ubuntu, is-debian, is-fedora, is-amazon-linux, is-arch, is-centos, is-opensuse"
+    echo "       is-amd64, is-i386, is-arm"
     echo ""
     echo "Get general information about the current system"
 }
@@ -71,6 +72,18 @@ is_arch_linux() {
 
 is_opensuse() {
     grep -qFx 'ID="opensuse-leap"' /etc/os-release || grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
+}
+
+is_amd64() {
+
+}
+
+is_i386() {
+    
+}
+
+is_arm() {
+    
 }
 
 main() {
