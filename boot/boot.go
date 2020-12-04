@@ -340,11 +340,15 @@ func MarkBootSuccessful(dev Device) error {
 	}
 
 	if dev.HasModeenv() {
-		b := trustedAssetsBootState(dev)
-		var err error
-		u, err = b.markSuccessful(u)
-		if err != nil {
-			return fmt.Errorf(errPrefix, err)
+		for _, bs := range []successfulBootState{
+			trustedAssetsBootState(dev),
+			trustedCommandLineBootState(dev),
+		} {
+			var err error
+			u, err = bs.markSuccessful(u)
+			if err != nil {
+				return fmt.Errorf(errPrefix, err)
+			}
 		}
 	}
 

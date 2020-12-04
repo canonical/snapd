@@ -77,6 +77,9 @@ func (o *Options) validate() error {
 	if o.NoSlashBoot && o.Role == RoleSole {
 		return fmt.Errorf("internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
 	}
+	if o.PrepareImageTime && o.Role == RoleRunMode {
+		return fmt.Errorf("internal error: cannot use run mode bootloader at prepare-image time")
+	}
 	return nil
 }
 
