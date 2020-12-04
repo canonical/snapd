@@ -103,8 +103,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	m := &DeviceManager{
 		state:    s,
-		newStore: newStore,
 		hookMgr:  hookManager,
+		newStore: newStore,
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
 	}
@@ -1445,7 +1445,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	err = context.Get("fde-setup-result", &hookResult)
 	context.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get result from %q: %v", op, err)
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
 	}
 
 	return hookResult, nil
