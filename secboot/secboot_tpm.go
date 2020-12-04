@@ -295,6 +295,7 @@ var fdeRevealKeyRuntimeMax = "2m"
 // fdeRevealKeyCommand returns a *exec.Cmd that is suitable to run
 // fde-reveal-key using systemd-run
 func fdeRevealKeyCommand() *exec.Cmd {
+	// TODO: put this into a new "systemd/run" package
 	return exec.Command(
 		"systemd-run",
 		"--pipe", "--same-dir", "--wait", "--collect",
