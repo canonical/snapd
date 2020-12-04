@@ -73,7 +73,7 @@ func (s *PrivilegedDesktopLauncher) IntrospectionData() string {
 // DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sender dbus.Sender) *dbus.Error {
-	desktopFile, err := desktopFileIDToFilename(osutil.RegularFileExists, desktopFileID)
+	desktopFile, err := desktopFileIDToFilename(desktopFileID)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -104,7 +104,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 	return nil
 }
 
-type fileExists func(string) bool
+var regularFileExists = osutil.RegularFileExists
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
 // Per https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id,
@@ -115,10 +115,10 @@ type fileExists func(string) bool
 //   o .../foo/bar_baz/norf.desktop
 //   o .../foo-bar_baz/norf.desktop
 // We're not required to diagnose multiple files matching the desktop file ID.
-func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId []string) (string, error) {
+func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	desktopFile := filepath.Join(baseDir, strings.Join(splitFileId, "-"))
 
-	if desktopFileExists(desktopFile) {
+	if regularFileExists(desktopFile) {
 		return desktopFile, nil
 	}
 
@@ -127,7 +127,7 @@ func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId [
 	// we're only checking dirs.SnapDesktopFilesDir (not all entries in $XDG_DATA_DIRS) and we know that snapd
 	// does not create subdirectories in that location.
 	for i := 1; i != len(splitFileId); i++ {
-		desktopFile, err := findDesktopFile(desktopFileExists, filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
+		desktopFile, err := findDesktopFile(filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if err == nil {
 			return desktopFile, err
 		}
@@ -137,7 +137,7 @@ func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId [
 }
 
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
-func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string) (string, error) {
+func desktopFileIDToFilename(desktopFileID string) (string, error) {
 	// OpenDesktopEntry() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
 	// written by snapd and considered safe for userd to process.
@@ -145,7 +145,7 @@ func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string)
 	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	baseDir := dirs.SnapDesktopFilesDir
 
-	desktopFile, err := findDesktopFile(desktopFileExists, baseDir, strings.Split(desktopFileID, "-"))
+	desktopFile, err := findDesktopFile(baseDir, strings.Split(desktopFileID, "-"))
 
 	if err == nil {
 		return desktopFile, nil

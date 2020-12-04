@@ -354,6 +354,8 @@ func existsOnMockFileSystem(desktop_file string) bool {
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {
+	restore := userd.MockRegularFileExists(existsOnMockFileSystem)
+	defer restore()
 
 	var desktopIdTests = []struct {
 		id     string
@@ -365,13 +367,16 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 	}
 
 	for _, test := range desktopIdTests {
-		actual, err := userd.DesktopFileIDToFilename(existsOnMockFileSystem, test.id)
+		actual, err := userd.DesktopFileIDToFilename(test.id)
 		c.Assert(err, IsNil)
 		c.Assert(actual, Equals, test.expect)
 	}
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c *C) {
+	restore := userd.MockRegularFileExists(existsOnMockFileSystem)
+	defer restore()
+
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
@@ -380,7 +385,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 	}
 
 	for _, id := range desktopIdTests {
-		_, err := userd.DesktopFileIDToFilename(existsOnMockFileSystem, id)
+		_, err := userd.DesktopFileIDToFilename(id)
 		c.Assert(err, NotNil)
 	}
 }

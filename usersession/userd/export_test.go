@@ -31,16 +31,16 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 	}
 }
 
-type FileExists fileExists
+var (
+	DesktopFileIDToFilename        = desktopFileIDToFilename
+	ParseExecCommand               = parseExecCommand
+	ReadExecCommandFromDesktopFile = readExecCommandFromDesktopFile
+)
 
-func DesktopFileIDToFilename(desktopFileExists FileExists, desktopFileID string) (string, error) {
-	return desktopFileIDToFilename(fileExists(desktopFileExists), desktopFileID)
-}
-
-func ParseExecCommand(exec_command string, icon string) ([]string, error) {
-	return parseExecCommand(exec_command, icon)
-}
-
-func ReadExecCommandFromDesktopFile(desktopFile string) (exec string, icon string, err error) {
-	return readExecCommandFromDesktopFile(desktopFile)
+func MockRegularFileExists(f func(string) bool) func() {
+	old := regularFileExists
+	regularFileExists = f
+	return func() {
+		regularFileExists = old
+	}
 }
