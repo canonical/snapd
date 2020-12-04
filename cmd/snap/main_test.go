@@ -98,6 +98,10 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.AddCleanup(snap.MockIsStdinTTY(false))
 
 	s.AddCleanup(snap.MockSELinuxIsEnabled(func() (bool, error) { return false, nil }))
+
+	// mock an empty cmdline since we check the cmdline to check whether we are
+	// in install mode or not and we don't want to use the host's proc/cmdline
+	s.AddCleanup(osutil.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {

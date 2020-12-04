@@ -21,6 +21,8 @@ package wrappers
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // some internal helper exposed for testing
@@ -29,6 +31,9 @@ var (
 	GenerateSnapServiceFile = generateSnapServiceFile
 	GenerateSnapSocketFiles = generateSnapSocketFiles
 	GenerateSnapTimerFile   = generateSnapTimerFile
+
+	// dbus
+	GenerateDBusActivationFile = generateDBusActivationFile
 
 	// desktop
 	SanitizeDesktopFile    = sanitizeDesktopFile
@@ -48,5 +53,13 @@ func MockKillWait(wait time.Duration) (restore func()) {
 	killWait = wait
 	return func() {
 		killWait = oldKillWait
+	}
+}
+
+func MockEnsureDirState(f func(dir string, glob string, content map[string]osutil.FileState) (changed, removed []string, err error)) (restore func()) {
+	oldEnsureDirState := ensureDirState
+	ensureDirState = f
+	return func() {
+		ensureDirState = oldEnsureDirState
 	}
 }

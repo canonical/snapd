@@ -170,6 +170,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		if beginTask != nil {
 			// hooks must wait for mark-preseeded
 			hooksTask.WaitFor(preseedDoneTask)
+			if n := len(all); n > 0 {
+				// the first hook of the snap waits for all tasks of previous snap
+				hooksTask.WaitAll(all[n-1])
+			}
 			if lastBeforeHooksTask != nil {
 				beginTask.WaitFor(lastBeforeHooksTask)
 			}
@@ -273,6 +277,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
 
+	// ts is the taskset of the last snap
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
@@ -290,6 +295,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 
+	// mark-seeded waits for the taskset of last snap
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)

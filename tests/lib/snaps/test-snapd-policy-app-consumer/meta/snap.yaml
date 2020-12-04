@@ -110,6 +110,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  fpga:
+    command: bin/run
+    plugs: [ fpga ]
   system-files:
     command: bin/run
     plugs: [ system-files ]
@@ -329,6 +332,9 @@ apps:
   process-control:
     command: bin/run
     plugs: [ process-control ]
+  ptp:
+    command: bin/run
+    plugs: [ ptp ]
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]

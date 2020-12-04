@@ -21,6 +21,7 @@ package bootloader_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -231,6 +232,46 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	}
 }
 
+func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
+	rootdir := c.MkDir()
+	// add a mock bootloader to the list of bootloaders that Find() uses
+	mockBl := bootloadertest.Mock("mock", rootdir)
+	restore := bootloader.MockAddBootloaderToFind(func(dir string, opts *bootloader.Options) bootloader.Bootloader {
+		c.Assert(dir, Equals, rootdir)
+		return mockBl
+	})
+	defer restore()
+
+	// make us find our bootloader
+	mockBl.MockedPresent = true
+
+	bl, err := bootloader.Find(rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bl, NotNil)
+	c.Assert(bl.Name(), Equals, "mock")
+	c.Assert(bl, DeepEquals, mockBl)
+
+	// now make finding our bootloader a fatal error, this time we will get the
+	// error back
+	mockBl.PresentErr = fmt.Errorf("boom")
+	_, err = bootloader.Find(rootdir, nil)
+	c.Assert(err, ErrorMatches, "bootloader \"mock\" found but not usable: boom")
+}
+
+func (s *bootenvTestSuite) TestBootloaderFindBadOptions(c *C) {
+	_, err := bootloader.Find("", &bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode,
+	})
+	c.Assert(err, ErrorMatches, "internal error: cannot use run mode bootloader at prepare-image time")
+
+	_, err = bootloader.Find("", &bootloader.Options{
+		NoSlashBoot: true,
+		Role:        bootloader.RoleSole,
+	})
+	c.Assert(err, ErrorMatches, "internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
+}
+
 func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	for _, tc := range []struct {
 		name    string
@@ -254,7 +295,7 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 
 		// traditional uboot.env - the uboot.env file needs to be non-empty
 		{name: "uboot.env", sysFile: "/boot/uboot/uboot.env", expName: "uboot"},
-		// boot.sel variant
+		// boot.sel uboot variant
 		{
 			name:    "uboot boot.scr",
 			sysFile: "/uboot/ubuntu/boot.sel",

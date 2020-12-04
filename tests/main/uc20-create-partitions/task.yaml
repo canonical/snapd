@@ -18,6 +18,7 @@ restore: |
         losetup -d "$LOOP"
         umount "${LOOP}p3"
         umount "${LOOP}p4"
+        umount "${LOOP}p5"
     fi
 
 prepare: |
@@ -59,18 +60,14 @@ execute: |
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '16.7G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
-
-    echo "Check if attribute bits were set for new partitions"
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p1.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p2.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p3.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p4.*attrs=\"GUID:59\""
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
     echo "Check that the filesystems were not auto-mounted"
-    mount | not MATCH /run/mnt/ubuntu-seed
-    mount | not MATCH /run/mnt/ubuntu-boot
-    mount | not MATCH /run/mnt/ubuntu-data
+    mount | NOMATCH /run/mnt/ubuntu-seed
+    mount | NOMATCH /run/mnt/ubuntu-boot
+    mount | NOMATCH /run/mnt/ubuntu-save
+    mount | NOMATCH /run/mnt/ubuntu-data
 
     # we used "lsblk --fs" here but it was unreliable
     mkdir -p ./mnt
@@ -90,11 +87,19 @@ execute: |
     mount "${LOOP}p4" ./mnt
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
     # check metadata_csum
-    tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
+    tune2fs -l "${LOOP}p4" | MATCH '^Filesystem features:.*metadata_csum'
+
+    mkdir -p ./mnt
+    mount "${LOOP}p5" ./mnt
+    df -T "${LOOP}p5" | MATCH ext4
+    umount ./mnt
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # check metadata_csum
+    tune2fs -l "${LOOP}p5" | MATCH '^Filesystem features:.*metadata_csum'
     # size is reported in 512 blocks
-    sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
+    sz="$(udevadm info -q property "${LOOP}p5" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
     # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
     # partition can be safely assumed to be > 10GB
     if [ "$sz" -lt "$((10 * 2097152))" ]; then
@@ -107,7 +112,6 @@ execute: |
     mount "${LOOP}p3" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
     ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
     # remove a file
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt
@@ -124,17 +128,19 @@ execute: |
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 1G\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 110M\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 1G\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p6 .* 110M\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
     mount
 
     mount | MATCH /run/mnt/ubuntu-boot
+    mount | MATCH /run/mnt/ubuntu-save
     mount | MATCH /run/mnt/ubuntu-data
     mount | MATCH /run/mnt/other-ext4
-    df -T "${LOOP}p5" | MATCH ext4
-    file -s "${LOOP}p5" | MATCH 'volume name "other-ext4"'
+    df -T "${LOOP}p6" | MATCH ext4
+    file -s "${LOOP}p6" | MATCH 'volume name "other-ext4"'
     umount /run/mnt/other-ext4
 
     echo "Make sure the filesystem was redeployed"

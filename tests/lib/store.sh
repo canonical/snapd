@@ -125,7 +125,7 @@ setup_fake_store(){
 
     echo "Create fakestore at the given port"
     PORT="11028"
-    systemd_create_and_start_unit fakestore "$(command -v fakestore) run --dir $top_dir --addr localhost:$PORT --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    systemd-run --unit fakestore --setenv SNAPD_DEBUG=1 --setenv SNAPD_DEBUG_HTTP=7 --setenv SNAPPY_TESTING=1 --setenv SNAPPY_USE_STAGING_STORE="$SNAPPY_USE_STAGING_STORE" fakestore run --dir "$top_dir" --addr "localhost:$PORT" --https-proxy="${https_proxy}" --http-proxy="${http_proxy}" --assert-fallback
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$PORT" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
@@ -146,7 +146,10 @@ setup_fake_store(){
 
 teardown_fake_store(){
     local top_dir=$1
-    systemd_stop_and_destroy_unit fakestore
+    systemctl stop fakestore || true
+    # when a unit fails, systemd may keep its status, resetting it allows to
+    # start the unit again with a clean slate
+    systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store

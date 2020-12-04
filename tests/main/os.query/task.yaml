@@ -1,0 +1,79 @@
+summary: smoke test for the system-state tool
+
+execute: |
+
+    # Check help
+    os.query | MATCH "usage: is-core, is-classic"
+    os.query -h | MATCH "usage: is-core, is-classic"
+    os.query --help | MATCH "usage: is-core, is-classic"
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            os.query is-core
+            os.query is-core16
+            not os.query is-core18
+            not os.query is-classic
+            ;;
+        ubuntu-core-18-*)
+            os.query is-core
+            os.query is-core18
+            not os.query is-core20
+            not os.query is-classic
+            ;;
+        ubuntu-core-20-*)
+            os.query is-core
+            os.query is-core20
+            not os.query is-core18
+            not os.query is-classic
+            ;;
+        ubuntu-14-*)
+            os.query is-classic
+            os.query is-trusty
+            not os.query is-bionic
+            not os.query is-core
+            ;;
+        ubuntu-16-*)
+            os.query is-classic
+            os.query is-xenial
+            not os.query is-bionic
+            not os.query is-core
+            ;;
+        ubuntu-18-*)
+            os.query is-classic
+            os.query is-bionic
+            not os.query is-focal
+            not os.query is-core
+            ;;
+        ubuntu-20.04-*)
+            os.query is-classic
+            os.query is-focal
+            not os.query is-xenial
+            not os.query is-core
+            ;;
+        *)
+            os.query is-classic
+            not os.query is-focal
+            not os.query is-core
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            os.query is-fedora
+            ;;
+        opensuse-*)
+            os.query is-opensuse
+            ;;
+        arch-*)
+            os.query is-arch
+            ;;
+        debian-*)
+            os.query is-debian
+            ;;
+        amazon-*)
+            os.query is-amazon-linux
+            ;;
+        centos-*)
+            os.query is-centos
+            ;;
+    esac
