@@ -1333,6 +1333,8 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	})
 	st.Unlock()
 
+	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+
 	var hookCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		ctx.Lock()
@@ -1342,14 +1344,18 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		c.Check(ctx.HookName(), Equals, "fde-setup")
 		var fdeSetup fde.SetupRequest
 		ctx.Get("fde-setup-request", &fdeSetup)
-		c.Check(fdeSetup.Op, Equals, "initial-setup")
-		c.Check(fdeSetup.KeyName, Equals, "some-key-name")
-		c.Check(fdeSetup.Model["series"], DeepEquals, "16")
-		c.Check(fdeSetup.Model["brand-id"], DeepEquals, "canonical")
-		c.Check(fdeSetup.Model["model"], DeepEquals, "pc")
-		c.Check(fdeSetup.Model["grade"], DeepEquals, "unset")
-		c.Check(fdeSetup.Model["signkey-id"], DeepEquals, mockModel.SignKeyID())
-		c.Assert(fdeSetup.Model, HasLen, 5)
+		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
+			Op:      "initial-setup",
+			Key:     &mockKey,
+			KeyName: "some-key-name",
+			Model: map[string]string{
+				"series":     "16",
+				"brand-id":   "canonical",
+				"model":      "pc",
+				"grade":      "unset",
+				"signkey-id": mockModel.SignKeyID(),
+			},
+		})
 
 		// the snapctl fde-setup-result will set the data
 		ctx.Set("fde-setup-result", []byte("sealed-key"))
@@ -1363,7 +1369,6 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	params := &boot.FDESetupHookParams{
 		Key:     &mockKey,
 		KeyName: "some-key-name",
