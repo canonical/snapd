@@ -28,6 +28,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -226,4 +227,19 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 	}
 
 	return SyncResponse(results, meta)
+}
+
+func mapRemote(remoteSnap *snap.Info) *client.Snap {
+	result, err := clientutil.ClientSnapFromSnapInfo(remoteSnap, nil)
+	if err != nil {
+		logger.Noticef("cannot get full app info for snap %q: %v", remoteSnap.SnapName(), err)
+	}
+	result.DownloadSize = remoteSnap.Size
+	if remoteSnap.MustBuy {
+		result.Status = "priced"
+	} else {
+		result.Status = "available"
+	}
+
+	return result
 }
