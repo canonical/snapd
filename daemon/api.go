@@ -101,12 +101,6 @@ var api = []*Command{
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
-	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}/icon",
-		UserOK: true,
-		GET:    appIconGet,
-	}
-
 	snapsCmd = &Command{
 		Path:     "/v2/snaps",
 		UserOK:   true,
@@ -1162,36 +1156,3 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 }
 
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
-
-func iconGet(st *state.State, name string) Response {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil {
-		if err == state.ErrNoState {
-			return SnapNotFound(name, err)
-		}
-		return InternalError("cannot consult state: %v", err)
-	}
-	sideInfo := snapst.CurrentSideInfo()
-	if sideInfo == nil {
-		return NotFound("snap has no current revision")
-	}
-
-	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
-
-	if icon == "" {
-		return NotFound("local snap has no icon")
-	}
-
-	return fileResponse(icon)
-}
-
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-
-	return iconGet(c.d.overlord.State(), name)
-}
