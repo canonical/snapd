@@ -54,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snapfile"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -115,12 +114,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getSnapInfo,
 		POST:     postSnap,
-	}
-
-	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
 	}
 )
 
@@ -212,34 +205,6 @@ func getStore(c *Command) snapstate.StoreService {
 	defer st.Unlock()
 
 	return snapstate.Store(st, nil)
-}
-
-func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
-	theStore := getStore(c)
-
-	// TODO: use a per-request context
-	sections, err := theStore.Sections(context.TODO(), user)
-	switch err {
-	case nil:
-		// pass
-	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
-	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
-		return Unauthorized("%v", err)
-	default:
-		return InternalError("%v", err)
-	}
-
-	return SyncResponse(sections, nil)
 }
 
 // plural!
