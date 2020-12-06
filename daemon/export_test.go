@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -31,10 +33,23 @@ import (
 
 var MinLane = minLane
 
+func NewAndAddRoutes() (*Daemon, error) {
+	d, err := New()
+	if err != nil {
+		return nil, err
+	}
+	d.addRoutes()
+	return d, nil
+}
+
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	d := &Daemon{overlord: o}
 	d.addRoutes()
 	return d
+}
+
+func (d *Daemon) RouterMatch(req *http.Request, m *mux.RouteMatch) bool {
+	return d.router.Match(req, m)
 }
 
 func (d *Daemon) Overlord() *overlord.Overlord {
