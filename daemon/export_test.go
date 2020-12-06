@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,7 +43,7 @@ func NewAndAddRoutes() (*Daemon, error) {
 }
 
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
+	d := &Daemon{overlord: o, state: o.State()}
 	d.addRoutes()
 	return d
 }

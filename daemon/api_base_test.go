@@ -192,7 +192,7 @@ func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 }
 
 var (
-	BrandPrivKey, _ = assertstest.GenerateKey(752)
+	brandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
@@ -228,7 +228,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
-	s.Brands.Register("my-brand", BrandPrivKey, nil)
+	s.Brands.Register("my-brand", brandPrivKey, nil)
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
