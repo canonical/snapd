@@ -336,6 +336,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-other-snap-id":
+		name = "some-other-snap"
 	case "some-epoch-snap-id":
 		name = "some-epoch-snap"
 		epoch = snap.E("42")
@@ -730,6 +732,22 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return info, f.emptyContainer, nil
 }
 
+// XXX: this is now something that is overridden by tests that need a
+//      different service setup so it should be configurable and part
+//      of the fakeSnappyBackend?
+var servicesSnapYaml = `name: services-snap
+apps:
+  svc1:
+    daemon: simple
+    before: [svc3]
+  svc2:
+    daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
+`
+
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
@@ -798,18 +816,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		var err error
 		// fix services after/before so that there is only one solution
 		// to dependency ordering
-		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
-apps:
-  svc1:
-    daemon: simple
-    before: [svc3]
-  svc2:
-    daemon: simple
-    after: [svc1]
-  svc3:
-    daemon: simple
-    before: [svc2]
-`))
+		info, err = snap.InfoFromSnapYaml([]byte(servicesSnapYaml))
 		if err != nil {
 			panic(err)
 		}
@@ -885,10 +892,6 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		path: info.MountDir(),
 	}
 
-	// only add the services to the op if there's something to add
-	if len(linkCtx.PrevDisabledServices) != 0 {
-		op.disabledServices = linkCtx.PrevDisabledServices
-	}
 	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -917,16 +920,21 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
 	}
-	f.appendOp(&fakeOp{
+	op := fakeOp{
 		op:       "start-snap-services",
 		path:     svcSnapMountDir(svcs),
 		services: services,
-	})
+	}
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+	f.appendOp(&op)
 	return nil
 }
 

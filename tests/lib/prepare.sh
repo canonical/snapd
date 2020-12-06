@@ -8,8 +8,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -304,7 +302,7 @@ prepare_classic() {
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
-        output=$(bootenv)
+        output=$("$TESTSTOOLS"/boot-state bootenv show)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
@@ -343,12 +341,12 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_core20_snap_with_tweaks() {
-    local CORE20SNAP="$1"
+repack_core_snap_with_tweaks() {
+    local CORESNAP="$1"
     local TARGET="$2"
 
-    local UNPACK_DIR="/tmp/core20-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+    local UNPACK_DIR="/tmp/core-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf

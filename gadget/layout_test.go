@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 )
 
 type layoutTestSuite struct {
@@ -44,14 +45,14 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 }
 
 var defaultConstraints = gadget.LayoutConstraints{
-	NonMBRStartOffset: 1 * gadget.SizeMiB,
+	NonMBRStartOffset: 1 * quantity.SizeMiB,
 	SectorSize:        512,
 }
 
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Size: 2 * gadget.SizeMiB},
+			{Size: 2 * quantity.SizeMiB},
 		},
 	}
 	v, err := gadget.LayoutVolume(p.dir, &vol, defaultConstraints)
@@ -60,14 +61,14 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Structure: []gadget.VolumeStructure{
-				{Size: 2 * gadget.SizeMiB},
+				{Size: 2 * quantity.SizeMiB},
 			},
 		},
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
+			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB}, StartOffset: 1 * quantity.SizeMiB},
 		},
 	})
 }
@@ -103,18 +104,18 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       501 * gadget.SizeMiB,
+		Size:       501 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     401 * gadget.SizeMiB,
+				StartOffset:     401 * quantity.SizeMiB,
 				Index:           1,
 			},
 		},
@@ -146,28 +147,28 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       1101 * gadget.SizeMiB,
+		Size:       1101 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     401 * gadget.SizeMiB,
+				StartOffset:     401 * quantity.SizeMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     901 * gadget.SizeMiB,
+				StartOffset:     901 * quantity.SizeMiB,
 				Index:           2,
 			},
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1001 * gadget.SizeMiB,
+				StartOffset:     1001 * quantity.SizeMiB,
 				Index:           3,
 			},
 		},
@@ -203,28 +204,28 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       1300 * gadget.SizeMiB,
+		Size:       1300 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     200 * gadget.SizeMiB,
+				StartOffset:     200 * quantity.SizeMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * gadget.SizeMiB,
+				StartOffset:     800 * quantity.SizeMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     1200 * gadget.SizeMiB,
+				StartOffset:     1200 * quantity.SizeMiB,
 				Index:           2,
 			},
 		},
@@ -259,28 +260,28 @@ volumes:
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       1200 * gadget.SizeMiB,
+		Size:       1200 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     200 * gadget.SizeMiB,
+				StartOffset:     200 * quantity.SizeMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     700 * gadget.SizeMiB,
+				StartOffset:     700 * quantity.SizeMiB,
 				Index:           2,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * gadget.SizeMiB,
+				StartOffset:     800 * quantity.SizeMiB,
 				Index:           0,
 			},
 		},
@@ -306,7 +307,7 @@ volumes:
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 }
 
-func makeSizedFile(c *C, path string, size gadget.Size, content []byte) {
+func makeSizedFile(c *C, path string, size quantity.Size, content []byte) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
 
@@ -335,7 +336,7 @@ volumes:
           content:
               - image: foo.img
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
@@ -357,13 +358,13 @@ volumes:
               - image: foo.img
               - image: bar.img
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), quantity.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * gadget.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        512,
 	}
 	v, err := gadget.LayoutVolume(p.dir, vol, constraints)
@@ -385,7 +386,7 @@ volumes:
                 # 512kB
                 offset: 524288
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
@@ -407,13 +408,13 @@ volumes:
               - image: foo.img
                 size: 1M
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB+1, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB+1, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(v, IsNil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot lay out structure #0: content "foo.img" size %v is larger than declared %v`, gadget.SizeMiB+1, gadget.SizeMiB))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot lay out structure #0: content "foo.img" size %v is larger than declared %v`, quantity.SizeMiB+1, quantity.SizeMiB))
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeErrorsContentOverlap(c *C) {
@@ -434,8 +435,8 @@ volumes:
                 size: 1M
                 offset: 0
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), quantity.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
@@ -461,8 +462,8 @@ volumes:
                 size: 1M
                 offset: 0
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), quantity.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 1)
@@ -472,24 +473,24 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
-						StartOffset:   1 * gadget.SizeMiB,
-						Size:          gadget.SizeMiB,
+						StartOffset:   1 * quantity.SizeMiB,
+						Size:          quantity.SizeMiB,
 						Index:         1,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   2 * gadget.SizeMiB,
-						Size:          gadget.SizeMiB,
+						StartOffset:   2 * quantity.SizeMiB,
+						Size:          quantity.SizeMiB,
 						Index:         0,
 					},
 				},
@@ -513,8 +514,8 @@ volumes:
               - image: bar.img
                 size: 1M
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), quantity.SizeMiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
 	c.Assert(vol.Structure, HasLen, 1)
@@ -524,24 +525,24 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   1 * gadget.SizeMiB,
-						Size:          gadget.SizeMiB,
+						StartOffset:   1 * quantity.SizeMiB,
+						Size:          quantity.SizeMiB,
 						Index:         0,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
-						StartOffset:   2 * gadget.SizeMiB,
-						Size:          gadget.SizeMiB,
+						StartOffset:   2 * quantity.SizeMiB,
+						Size:          quantity.SizeMiB,
 						Index:         1,
 					},
 				},
@@ -562,7 +563,7 @@ volumes:
           content:
               - image: foo.img
 `
-	size1_5MiB := gadget.SizeMiB + gadget.SizeMiB/2
+	size1_5MiB := quantity.SizeMiB + quantity.SizeMiB/2
 	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), size1_5MiB, nil)
 
 	vol := mustParseVolume(c, gadgetYaml, "first")
@@ -573,17 +574,17 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   1 * gadget.SizeMiB,
+						StartOffset:   1 * quantity.SizeMiB,
 						Size:          size1_5MiB,
 					},
 				},
@@ -616,13 +617,13 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 			},
 		},
 	})
@@ -656,7 +657,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -667,7 +668,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           1,
 			},
 		},
@@ -676,14 +677,14 @@ volumes:
 	// still valid
 	constraints := gadget.LayoutConstraints{
 		// 512kiB
-		NonMBRStartOffset: 512 * gadget.SizeKiB,
+		NonMBRStartOffset: 512 * quantity.SizeKiB,
 		SectorSize:        512,
 	}
 	v, err = gadget.LayoutVolume(p.dir, vol, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       2*gadget.SizeMiB + 512*gadget.SizeKiB,
+		Size:       2*quantity.SizeMiB + 512*quantity.SizeKiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -694,7 +695,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     512 * gadget.SizeKiB,
+				StartOffset:     512 * quantity.SizeKiB,
 				Index:           1,
 			},
 		},
@@ -711,7 +712,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       2*gadget.SizeMiB + 446,
+		Size:       2*quantity.SizeMiB + 446,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -729,14 +730,14 @@ volumes:
 
 	// sector size is properly recorded
 	constraintsSector := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * gadget.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        1024,
 	}
 	v, err = gadget.LayoutVolume(p.dir, vol, constraintsSector)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 1024,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -746,7 +747,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           1,
 			},
 		},
@@ -776,7 +777,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	constraintsBadSectorSize := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * gadget.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		SectorSize:        384,
 	}
 	_, err := gadget.LayoutVolume(p.dir, vol, constraintsBadSectorSize)
@@ -785,7 +786,7 @@ volumes:
 
 func (p *layoutTestSuite) TestLayoutVolumeConstraintsNeedsSectorSize(c *C) {
 	constraintsBadSectorSize := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * gadget.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.SizeMiB,
 		// SectorSize left unspecified
 	}
 	_, err := gadget.LayoutVolume(p.dir, &gadget.Volume{}, constraintsBadSectorSize)
@@ -814,7 +815,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       2 * gadget.SizeMiB,
+		Size:       2 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -825,7 +826,7 @@ volumes:
 				Index:           0,
 			}, {
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           1,
 			},
 		},
@@ -857,8 +858,8 @@ volumes:
           - image: bar.img
             offset-write: 450
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*quantity.SizeKiB, []byte(""))
 
 	vol := mustParseVolume(c, gadgetYaml, "pc")
 	c.Assert(vol.Structure, HasLen, 3)
@@ -867,7 +868,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:     vol,
-		Size:       3 * gadget.SizeMiB,
+		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
@@ -879,31 +880,31 @@ volumes:
 			}, {
 				// foo
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * gadget.SizeMiB,
+				StartOffset:     1 * quantity.SizeMiB,
 				Index:           1,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asSizePtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
-						Size:          200 * gadget.SizeKiB,
-						StartOffset:   1 * gadget.SizeMiB,
+						Size:          200 * quantity.SizeKiB,
+						StartOffset:   1 * quantity.SizeMiB,
 						// offset-write: bar+10
-						AbsoluteOffsetWrite: asSizePtr(2*gadget.SizeMiB + 10),
+						AbsoluteOffsetWrite: asSizePtr(2*quantity.SizeMiB + 10),
 					},
 				},
 			}, {
 				// bar
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     2 * gadget.SizeMiB,
+				StartOffset:     2 * quantity.SizeMiB,
 				Index:           2,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asSizePtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
-						Size:          150 * gadget.SizeKiB,
-						StartOffset:   2 * gadget.SizeMiB,
+						Size:          150 * quantity.SizeKiB,
+						StartOffset:   2 * quantity.SizeMiB,
 						// offset-write: bar+10
 						AbsoluteOffsetWrite: asSizePtr(450),
 					},
@@ -920,7 +921,7 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 			{
 				Name: "foo",
 				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * gadget.SizeMiB,
+				Size: 1 * quantity.SizeMiB,
 				OffsetWrite: &gadget.RelativeOffset{
 					RelativeTo: "bar",
 					Offset:     10,
@@ -933,7 +934,7 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 			{
 				Name: "foo",
 				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * gadget.SizeMiB,
+				Size: 1 * quantity.SizeMiB,
 				Content: []gadget.VolumeContent{
 					{
 						Image: "foo.img",
@@ -947,7 +948,7 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 		},
 	}
 
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
 
 	v, err := gadget.LayoutVolume(p.dir, &volBadStructure, defaultConstraints)
 	c.Check(v, IsNil)
@@ -980,7 +981,7 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	// offset-write is at 1GB
-	c.Check(v.Size, Equals, 1*gadget.SizeGiB+gadget.SizeLBA48Pointer)
+	c.Check(v.Size, Equals, 1*quantity.SizeGiB+gadget.SizeLBA48Pointer)
 
 	var gadgetYamlContent = `
 volumes:
@@ -1006,16 +1007,16 @@ volumes:
             offset-write: mbr+3221225472
 
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "baz.img"), 100*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*quantity.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "baz.img"), 100*quantity.SizeKiB, []byte(""))
 
 	vol = mustParseVolume(c, gadgetYamlContent, "pc")
 
 	v, err = gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	// foo.img offset-write is at 3GB
-	c.Check(v.Size, Equals, 3*gadget.SizeGiB+gadget.SizeLBA48Pointer)
+	c.Check(v.Size, Equals, 3*quantity.SizeGiB+gadget.SizeLBA48Pointer)
 }
 
 func (p *layoutTestSuite) TestLayoutVolumePartialNoSuchFile(c *C) {
@@ -1041,7 +1042,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * gadget.SizeMiB,
+				StartOffset:     800 * quantity.SizeMiB,
 				Index:           0,
 			},
 		},
@@ -1066,8 +1067,8 @@ volumes:
             offset: 307200
 
 `
-	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*gadget.SizeKiB, []byte(""))
-	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*gadget.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "foo.img"), 200*quantity.SizeKiB, []byte(""))
+	makeSizedFile(c, filepath.Join(p.dir, "bar.img"), 150*quantity.SizeKiB, []byte(""))
 
 	vol := mustParseVolume(c, gadgetYamlContent, "pc")
 
@@ -1081,18 +1082,18 @@ volumes:
 	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		VolumeStructure: &vol.Structure[0],
-		StartOffset:     1 * gadget.SizeMiB,
+		StartOffset:     1 * quantity.SizeMiB,
 		Index:           0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
-				Size:          200 * gadget.SizeKiB,
-				StartOffset:   1 * gadget.SizeMiB,
+				Size:          200 * quantity.SizeKiB,
+				StartOffset:   1 * quantity.SizeMiB,
 				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
-				Size:          150 * gadget.SizeKiB,
-				StartOffset:   1*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Size:          150 * quantity.SizeKiB,
+				StartOffset:   1*quantity.SizeMiB + 300*quantity.SizeKiB,
 				Index:         1,
 			},
 		},
@@ -1107,34 +1108,34 @@ volumes:
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
-				Size:          200 * gadget.SizeKiB,
+				Size:          200 * quantity.SizeKiB,
 				StartOffset:   0,
 				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
-				Size:          150 * gadget.SizeKiB,
-				StartOffset:   300 * gadget.SizeKiB,
+				Size:          150 * quantity.SizeKiB,
+				StartOffset:   300 * quantity.SizeKiB,
 				Index:         1,
 			},
 		},
 	})
 
-	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*gadget.SizeMiB)
+	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*quantity.SizeMiB)
 	c.Assert(shiftedTo2M, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		VolumeStructure: &vol.Structure[0],
-		StartOffset:     2 * gadget.SizeMiB,
+		StartOffset:     2 * quantity.SizeMiB,
 		Index:           0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
-				Size:          200 * gadget.SizeKiB,
-				StartOffset:   2 * gadget.SizeMiB,
+				Size:          200 * quantity.SizeKiB,
+				StartOffset:   2 * quantity.SizeMiB,
 				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
-				Size:          150 * gadget.SizeKiB,
-				StartOffset:   2*gadget.SizeMiB + 300*gadget.SizeKiB,
+				Size:          150 * quantity.SizeKiB,
+				StartOffset:   2*quantity.SizeMiB + 300*quantity.SizeKiB,
 				Index:         1,
 			},
 		},

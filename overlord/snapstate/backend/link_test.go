@@ -74,57 +74,35 @@ type linkSuite struct {
 
 var _ = Suite(&linkSuite{})
 
-func (s *linkSuite) TestLinkSnapGivesLastActiveDisabledServicesToWrappers(c *C) {
-	const yaml = `name: hello
-version: 1.0
-environment:
- KEY: value
-
-apps:
- bin:
-   command: bin
-   daemon: simple
- svc:
-   command: svc
-   daemon: simple
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-
-	svcsDisabled := []string{}
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// drop --root from the cmd
-		if len(cmd) >= 3 && cmd[0] == "--root" {
-			cmd = cmd[2:]
-		}
-		// if it's an enable, save the service name to check later
-		if len(cmd) >= 2 && cmd[0] == "enable" {
-			svcsDisabled = append(svcsDisabled, cmd[1])
-		}
-		return nil, nil
-	})
-	defer r()
-
-	linkCtx := backend.LinkContext{
-		PrevDisabledServices: []string{"svc"},
-	}
-	_, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Assert(svcsDisabled, DeepEquals, []string{"snap.hello.bin.service"})
-}
-
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
 environment:
  KEY: value
 
+slots:
+  system-slot:
+    interface: dbus
+    bus: system
+    name: org.example.System
+  session-slot:
+    interface: dbus
+    bus: session
+    name: org.example.Session
+
 apps:
  bin:
    command: bin
  svc:
    command: svc
    daemon: simple
+ dbus-system:
+   daemon: simple
+   activates-on: [system-slot]
+ dbus-session:
+   daemon: simple
+   daemon-scope: user
+   activates-on: [session-slot]
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
@@ -136,6 +114,15 @@ apps:
 	c.Assert(l, HasLen, 1)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
+	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
 	// undo will remove
@@ -146,6 +133,15 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSystemServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 }
@@ -371,6 +367,16 @@ version: 1.0
 environment:
  KEY: value
 
+slots:
+  system-slot:
+    interface: dbus
+    bus: system
+    name: org.example.System
+  session-slot:
+    interface: dbus
+    bus: session
+    name: org.example.Session
+
 apps:
  foo:
    command: foo
@@ -379,6 +385,13 @@ apps:
  svc:
    command: svc
    daemon: simple
+ dbus-system:
+   daemon: simple
+   activates-on: [system-slot]
+ dbus-session:
+   daemon: simple
+   daemon-scope: user
+   activates-on: [session-slot]
 `
 	cmd := testutil.MockCommand(c, "update-desktop-database", "")
 	s.AddCleanup(cmd.Restore)
@@ -395,7 +408,7 @@ Exec=bin
 `), 0644), IsNil)
 
 	// sanity checks
-	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
+	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
 		os.MkdirAll(d, 0755)
 		l, err := filepath.Glob(filepath.Join(d, "*"))
 		c.Assert(err, IsNil, Commentf(d))
@@ -413,7 +426,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	_, isLinkError := err.(*os.LinkError)
 	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%#v", err))
 
-	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
+	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
@@ -436,6 +449,14 @@ func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 
 func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
 	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
+}
+
+func (s *linkCleanupSuite) TestLinkCleanupOnDBusSystemFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSystemServicesDir)
+}
+
+func (s *linkCleanupSuite) TestLinkCleanupOnDBusSessionFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSessionServicesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {

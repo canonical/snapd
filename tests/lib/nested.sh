@@ -59,6 +59,20 @@ nested_wait_for_reboot() {
     [ "$last_boot_id" != "$initial_boot_id" ]
 }
 
+nested_uc20_transition_to_system_mode() {
+    local recovery_system="$1"
+    local mode="$2"
+    local current_boot_id
+    current_boot_id=$(nested_get_boot_id)
+    nested_exec "sudo snap reboot --$mode $recovery_system"
+    nested_wait_for_reboot "$current_boot_id"
+
+    # verify we are now in the requested mode
+    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+        return 1
+    fi
+}
+
 nested_retry_while_success() {
     local retry="$1"
     local wait="$2"
@@ -129,8 +143,14 @@ nested_create_assertions_disk() {
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
         AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
-    else 
-        AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+    else
+        local per_model_auto
+        per_model_auto="$(nested_model_authority).auto-import.assert"
+        if [ -e "$TESTSLIB/assertions/${per_model_auto}" ]; then
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/${per_model_auto}"
+        else
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+        fi
     fi
     cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
@@ -218,9 +238,15 @@ nested_get_cdimage_current_image_url() {
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
-    # This should be executed on remote system but as nested architecture is the same than the
-    # host then the snap info is executed in the host
-    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+
+    curl -s \
+         -H "Snap-Device-Architecture: ${NESTED_ARCHITECTURE:-amd64}" \
+         -H "Snap-Device-Series: 16" \
+         -X POST \
+         -H "Content-Type: application/json" \
+         --data "{\"context\": [], \"actions\": [{\"action\": \"install\", \"name\": \"$SNAP\", \"channel\": \"$CHANNEL\", \"instance-key\": \"1\"}]}" \
+         https://api.snapcraft.io/v2/snaps/refresh | \
+        jq '.results[0].snap.revision'
 }
 
 nested_is_nested_system() {
@@ -408,6 +434,23 @@ nested_get_model() {
     esac
 }
 
+nested_model_authority() {
+    local model
+    model="$(nested_get_model)"
+    grep "authority-id:" "$model"|cut -d ' ' -f2
+}
+
+nested_ensure_ubuntu_save() {
+    local GADGET_DIR="$1"
+    shift
+    "$TESTSLIB"/ensure_ubuntu_save.py "$@" "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
+    if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
+        mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
+    else
+        rm -f /tmp/gadget-with-save.yaml
+    fi
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -444,6 +487,16 @@ nested_create_core_vm() {
                     repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
+                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+
+                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+
+                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                    fi
+
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
                     uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -477,9 +530,22 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        # also make logging persistent for easier debugging of 
-                        # test failures, otherwise we have no way to see what 
-                        # happened during a failed nested VM boot where we 
+                        case "${NESTED_UBUNTU_SAVE:-}" in
+                            add)
+                                # ensure that ubuntu-save is present
+                                nested_ensure_ubuntu_save pc-gadget --add
+                                touch ubuntu-save-added
+                                ;;
+                            remove)
+                                # ensure that ubuntu-save is removed
+                                nested_ensure_ubuntu_save pc-gadget --remove
+                                touch ubuntu-save-removed
+                                ;;
+                        esac
+
+                        # also make logging persistent for easier debugging of
+                        # test failures, otherwise we have no way to see what
+                        # happened during a failed nested VM boot where we
                         # weren't able to login to a device
                         cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
@@ -510,7 +576,7 @@ EOF
 
                     # which channel?
                     snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core20_snap_with_tweaks "core20.snap" "new-core20.snap"
+                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
                     # sign the snapd snap with fakestore if requested
@@ -1087,7 +1153,7 @@ nested_start_classic_vm() {
 }
 
 nested_destroy_vm() {
-    systemd_stop_and_destroy_unit "$NESTED_VM"
+    systemd_stop_and_remove_unit "$NESTED_VM"
 
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 

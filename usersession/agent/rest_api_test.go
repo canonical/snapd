@@ -45,13 +45,16 @@ import (
 
 type restSuite struct {
 	testutil.BaseTest
+	testutil.DBusTest
 	sysdLog [][]string
+	agent   *agent.SessionAgent
 }
 
 var _ = Suite(&restSuite{})
 
 func (s *restSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.DBusTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -66,10 +69,17 @@ func (s *restSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
 	s.AddCleanup(restore)
+
+	var err error
+	s.agent, err = agent.New()
+	c.Assert(err, IsNil)
+	s.agent.Start()
+	s.AddCleanup(func() { s.agent.Stop() })
 }
 
 func (s *restSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.DBusTest.TearDownTest(c)
 	s.BaseTest.TearDownTest(c)
 }
 
@@ -87,9 +97,7 @@ func (s *restSuite) TestSessionInfo(c *C) {
 
 	c.Check(agent.SessionInfoCmd.Path, Equals, "/v1/session-info")
 
-	a, err := agent.New()
-	c.Assert(err, IsNil)
-	a.Version = "42b1"
+	s.agent.Version = "42b1"
 	rec := httptest.NewRecorder()
 	agent.SessionInfoCmd.GET(agent.SessionInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, Equals, 200)
@@ -122,9 +130,6 @@ func (s *restSuite) TestServiceControlDaemonReloadComplexerContentType(c *C) {
 }
 
 func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
 	c.Assert(err, IsNil)
@@ -136,9 +141,6 @@ func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
 }
 
 func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", contentType)
 	c.Assert(err, IsNil)
@@ -158,9 +160,6 @@ func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
 }
 
 func (s *restSuite) TestServiceControlStart(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -181,9 +180,6 @@ func (s *restSuite) TestServiceControlStart(c *C) {
 }
 
 func (s *restSuite) TestServicesStartNonSnap(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -213,9 +209,6 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
-
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -261,9 +254,6 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	})
 	defer restore()
 
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -296,9 +286,6 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 }
 
 func (s *restSuite) TestServicesStop(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -321,9 +308,6 @@ func (s *restSuite) TestServicesStop(c *C) {
 }
 
 func (s *restSuite) TestServicesStopNonSnap(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -357,9 +341,6 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	})
 	defer restore()
 
-	_, err := agent.New()
-	c.Assert(err, IsNil)
-
 	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
@@ -388,8 +369,6 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain/joke")
 	c.Assert(err, IsNil)
@@ -405,8 +384,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain")
 	c.Assert(err, IsNil)
@@ -422,8 +399,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "application/json; charset=EBCDIC")
 	c.Assert(err, IsNil)
@@ -439,8 +414,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C) {
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":syntaxerror}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -463,8 +436,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
-	_, err := agent.New()
-	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":"pkg"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -501,9 +472,6 @@ func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *cl
 	c.Assert(err, IsNil)
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
-
-	_, err = agent.New()
-	c.Assert(err, IsNil)
 
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
@@ -633,7 +601,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 	})
 }
 
-func (s *restSuite) TestPostPendingRefreshNotificationNoNotificatinServer(c *C) {
+func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		response := &dbus.Message{
 			Type: dbus.TypeError,
@@ -649,9 +617,6 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoNotificatinServer(c *C) 
 	c.Assert(err, IsNil)
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
-
-	_, err = agent.New()
-	c.Assert(err, IsNil)
 
 	refreshInfo := &client.PendingSnapRefreshInfo{
 		InstanceName: "pkg",

@@ -14,8 +14,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
@@ -37,7 +35,8 @@ prepare: |
     prepare_testrootorg_store
 
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+    #shellcheck disable=SC2148
+    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -52,10 +51,7 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    systemctl stop snapd.service snapd.socket
-    systemd_stop_and_destroy_unit fakedevicesvc
+    systemctl stop snapd.service snapd.socket fakedevicesvc
     clean_snapd_lib
 
     # Restore pc snap configuration

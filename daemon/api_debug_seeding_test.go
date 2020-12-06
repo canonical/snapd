@@ -31,11 +31,11 @@ import (
 var _ = Suite(&seedingDebugSuite{})
 
 type seedingDebugSuite struct {
-	apiBaseSuite
+	APIBaseSuite
 }
 
 func (s *seedingDebugSuite) SetUpTest(c *C) {
-	s.apiBaseSuite.SetUpTest(c)
+	s.APIBaseSuite.SetUpTest(c)
 	s.daemonWithOverlordMock(c)
 }
 

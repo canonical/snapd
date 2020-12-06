@@ -266,6 +266,14 @@ func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (ui
 	}
 }
 
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+	old := generateSnapdWrappers
+	generateSnapdWrappers = f
+	return func() {
+		generateSnapdWrappers = old
+	}
+}
+
 var (
 	NotifyLinkParticipants = notifyLinkParticipants
 )
@@ -289,4 +297,8 @@ func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh fun
 	old := genericRefreshCheck
 	genericRefreshCheck = fn
 	return func() { genericRefreshCheck = old }
+}
+
+func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
+	return m.ensureRefreshHoldAtLeast(d)
 }

@@ -314,6 +314,9 @@ var templateCommon = `
   # Read-only of this snap
   /var/lib/snapd/snaps/@{SNAP_NAME}_*.snap r,
 
+  # Read-only of snapd restart state for snapctl specifically
+  /var/lib/snapd/maintenance.json r,
+
   # Read-only for the install directory
   # bind mount used here (see 'parallel installs', above)
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/                   r,

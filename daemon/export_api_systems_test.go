@@ -30,3 +30,7 @@ func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) 
 		deviceManagerReboot = old
 	}
 }
+
+type (
+	SystemsResponse = systemsResponse
+)

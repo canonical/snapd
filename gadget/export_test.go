@@ -59,7 +59,6 @@ var (
 	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
 	FindMountPointForStructure         = findMountPointForStructure
 
-	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
 )
 
