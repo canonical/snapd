@@ -133,9 +133,10 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
 		params := &FDESetupHookParams{
-			Key:     skr.Key,
-			KeyName: filepath.Base(skr.KeyFile),
-			Models:  []*asserts.Model{model},
+			Key: skr.Key,
+			// TODO: decide what the right KeyName is
+			// KeyName: filepath.Base(skr.KeyFile),
+			Models: []*asserts.Model{model},
 		}
 		sealedKey, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {

@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -915,12 +916,13 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	})
 	defer restore()
 
+	n := 0
 	var runFDESetupHookParams []*boot.FDESetupHookParams
 	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+		n++
 		c.Assert(op, Equals, "initial-setup")
 		runFDESetupHookParams = append(runFDESetupHookParams, params)
-
-		return []byte("sealed-key: " + params.KeyName), nil
+		return []byte("sealed-key: " + strconv.Itoa(n)), nil
 	})
 	defer restore()
 
@@ -935,16 +937,16 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{KeyName: "ubuntu-data.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{KeyName: "ubuntu-data.recovery.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{KeyName: "ubuntu-save.recovery.sealed-key", Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
 	})
 	// check that the sealed keys got written to the expected places
-	for _, p := range []string{
+	for i, p := range []string{
 		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	} {
-		c.Check(p, testutil.FileEquals, "sealed-key: "+filepath.Base(p))
+		c.Check(p, testutil.FileEquals, "sealed-key: "+strconv.Itoa(i+1))
 	}
 }
