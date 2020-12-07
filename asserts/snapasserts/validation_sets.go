@@ -342,8 +342,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	for _, cstrs := range v.snaps {
 		for rev, revCstr := range cstrs.revisions {
 			for _, rc := range revCstr {
-				ref := naming.NewSnapRef(rc.Name, rc.SnapID)
-				snap := installed.Lookup(ref)
+				snap := installed.Lookup(rc)
 				isInstalled := snap != nil
 				if !isInstalled && cstrs.presence != asserts.PresenceRequired {
 					continue
