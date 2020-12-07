@@ -906,7 +906,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Check(cnt, Equals, 3)
 }
 
-func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
+func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
@@ -949,4 +949,30 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	} {
 		c.Check(p, testutil.FileEquals, "sealed-key: "+strconv.Itoa(i+1))
 	}
+}
+
+func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	restore := boot.MockHasFDESetupHook(func() (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
+	})
+	defer restore()
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
+
+	model := boottest.MakeMockUC20Model()
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	c.Assert(err, ErrorMatches, "hook failed")
 }

@@ -140,10 +140,10 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 		}
 		sealedKey, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {
-			return fmt.Errorf("cannot run fde-setup hook for %s: %v", params.KeyName, err)
+			return err
 		}
 		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), sealedKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot store %s key: %v", params.KeyName, err)
+			return fmt.Errorf("cannot store key: %v", err)
 		}
 	}
 	return nil
