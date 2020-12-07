@@ -41,7 +41,7 @@ import (
 var _ = check.Suite(&aliasesSuite{})
 
 type aliasesSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 const aliasYaml = `
@@ -55,9 +55,9 @@ apps:
 func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -80,7 +80,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -107,11 +107,11 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
-	s.SimulateConflict("alias-snap")
+	s.simulateConflict("alias-snap")
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -131,7 +131,7 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
@@ -152,7 +152,7 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 }
 
 func (s *aliasesSuite) TestAliasErrors(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	errScenarios := []struct {
 		mangle func(*daemon.AliasAction)
@@ -180,7 +180,7 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/aliases", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.Req(c, req, nil).(*daemon.Resp)
+		rsp := s.req(c, req, nil).(*daemon.Resp)
 		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, scen.err)
@@ -190,9 +190,9 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -213,7 +213,7 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -244,9 +244,9 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -268,7 +268,7 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -299,9 +299,9 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -324,7 +324,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -355,7 +355,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -381,9 +381,9 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -406,7 +406,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -438,7 +438,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -464,9 +464,9 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, check.IsNil)
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, aliasYaml)
+	s.mockSnap(c, aliasYaml)
 
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -487,7 +487,7 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -516,7 +516,7 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestAliases(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	st := d.Overlord().State()
 	st.Lock()
@@ -549,7 +549,7 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/aliases", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]daemon.AliasStatus{
@@ -598,7 +598,7 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 		return state.NewTaskSet(t), nil
 	})()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{
 		Action: "install",
 		// Install the snap without enabled automatic aliases
@@ -625,7 +625,7 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 		return state.NewTaskSet(t), nil
 	})()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{
 		Action: "install",
 		// Install the snap without enabled automatic aliases

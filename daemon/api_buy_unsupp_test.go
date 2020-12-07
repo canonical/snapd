@@ -33,7 +33,7 @@ import (
 var _ = check.Suite(&buySuite{})
 
 type buySuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 
 	user *auth.UserState
 	err  error
@@ -43,7 +43,7 @@ type buySuite struct {
 }
 
 func (s *buySuite) Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error) {
-	s.PokeStateLock()
+	s.pokeStateLock()
 
 	s.buyOptions = options
 	s.user = user
@@ -51,21 +51,21 @@ func (s *buySuite) Buy(options *client.BuyOptions, user *auth.UserState) (*clien
 }
 
 func (s *buySuite) ReadyToBuy(user *auth.UserState) error {
-	s.PokeStateLock()
+	s.pokeStateLock()
 
 	s.user = user
 	return s.err
 }
 
 func (s *buySuite) SetUpTest(c *check.C) {
-	s.APIBaseSuite.SetUpTest(c)
+	s.apiBaseSuite.SetUpTest(c)
 
 	s.user = nil
 	s.err = nil
 	s.buyOptions = nil
 	s.buyResult = nil
 
-	s.DaemonWithStore(c, s)
+	s.daemonWithStore(c, s)
 }
 
 const validBuyInput = `{
@@ -186,7 +186,7 @@ func (s *buySuite) TestBuySnap(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/buy", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.Req(c, req, user).(*daemon.Resp)
+		rsp := s.req(c, req, user).(*daemon.Resp)
 
 		c.Check(rsp.Status, check.Equals, test.expectedStatus)
 		c.Check(rsp.Type, check.Equals, test.expectedResponseType)
@@ -245,7 +245,7 @@ func (s *buySuite) TestReadyToBuy(c *check.C) {
 		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.Req(c, req, user).(*daemon.Resp)
+		rsp := s.req(c, req, user).(*daemon.Resp)
 		c.Check(rsp.Status, check.Equals, test.status)
 		c.Check(rsp.Type, check.Equals, test.respType)
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)

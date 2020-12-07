@@ -17,7 +17,7 @@
  *
  */
 
-package daemon_test
+package daemon
 
 import (
 	"context"
@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -62,7 +61,7 @@ import (
 // instead of daemon, split out functionality from APIBaseSuite
 // to only the relevant suite when possible
 
-type apiBaseSuite struct {
+type APIBaseSuite struct {
 	testutil.BaseTest
 
 	storetest.Store
@@ -72,7 +71,7 @@ type apiBaseSuite struct {
 	vars              map[string]string
 	storeSearch       store.Search
 	suggestedCurrency string
-	d                 *daemon.Daemon
+	d                 *Daemon
 	user              *auth.UserState
 	ctx               context.Context
 	currentSnaps      []*store.CurrentSnap
@@ -91,19 +90,18 @@ type apiBaseSuite struct {
 	loginUserDischarge     string
 
 	restoreSanitize func()
-	restoreMuxVars  func()
 }
 
-func (s *apiBaseSuite) pokeStateLock() {
+func (s *APIBaseSuite) PokeStateLock() {
 	// the store should be called without the state lock held. Try
 	// to acquire it.
-	st := s.d.Overlord().State()
+	st := s.d.overlord.State()
 	st.Lock()
 	st.Unlock()
 }
 
-func (s *apiBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	s.pokeStateLock()
+func (s *APIBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	s.PokeStateLock()
 	s.user = user
 	s.ctx = ctx
 	if len(s.rsnaps) > 0 {
@@ -112,8 +110,8 @@ func (s *apiBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *
 	return nil, s.err
 }
 
-func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
-	s.pokeStateLock()
+func (s *APIBaseSuite) Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.PokeStateLock()
 
 	s.storeSearch = *search
 	s.user = user
@@ -122,8 +120,8 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
-	s.pokeStateLock()
+func (s *APIBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	s.PokeStateLock()
 	if assertQuery != nil {
 		toResolve, err := assertQuery.ToResolve()
 		if err != nil {
@@ -148,43 +146,43 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	return sars, nil, s.err
 }
 
-func (s *apiBaseSuite) SuggestedCurrency() string {
-	s.pokeStateLock()
+func (s *APIBaseSuite) SuggestedCurrency() string {
+	s.PokeStateLock()
 
 	return s.suggestedCurrency
 }
 
-func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
-	s.pokeStateLock()
+func (s *APIBaseSuite) ConnectivityCheck() (map[string]bool, error) {
+	s.PokeStateLock()
 
 	return s.connectivityResult, s.err
 }
 
-func (s *apiBaseSuite) LoginUser(username, password, otp string) (string, string, error) {
-	s.pokeStateLock()
+func (s *APIBaseSuite) LoginUser(username, password, otp string) (string, string, error) {
+	s.PokeStateLock()
 
 	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
 }
 
-func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
+func (s *APIBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
-func (s *apiBaseSuite) SetUpSuite(c *check.C) {
-	s.restoreMuxVars = daemon.MockMuxVars(s.muxVars)
+func (s *APIBaseSuite) SetUpSuite(c *check.C) {
+	muxVars = s.muxVars
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
-func (s *apiBaseSuite) TearDownSuite(c *check.C) {
-	s.restoreMuxVars()
+func (s *APIBaseSuite) TearDownSuite(c *check.C) {
+	muxVars = nil
 	s.restoreRelease()
 	s.systemctlRestorer()
 	s.restoreSanitize()
 }
 
-func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
+func (s *APIBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	if len(s.SysctlBufs) > 0 {
 		buf, s.SysctlBufs = s.SysctlBufs[0], s.SysctlBufs[1:]
 	}
@@ -192,10 +190,10 @@ func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 }
 
 var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
+	BrandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-func (s *apiBaseSuite) SetUpTest(c *check.C) {
+func (s *APIBaseSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 
 	ctlcmds := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
@@ -228,18 +226,47 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
-	s.Brands.Register("my-brand", brandPrivKey, nil)
+	s.Brands.Register("my-brand", BrandPrivKey, nil)
+
+	assertstateRefreshSnapDeclarations = nil
+	snapstateInstall = nil
+	snapstateInstallMany = nil
+	snapstateInstallPath = nil
+	snapstateRefreshCandidates = nil
+	snapstateRemoveMany = nil
+	snapstateRevert = nil
+	snapstateRevertToRevision = nil
+	snapstateTryPath = nil
+	snapstateUpdate = nil
+	snapstateUpdateMany = nil
+	snapstateSwitch = nil
 }
 
-func (s *apiBaseSuite) TearDownTest(c *check.C) {
+func (s *APIBaseSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.ctx = nil
 
+	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
+	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
+
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
+	snapstateInstall = snapstate.Install
+	snapstateInstallMany = snapstate.InstallMany
+	snapstateInstallPath = snapstate.InstallPath
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
+	snapstateRemoveMany = snapstate.RemoveMany
+	snapstateRevert = snapstate.Revert
+	snapstateRevertToRevision = snapstate.RevertToRevision
+	snapstateTryPath = snapstate.TryPath
+	snapstateUpdate = snapstate.Update
+	snapstateUpdateMany = snapstate.UpdateMany
+	snapstateSwitch = snapstate.Switch
+
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
+func (s *APIBaseSuite) MockModel(c *check.C, st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
 		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
@@ -260,23 +287,24 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 	})
 }
 
-func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *daemon.Daemon {
+func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *Daemon {
 	if s.d != nil {
 		panic("called Daemon*() twice")
 	}
-	d, err := daemon.NewAndAddRoutes()
+	d, err := New()
 	c.Assert(err, check.IsNil)
+	d.addRoutes()
 
-	c.Assert(d.Overlord().StartUp(), check.IsNil)
+	c.Assert(d.overlord.StartUp(), check.IsNil)
 
-	st := d.Overlord().State()
+	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	s.mockModel(c, st, nil)
+	s.MockModel(c, st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -287,23 +315,36 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	return d
 }
 
-func (s *apiBaseSuite) resetDaemon() {
+func (s *APIBaseSuite) ResetDaemon() {
 	s.d = nil
 }
 
-func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
-	return s.daemonWithStore(c, s)
+func (s *APIBaseSuite) Daemon(c *check.C) *Daemon {
+	return s.daemon(c)
 }
 
-func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
+// XXX this one will go away
+func (s *APIBaseSuite) daemon(c *check.C) *Daemon {
+	return s.DaemonWithStore(c, s)
+}
+
+// XXX this one will go away
+func (s *APIBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
+	return s.DaemonWithOverlordMock(c)
+}
+
+func (s *APIBaseSuite) DaemonWithOverlordMock(c *check.C) *Daemon {
 	if s.d != nil {
 		panic("called Daemon*() twice")
 	}
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	d.addRoutes()
 
 	o := overlord.Mock()
-	d := daemon.NewWithOverlord(o)
+	d.overlord = o
 
-	st := d.Overlord().State()
+	st := d.overlord.State()
 	// adds an assertion db
 	assertstate.Manager(st, o.TaskRunner())
 	st.Lock()
@@ -334,23 +375,23 @@ func (m *fakeSnapManager) Ensure() error {
 // sanity
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
-func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
+func (s *APIBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 	d := s.daemonWithOverlordMock(c)
-	st := d.Overlord().State()
-	runner := d.Overlord().TaskRunner()
-	d.Overlord().AddManager(newFakeSnapManager(st, runner))
-	d.Overlord().AddManager(runner)
-	c.Assert(d.Overlord().StartUp(), check.IsNil)
+	st := d.overlord.State()
+	runner := d.overlord.TaskRunner()
+	d.overlord.AddManager(newFakeSnapManager(st, runner))
+	d.overlord.AddManager(runner)
+	c.Assert(d.overlord.StartUp(), check.IsNil)
 	return d
 }
 
-func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
-	err := s.d.Overlord().Settle(5 * time.Second)
+func (s *APIBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
+	err := s.d.overlord.Settle(5 * time.Second)
 	c.Assert(err, check.IsNil)
 	c.Assert(chg.IsReady(), check.Equals, true)
 }
 
-func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
+func (s *APIBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, check.IsNil)
@@ -359,14 +400,19 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	return df
 }
 
-func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
+// XXX this one will go away
+func (s *APIBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	return s.MkInstalledInState(c, daemon, instanceName, developer, version, revision, active, extraYaml)
+}
+
+func (s *APIBaseSuite) MockSnap(c *check.C, yamlText string) *snap.Info {
 	if s.d == nil {
 		panic("call s.Daemon(c) etc in your test first")
 	}
 
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
 
-	st := s.d.Overlord().State()
+	st := s.d.overlord.State()
 
 	st.Lock()
 	defer st.Unlock()
@@ -386,13 +432,13 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	})
 
 	// Put the snap into the interface repository
-	repo := s.d.Overlord().InterfaceManager().Repository()
+	repo := s.d.overlord.InterfaceManager().Repository()
 	err := repo.AddSnap(snapInfo)
 	c.Assert(err, check.IsNil)
 	return snapInfo
 }
 
-func (s *apiBaseSuite) mkInstalledInState(c *check.C, d *daemon.Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+func (s *APIBaseSuite) MkInstalledInState(c *check.C, daemon *Daemon, instanceName, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 
 	if revision.Local() && developer != "" {
@@ -431,10 +477,10 @@ version: %s
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
 
-	if d == nil {
+	if daemon == nil {
 		return snapInfo
 	}
-	st := d.Overlord().State()
+	st := daemon.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -492,19 +538,19 @@ version: %s
 	return snapInfo
 }
 
-func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemon.Command, vars map[string]string) {
+func handlerCommand(c *check.C, d *Daemon, req *http.Request) (cmd *Command, vars map[string]string) {
 	m := &mux.RouteMatch{}
-	if !d.RouterMatch(req, m) {
+	if !d.router.Match(req, m) {
 		c.Fatalf("no command for URL %q", req.URL)
 	}
-	cmd, ok := m.Handler.(*daemon.Command)
+	cmd, ok := m.Handler.(*Command)
 	if !ok {
 		c.Fatalf("no command for URL %q", req.URL)
 	}
 	return cmd, m.Vars
 }
 
-func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
+func (s *APIBaseSuite) CheckGetOnly(c *check.C, req *http.Request) {
 	if s.d == nil {
 		panic("call s.Daemon(c) etc in your test first")
 	}
@@ -515,14 +561,14 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	c.Check(cmd.GET, check.NotNil)
 }
 
-func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
+func (s *APIBaseSuite) Req(c *check.C, req *http.Request, u *auth.UserState) Response {
 	if s.d == nil {
 		panic("call s.Daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
-	var f daemon.ResponseFunc
+	var f ResponseFunc
 	switch req.Method {
 	case "GET":
 		f = cmd.GET
@@ -539,7 +585,7 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
-func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
+func (s *APIBaseSuite) ServeHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
 	if s.d == nil {
 		panic("call s.Daemon(c) etc in your test first")
 	}
@@ -550,12 +596,12 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 	cmd.ServeHTTP(w, req)
 }
 
-func (s *apiBaseSuite) simulateConflict(name string) {
+func (s *APIBaseSuite) SimulateConflict(name string) {
 	if s.d == nil {
 		panic("call s.Daemon(c) etc in your test first")
 	}
 
-	o := s.d.Overlord()
+	o := s.d.overlord
 	st := o.State()
 	st.Lock()
 	defer st.Unlock()
