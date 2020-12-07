@@ -411,7 +411,7 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := s.Filename()
 
-	logger.Debugf("extracting kernel %s with lk bootloader", s.SnapName())
+	logger.Debugf("extracting kernel assets for %s with lk bootloader", s.SnapName())
 
 	env, err := l.newenv()
 	if err != nil {
