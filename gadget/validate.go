@@ -216,11 +216,11 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			realSource := filepath.Join(gadgetSnapRootDir, c.Source)
+			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
-			if strings.HasSuffix(c.Source, "/") {
+			if strings.HasSuffix(c.UnresolvedSource, "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
 					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
