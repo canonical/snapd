@@ -73,6 +73,25 @@ func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
 	})
 }
 
+func (s *sortSuite) TestOvernameOrder(c *C) {
+	expected := []osutil.MountEntry{
+		{Dir: "/a/b/2", Options: []string{osutil.XSnapdOriginOvername()}},
+		{Dir: "/a/b"},
+	}
+	entries := []osutil.MountEntry{
+		{Dir: "/a/b"},
+		{Dir: "/a/b/2", Options: []string{osutil.XSnapdOriginOvername()}},
+	}
+	entriesRev := []osutil.MountEntry{
+		{Dir: "/a/b/2", Options: []string{osutil.XSnapdOriginOvername()}},
+		{Dir: "/a/b"},
+	}
+	sort.Sort(byOriginAndMagicDir(entries))
+	c.Assert(entries, DeepEquals, expected)
+	sort.Sort(byOriginAndMagicDir(entriesRev))
+	c.Assert(entriesRev, DeepEquals, expected)
+}
+
 func (s *sortSuite) TestParallelInstancesAlmostSorted(c *C) {
 	// use a mount profile that was seen to be broken in the wild
 	entries := []osutil.MountEntry{
