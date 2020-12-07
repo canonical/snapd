@@ -52,6 +52,3 @@ execute: |
 
     echo "The app was invoked with the arguments in the desktop file"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
-
-    echo "The app was invoked with the environment requested by the launcher"
-    MATCH "^XDG_CURRENT_DESKTOP=spread-test$" < "$launch_data"
