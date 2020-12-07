@@ -7,7 +7,8 @@ prepare: |
 execute: |
   # we are running current snapd build, re-install it to trigger core18
   # wrappers to be recreated.
-  snap install --dangerous /var/lib/snapd/seed/snaps/snapd_x1.snap 
+  current="$(readlink /snap/snapd/current)"
+  snap install --dangerous "/var/lib/snapd/seed/snaps/snapd_${current}.snap"
   journalctl -u snapd | MATCH "appears to be read-only, could not write snapd dbus config files"
 
 restore: |
