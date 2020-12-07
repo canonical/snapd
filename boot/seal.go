@@ -146,6 +146,11 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			return fmt.Errorf("cannot store key: %v", err)
 		}
 	}
+
+	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -206,7 +211,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
+	if err := stampSealedKeys(InstallHostWritableDir, "tpm"); err != nil {
 		return err
 	}
 
@@ -270,13 +275,13 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	return nil
 }
 
-func stampSealedKeys(rootdir string) error {
+func stampSealedKeys(rootdir, content string) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 
-	if err := osutil.AtomicWriteFile(stamp, nil, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
 		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
 	}
 	return nil

@@ -298,8 +298,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// marker
-		c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
-
+		marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+		c.Check(marker, testutil.FileEquals, "tpm")
 	}
 }
 
@@ -949,6 +949,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	} {
 		c.Check(p, testutil.FileEquals, "sealed-key: "+strconv.Itoa(i+1))
 	}
+	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
+
 }
 
 func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
@@ -975,4 +978,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
 	c.Assert(err, ErrorMatches, "hook failed")
+	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	c.Check(marker, testutil.FileAbsent)
 }
