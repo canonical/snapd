@@ -100,7 +100,7 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, modeenv)
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv)
 	}
 
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
@@ -128,7 +128,7 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
-func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
