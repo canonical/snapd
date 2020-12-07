@@ -295,12 +295,24 @@ func hasSealedKeys(rootdir string) bool {
 	return osutil.FileExists(stamp)
 }
 
+func resealKeyToModeenvUsingFDESetupHook(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
+	// TODO: implement reseal using the fde-setup hook
+	return nil
+}
+
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	if !hasSealedKeys(rootdir) {
 		// nothing to do
 		return nil
+	}
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot check for fde-setup hook in reseal %v", err)
+	}
+	if hasHook {
+		return resealKeyToModeenvUsingFDESetupHook(rootdir, model, modeenv, expectReseal)
 	}
 
 	// build the recovery mode boot chain
