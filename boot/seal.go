@@ -48,23 +48,23 @@ var (
 )
 
 // Hook functions setup by devicestate to support device-specific full
-// disk encryption implementations.
+// disk encryption implementations. The state must be locked when these
+// functions are called.
 var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
-	RunFDESetupHook = func(op string, params *FdeSetupHookParams) error {
-		return fmt.Errorf("internal error: RunFDESetupHook not set yet")
+	RunFDESetupHook = func(op string, params *FDESetupHookParams) ([]byte, error) {
+		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
 
-// FdeSetupHookParams contains the inputs for the fde-setup hook
-type FdeSetupHookParams struct {
-	Key     secboot.EncryptionKey
+// FDESetupHookParams contains the inputs for the fde-setup hook
+type FDESetupHookParams struct {
+	Key     *secboot.EncryptionKey
 	KeyName string
 
-	KernelInfo *snap.Info
-	Model      *asserts.Model
+	Model *asserts.Model
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
