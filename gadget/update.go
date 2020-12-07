@@ -137,7 +137,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	}
 
 	if oldVol.Schema == "" || newVol.Schema == "" {
-		panic(fmt.Sprintf("unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema))
+		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
 	}
 
 	// layout old partially, without going deep into the layout of structure

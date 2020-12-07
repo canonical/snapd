@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -508,7 +508,7 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-// isMBR returns whether the structure is the MBR and  can be used before setImplicitForVolume
+// isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
 func isMBR(vs *VolumeStructure) bool {
 	if vs.Role == schemaMBR {
 		return true
@@ -839,7 +839,7 @@ func IsCompatible(current, new *Info) error {
 	}
 
 	if currentVol.Schema == "" || newVol.Schema == "" {
-		panic(fmt.Sprintf("unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema))
+		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
 	}
 
 	// layout both volumes partially, without going deep into the layout of
