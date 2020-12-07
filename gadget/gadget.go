@@ -189,6 +189,11 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
+func (vc VolumeContent) ResolvedSource() string {
+	// TODO: implement resolved sources
+	return vc.UnresolvedSource
+}
+
 func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
@@ -715,7 +720,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 }
 
 func validateBareContent(vc *VolumeContent) error {
-	if vc.UnresolvedSource != "" || vc.Target != "" {
+	if vc.ResolvedSource() != "" || vc.Target != "" {
 		return fmt.Errorf("cannot use non-image content for bare file system")
 	}
 	if vc.Image == "" {
@@ -728,7 +733,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
+	if vc.ResolvedSource() == "" || vc.Target == "" {
 		return fmt.Errorf("missing source or target")
 	}
 	return nil
