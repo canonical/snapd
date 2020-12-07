@@ -64,7 +64,7 @@ type FDESetupHookParams struct {
 	Key     secboot.EncryptionKey
 	KeyName string
 
-	Model *asserts.Model
+	Models []*asserts.Model
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
@@ -135,7 +135,7 @@ func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model
 		params := &FDESetupHookParams{
 			Key:     skr.Key,
 			KeyName: filepath.Base(skr.KeyFile),
-			Model:   model,
+			Models:  []*asserts.Model{model},
 		}
 		sealedKey, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {

@@ -55,11 +55,9 @@ type SetupRequest struct {
 	Key     *secboot.EncryptionKey `json:"key,omitempty"`
 	KeyName string                 `json:"key-name,omitempty"`
 
-	// Model related fields, this will be set to follow the
-	// secboot:SnapModel interface.
-	//
-	// XXX: do we need this to be a list? i.e. multiple models?
-	Model map[string]string `json:"model,omitempty"`
+	// List of model with their related fields, this will be set
+	// to follow the secboot:SnapModel interface.
+	Models []map[string]string `json:"models,omitempty"`
 
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing

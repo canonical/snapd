@@ -935,9 +935,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{KeyName: "ubuntu-data.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Model: model},
-		{KeyName: "ubuntu-data.recovery.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Model: model},
-		{KeyName: "ubuntu-save.recovery.sealed-key", Key: secboot.EncryptionKey{5, 6, 7, 8}, Model: model},
+		{KeyName: "ubuntu-data.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{KeyName: "ubuntu-data.recovery.sealed-key", Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{KeyName: "ubuntu-save.recovery.sealed-key", Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
 	})
 	// check that the sealed keys got written to the expected places
 	for _, p := range []string{
