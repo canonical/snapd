@@ -35,9 +35,9 @@ type validationState struct {
 	SystemSave *VolumeStructure
 }
 
-func ruleValidateVolumes(vols map[string]Volume, model Model) error {
+func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
 	for name, v := range vols {
-		if err := ruleValidateVolume(name, &v, model); err != nil {
+		if err := ruleValidateVolume(name, v, model); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
@@ -268,7 +268,7 @@ func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraint
 	}
 
 	for name, vol := range info.Volumes {
-		lv, err := LayoutVolume(gadgetSnapRootDir, &vol, defaultConstraints)
+		lv, err := LayoutVolume(gadgetSnapRootDir, vol, defaultConstraints)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

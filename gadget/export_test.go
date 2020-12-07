@@ -36,6 +36,8 @@ var (
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
 
+	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
+
 	RuleValidateVolumes         = ruleValidateVolumes
 	RuleValidateVolumeStructure = ruleValidateVolumeStructure
 	EnsureVolumeRuleConsistency = ensureVolumeRuleConsistency

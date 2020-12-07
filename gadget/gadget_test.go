@@ -198,6 +198,66 @@ volumes:
             target: EFI/ubuntu/grub.cfg
 `)
 
+var gadgetYamlUC20PC = []byte(`
+volumes:
+  pc:
+    # bootloader configuration is shipped and managed by snapd
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        update:
+          edition: 2
+        content:
+          - image: pc-core.img
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        update:
+          edition: 2
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`)
+
 var gadgetYamlRPi = []byte(`
 device-tree: bcm2709-rpi-2-b
 volumes:
@@ -561,7 +621,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, coreConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -572,7 +632,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 			{Plug: gadget.ConnectionPlug{SnapID: "snapid3", Plug: "process-control"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
 			{Plug: gadget.ConnectionPlug{SnapID: "snapid4", Plug: "pctl4"}, Slot: gadget.ConnectionSlot{SnapID: "system", Slot: "process-control"}},
 		},
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"volumename": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -580,6 +640,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
+						Role:        "system-boot", // implicit
 						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
@@ -612,7 +673,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"frobinator-image": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -642,6 +703,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
+				Schema: "gpt",
 				Structure: []gadget.VolumeStructure{
 					{
 						Name:   "u-boot",
@@ -742,10 +804,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockVolumeUpdateGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, coreConstraints)
 	c.Check(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"bootloader": {
 				Schema:     "mbr",
 				Bootloader: "u-boot",
@@ -753,6 +815,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
+						Role:        "system-boot", // implicit
 						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
@@ -951,11 +1014,17 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	}
 }
 
-func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
+func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 	var v gadget.VolumeStructure
 	err := yaml.Unmarshal([]byte(s), &v)
 	c.Assert(err, IsNil)
 	return &v
+}
+
+func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
+	vs := mustParseStructureNoImplicit(c, s)
+	gadget.SetImplicitForVolumeStructure(vs, 0)
+	return vs
 }
 
 func (s *gadgetYamlTestSuite) TestValidateRole(c *C) {
@@ -1029,29 +1098,29 @@ size: 447`
 		v   *gadget.Volume
 		err string
 	}{
-		{mustParseStructure(c, validSystemBoot), vol, ""},
+		{mustParseStructureNoImplicit(c, validSystemBoot), vol, ""},
 		// empty, ok too
-		{mustParseStructure(c, emptyRole), vol, ""},
+		{mustParseStructureNoImplicit(c, emptyRole), vol, ""},
 		// invalid role name
-		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
+		{mustParseStructureNoImplicit(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// the system-seed role
-		{mustParseStructure(c, validSystemSeed), vol, ""},
+		{mustParseStructureNoImplicit(c, validSystemSeed), vol, ""},
 		// system-save role
-		{mustParseStructure(c, validSystemSave), vol, ""},
+		{mustParseStructureNoImplicit(c, validSystemSave), vol, ""},
 		// mbr
-		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
-		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
-		{mustParseStructure(c, mbrBadID), mbrVol, `invalid role "mbr": mbr structure must not specify partition ID`},
-		{mustParseStructure(c, mbrBadFilesystem), mbrVol, `invalid role "mbr": mbr structures must not specify a file system`},
+		{mustParseStructureNoImplicit(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructureNoImplicit(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
+		{mustParseStructureNoImplicit(c, mbrBadID), mbrVol, `invalid role "mbr": mbr structure must not specify partition ID`},
+		{mustParseStructureNoImplicit(c, mbrBadFilesystem), mbrVol, `invalid role "mbr": mbr structures must not specify a file system`},
 		// filesystem: none is ok for MBR
-		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
+		{mustParseStructureNoImplicit(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
-		{mustParseStructure(c, legacyMBR), mbrVol, ""},
-		{mustParseStructure(c, legacyTypeMatchingRole), mbrVol, ""},
-		{mustParseStructure(c, legacyTypeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
-		{mustParseStructure(c, legacyTypeConflictsRole), vol, `invalid role "system-data": conflicting legacy type: "mbr"`},
+		{mustParseStructureNoImplicit(c, legacyMBR), mbrVol, ""},
+		{mustParseStructureNoImplicit(c, legacyTypeMatchingRole), mbrVol, ""},
+		{mustParseStructureNoImplicit(c, legacyTypeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructureNoImplicit(c, legacyTypeConflictsRole), vol, `invalid role "system-data": conflicting legacy type: "mbr"`},
 		// conflicting type/role
-		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
+		{mustParseStructureNoImplicit(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
@@ -1525,32 +1594,6 @@ type gadgetTestSuite struct{}
 
 var _ = Suite(&gadgetTestSuite{})
 
-func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
-	// no role set
-	vs := gadget.VolumeStructure{Role: ""}
-	c.Check(vs.EffectiveRole(), Equals, "")
-
-	// explicitly set role trumps all
-	vs = gadget.VolumeStructure{Role: "foobar", Type: "mbr", Label: gadget.SystemBoot}
-
-	c.Check(vs.EffectiveRole(), Equals, "foobar")
-
-	vs = gadget.VolumeStructure{Role: "mbr"}
-	c.Check(vs.EffectiveRole(), Equals, "mbr")
-
-	// legacy fallback
-	vs = gadget.VolumeStructure{Role: "", Type: "mbr"}
-	c.Check(vs.EffectiveRole(), Equals, "mbr")
-
-	// fallback role based on fs label applies only to system-boot
-	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
-	c.Check(vs.EffectiveRole(), Equals, gadget.SystemBoot)
-	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
-	c.Check(vs.EffectiveRole(), Equals, "")
-	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemSeed}
-	c.Check(vs.EffectiveRole(), Equals, "")
-}
-
 func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
 	// no label, and no role set
 	vs := gadget.VolumeStructure{Role: ""}
@@ -1743,7 +1786,127 @@ var (
 	coreConstraints = &modelConstraints{
 		classic: false,
 	}
+	uc20Constraints = &modelConstraints{
+		classic:    false,
+		systemSeed: true,
+	}
 )
+
+func (s *gadgetYamlTestSuite) TestGadgetImplicitSchema(c *C) {
+	var minimal = []byte(`
+volumes:
+   minimal:
+     bootloader: grub
+`)
+
+	tests := map[string][]byte{
+		"minimal": minimal,
+		"pc":      gadgetYamlPC,
+	}
+
+	for volName, yaml := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(yaml, nil)
+		c.Assert(err, IsNil)
+
+		vol := giMeta.Volumes[volName]
+		c.Check(vol.Schema, Equals, "gpt")
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetImplicitRoleMBR(c *C) {
+	var minimal = []byte(`
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: mbr
+         type: mbr
+         size: 440
+`)
+
+	tests := map[string][]byte{
+		"minimal": minimal,
+		"pc":      gadgetYamlPC,
+	}
+
+	for volName, yaml := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(yaml, nil)
+		c.Assert(err, IsNil)
+
+		vs := giMeta.Volumes[volName].Structure[0]
+		c.Check(vs.Role, Equals, "mbr")
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetImplicitRoleLegacySystemBoot(c *C) {
+	minimal := []byte(`
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: boot
+         filesystem-label: system-boot
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+`)
+
+	explicit := []byte(`
+volumes:
+   explicit:
+     bootloader: grub
+     schema: mbr
+     structure:
+       - name: boot
+         filesystem-label: system-boot
+         role: bootselect
+         type: EF
+         size: 1G
+`)
+
+	data := []byte(`
+volumes:
+   data:
+     bootloader: grub
+     schema: mbr
+     structure:
+       - name: dat
+         filesystem-label: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 1G
+`)
+
+	tests := []struct {
+		name      string
+		structure string
+		yaml      []byte
+		model     gadget.Model
+		role      string
+	}{
+		{"pc", "EFI System", gadgetYamlPC, coreConstraints, gadget.SystemBoot},
+		// XXX later {gadgetYamlUC20PC, uc20Constraints},
+		{"minimal", "boot", minimal, nil, ""},
+		{"minimal", "boot", minimal, coreConstraints, gadget.SystemBoot},
+		// XXX later {minimal, uc20Constraints},
+		{"explicit", "boot", explicit, coreConstraints, "bootselect"},
+		{"data", "dat", data, coreConstraints, ""},
+	}
+
+	for _, t := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(t.yaml, t.model)
+		c.Assert(err, IsNil)
+
+		foundStruct := false
+		vol := giMeta.Volumes[t.name]
+		for _, vs := range vol.Structure {
+			if vs.Name != t.structure {
+				continue
+			}
+			foundStruct = true
+			c.Check(vs.Role, Equals, t.role)
+		}
+		c.Check(foundStruct, Equals, true)
+	}
+}
 
 func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	// this is ok for classic
@@ -1852,9 +2015,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"pc": {
 				Bootloader: "grub",
+				Schema:     "gpt",
 			},
 		},
 	})
