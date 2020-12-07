@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +61,23 @@ var downloadSpeedMeasureWindow = 5 * time.Minute
 
 // minimum average download speed (bytes/sec), measured over downloadSpeedMeasureWindow.
 var downloadSpeedMin = float64(4096)
+
+func init() {
+	if v := os.Getenv("SNAPD_MIN_DOWNLOAD_SPEED"); v != "" {
+		if speed, err := strconv.Atoi(v); err == nil {
+			downloadSpeedMin = float64(speed)
+		} else {
+			logger.Noticef("Cannot parse SNAPD_MIN_DOWNLOAD_SPEED as number")
+		}
+	}
+	if v := os.Getenv("SNAPD_DOWNLOAD_MEAS_WINDOW"); v != "" {
+		if win, err := time.ParseDuration(v); err == nil {
+			downloadSpeedMeasureWindow = win
+		} else {
+			logger.Noticef("Cannot parse SNAPD_DOWNLOAD_MEAS_WINDOW as time.Duration")
+		}
+	}
+}
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
 func useDeltas() bool {
