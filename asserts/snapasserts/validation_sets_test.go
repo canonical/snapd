@@ -611,7 +611,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			[]*snapasserts.InstalledSnap{snapBlocal},
 			"validation sets assertions are not met:\n" +
 				"- snaps at wrong revisions:\n" +
-				"  - snap-b \\(acme/fooname\\)",
+				"  - snap-b \\(acme/fooname\\), revision 3 required",
 		},
 	}
 

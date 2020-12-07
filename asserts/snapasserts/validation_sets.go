@@ -67,24 +67,35 @@ type ValidationSetsValidationError struct {
 	MissingSnaps       map[string][]string
 	InvalidSnaps       map[string][]string
 	WrongRevisionSnaps map[string][]string
-	Sets               map[string]*asserts.ValidationSet
+	// snapName -> revision map for WrongRevisionSnaps
+	Revisions map[string]snap.Revision
+	Sets      map[string]*asserts.ValidationSet
 }
 
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
-	printDetails := func(header string, details map[string][]string) {
+	printDetails := func(header string, details map[string][]string,
+		printSnap func(snapName string, keys []string) string) {
 		if len(details) == 0 {
 			return
 		}
 		fmt.Fprintf(buf, "\n- %s:", header)
 		for snapName, validationSetKeys := range details {
-			fmt.Fprintf(buf, "\n  - %s (%s)", snapName, strings.Join(validationSetKeys, ","))
+			fmt.Fprintf(buf, "\n  - %s", printSnap(snapName, validationSetKeys))
 		}
 	}
 
-	printDetails("missing required snaps", e.MissingSnaps)
-	printDetails("invalid snaps", e.InvalidSnaps)
-	printDetails("snaps at wrong revisions", e.WrongRevisionSnaps)
+	printSnapDetails := func(snapName string, validationSetKeys []string) string {
+		return fmt.Sprintf("%s (%s)", snapName, strings.Join(validationSetKeys, ","))
+	}
+
+	printWrongRevisionDetails := func(snapName string, validationSetKeys []string) string {
+		return fmt.Sprintf("%s (%s), revision %s required", snapName, strings.Join(validationSetKeys, ","), e.Revisions[snapName])
+	}
+
+	printDetails("missing required snaps", e.MissingSnaps, printSnapDetails)
+	printDetails("invalid snaps", e.InvalidSnaps, printSnapDetails)
+	printDetails("snaps at wrong revisions", e.WrongRevisionSnaps, printWrongRevisionDetails)
 	return buf.String()
 }
 
@@ -337,6 +348,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	invalid := make(map[string]map[string]bool)
 	missing := make(map[string]map[string]bool)
 	wrongrev := make(map[string]map[string]bool)
+	revisions := make(map[string]snap.Revision)
 	sets := make(map[string]*asserts.ValidationSet)
 
 	for _, cstrs := range v.snaps {
@@ -359,6 +371,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 						if wrongrev[rc.Name] == nil {
 							wrongrev[rc.Name] = make(map[string]bool)
 						}
+						revisions[rc.Name] = rev
 						wrongrev[rc.Name][rc.validationSetKey] = true
 						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
@@ -394,6 +407,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 			InvalidSnaps:       setsToLists(invalid),
 			MissingSnaps:       setsToLists(missing),
 			WrongRevisionSnaps: setsToLists(wrongrev),
+			Revisions:          revisions,
 			Sets:               sets,
 		}
 	}
