@@ -45,6 +45,13 @@ func NewInstalledSnap(name, snapID string, revision snap.Revision) *InstalledSna
 	}
 }
 
+// ValidationSetsConflictError describes an error where multiple
+// validation sets are in conflict about snaps.
+type ValidationSetsConflictError struct {
+	Sets  map[string]*asserts.ValidationSet
+	Snaps map[string]error
+}
+
 func (e *ValidationSetsConflictError) Error() string {
 	buf := bytes.NewBufferString("validation sets are in conflict:")
 	for _, err := range e.Snaps {
@@ -63,25 +70,15 @@ type ValidationSetsValidationError struct {
 	Sets               map[string]*asserts.ValidationSet
 }
 
-// ValidationSetsConflictError describes an error where multiple
-// validation sets are in conflict about snaps.
-type ValidationSetsConflictError struct {
-	Sets  map[string]*asserts.ValidationSet
-	Snaps map[string]error
-}
-
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
 	printDetails := func(header string, details map[string][]string) {
 		if len(details) == 0 {
 			return
 		}
-		fmt.Fprintf(buf, "\n%s:", header)
+		fmt.Fprintf(buf, "\n- %s:", header)
 		for snapName, validationSetKeys := range details {
-			fmt.Fprintf(buf, "\n- %s", snapName)
-			for _, key := range validationSetKeys {
-				fmt.Fprintf(buf, "\n  - validation set: %s", key)
-			}
+			fmt.Fprintf(buf, "\n  - %s (%s)", snapName, strings.Join(validationSetKeys, ","))
 		}
 	}
 
@@ -329,11 +326,6 @@ func (v *ValidationSets) Conflict() error {
 	return nil
 }
 
-type snapRef struct {
-	naming.SnapRef
-	revision snap.Revision
-}
-
 // CheckInstalledSnaps checks installed snaps against the validation sets.
 func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	installed := naming.NewSnapSet(nil)
@@ -383,7 +375,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 		}
 	}
 
-	flatten := func(in map[string]map[string]bool) map[string][]string {
+	setsToLists := func(in map[string]map[string]bool) map[string][]string {
 		if len(in) == 0 {
 			return nil
 		}
@@ -400,9 +392,9 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 
 	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
 		return &ValidationSetsValidationError{
-			InvalidSnaps:       flatten(invalid),
-			MissingSnaps:       flatten(missing),
-			WrongRevisionSnaps: flatten(wrongrev),
+			InvalidSnaps:       setsToLists(invalid),
+			MissingSnaps:       setsToLists(missing),
+			WrongRevisionSnaps: setsToLists(wrongrev),
 			Sets:               sets,
 		}
 	}

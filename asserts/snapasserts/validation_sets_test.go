@@ -596,26 +596,22 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 		{
 			nil,
 			"validation sets assertions are not met:\n" +
-				"missing required snaps:\n" +
-				"- snap-b\n" +
-				"  - validation set: acme/fooname",
+				"- missing required snaps:\n" +
+				"  - snap-b \\(acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapA},
 			"validation sets assertions are not met:\n" +
-				"missing required snaps:\n" +
-				"- snap-b\n" +
-				"  - validation set: acme/fooname\n" +
-				"invalid snaps:\n" +
-				"- snap-a\n" +
-				"  - validation set: acme/fooname",
+				"- missing required snaps:\n" +
+				"  - snap-b \\(acme/fooname\\)\n" +
+				"- invalid snaps:\n" +
+				"  - snap-a \\(acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapBlocal},
 			"validation sets assertions are not met:\n" +
-				"snaps at wrong revisions:\n" +
-				"- snap-b\n" +
-				"  - validation set: acme/fooname",
+				"- snaps at wrong revisions:\n" +
+				"  - snap-b \\(acme/fooname\\)",
 		},
 	}
 
