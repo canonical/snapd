@@ -55,7 +55,7 @@ type SetupRequest struct {
 	Key     *secboot.EncryptionKey `json:"key,omitempty"`
 	KeyName string                 `json:"key-name,omitempty"`
 
-	// List of model with their related fields, this will be set
+	// List of models with their related fields, this will be set
 	// to follow the secboot:SnapModel interface.
 	Models []map[string]string `json:"models,omitempty"`
 
