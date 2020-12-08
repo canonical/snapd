@@ -387,6 +387,7 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 	psMBR := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Type: "mbr",
+			Role: "mbr",
 			Name: "mbr",
 		},
 		StartOffset: 0,
