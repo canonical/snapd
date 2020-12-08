@@ -61,10 +61,10 @@ var (
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
 type FDESetupHookParams struct {
-	Key     *secboot.EncryptionKey
+	Key     secboot.EncryptionKey
 	KeyName string
 
-	Model *asserts.Model
+	Models []*asserts.Model
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
@@ -82,19 +82,76 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+	// make sure relevant locations exist
+	for _, p := range []string{
+		InitramfsSeedEncryptionKeyDir,
+		InitramfsBootEncryptionKeyDir,
+		InstallHostFDEDataDir,
+		InstallHostFDESaveDir,
+	} {
+		// XXX: should that be 0700 ?
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFdeSetupHook(key, saveKey, model, modeenv)
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv)
 	}
 
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
 }
 
-func sealKeyToModeenvUsingFdeSetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
-	return fmt.Errorf("cannot use fde-setup hook yet")
+func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		},
+	}
+}
+
+func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		},
+		{
+			Key:     saveKey,
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		},
+	}
+}
+
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+	// TODO: support full boot chains
+
+	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
+		params := &FDESetupHookParams{
+			Key: skr.Key,
+			// TODO: decide what the right KeyName is
+			// KeyName: filepath.Base(skr.KeyFile),
+			Models: []*asserts.Model{model},
+		}
+		sealedKey, err := RunFDESetupHook("initial-setup", params)
+		if err != nil {
+			return err
+		}
+		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), sealedKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot store key: %v", err)
+		}
+	}
+
+	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -141,19 +198,6 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 
-	// make sure relevant locations exist
-	for _, p := range []string{
-		InitramfsSeedEncryptionKeyDir,
-		InitramfsBootEncryptionKeyDir,
-		InstallHostFDEDataDir,
-		InstallHostFDESaveDir,
-	} {
-		// XXX: should that be 0700 ?
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
-	}
-
 	// the boot chains we seal the fallback object to
 	rpbc := toPredictableBootChains(recoveryBootChains)
 
@@ -171,7 +215,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
+	if err := stampSealedKeys(InstallHostWritableDir, "tpm"); err != nil {
 		return err
 	}
 
@@ -207,13 +251,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
@@ -234,30 +272,20 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		},
-		{
-			Key:     saveKey,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
 	return nil
 }
 
-func stampSealedKeys(rootdir string) error {
+func stampSealedKeys(rootdir, content string) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 
-	if err := osutil.AtomicWriteFile(stamp, nil, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
 		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
 	}
 	return nil
@@ -271,12 +299,24 @@ func hasSealedKeys(rootdir string) bool {
 	return osutil.FileExists(stamp)
 }
 
+func resealKeyToModeenvUsingFDESetupHook(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
+	// TODO: implement reseal using the fde-setup hook
+	return nil
+}
+
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	if !hasSealedKeys(rootdir) {
 		// nothing to do
 		return nil
+	}
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot check for fde-setup hook in reseal: %v", err)
+	}
+	if hasHook {
+		return resealKeyToModeenvUsingFDESetupHook(rootdir, model, modeenv, expectReseal)
 	}
 
 	// build the recovery mode boot chain
