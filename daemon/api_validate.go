@@ -173,6 +173,7 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
 	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
+		// TODO: not available locally, try to find in the store.
 		return validationSetNotFound(accountID, name, sequence)
 	}
 	if err != nil {
@@ -245,7 +246,9 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 		return BadRequest("invalid mode %q", req.Mode)
 	}
 
-	// TODO: check that it exists in the store?
+	// TODO: if pinned, check if we have the needed assertion locally;
+	// check with the store if there is something newer there;
+	// check what is the latest in the store if the assertion is not pinned.
 
 	tr := assertstate.ValidationSetTracking{
 		AccountID: accountID,
@@ -254,10 +257,16 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 		// note, Sequence may be 0, meaning not pinned.
 		PinnedAt: req.Sequence,
 	}
+
+	// TODO: if the mode is enforced  check that the assertion is valid before
+	// saving it; for one from the store add it to the assertion db.
+
 	assertstate.UpdateValidationSet(st, &tr)
 	return SyncResponse(nil, nil)
 }
 
+// forgetValidationSet forgets the validation set.
+// The state needs to be locked by the caller.
 func forgetValidationSet(st *state.State, accountID, name string, sequence int) Response {
 	// check if it exists first
 	var tr assertstate.ValidationSetTracking
