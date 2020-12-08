@@ -222,7 +222,10 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
-	c.Check(res.Value, check.DeepEquals, "foo/other")
+	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
+		"account": "foo",
+		"name":    "other",
+	})
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
@@ -241,7 +244,11 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	res := rsp.Result.(*daemon.ErrorResult)
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
-	c.Check(res.Value, check.DeepEquals, "foo/bar=333")
+	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
+		"account":  "foo",
+		"name":     "bar",
+		"sequence": 333,
+	})
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {

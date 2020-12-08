@@ -74,10 +74,17 @@ func validationSetKeyString(accountID, name string, sequence int) string {
 }
 
 func validationSetNotFound(accountID, name string, sequence int) Response {
+	v := map[string]interface{}{
+		"account": accountID,
+		"name":    name,
+	}
+	if sequence != 0 {
+		v["sequence"] = sequence
+	}
 	res := &errorResult{
 		Message: "validation set not found",
 		Kind:    client.ErrorKindValidationSetNotFound,
-		Value:   validationSetKeyString(accountID, name, sequence),
+		Value:   v,
 	}
 	return &resp{
 		Type:   ResponseTypeError,
