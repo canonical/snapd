@@ -388,7 +388,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		snaps            []*snapasserts.InstalledSnap
 		expectedInvalid  map[string][]string
 		expectedMissing  map[string][]string
-		expectedWrongRev map[string][]string
+		expectedWrongRev map[string]map[snap.Revision][]string
 	}{
 		{
 			// required snaps not installed
@@ -456,8 +456,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapCinvRev,
 				// covered by acme/barname validation-set. snap-e not installed but optional
 				snapD},
-			expectedWrongRev: map[string][]string{
-				"snap-c": {"acme/fooname"},
+			expectedWrongRev: map[string]map[snap.Revision][]string{
+				"snap-c": {
+					snap.R(2): {"acme/fooname"},
+				},
 			},
 		},
 		{
@@ -466,8 +468,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapBinvRev,
 				// covered by acme/barname validation-set.
 				snapD},
-			expectedWrongRev: map[string][]string{
-				"snap-b": {"acme/fooname"},
+			expectedWrongRev: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
 			},
 		},
 		{
@@ -527,8 +531,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapBlocal,
 				// covered by acme/barname validation-set.
 				snapD},
-			expectedWrongRev: map[string][]string{
-				"snap-b": {"acme/fooname"},
+			expectedWrongRev: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
 			},
 		},
 	}
@@ -597,21 +603,21 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			nil,
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(acme/fooname\\)",
+				"  - snap-b \\(required by sets acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapA},
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(acme/fooname\\)\n" +
+				"  - snap-b \\(required by sets acme/fooname\\)\n" +
 				"- invalid snaps:\n" +
-				"  - snap-a \\(acme/fooname\\)",
+				"  - snap-a \\(invalid for sets acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapBlocal},
 			"validation sets assertions are not met:\n" +
 				"- snaps at wrong revisions:\n" +
-				"  - snap-b \\(acme/fooname\\), revision 3 required",
+				"  - snap-b \\(required at revision 3 by sets acme/fooname\\)",
 		},
 	}
 
