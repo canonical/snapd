@@ -48,10 +48,12 @@ var (
 )
 
 type validationSetResult struct {
-	ValidationSet string `json:"validation-set,omitempty"`
-	Mode          string `json:"mode"`
-	Seq           int    `json:"seq,omitempty"`
-	Valid         bool   `json:"valid"`
+	AccountID string `json:"account-id"`
+	Name      string `json:"name"`
+	PinnedAt  int    `json:"pinned-at,omitempty"`
+	Mode      string `json:"mode"`
+	Sequence  int    `json:"sequence,omitempty"`
+	Valid     bool   `json:"valid"`
 	// TODO: attributes for Notes column
 }
 
@@ -63,14 +65,6 @@ func modeString(mode assertstate.ValidationSetMode) (string, error) {
 		return "enforce", nil
 	}
 	return "", fmt.Errorf("internal error: unhandled mode %d", mode)
-}
-
-func validationSetKeyString(accountID, name string, sequence int) string {
-	key := assertstate.ValidationSetKey(accountID, name)
-	if sequence != 0 {
-		key = fmt.Sprintf("%s=%d", key, sequence)
-	}
-	return key
 }
 
 func validationSetNotFound(accountID, name string, sequence int) Response {
@@ -135,10 +129,12 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 			return InternalError(err.Error())
 		}
 		results[i] = validationSetResult{
-			ValidationSet: validationSetKeyString(tr.AccountID, tr.Name, tr.PinnedAt),
-			Mode:          modeStr,
-			Seq:           tr.Current,
-			Valid:         valid,
+			AccountID: tr.AccountID,
+			Name:      tr.Name,
+			PinnedAt:  tr.PinnedAt,
+			Mode:      modeStr,
+			Sequence:  tr.Current,
+			Valid:     valid,
 		}
 	}
 
@@ -194,10 +190,12 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 	// TODO: evaluate against installed snaps
 	var valid bool
 	res := validationSetResult{
-		ValidationSet: validationSetKeyString(tr.AccountID, tr.Name, tr.PinnedAt),
-		Mode:          modeStr,
-		Seq:           tr.Current,
-		Valid:         valid,
+		AccountID: tr.AccountID,
+		Name:      tr.Name,
+		PinnedAt:  tr.PinnedAt,
+		Mode:      modeStr,
+		Sequence:  tr.Current,
+		Valid:     valid,
 	}
 	return SyncResponse(res, nil)
 }

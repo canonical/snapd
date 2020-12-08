@@ -102,6 +102,13 @@ func fmtValid(res *client.ValidationSetResult) string {
 	return fmt.Sprint("invalid")
 }
 
+func fmtValidationSet(res *client.ValidationSetResult) string {
+	if res.PinnedAt == 0 {
+		return fmt.Sprintf("%s/%s", res.AccountID, res.Name)
+	}
+	return fmt.Sprintf("%s/%s=%d", res.AccountID, res.Name, res.PinnedAt)
+}
+
 func (cmd *cmdValidate) Execute(args []string) error {
 	// check that only one action is used at a time
 	var action string
@@ -169,7 +176,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			var notes string
 			// doing it this way because otherwise it's a sea of %s\t%s\t%s
 			line := []string{
-				res.ValidationSet,
+				fmtValidationSet(res),
 				res.Mode,
 				fmt.Sprintf("%d", res.Sequence),
 				fmtValid(res),

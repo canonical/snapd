@@ -152,16 +152,19 @@ func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
 	res := rsp.Result.([]daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, []daemon.ValidationSetResult{
 		{
-			ValidationSet: "foo/bar=9",
-			Mode:          "enforce",
-			Seq:           12,
-			Valid:         false,
+			AccountID: "foo",
+			Name:      "bar",
+			PinnedAt:  9,
+			Mode:      "enforce",
+			Seq:       12,
+			Valid:     false,
 		},
 		{
-			ValidationSet: "foo/baz",
-			Mode:          "monitor",
-			Seq:           2,
-			Valid:         false,
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      "monitor",
+			Seq:       2,
+			Valid:     false,
 		},
 	})
 }
@@ -179,10 +182,12 @@ func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
-		ValidationSet: "foo/bar=9",
-		Mode:          "enforce",
-		Seq:           12,
-		Valid:         false,
+		AccountID: "foo",
+		Name:      "bar",
+		PinnedAt:  9,
+		Mode:      "enforce",
+		Seq:       12,
+		Valid:     false,
 	})
 }
 
@@ -201,10 +206,12 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
-		ValidationSet: "foo/bar=9",
-		Mode:          "enforce",
-		Seq:           12,
-		Valid:         false,
+		AccountID: "foo",
+		Name:      "bar",
+		PinnedAt:  9,
+		Mode:      "enforce",
+		Seq:       12,
+		Valid:     false,
 	})
 }
 
