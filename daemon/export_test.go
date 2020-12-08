@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,22 +20,36 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type Resp = resp
-type ErrorResult = errorResult
-
 var MinLane = minLane
 
+func NewAndAddRoutes() (*Daemon, error) {
+	d, err := New()
+	if err != nil {
+		return nil, err
+	}
+	d.addRoutes()
+	return d, nil
+}
+
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
+	d := &Daemon{overlord: o, state: o.State()}
 	d.addRoutes()
 	return d
+}
+
+func (d *Daemon) RouterMatch(req *http.Request, m *mux.RouteMatch) bool {
+	return d.router.Match(req, m)
 }
 
 func (d *Daemon) Overlord() *overlord.Overlord {
@@ -76,4 +90,22 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	return func() {
 		shutdownTimeout = old
 	}
+}
+
+func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstall := snapstateInstall
+	snapstateInstall = mock
+	return func() {
+		snapstateInstall = oldSnapstateInstall
+	}
+}
+
+type (
+	Resp            = resp
+	ErrorResult     = errorResult
+	SnapInstruction = snapInstruction
+)
+
+func (inst *snapInstruction) Dispatch() snapActionFunc {
+	return inst.dispatch()
 }

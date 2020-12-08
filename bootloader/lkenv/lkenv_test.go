@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
@@ -528,6 +529,17 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 		err = env.LoadEnv(testFile)
 		c.Assert(err, ErrorMatches, expErr)
 	}
+}
+
+func (l *lkenvTestSuite) TestLoadPropagatesErrNotExist(c *C) {
+	// make sure that if the env file doesn't exist, the error returned from
+	// Load() is os.ErrNotExist, even if it isn't exactly that
+	env := lkenv.NewEnv("some-nonsense-file-this-doesnt-exist", "", lkenv.V1)
+	c.Check(env, NotNil)
+
+	err := env.Load()
+	c.Assert(xerrors.Is(err, os.ErrNotExist), Equals, true, Commentf("err is %+v", err))
+	c.Assert(err, ErrorMatches, "cannot open LK env file: open some-nonsense-file-this-doesnt-existbak: no such file or directory")
 }
 
 func (l *lkenvTestSuite) TestLoad(c *C) {

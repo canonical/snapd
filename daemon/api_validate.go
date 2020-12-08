@@ -34,6 +34,19 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+var (
+	validationSetsListCmd = &Command{
+		Path: "/v2/validation-sets",
+		GET:  listValidationSets,
+	}
+
+	validationSetsCmd = &Command{
+		Path: "/v2/validation-sets/{account}/{name}",
+		GET:  getValidationSet,
+		POST: applyValidationSet,
+	}
+)
+
 type validationSetResult struct {
 	ValidationSet string `json:"validation-set,omitempty"`
 	Mode          string `json:"mode"`

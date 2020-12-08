@@ -39,6 +39,175 @@ func (s *validateGadgetTestSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 }
 
+func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) {
+	for _, tc := range []struct {
+		role, label, err string
+	}{
+		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
+		// 2020-12-02: disable for customer hotfix
+		/*{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},*/
+		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
+		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`},
+		// these are ok
+		{role: "system-boot", label: "ubuntu-boot"},
+		{label: "random-ubuntu-label"},
+	} {
+		err := gadget.RuleValidateVolumeStructure(&gadget.VolumeStructure{
+			Type:       "21686148-6449-6E6F-744E-656564454649",
+			Role:       tc.role,
+			Filesystem: "ext4",
+			Label:      tc.label,
+			Size:       10 * 1024,
+		})
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+
+}
+
+func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
+	state := func(seed bool, label string) *gadget.ValidationState {
+		systemDataVolume := &gadget.VolumeStructure{Label: label}
+		systemSeedVolume := (*gadget.VolumeStructure)(nil)
+		if seed {
+			systemSeedVolume = &gadget.VolumeStructure{}
+		}
+		return &gadget.ValidationState{
+			SystemSeed: systemSeedVolume,
+			SystemData: systemDataVolume,
+		}
+	}
+
+	for i, tc := range []struct {
+		s   *gadget.ValidationState
+		err string
+	}{
+
+		// we have the system-seed role
+		{state(true, ""), ""},
+		{state(true, "foobar"), "system-data structure must not have a label"},
+		{state(true, "writable"), "system-data structure must not have a label"},
+		{state(true, "ubuntu-data"), "system-data structure must not have a label"},
+
+		// we don't have the system-seed role (old systems)
+		{state(false, ""), ""}, // implicit is ok
+		{state(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
+		{state(false, "writable"), ""},
+		{state(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
+	} {
+		c.Logf("tc: %v %p %v", i, tc.s.SystemSeed, tc.s.SystemData.Label)
+
+		err := gadget.EnsureVolumeRuleConsistency(tc.s, nil)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+
+	// Check system-seed label
+	for i, tc := range []struct {
+		l   string
+		err string
+	}{
+		{"", ""},
+		{"foobar", "system-seed structure must not have a label"},
+		{"ubuntu-seed", "system-seed structure must not have a label"},
+	} {
+		c.Logf("tc: %v %v", i, tc.l)
+		s := state(true, "")
+		s.SystemSeed.Label = tc.l
+		err := gadget.EnsureVolumeRuleConsistency(s, nil)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+
+	// Check system-seed without system-data
+	vs := &gadget.ValidationState{}
+	err := gadget.EnsureVolumeRuleConsistency(vs, nil)
+	c.Assert(err, IsNil)
+	vs.SystemSeed = &gadget.VolumeStructure{}
+	err = gadget.EnsureVolumeRuleConsistency(vs, nil)
+	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
+
+	// Check system-save
+	vsWithSave := &gadget.ValidationState{
+		SystemData: &gadget.VolumeStructure{},
+		SystemSeed: &gadget.VolumeStructure{},
+		SystemSave: &gadget.VolumeStructure{},
+	}
+	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
+	c.Assert(err, IsNil)
+	// use illegal label on system-save
+	vsWithSave.SystemSave.Label = "foo"
+	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save structure must not have a label")
+	// complains when either system-seed or system-data is missing
+	vsWithSave.SystemSeed = nil
+	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+	vsWithSave.SystemData = nil
+	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+}
+
+func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
+	// this is the kind of volumes setup recommended to be
+	// prepared for a possible UC18 -> UC20 transition
+	hybridyGadgetYaml := []byte(`volumes:
+  hybrid:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+          - source: mmx64.efi
+            target: EFI/boot/mmx64.efi
+          - source: grub.cfg
+            target: EFI/ubuntu/grub.cfg
+      - name: Ubuntu Boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        filesystem: ext4
+        filesystem-label: ubuntu-boot
+        size: 750M
+`)
+
+	constraints := &modelConstraints{
+		classic: false,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, constraints)
+	c.Assert(err, IsNil)
+
+	// XXX this should become a (new) Validate test
+	err = gadget.RuleValidateVolumes(giMeta.Volumes, constraints)
+	c.Check(err, IsNil)
+}
+
 func (s *validateGadgetTestSuite) TestValidateMissingRawContent(c *C) {
 	var gadgetYamlContent = `
 volumes:
