@@ -951,7 +951,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	}
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
-
 }
 
 func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
