@@ -567,7 +567,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 }
 
 func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
-	vs := assertstest.FakeAssertion(map[string]interface{}{
+	vs1 := assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "acme",
 		"series":       "16",
@@ -588,9 +588,26 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			},
 		},
 	}).(*asserts.ValidationSet)
+	vs2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "barname",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-b",
+				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				"revision": "5",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
 
 	valsets := snapasserts.NewValidationSets()
-	c.Assert(valsets.Add(vs), IsNil)
+	c.Assert(valsets.Add(vs1), IsNil)
+	c.Assert(valsets.Add(vs2), IsNil)
 
 	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
 	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
@@ -603,13 +620,13 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			nil,
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(required by sets acme/fooname\\)",
+				"  - snap-b \\(required by sets acme/barname,acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapA},
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(required by sets acme/fooname\\)\n" +
+				"  - snap-b \\(required by sets acme/barname,acme/fooname\\)\n" +
 				"- invalid snaps:\n" +
 				"  - snap-a \\(invalid for sets acme/fooname\\)",
 		},
@@ -617,13 +634,13 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			[]*snapasserts.InstalledSnap{snapBlocal},
 			"validation sets assertions are not met:\n" +
 				"- snaps at wrong revisions:\n" +
-				"  - snap-b \\(required at revision 3 by sets acme/fooname\\)",
+				"  - snap-b \\(required at revision 3 by sets acme/fooname, at revision 5 by sets acme/barname\\)",
 		},
 	}
 
 	for i, tc := range tests {
 		err := valsets.CheckInstalledSnaps(tc.snaps)
-		c.Assert(err, NotNil)
+		c.Assert(err, NotNil, Commentf("#%d", i))
 		c.Assert(err, ErrorMatches, tc.errorMsg, Commentf("#%d: ", i))
 	}
 }

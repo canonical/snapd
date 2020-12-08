@@ -367,10 +367,9 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 			for _, rc := range revCstr {
 				sn := installed.Lookup(rc)
 				isInstalled := sn != nil
-				if !isInstalled && cstrs.presence != asserts.PresenceRequired {
-					continue
-				}
+
 				switch {
+				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
 				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
 					if invalid[rc.Name] == nil {
 						invalid[rc.Name] = make(map[string]bool)
@@ -435,6 +434,5 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 		}
 		return verr
 	}
-
 	return nil
 }
