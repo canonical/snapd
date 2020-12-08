@@ -309,7 +309,7 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	}
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
-		return fmt.Errorf("cannot check for fde-setup hook in reseal %v", err)
+		return fmt.Errorf("cannot check for fde-setup hook in reseal: %v", err)
 	}
 	if hasHook {
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, model, modeenv, expectReseal)
