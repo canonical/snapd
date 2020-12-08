@@ -151,9 +151,13 @@ var (
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`)
+    fs_label: null
+manual_cache_clean: true
+`)
 
-	genericCloudRestrictYamlPattern = `datasource_list: [%s]`
+	genericCloudRestrictYamlPattern = `datasource_list: [%s]
+manual_cache_clean: true
+`
 
 	localDatasources = []string{"NoCloud", "None"}
 )
