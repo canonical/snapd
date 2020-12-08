@@ -1155,7 +1155,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
 	c.Check(err, check.IsNil)
 
-	// early.json + num_files + export.json + footer
+	// content.json + num_files + export.json + footer
 	expectedSize := int64(1024 + 4*512 + 1024 + 2*512)
 	// do on export at the start of the epoch
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })

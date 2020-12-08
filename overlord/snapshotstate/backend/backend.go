@@ -756,8 +756,8 @@ func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint
 			return nil, errors.New("unexpected directory in import file")
 		}
 
-		if header.Name == "early.json" {
-			var ej earlyJSON
+		if header.Name == "content.json" {
+			var ej contentJSON
 			dec := json.NewDecoder(tr)
 			if err := dec.Decode(&ej); err != nil {
 				return nil, err
@@ -924,7 +924,7 @@ func (se *SnapshotExport) Close() {
 	se.snapshotFiles = nil
 }
 
-type earlyJSON struct {
+type contentJSON struct {
 	ContentHash []byte `json:"content-hash"`
 }
 
@@ -934,14 +934,14 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
-	// export contentHash as early.json
-	h, err := json.Marshal(earlyJSON{se.contentHash})
+	// export contentHash as content.json
+	h, err := json.Marshal(contentJSON{se.contentHash})
 	if err != nil {
 		return err
 	}
 	hdr := &tar.Header{
 		Typeflag: tar.TypeReg,
-		Name:     "early.json",
+		Name:     "content.json",
 		Size:     int64(len(h)),
 		Mode:     0640,
 		ModTime:  timeNow(),
