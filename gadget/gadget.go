@@ -720,7 +720,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 }
 
 func validateBareContent(vc *VolumeContent) error {
-	if vc.ResolvedSource() != "" || vc.Target != "" {
+	if vc.UnresolvedSource != "" || vc.Target != "" {
 		return fmt.Errorf("cannot use non-image content for bare file system")
 	}
 	if vc.Image == "" {
@@ -733,7 +733,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.ResolvedSource() == "" || vc.Target == "" {
+	if vc.UnresolvedSource == "" || vc.Target == "" {
 		return fmt.Errorf("missing source or target")
 	}
 	return nil
