@@ -1907,6 +1907,113 @@ volumes:
 	}
 }
 
+func (s *gadgetYamlTestSuite) TestGadgetImplicitFSLabelUC16(c *C) {
+	minimal := []byte(`
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: dat
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 1G
+`)
+
+	explicit := []byte(`
+volumes:
+   explicit:
+     bootloader: grub
+     structure:
+       - name: dat
+         filesystem-label: writable
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 1G
+`)
+	tests := []struct {
+		name      string
+		structure string
+		yaml      []byte
+		fsLabel   string
+	}{
+		{"minimal", "dat", minimal, "writable"},
+		{"explicit", "dat", explicit, "writable"},
+	}
+
+	for _, t := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(t.yaml, coreConstraints)
+		c.Assert(err, IsNil)
+
+		foundStruct := false
+		vol := giMeta.Volumes[t.name]
+		for _, vs := range vol.Structure {
+			if vs.Name != t.structure {
+				continue
+			}
+			foundStruct = true
+			c.Check(vs.Label, Equals, t.fsLabel)
+		}
+		c.Check(foundStruct, Equals, true)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetImplicitFSLabelUC20(c *C) {
+	minimal := []byte(`
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: seed
+         role: system-seed
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+       - name: boot
+         role: system-boot
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 500M
+       - name: dat
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 1G
+       - name: sav
+         role: system-save
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 1G
+`)
+
+	tests := []struct {
+		name      string
+		structure string
+		yaml      []byte
+		fsLabel   string
+	}{
+		{"minimal", "seed", minimal, "ubuntu-seed"},
+		{"minimal", "boot", minimal, "ubuntu-boot"},
+		{"minimal", "dat", minimal, "ubuntu-data"},
+		{"minimal", "sav", minimal, "ubuntu-save"},
+		{"pc", "ubuntu-seed", gadgetYamlUC20PC, "ubuntu-seed"},
+		{"pc", "ubuntu-boot", gadgetYamlUC20PC, "ubuntu-boot"},
+		{"pc", "ubuntu-data", gadgetYamlUC20PC, "ubuntu-data"},
+		{"pc", "ubuntu-save", gadgetYamlUC20PC, "ubuntu-save"},
+	}
+
+	for _, t := range tests {
+		giMeta, err := gadget.InfoFromGadgetYaml(t.yaml, uc20Constraints)
+		c.Assert(err, IsNil)
+
+		foundStruct := false
+		vol := giMeta.Volumes[t.name]
+		for _, vs := range vol.Structure {
+			if vs.Name != t.structure {
+				continue
+			}
+			foundStruct = true
+			c.Check(vs.Label, Equals, t.fsLabel)
+		}
+		c.Check(foundStruct, Equals, true)
+	}
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	// this is ok for classic
 	giClassic, err := gadget.InfoFromGadgetYaml([]byte(""), classicConstraints)

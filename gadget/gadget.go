@@ -411,6 +411,20 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 		vs.Role = SystemBoot
 		return nil
 	}
+	if vs.Label == "" {
+		switch {
+		case rs == volRuleset16 && vs.Role == SystemData:
+			vs.Label = implicitSystemDataLabel
+		case rs == volRuleset20 && vs.Role == SystemData:
+			vs.Label = ubuntuDataLabel
+		case rs == volRuleset20 && vs.Role == SystemSeed:
+			vs.Label = ubuntuSeedLabel
+		case rs == volRuleset20 && vs.Role == SystemBoot:
+			vs.Label = ubuntuBootLabel
+		case rs == volRuleset20 && vs.Role == SystemSave:
+			vs.Label = ubuntuSaveLabel
+		}
+	}
 	return nil
 }
 
