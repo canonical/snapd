@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -391,4 +393,43 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 		EncryptedData: true,
 	})
 	c.Assert(err, IsNil)
+}
+
+var gadgetYamlContentKernelRef = gadgetYamlContentNoSave + `
+      - name: other
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 10M
+        filesystem: ext4
+        content:
+          - source: REPLACE_WITH_TC
+            target: /
+`
+
+func (s *validateGadgetTestSuite) TestValidateKernelAssetsRef(c *C) {
+	for _, tc := range []struct {
+		source string
+		good   bool
+	}{
+		{"$kernel:a/b", true},
+		{"$kernel:aa/bb", true},
+		{"$kernel:a-a/b-b", true},
+		{"$kernel:aB-0/cD-3", true},
+		{"$kernel:aB-0/foo-21B.dtb", true},
+		{"$kernel:aB-0/nested/bar-77A.raw", true},
+		// no starting with "-"
+		{"$kernel:-/-", false},
+		// assets and content need to be there
+		{"$kernel:/", false},
+		{"$kernel:a/", false},
+	} {
+		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
+		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
+		err := gadget.Validate(s.dir, nil, nil)
+		if tc.good {
+			c.Check(err, IsNil, Commentf(tc.source))
+		} else {
+			errStr := fmt.Sprintf(`invalid volume "vol1": cannot use kernel reference "%s"`, regexp.QuoteMeta(tc.source))
+			c.Check(err, ErrorMatches, errStr, Commentf(tc.source))
+		}
+	}
 }
