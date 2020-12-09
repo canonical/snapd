@@ -1623,8 +1623,8 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
 		{"system-seed", "", ""},
-		{"system-seed", "writable", ".* system-data structure must not have a label"},
-		{"system-seed", "ubuntu-data", ".* system-data structure must not have a label"},
+		{"system-seed", "writable", `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{"system-seed", "ubuntu-data", ""},
 		{"", "", ""},
 		{"", "writable", ""},
 		{"", "ubuntu-data", `.* must have an implicit label or "writable", not "ubuntu-data"`},
@@ -1659,7 +1659,7 @@ volumes:
 
 		_, err = gadget.ReadInfo(s.dir, nil)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 
 		} else {
 			c.Check(err, IsNil)
@@ -1688,11 +1688,10 @@ volumes:
 		{addSeed: true, requireSeed: true},
 		{addSeed: true, err: `.* model does not support the system-seed role`},
 		{addSeed: true, dataLabel: "writable", requireSeed: true,
-			err: ".* system-data structure must not have a label"},
+			err: `.* system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
 		{addSeed: true, dataLabel: "writable",
 			err: `.* model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true,
-			err: ".* system-data structure must not have a label"},
+		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true},
 		{addSeed: true, dataLabel: "ubuntu-data",
 			err: `.* model does not support the system-seed role`},
 		{dataLabel: "writable", requireSeed: true,
@@ -1700,10 +1699,10 @@ volumes:
 		{dataLabel: "writable"},
 		{dataLabel: "ubuntu-data", requireSeed: true,
 			err: `.* model requires system-seed structure, but none was found`},
-		{dataLabel: "ubuntu-data", err: `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{dataLabel: "ubuntu-data", err: `.* system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
 		{addSave: true, err: `.* system-save requires system-seed and system-data structures`},
 		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
-			err: `.* system-save structure must not have a label`},
+			err: `.* system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
 	} {
 		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.requireSeed)
 		b := &bytes.Buffer{}
@@ -1746,7 +1745,7 @@ volumes:
 
 		_, err = gadget.ReadInfo(s.dir, constraints)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -158,9 +158,8 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-				implicitSystemDataLabel, state.SystemData.Label)
+		if err := checkImplicitLabel(SystemData, state.SystemData, implicitSystemDataLabel); err != nil {
+			return err
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
@@ -179,6 +178,14 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 	return nil
 }
 
+func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) error {
+	if vs.Label != "" && vs.Label != implicitLabel {
+		return fmt.Errorf("%s structure must have an implicit label or %q, not %q", role, implicitLabel, vs.Label)
+
+	}
+	return nil
+}
+
 func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	if model == nil {
 		return ensureVolumeRuleConsistencyNoConstraints(state)
@@ -187,11 +194,11 @@ func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 }
 
 func ensureSeedDataLabelsUnset(state *validationState) error {
-	if state.SystemData.Label != "" {
-		return fmt.Errorf("system-data structure must not have a label")
+	if err := checkImplicitLabel(SystemData, state.SystemData, ubuntuDataLabel); err != nil {
+		return err
 	}
-	if state.SystemSeed.Label != "" {
-		return fmt.Errorf("system-seed structure must not have a label")
+	if err := checkImplicitLabel(SystemSeed, state.SystemSeed, ubuntuSeedLabel); err != nil {
+		return err
 	}
 	return nil
 }
@@ -200,8 +207,8 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 	if state.SystemData == nil || state.SystemSeed == nil {
 		return fmt.Errorf("system-save requires system-seed and system-data structures")
 	}
-	if state.SystemSave.Label != "" {
-		return fmt.Errorf("system-save structure must not have a label")
+	if err := checkImplicitLabel(SystemSave, state.SystemSave, ubuntuSaveLabel); err != nil {
+		return err
 	}
 	return nil
 }
