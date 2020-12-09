@@ -113,7 +113,7 @@ func (p LaidOutContent) String() string {
 	if p.Image != "" {
 		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
-	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
+	return fmt.Sprintf("#%v (source:%q)", p.Index, p.UnresolvedSource)
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -128,7 +128,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	for idx, s := range volume.Structure {
 		var start quantity.Size
 		if s.Offset == nil {
-			if s.EffectiveRole() != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
+			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
 				start = constraints.NonMBRStartOffset
 			} else {
 				start = previousEnd
@@ -144,7 +144,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			Index:           idx,
 		}
 
-		if ps.EffectiveRole() != schemaMBR {
+		if ps.Role != schemaMBR {
 			if s.Size%constraints.SectorSize != 0 {
 				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)
@@ -240,7 +240,7 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume)
 
 func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
 	for i := range ps.Content {
-		source := ps.Content[i].Source
+		source := ps.Content[i].UnresolvedSource
 		if source != "" {
 			newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
 			if err != nil {
@@ -250,7 +250,7 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 				// restore trailing / if one was there
 				newSource += "/"
 			}
-			ps.Content[i].ResolvedSource = newSource
+			ps.Content[i].resolvedSource = newSource
 		}
 	}
 
@@ -425,9 +425,9 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	if current.ID != new.ID {
 		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
 	}
-	if current.EffectiveSchema() != new.EffectiveSchema() {
+	if current.Schema != new.Schema {
 		return fmt.Errorf("incompatible schema change from %v to %v",
-			current.EffectiveSchema(), new.EffectiveSchema())
+			current.Schema, new.Schema)
 	}
 	if current.Bootloader != new.Bootloader {
 		return fmt.Errorf("incompatible bootloader change from %v to %v",
@@ -445,7 +445,7 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	for i := range current.LaidOutStructure {
 		from := &current.LaidOutStructure[i]
 		to := &new.LaidOutStructure[i]
-		if err := canUpdateStructure(from, to, new.EffectiveSchema()); err != nil {
+		if err := canUpdateStructure(from, to, new.Schema); err != nil {
 			return fmt.Errorf("incompatible structure %v change: %v", to, err)
 		}
 	}

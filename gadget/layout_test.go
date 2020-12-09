@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -74,14 +73,11 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 }
 
 func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
-	var gi gadget.Info
-	err := yaml.Unmarshal([]byte(gadgetYaml), &gi)
+	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
 	c.Assert(err, IsNil)
 	v, ok := gi.Volumes[volume]
 	c.Assert(ok, Equals, true, Commentf("volume %q not found in gadget", volume))
-	err = gadget.ValidateVolume("foo", &v, nil)
-	c.Assert(err, IsNil)
-	return &v
+	return v
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeMinimal(c *C) {
@@ -1230,22 +1226,26 @@ assets:
 	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
 	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
+	content := lv.Volume.Structure[0].Content
+	c.Assert(content, DeepEquals, []gadget.VolumeContent{
+		{
+			UnresolvedSource: "$kernel:dtbs/boot-assets/",
+			Target:           "/",
+		},
+		{
+			UnresolvedSource: "$kernel:dtbs/some-file",
+			Target:           "/",
+		},
+	})
+
+	// now resolve the refs
 	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Structure, HasLen, 1)
-	c.Assert(lv.Volume.Structure[0].Content, DeepEquals, []gadget.VolumeContent{
-		{
-			Source: "$kernel:dtbs/boot-assets/",
-			Target: "/",
-			// note the trailing "/" here
-			ResolvedSource: filepath.Join(kernelSnapDir, "boot-assets/") + "/",
-		},
-		{
-			Source: "$kernel:dtbs/some-file",
-			Target: "/",
-			// no trailing "/" here
-			ResolvedSource: filepath.Join(kernelSnapDir, "some-file"),
-		},
-	})
+	c.Check(content, HasLen, 2)
+	// note the trailing "/" here
+	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "boot-assets/")+"/")
+	// no trailing "/" here
+	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "some-file"))
 }
