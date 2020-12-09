@@ -195,7 +195,12 @@ type VolumeContent struct {
 }
 
 func (vc VolumeContent) ResolvedSource() string {
-	return vc.resolvedSource
+	// TODO: ensure that sources are always resolved and only return
+	//       vc.resolvedSource(). This will come in the next PR.
+	if vc.resolvedSource != "" {
+		return vc.resolvedSource
+	}
+	return vc.UnresolvedSource
 }
 
 func (vc VolumeContent) String() string {

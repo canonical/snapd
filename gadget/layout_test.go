@@ -1247,5 +1247,5 @@ assets:
 	// note the trailing "/" here
 	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "boot-assets/")+"/")
 	// no trailing "/" here
-	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "some-file"))
+	c.Check(content[1].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "some-file"))
 }

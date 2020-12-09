@@ -64,6 +64,8 @@ var (
 	FindMountPointForStructure         = findMountPointForStructure
 
 	ParseRelativeOffset = parseRelativeOffset
+
+	ResolveContentPathsForStructure = resolveContentPathsForStructure
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
