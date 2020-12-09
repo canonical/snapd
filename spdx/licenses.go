@@ -21,7 +21,7 @@ package spdx
 
 // From https://spdx.org/licenses/
 // data files: https://github.com/spdx/license-list-data
-// Version: 3.10 2020-08-03
+// Version: 3.11 2020-11-25
 //
 // jq < json/licenses.json '.licenses | .[] | select(.isOsiApproved == true) | .licenseId' | sort | sed -e 's/$/,/'
 var osi = []string{
@@ -186,6 +186,7 @@ var allLicenses = []string{
 	"AML",
 	"AMPAS",
 	"ANTLR-PD",
+	"ANTLR-PD-fallback",
 	"Apache-1.0",
 	"Apache-1.1",
 	"Apache-2.0",
@@ -226,6 +227,7 @@ var allLicenses = []string{
 	"BSD-Protection",
 	"BSD-Source-Code",
 	"BSL-1.0",
+	"BUSL-1.1",
 	"bzip2-1.0.5",
 	"bzip2-1.0.6",
 	"CAL-1.0",
@@ -380,6 +382,7 @@ var allLicenses = []string{
 	"Hippocratic-2.1",
 	"HPND",
 	"HPND-sell-variant",
+	"HTMLTIDY",
 	"IBM-pibs",
 	"ICU",
 	"IJG",
@@ -437,6 +440,7 @@ var allLicenses = []string{
 	"MIT-enna",
 	"MIT-feh",
 	"MITNFA",
+	"MIT-open-group",
 	"Motosoto",
 	"mpich2",
 	"MPL-1.0",
