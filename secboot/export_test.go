@@ -184,5 +184,12 @@ func MockFDEHasRevealKey(f func() bool) (restore func()) {
 	return func() {
 		FDEHasRevealKey = old
 	}
+}
 
+func MockFdeRevealKeyCommandExtra(args []string) (restore func()) {
+	oldFdeRevealKeyCommandExtra := fdeRevealKeyCommandExtra
+	fdeRevealKeyCommandExtra = args
+	return func() {
+		fdeRevealKeyCommandExtra = oldFdeRevealKeyCommandExtra
+	}
 }

@@ -41,7 +41,7 @@ import (
 var _ = check.Suite(&interfacesSuite{})
 
 type interfacesSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func mockIface(c *check.C, d *daemon.Daemon, iface interfaces.Interface) {
@@ -123,10 +123,10 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
@@ -142,7 +142,7 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -172,12 +172,12 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "different"})
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, differentProducerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, differentProducerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "connect",
@@ -190,7 +190,7 @@ func (s *interfacesSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -209,12 +209,12 @@ func (s *interfacesSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
-	s.MockSnap(c, producerYaml)
-	s.MockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "connect",
@@ -227,7 +227,7 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]interface{}
@@ -248,12 +248,12 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
-	s.MockSnap(c, producerYaml)
-	s.MockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -287,7 +287,7 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -302,11 +302,11 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 	// there is no producer, no slot defined
 
 	action := &client.InterfaceAction{
@@ -320,7 +320,7 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]interface{}
@@ -341,14 +341,14 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 	// there is no producer, no slot defined
 
-	s.SimulateConflict("consumer")
+	s.simulateConflict("consumer")
 
 	action := &client.InterfaceAction{
 		Action: "connect",
@@ -361,7 +361,7 @@ func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}
@@ -384,10 +384,10 @@ func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, coreProducerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
 
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
@@ -403,7 +403,7 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -437,10 +437,10 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 	// Install an inverse case mapper to exercise the interface mapping at the same time.
 	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -473,7 +473,7 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -511,10 +511,10 @@ func (s *interfacesSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	s.Daemon(c)
+	s.daemon(c)
 
 	// there is no consumer, no plug defined
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, producerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -527,7 +527,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -545,10 +545,10 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -561,7 +561,7 @@ func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -580,9 +580,9 @@ func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
+	s.mockSnap(c, consumerYaml)
 	// there is no producer, no slot defined
 
 	action := &client.InterfaceAction{
@@ -596,7 +596,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
@@ -615,10 +615,10 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 func (s *interfacesSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -631,7 +631,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
@@ -650,10 +650,10 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 func (s *interfacesSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -667,7 +667,7 @@ func (s *interfacesSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
@@ -686,10 +686,10 @@ func (s *interfacesSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C
 func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -708,7 +708,7 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 	})
 	st.Unlock()
 
-	s.SimulateConflict("consumer")
+	s.simulateConflict("consumer")
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -721,7 +721,7 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 409)
 
@@ -745,10 +745,10 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, coreProducerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -781,7 +781,7 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -805,12 +805,12 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 }
 
 func (s *interfacesSuite) TestUnsupportedInterfaceRequest(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	buf := bytes.NewBuffer([]byte(`garbage`))
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -826,7 +826,7 @@ func (s *interfacesSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 }
 
 func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	action := &client.InterfaceAction{}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -834,7 +834,7 @@ func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -850,7 +850,7 @@ func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
 }
 
 func (s *interfacesSuite) TestUnsupportedInterfaceAction(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	action := &client.InterfaceAction{Action: "foo"}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -858,7 +858,7 @@ func (s *interfacesSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -882,7 +882,7 @@ func (s *interfacesSuite) TestInterfacesLegacy(c *check.C) {
 	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	var anotherConsumerYaml = `
 name: another-consumer-%s
@@ -895,10 +895,10 @@ plugs:
   key: value
   label: label
 `
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
-	s.MockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
+	s.mockSnap(c, producerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -931,7 +931,7 @@ plugs:
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -1002,10 +1002,10 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 	restore = ifacestate.MockSnapMapper(&inverseCaseMapper{})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	repo := d.Overlord().InterfaceManager().Repository()
 	connRef := &interfaces.ConnRef{
@@ -1018,7 +1018,7 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
