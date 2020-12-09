@@ -21,18 +21,25 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Repair holds an repair assertion which allows running repair
-// code to fixup broken systems. It can be limited by series and models.
+// code to fixup broken systems. It can be limited by series and models, as well
+// as by bases and modes.
 type Repair struct {
 	assertionBase
 
 	series        []string
 	architectures []string
 	models        []string
+
+	modes []string
+	bases []string
 
 	id int
 
@@ -71,6 +78,21 @@ func (r *Repair) Architectures() []string {
 // Series returns the series that this assertion is valid for.
 func (r *Repair) Series() []string {
 	return r.series
+}
+
+// Modes returns the modes that this assertion is valid for. It is either a list
+// of "run", "recover", or "install", or it is the empty list. The empty list
+// is interpreted to mean only "run" mode.
+func (r *Repair) Modes() []string {
+	return r.modes
+}
+
+// Bases returns the bases that this assertion is valid for. It is either a list
+// of valid base snaps that Ubuntu Core systems can have or it is the empty
+// list. The empty list effectively means all Ubuntu Core systems while "core"
+// means Ubuntu Core 16, "core18" means Ubuntu Core 18, etc.
+func (r *Repair) Bases() []string {
+	return r.bases
 }
 
 // Models returns the models that this assertion is valid for.
@@ -131,6 +153,38 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	modes, err := checkStringList(assert.headers, "modes")
+	if err != nil {
+		return nil, err
+	}
+	bases, err := checkStringList(assert.headers, "bases")
+	if err != nil {
+		return nil, err
+	}
+
+	// verify that modes is a list of only "run", "recover" and "install"
+	if len(modes) != 0 {
+		for _, m := range modes {
+			// note we could import boot here to use i.e. boot.ModeRun, but that
+			// might make import cycles happen some day if boot needs to use
+			// the asserts package for some odd reason, so instead just use the
+			// values directly, they're unlikely to change now
+			if !strutil.ListContains([]string{"run", "recover", "install"}, m) {
+				return nil, fmt.Errorf("header \"modes\" contains an invalid element: %q (valid values are run, recover and install)", m)
+			}
+		}
+
+		// if modes is non-empty, then bases must be core2X, i.e. core20+
+
+		// TODO: we should have a more centralized helper for identifying core2X
+		//       snaps to make it easier to add new base snaps
+		uc20AndUpBaseSnapRegexp := regexp.MustCompile(`^core2(0|2)$`)
+		for _, b := range bases {
+			if !uc20AndUpBaseSnapRegexp.MatchString(b) {
+				return nil, fmt.Errorf("in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases")
+			}
+		}
+	}
 
 	disabled, err := checkOptionalBool(assert.headers, "disabled")
 	if err != nil {
@@ -147,6 +201,8 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		series:        series,
 		architectures: architectures,
 		models:        models,
+		modes:         modes,
+		bases:         bases,
 		id:            repairID,
 		disabled:      disabled,
 		timestamp:     timestamp,
