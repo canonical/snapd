@@ -218,8 +218,11 @@ func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pa
 // content and populates VolumeContent.resolvedSource with absolute
 // paths.
 //
-// XXX: move into LayoutVolume(), operator on *Volume and make private?
+// XXX: maybe move into LayoutVolume(), operator on *Volume and make private?
 func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume) error {
+	// Note that the kernelRootDir may reference the running
+	// kernel if there is a gadget update or the new kernel if
+	// there is a kernel update.
 	var kernelInfo *kernel.Info = &kernel.Info{}
 	if kernelRootDir != "" {
 		ki, err := kernel.ReadInfo(kernelRootDir)
