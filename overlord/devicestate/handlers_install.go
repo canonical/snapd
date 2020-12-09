@@ -132,18 +132,20 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	bopts.Encrypt = useEncryption
 
+	model := deviceCtx.Model()
+
 	// make sure that gadget is usable for the set up we want to use it in
 	gadgetContaints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+	if err := gadget.Validate(gadgetDir, model, &gadgetContaints); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset install observer: %v", err)
 	}
@@ -162,7 +164,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(gadgetDir, "", bopts, installObserver)
+		installedSystem, err = installRun(model, gadgetDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
@@ -197,7 +199,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -205,7 +207,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
+	setSysconfigCloudOptions(opts, gadgetDir, model)
 	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}

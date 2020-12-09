@@ -859,10 +859,10 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, nil)
+func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
 	}

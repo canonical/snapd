@@ -195,7 +195,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -227,7 +227,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -291,7 +291,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -316,7 +316,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -478,7 +478,7 @@ echo '{
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
@@ -599,7 +599,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
 	c.Assert(err, IsNil)
 
 	list := install.CreatedDuringInstall(pv, dl)

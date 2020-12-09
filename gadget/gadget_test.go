@@ -1920,15 +1920,15 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetMultiVolume(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.PositionedVolumeFromGadget(s.dir)
+	_, err = gadget.LaidOutVolumeFromGadget(s.dir, nil)
 	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
 }
 
-func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetHappy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -1936,7 +1936,7 @@ func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.PositionedVolumeFromGadget(s.dir)
+	lv, err := gadget.LaidOutVolumeFromGadget(s.dir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system

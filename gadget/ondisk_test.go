@@ -452,7 +452,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 		},
 	}
 
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Constraints)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)

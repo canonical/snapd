@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -58,7 +59,7 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	sys, err := install.Run("", "", install.Options{}, nil)
+	sys, err := install.Run(nil, "", "", install.Options{}, nil)
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
 }
@@ -118,12 +119,12 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 
 func (s *installSuite) TestLayoutCompatibility(c *C) {
 	// same contents (the locally created structure should be ignored)
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, nil)
 	err := install.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
 	// missing structure (that's ok)
-	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, nil)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
@@ -202,11 +203,11 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 		Size:       2 * quantity.SizeGiB,
 		SectorSize: 512,
 	}
-	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml)
+	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml, nil)
 	err := install.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
 	c.Assert(err, IsNil)
 	// structure is missing from disk
-	gadgetLayoutWithExtras := layoutFromYaml(c, mockMBRGadgetYaml+mockExtraStructure)
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockMBRGadgetYaml+mockExtraStructure, nil)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockMBRDeviceLayout)
 	c.Assert(err, IsNil)
 	// add it now
@@ -248,7 +249,7 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 }
 
 func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
-	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, nil)
 	deviceLayout := mockDeviceLayout
 
 	// device matches gadget except for the filesystem type
@@ -308,7 +309,7 @@ func (s *installSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 }
 
 func (s *installSuite) TestSchemaCompatibility(c *C) {
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, nil)
 	deviceLayout := mockDeviceLayout
 
 	error_msg := "disk partitioning.* doesn't match gadget.*"
@@ -346,7 +347,7 @@ func (s *installSuite) TestSchemaCompatibility(c *C) {
 }
 
 func (s *installSuite) TestIDCompatibility(c *C) {
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, nil)
 	deviceLayout := mockDeviceLayout
 
 	error_msg := "disk ID.* doesn't match gadget volume ID.*"
@@ -374,13 +375,20 @@ func (s *installSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
-func layoutFromYaml(c *C, gadgetYaml string) *gadget.LaidOutVolume {
+type uc20Constraints struct{}
+
+func (c uc20Constraints) Classic() bool             { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
+
+var uc20mod = uc20Constraints{}
+
+func layoutFromYaml(c *C, gadgetYaml string, model gadget.Model) *gadget.LaidOutVolume {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
 	c.Assert(err, IsNil)
 	return pv
 }
@@ -429,7 +437,7 @@ func (s *installSuite) setupMockSysfs(c *C) {
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 	s.setupMockSysfs(c)
-	lv := layoutFromYaml(c, mockUC20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20mod)
 
 	device, err := install.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, IsNil)
@@ -438,7 +446,7 @@ func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 
 func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	// note no sysfs mocking
-	lv := layoutFromYaml(c, mockUC20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20mod)
 
 	_, err := install.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)
@@ -446,7 +454,7 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 
 func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 	s.setupMockSysfs(c)
-	lv := layoutFromYaml(c, mockGadgetYaml)
+	lv := layoutFromYaml(c, mockGadgetYaml, nil)
 
 	_, err := install.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
