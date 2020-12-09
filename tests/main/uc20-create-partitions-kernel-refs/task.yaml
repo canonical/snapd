@@ -1,0 +1,60 @@
+summary: Integration tests for the bootstrap.Run
+
+# use the same system and tooling as uc20
+systems: [ubuntu-20.04-64]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
+
+debug: |
+    cat /proc/partitions
+
+restore: |
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        umount "${LOOP}p3"
+        umount "${LOOP}p4"
+        umount "${LOOP}p5"
+    fi
+
+prepare: |
+    echo "Create a fake block device image that looks like an image from u-i"
+    truncate --size=20GB fake.img
+
+    echo "Setup the image as a block device"
+    losetup -fP fake.img
+    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    LOOP="$(cat loop.txt)"
+
+    echo "Create a partition that looks like a uc20 image"
+    cat <<EOF | sfdisk "$LOOP"
+    label: mbr
+
+    start=2048, size=2457600, type=0C, name="ubuntu-seed"
+    EOF
+    retry -n 3 --wait 1 test -e "${LOOP}p1"
+    udevadm trigger --settle "${LOOP}p1"
+    mkfs.vfat "${LOOP}p1"
+    udevadm trigger --settle "${LOOP}p1"
+    echo "Double check that we got the expected partitions"
+    sfdisk -l "$LOOP" | MATCH 'FAT32'
+
+execute: |
+    LOOP="$(cat loop.txt)"
+
+    echo "Run the snap-bootstrap tool"
+    go get ../../lib/uc20-create-partitions
+    uc20-create-partitions ./mock-gadget ./mock-kernel "$LOOP"
+
+    echo "Check that the kernel assets got resolved and installed"
+    mkdir -p ./mnt
+    mount "${LOOP}p2" ./mnt
+    test -e ./mnt/1.dtb
+    test -e ./mnt/2.dtb
+    test -e ./mnt/overlays/1.overlay
+    test -e ./mnt/overlays/2.overlay
+    test -e ./mnt/uboot/ubuntu/boot.sel

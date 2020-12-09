@@ -1,0 +1,42 @@
+device-tree: bcm2709-rpi-3-b-plus
+volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: 0C
+        size: 1200M
+        content:
+          - source: $kernel:pidtbs/dtbs/broadcom/
+            target: /
+          - source: $kernel:pidtbs/dtbs/overlays/
+            target: /overlays
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: vfat
+        type: 0C
+        size: 750M
+        # note that the real pi-gadget does not have dtbs on ubuntu-boot
+        # but it's useful for testing here
+        content:
+          - source: $kernel:pidtbs/dtbs/broadcom/
+            target: /
+          - source: $kernel:pidtbs/dtbs/overlays/
+            target: /overlays
+          - source: boot.sel
+            target: uboot/ubuntu/boot.sel
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # XXX: make auto-grow to partition
+        size: 1500M
+
