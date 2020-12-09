@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -130,9 +129,8 @@ func (s *restSuite) TestServiceControlDaemonReloadComplexerContentType(c *C) {
 }
 
 func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -141,9 +139,8 @@ func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
 }
 
 func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", contentType)
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -160,9 +157,8 @@ func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
 }
 
 func (s *restSuite) TestServiceControlStart(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -180,9 +176,8 @@ func (s *restSuite) TestServiceControlStart(c *C) {
 }
 
 func (s *restSuite) TestServicesStartNonSnap(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -210,9 +205,8 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -254,9 +248,8 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -286,9 +279,8 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 }
 
 func (s *restSuite) TestServicesStop(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -308,9 +300,8 @@ func (s *restSuite) TestServicesStop(c *C) {
 }
 
 func (s *restSuite) TestServicesStopNonSnap(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -341,9 +332,8 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -369,9 +359,8 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain/joke")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -384,9 +373,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -399,9 +387,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "application/json; charset=EBCDIC")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -414,10 +401,9 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":syntaxerror}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -436,10 +422,9 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":"pkg"}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -475,9 +460,8 @@ func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *cl
 
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -623,9 +607,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C)
 	}
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
