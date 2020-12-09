@@ -46,7 +46,7 @@ is_focal() {
 }
 
 is_ubuntu() {
-    grep -qFx 'ID=ubuntu' /etc/os-release
+    grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
 }
 
 is_debian() {
