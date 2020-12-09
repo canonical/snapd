@@ -172,3 +172,24 @@ func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
 	err = db.Check(account)
 	c.Assert(err, ErrorMatches, `account assertion for "abc-123" is not signed by a directly trusted authority:.*`)
 }
+
+func (s *accountSuite) TestIsValidAccountID(c *C) {
+	ids := []struct {
+		accountID string
+		valid     bool
+	}{
+		{"f", false},
+		{"", false},
+		{"foo", true},
+		{"foo-baraaaaaaaaaaaaaaaaaaaaa", true},       // 28 characters
+		{"foo-baraaaaaaaaaaaaaaaaaaaaax", false},     // too long
+		{"fooBAR9aaaaaaaaaaaaaaaaaaaaaaaaa", true},   // 32 characters
+		{"fooBAR9aaaaaaaaaaaaaaaaaaaaaaaaax", false}, // too long
+		{"foo-bar12", true},
+		{"-foo-bar", true},
+	}
+
+	for i, id := range ids {
+		c.Assert(asserts.IsValidAccountID(id.accountID), Equals, id.valid, Commentf("%d: %s", i, id.accountID))
+	}
+}

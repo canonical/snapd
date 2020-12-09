@@ -55,6 +55,19 @@ func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (st
 	}
 }
 
+// FindMatchingPartitionUUIDWithPartLabel returns a matching PartitionUUID
+// for the specified filesystem label if it exists. Part of the Disk interface.
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+	if partuuid, ok := d.PartitionLabelToPartUUID[label]; ok {
+		return partuuid, nil
+	}
+	return "", PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: label,
+	}
+}
+
 // HasPartitions returns if the mock disk has partitions or not. Part of the
 // Disk interface.
 func (d *MockDiskMapping) HasPartitions() bool {

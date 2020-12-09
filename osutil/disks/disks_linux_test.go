@@ -560,7 +560,22 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		SearchQuery: "bios-boot",
 	})
 
-	// however we can find bios-boot by it's partition label
+	// however we can find it via the partition label
+	uuid, err := ubuntuBootDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "bios-boot-partuuid")
+
+	uuid, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("BIOS Boot")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "bios-boot-partuuid")
+
+	// trying to find an unknown partition label fails however
+	_, err = ubuntuDataDisk.FindMatchingPartitionUUIDWithPartLabel("NOT BIOS Boot")
+	c.Assert(err, ErrorMatches, "partition label \"NOT BIOS Boot\" not found")
+	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: "NOT BIOS Boot",
+	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {

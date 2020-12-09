@@ -43,12 +43,12 @@ var _ = Suite(&updateTestSuite{})
 
 func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"not-old": {},
 		},
 	}
@@ -60,13 +60,13 @@ func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 
 func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old":         {},
 			"another-one": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {},
 		},
 	}
@@ -78,12 +78,12 @@ func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 
 func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {Bootloader: "u-boot"},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {Bootloader: "grub"},
 		},
 	}
@@ -319,7 +319,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 		}, {
 			// implicit legacy role to proper explicit role
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
@@ -331,7 +331,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			err: `cannot change structure type from "bare" to "mbr"`,
 		}, {
@@ -538,14 +538,6 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 	}{
 		{
 			from: gadget.PartiallyLaidOutVolume{
-				Volume: &gadget.Volume{Schema: ""},
-			},
-			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "mbr"},
-			},
-			err: `cannot change volume schema from "gpt" to "mbr"`,
-		}, {
-			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: "gpt"},
 			},
 			to: gadget.LaidOutVolume{
@@ -574,21 +566,6 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 				},
 			},
 			err: `cannot change the number of structures within volume from 2 to 1`,
-		}, {
-			// valid, implicit schema
-			from: gadget.PartiallyLaidOutVolume{
-				Volume: &gadget.Volume{Schema: ""},
-				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
-				},
-			},
-			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "gpt"},
-				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
-				},
-			},
-			err: ``,
 		}, {
 			// valid
 			from: gadget.PartiallyLaidOutVolume{
@@ -656,7 +633,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
-			{Source: "/second-content", Target: "/"},
+			{UnresolvedSource: "/second-content", Target: "/"},
 		},
 	}
 	lastStruct := gadget.VolumeStructure{
@@ -664,13 +641,13 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
-			{Source: "/third-content", Target: "/"},
+			{UnresolvedSource: "/third-content", Target: "/"},
 		},
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -679,7 +656,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -763,7 +740,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.StartOffset, Equals, (1+5)*quantity.SizeMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].Source, Equals, "/second-content")
+			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
 			c.Check(ps.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
@@ -858,7 +835,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	}
 	bareStructUpdate := bareStruct
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -867,7 +844,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -910,7 +887,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	bareStructUpdate.Name = "foo update"
 	bareStructUpdate.Update.Edition = 1
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -919,7 +896,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -958,12 +935,12 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		Filesystem: "ext4",
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
-			{Source: "/", Target: "/"},
+			{UnresolvedSource: "/", Target: "/"},
 		},
 		Update: gadget.VolumeUpdate{Edition: 5},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -972,7 +949,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -1005,7 +982,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 		},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -1014,7 +991,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			// same volume info but using a different name
 			"foo-new": oldInfo.Volumes["foo"],
 		},
@@ -1047,7 +1024,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 		},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -1453,7 +1430,7 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 
 	multiVolume := gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"1": {},
 				"2": {},
 			},
@@ -1461,7 +1438,7 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	}
 	singleVolume := gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"1": {},
 			},
 		},

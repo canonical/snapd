@@ -76,7 +76,7 @@ func (s *interfacesSuite) testConnections(c *check.C, query string, expected map
 	req, err := http.NewRequest("GET", query, nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -85,11 +85,11 @@ func (s *interfacesSuite) testConnections(c *check.C, query string, expected map
 }
 
 func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	req, err := http.NewRequest("GET", "/v2/connections?select=bad", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -105,7 +105,7 @@ func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectionsEmpty(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	s.testConnections(c, "/v2/connections", map[string]interface{}{
 		"result": map[string]interface{}{
 			"established": []interface{}{},
@@ -129,11 +129,11 @@ func (s *interfacesSuite) TestConnectionsEmpty(c *check.C) {
 }
 
 func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	req, err := http.NewRequest("GET", "/v2/connections?snap=not-found", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -154,10 +154,10 @@ func (s *interfacesSuite) TestConnectionsUnconnected(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.Daemon(c)
+	s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnections(c, "/v2/connections?select=all", map[string]interface{}{
 		"result": map[string]interface{}{
@@ -193,10 +193,10 @@ func (s *interfacesSuite) TestConnectionsBySnapName(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnections(c, "/v2/connections?select=all&snap=producer", map[string]interface{}{
 		"result": map[string]interface{}{
@@ -289,10 +289,10 @@ func (s *interfacesSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) 
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	for _, missingPlugOrSlot := range []string{"consumer:plug2 producer:slot", "consumer:plug producer:slot2"} {
 		s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]interface{}{
@@ -352,10 +352,10 @@ func (s *interfacesSuite) TestConnectionsBySnapAlias(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, coreProducerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
 
 	expectedUnconnected := map[string]interface{}{
 		"established": []interface{}{},
@@ -445,10 +445,10 @@ func (s *interfacesSuite) TestConnectionsByIfaceName(c *check.C) {
 	restore = builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "different"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 	var differentProducerYaml = `
 name: different-producer
 version: 1
@@ -471,8 +471,8 @@ plugs:
   key: value
   label: label
 `
-	s.MockSnap(c, differentProducerYaml)
-	s.MockSnap(c, differentConsumerYaml)
+	s.mockSnap(c, differentProducerYaml)
+	s.mockSnap(c, differentConsumerYaml)
 
 	s.testConnections(c, "/v2/connections?select=all&interface=test", map[string]interface{}{
 		"result": map[string]interface{}{
@@ -594,10 +594,10 @@ func (s *interfacesSuite) TestConnectionsDefaultManual(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -650,10 +650,10 @@ func (s *interfacesSuite) TestConnectionsDefaultAuto(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -726,10 +726,10 @@ func (s *interfacesSuite) TestConnectionsDefaultGadget(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -784,10 +784,10 @@ func (s *interfacesSuite) TestConnectionsAll(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections?select=all", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -839,10 +839,10 @@ func (s *interfacesSuite) TestConnectionsOnlyUndesired(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -867,10 +867,10 @@ func (s *interfacesSuite) TestConnectionsHotplugGone(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
@@ -893,7 +893,7 @@ func (s *interfacesSuite) TestConnectionsSorted(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	var anotherConsumerYaml = `
 name: another-consumer-%s
@@ -918,12 +918,12 @@ slots:
   label: label
 `
 
-	s.MockSnap(c, consumerYaml)
-	s.MockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
-	s.MockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "def"))
+	s.mockSnap(c, fmt.Sprintf(anotherConsumerYaml, "abc"))
 
-	s.MockSnap(c, producerYaml)
-	s.MockSnap(c, anotherProducerYaml)
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, anotherProducerYaml)
 
 	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
