@@ -1,6 +1,11 @@
 summary: Smoke test for tests.pkgs tool
 
 execute: |
+    if os.query is-core; then
+        tests.pkgs -h 2>&1 | MATCH 'tests.pkgs: Ubuntu Core is not supported'
+        exit
+    fi
+
     # pkgs tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.
     tests.pkgs | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'

@@ -55,6 +55,8 @@ remap_many() {
 import_backend() {
     case "$1" in
         ubuntu-core-*)
+            echo "tests.pkgs: Ubuntu Core is not supported" >&2
+            exit 1
             ;;
         ubuntu-*|debian-*)
             #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
@@ -85,6 +87,12 @@ main() {
         exit 1
     fi
 
+    if [ -z "${SPREAD_SYSTEM:-}" ]; then
+        echo "tests.pkg: cannot manage packages without knowing SPREAD_SYSTEM" >&2
+        exit 1
+    fi
+    import_backend "$SPREAD_SYSTEM"
+
     action=
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -111,12 +119,6 @@ main() {
                 ;;
         esac
     done
-
-    if [ -z "${SPREAD_SYSTEM:-}" ]; then
-        echo "tests.pkg: cannot manage packages without knowing SPREAD_SYSTEM" >&2
-        exit 1
-    fi
-    import_backend "$SPREAD_SYSTEM"
 
     case "$action" in
         install)
