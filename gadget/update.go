@@ -46,7 +46,9 @@ type GadgetData struct {
 	// RootDir is the root directory of gadget snap data
 	// XXX: should be GadgetRootDir
 	RootDir string
-	// KernelRootDir is the root directory of kernel snap data
+	// KernelRootDir is the root directory of kernel snap
+	// data. Depending on the update this can be the current
+	// running kernel or the refreshed kernel.
 	KernelRootDir string
 }
 
