@@ -53,7 +53,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	if options.Encrypt {
@@ -66,6 +66,9 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
+	}
+	if err := gadget.ResolveContentPaths(gadgetRoot, kernelRoot, lv); err != nil {
+		return nil, err
 	}
 
 	// XXX: the only situation where auto-detect is not desired is

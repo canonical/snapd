@@ -40,6 +40,7 @@ type cmdCreatePartitions struct {
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
+		KernelRoot string `positional-arg-name:"<kernel-root>"`
 		Device     string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
@@ -87,7 +88,7 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}
