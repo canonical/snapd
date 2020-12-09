@@ -156,14 +156,14 @@ func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
 			Name:      "bar",
 			PinnedAt:  9,
 			Mode:      "enforce",
-			Seq:       12,
+			Sequence:  12,
 			Valid:     false,
 		},
 		{
 			AccountID: "foo",
 			Name:      "baz",
 			Mode:      "monitor",
-			Seq:       2,
+			Sequence:  2,
 			Valid:     false,
 		},
 	})
@@ -186,7 +186,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 		Name:      "bar",
 		PinnedAt:  9,
 		Mode:      "enforce",
-		Seq:       12,
+		Sequence:  12,
 		Valid:     false,
 	})
 }
@@ -210,7 +210,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 		Name:      "bar",
 		PinnedAt:  9,
 		Mode:      "enforce",
-		Seq:       12,
+		Sequence:  12,
 		Valid:     false,
 	})
 }
@@ -327,20 +327,18 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		} else {
 			body = fmt.Sprintf(`{"action":"forget"}`)
 		}
-		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
-		c.Assert(err, check.IsNil)
 
 		var tr assertstate.ValidationSetTracking
 
 		st.Lock()
 		// sanity, it exists before removing
-		err = assertstate.GetValidationSet(st, "foo", "bar", &tr)
+		err := assertstate.GetValidationSet(st, "foo", "bar", &tr)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		c.Check(tr.AccountID, check.Equals, "foo")
 		c.Check(tr.Name, check.Equals, "bar")
 
-		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
+		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 		rsp := s.Req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 200, check.Commentf("case #%d", i))
