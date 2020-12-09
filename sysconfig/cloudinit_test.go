@@ -443,7 +443,6 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDatasource:       "GCE",
 			expAction:           "restrict",
 			expRestrictYamlWritten: `datasource_list: [GCE]
-manual_cache_clean: true
 `,
 		},
 		{

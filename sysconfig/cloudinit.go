@@ -155,8 +155,11 @@ datasource:
 manual_cache_clean: true
 `)
 
+	// don't use manual_cache_clean for real cloud datasources, the setting is
+	// used with ubuntu core only for sources where we can only get the
+	// instance_id through the fs_label for NoCloud and None (since we disable
+	// importing using the fs_label after the initial run).
 	genericCloudRestrictYamlPattern = `datasource_list: [%s]
-manual_cache_clean: true
 `
 
 	localDatasources = []string{"NoCloud", "None"}
