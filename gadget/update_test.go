@@ -481,15 +481,6 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 			},
 			err: `cannot change filesystem label from "writable" to ""`,
 		}, {
-			// from implicit filesystem label to explicit one
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data", Label: "writable"},
-			},
-			err: ``,
-		}, {
 			// all ok
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},

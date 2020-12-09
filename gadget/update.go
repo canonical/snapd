@@ -264,7 +264,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 			return fmt.Errorf("cannot change filesystem from %q to %q",
 				from.Filesystem, to.Filesystem)
 		}
-		if from.EffectiveFilesystemLabel() != to.EffectiveFilesystemLabel() {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
 				from.Label, to.Label)
 		}

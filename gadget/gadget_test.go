@@ -1590,30 +1590,6 @@ volumes:
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
 }
 
-type gadgetTestSuite struct{}
-
-var _ = Suite(&gadgetTestSuite{})
-
-func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
-	// no label, and no role set
-	vs := gadget.VolumeStructure{Role: ""}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
-
-	// explicitly set label
-	vs = gadget.VolumeStructure{Label: "my-label"}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, "my-label")
-
-	// inferred based on role
-	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, "writable")
-	vs = gadget.VolumeStructure{Role: gadget.SystemData}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, "writable")
-
-	// only system-data role is special
-	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
-}
-
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
 	for i, tc := range []struct {
 		role  string

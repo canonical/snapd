@@ -34,11 +34,6 @@ import (
 )
 
 const (
-	ubuntuBootLabel = "ubuntu-boot"
-	ubuntuSeedLabel = "ubuntu-seed"
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
-
 	sectorSize quantity.Size = 512
 )
 
@@ -308,19 +303,6 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		node := deviceName(dl.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name)
-
-		// Set expected labels based on role
-		switch s.Role {
-		case SystemBoot:
-			s.Label = ubuntuBootLabel
-		case SystemSeed:
-			s.Label = ubuntuSeedLabel
-		case SystemData:
-			s.Label = ubuntuDataLabel
-		case SystemSave:
-			s.Label = ubuntuSaveLabel
-		}
-
 		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,

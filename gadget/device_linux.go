@@ -50,7 +50,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 		candidates = append(candidates, byPartlabel)
 	}
 	if ps.HasFilesystem() {
-		fsLabel := ps.EffectiveFilesystemLabel()
+		fsLabel := ps.Label
 		if fsLabel == "" && ps.Name != "" {
 			// when image is built and the structure has no
 			// filesystem label, the structure name will be used by

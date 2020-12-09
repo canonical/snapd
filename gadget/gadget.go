@@ -71,6 +71,12 @@ const (
 	// of system-data role
 	implicitSystemDataLabel = "writable"
 
+	// UC20 filesystem labels for roles
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
+	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
+
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
@@ -152,15 +158,6 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
-}
-
-// EffectiveFilesystemLabel returns the effective filesystem label, either
-// explicitly provided or implied by the structure's role
-func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.Role == SystemData {
-		return implicitSystemDataLabel
-	}
-	return vs.Label
 }
 
 // VolumeContent defines the contents of the structure. The content can be
