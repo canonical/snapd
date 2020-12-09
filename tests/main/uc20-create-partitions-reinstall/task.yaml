@@ -55,8 +55,8 @@ execute: |
     # debug message to see if the udev database is correctly updated
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
-    # XXX: make kernel-dir non-empty once we have a gadget that has a
-    #      "$kernel:" style ref in the meta/gadget.yaml
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
     echo "Run the snap-bootstrap tool in auto-detect mode"
     go get ../../lib/uc20-create-partitions

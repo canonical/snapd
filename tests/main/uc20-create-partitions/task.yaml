@@ -54,8 +54,8 @@ execute: |
 
     echo "Run the snap-bootstrap tool"
     go get ../../lib/uc20-create-partitions
-    # XXX: make kernel-dir non-empty once we have a gadget that has a
-    #      "$kernel:" style ref in the meta/gadget.yaml
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
     uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP"
 
