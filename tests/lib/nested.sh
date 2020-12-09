@@ -885,7 +885,7 @@ nested_start_core_vm_unit() {
             OVMF_VARS="snakeoil"
         fi
 
-        if [ "$NESTED_ENABLE_OVMF" = "true" ]; then
+        if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
             PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
         fi
         

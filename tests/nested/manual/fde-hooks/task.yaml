@@ -7,8 +7,7 @@ environment:
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-
-environment:
+    NESTED_ENABLE_OVMF: true
     GO111MODULE: off
 
 prepare: |
@@ -27,7 +26,6 @@ prepare: |
   go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
   nested_create_core_vm
   # start it
-  export NESTED_ENABLE_OVMF=true
   nested_start_core_vm
 
 execute: |
