@@ -22,6 +22,7 @@ package gadget
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -208,6 +209,8 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 
 // content validation
 
+var assetsKernelRefRE = regexp.MustCompile(`^\$kernel:([a-zA-Z0-9]+[a-zA-Z0-9-]*)/([a-zA-Z0-9/]+[a-zA-Z0-9/-]*)$`)
+
 func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
@@ -216,7 +219,15 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
+			if strings.HasPrefix(c.UnresolvedSource, "$kernel:") {
+				// This only validates that the ref is valid.
+				// Resolving happens with ResolveContentPaths()
+				match := assetsKernelRefRE.FindStringSubmatch(c.UnresolvedSource)
+				if match == nil {
+					return fmt.Errorf("cannot use kernel reference %q", c.UnresolvedSource)
+				}
+				continue
+			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)

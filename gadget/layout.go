@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -194,9 +193,6 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 	}
 	return vol, nil
 }
-
-// TODO: use this regexp also for validation and add tests
-var assetsKernelRefRE = regexp.MustCompile(`^\$kernel:([a-zA-Z0-9]+:?[a-zA-Z0-9-]+)/([a-zA-Z0-9/]+:?[a-zA-Z0-9/-]+)$`)
 
 func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
