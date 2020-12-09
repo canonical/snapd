@@ -31,7 +31,7 @@ import (
 )
 
 // InstalledSnap holds the minimal details about an installed snap required to
-// check the validation set.
+// check it against validation sets.
 type InstalledSnap struct {
 	naming.SnapRef
 	Revision snap.Revision
@@ -63,11 +63,16 @@ func (e *ValidationSetsConflictError) Error() string {
 // ValidationSetsValidationError describes an error arising
 // from validation of snaps against ValidationSets.
 type ValidationSetsValidationError struct {
-	// snapName -> validationSetKey
-	MissingSnaps       map[string][]string
-	InvalidSnaps       map[string][]string
+	// MissingSnaps maps missing snap names to the validation sets requiring them.
+	MissingSnaps map[string][]string
+	// InvalidSnaps maps snap names to the validation sets declaring them invalid.
+	InvalidSnaps map[string][]string
+	// WronRevisionSnaps maps snap names to the expected revisions and respective
+	// validation sets that require them.
 	WrongRevisionSnaps map[string]map[snap.Revision][]string
-	Sets               map[string]*asserts.ValidationSet
+	// Sets maps validation set keys referenced by above maps to actual
+	// validation sets.
+	Sets map[string]*asserts.ValidationSet
 }
 
 func (e *ValidationSetsValidationError) Error() string {
