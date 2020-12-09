@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 )
 
 type layoutTestSuite struct {
@@ -1135,4 +1137,120 @@ volumes:
 			},
 		},
 	})
+}
+
+func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
+	// sanity
+	_, err := kernel.InfoFromKernelYaml([]byte(kernelYaml))
+	c.Assert(err, IsNil)
+
+	kernelRootDir := c.MkDir()
+	err = os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
+	c.Assert(err, IsNil)
+
+	for fname, content := range filesWithContent {
+		p := filepath.Join(kernelRootDir, fname)
+		err = os.MkdirAll(filepath.Dir(p), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(p, []byte(content), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	return kernelRootDir
+}
+
+var gadgetYamlWithKernelRef = `
+ volumes:
+  pi:
+    bootloader: u-boot
+    structure:
+      - type: 00000000-0000-0000-0000-dd00deadbeef
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 128M
+        content:
+          - source: $kernel:dtbs/boot-assets/
+            target: /
+          - source: $kernel:dtbs/some-file
+            target: /
+`
+
+func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeAssets(c *C) {
+	kernelYaml := ""
+
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapFiles := map[string]string{}
+	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
+	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
+	c.Assert(err, ErrorMatches, `cannot find "dtbs" in kernel info from "/.*"`)
+}
+
+func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeContent(c *C) {
+	kernelYaml := `
+assets:
+  dtbs:
+    update: true
+    content:
+      - dtbs
+`
+
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapFiles := map[string]string{}
+	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
+	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
+	c.Assert(err, ErrorMatches, `cannot find wanted kernel content "boot-assets/" in "/.*"`)
+}
+
+func (p *layoutTestSuite) TestResolveContentPaths(c *C) {
+	kernelYaml := `
+assets:
+  dtbs:
+    update: true
+    content:
+      - boot-assets/
+      - some-file
+`
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapFiles := map[string]string{
+		"boot-assets/foo": "foo-content",
+	}
+	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
+	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	content := lv.Volume.Structure[0].Content
+	c.Assert(content, DeepEquals, []gadget.VolumeContent{
+		{
+			UnresolvedSource: "$kernel:dtbs/boot-assets/",
+			Target:           "/",
+		},
+		{
+			UnresolvedSource: "$kernel:dtbs/some-file",
+			Target:           "/",
+		},
+	})
+
+	// now resolve the kernel references
+	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
+	c.Assert(err, IsNil)
+
+	c.Assert(lv.Volume.Structure, HasLen, 1)
+	c.Check(content, HasLen, 2)
+	// note the trailing "/" here
+	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "boot-assets/")+"/")
+	// no trailing "/" here
+	c.Check(content[1].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "some-file"))
 }

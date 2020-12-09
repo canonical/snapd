@@ -24,8 +24,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -238,6 +241,66 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		RootDir:          gadgetRootDir,
 	}
 	return vol, nil
+}
+
+// ResolveContentPaths resolves any "$kernel:" refs in the gadget
+// content and populates VolumeContent.resolvedSource with absolute
+// paths.
+//
+// XXX: maybe move into LayoutVolume(), operator on *Volume and make private?
+func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume) error {
+	// Note that the kernelRootDir may reference the running
+	// kernel if there is a gadget update or the new kernel if
+	// there is a kernel update.
+	kernelInfo, err := kernel.ReadInfo(kernelRootDir)
+	if err != nil {
+		return err
+	}
+	for i := range lv.Volume.Structure {
+		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
+	for i := range ps.Content {
+		source := ps.Content[i].UnresolvedSource
+		if source != "" {
+			newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(source, "/") {
+				// restore trailing / if one was there
+				newSource += "/"
+			}
+			ps.Content[i].resolvedSource = newSource
+		}
+	}
+
+	return nil
+}
+
+func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+	// content may refer to "$kernel:<name>/<content>"
+	match := assetsKernelRefRE.FindStringSubmatch(pathOrRef)
+	if match != nil {
+		wantedAsset := match[1]
+		wantedContent := match[2]
+		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
+		if !ok {
+			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
+		}
+		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
+			return "", fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
+		}
+		return filepath.Join(kernelRootDir, wantedContent), nil
+	}
+
+	return filepath.Join(gadgetRootDir, pathOrRef), nil
 }
 
 type byContentStartOffset []LaidOutContent
