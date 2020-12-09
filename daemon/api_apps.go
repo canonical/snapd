@@ -1,0 +1,286 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2015-2020 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package daemon
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
+)
+
+var (
+	appsCmd = &Command{
+		Path:   "/v2/apps",
+		UserOK: true,
+		GET:    getAppsInfo,
+		POST:   postApps,
+	}
+
+	logsCmd = &Command{
+		Path:     "/v2/logs",
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getLogs,
+	}
+)
+
+func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+
+	opts := appInfoOptions{}
+	switch sel := query.Get("select"); sel {
+	case "":
+		// nothing to do
+	case "service":
+		opts.service = true
+	default:
+		return BadRequest("invalid select parameter: %q", sel)
+	}
+
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(clientAppInfos, nil)
+}
+
+type appInfoOptions struct {
+	service bool
+}
+
+func (opts appInfoOptions) String() string {
+	if opts.service {
+		return "service"
+	}
+
+	return "app"
+}
+
+// appInfosFor returns a sorted list apps described by names.
+//
+// * If names is empty, returns all apps of the wanted kinds (which
+//   could be an empty list).
+// * An element of names can be a snap name, in which case all apps
+//   from the snap of the wanted kind are included in the result (and
+//   it's an error if the snap has no apps of the wanted kind).
+// * An element of names can instead be snap.app, in which case that app is
+//   included in the result (and it's an error if the snap and app don't
+//   both exist, or if the app is not a wanted kind)
+// On error an appropriate error Response is returned; a nil Response means
+// no error.
+//
+// It's a programming error to call this with wanted having neither
+// services nor commands set.
+func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
+	snapNames := make(map[string]bool)
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+		name, _ = splitAppName(name)
+		snapNames[name] = true
+	}
+
+	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	if err != nil {
+		return nil, InternalError("cannot list local snaps! %v", err)
+	}
+
+	found := make(map[string]bool)
+	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	for _, snp := range snaps {
+		snapName := snp.info.InstanceName()
+		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
+		for _, app := range snp.info.Apps {
+			if !opts.service || app.IsService() {
+				apps = append(apps, app)
+			}
+		}
+
+		if len(apps) == 0 && requested[snapName] {
+			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
+		}
+
+		includeAll := len(requested) == 0 || requested[snapName]
+		if includeAll {
+			// want all services in a snap
+			found[snapName] = true
+		}
+
+		for _, app := range apps {
+			appName := snapName + "." + app.Name
+			if includeAll || requested[appName] {
+				appInfos = append(appInfos, app)
+				found[appName] = true
+			}
+		}
+	}
+
+	for k := range requested {
+		if !found[k] {
+			if snapNames[k] {
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
+			} else {
+				snap, app := splitAppName(k)
+				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
+			}
+		}
+	}
+
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
+
+	return appInfos, nil
+}
+
+// this differs from snap.SplitSnapApp in the handling of the
+// snap-only case:
+//   snap.SplitSnapApp("foo") is ("foo", "foo"),
+//   splitAppName("foo") is ("foo", "").
+func splitAppName(s string) (snap, app string) {
+	if idx := strings.IndexByte(s, '.'); idx > -1 {
+		return s[:idx], s[idx+1:]
+	}
+
+	return s, ""
+}
+
+func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	n := 10
+	if s := query.Get("n"); s != "" {
+		m, err := strconv.ParseInt(s, 0, 32)
+		if err != nil {
+			return BadRequest(`invalid value for n: %q: %v`, s, err)
+		}
+		n = int(m)
+	}
+	follow := false
+	if s := query.Get("follow"); s != "" {
+		f, err := strconv.ParseBool(s)
+		if err != nil {
+			return BadRequest(`invalid value for follow: %q: %v`, s, err)
+		}
+		follow = f
+	}
+
+	// only services have logs for now
+	opts := appInfoOptions{service: true}
+	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
+	if rsp != nil {
+		return rsp
+	}
+	if len(appInfos) == 0 {
+		return AppNotFound("no matching services")
+	}
+
+	serviceNames := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		serviceNames[i] = appInfo.ServiceName()
+	}
+
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+	reader, err := sysd.LogReader(serviceNames, n, follow)
+	if err != nil {
+		return InternalError("cannot get logs: %v", err)
+	}
+
+	return &journalLineReaderSeqResponse{
+		ReadCloser: reader,
+		follow:     follow,
+	}
+}
+
+var servicestateControl = servicestate.Control
+
+func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
+	var inst servicestate.Instruction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into service operation: %v", err)
+	}
+	// XXX: decoder.More()
+	if len(inst.Names) == 0 {
+		// on POST, don't allow empty to mean all
+		return BadRequest("cannot perform operation on services without a list of services to operate on")
+	}
+
+	st := c.d.overlord.State()
+	appInfos, rsp := appInfosFor(st, inst.Names, appInfoOptions{service: true})
+	if rsp != nil {
+		return rsp
+	}
+	if len(appInfos) == 0 {
+		// can't happen: appInfosFor with a non-empty list of services
+		// shouldn't ever return an empty appInfos with no error response
+		return InternalError("no services found")
+	}
+
+	// do not pass flags - only create service-control tasks, do not create
+	// exec-command tasks for old snapd. These are not needed since we are
+	// handling momentary snap service commands.
+	st.Lock()
+	defer st.Unlock()
+	tss, err := servicestateControl(st, appInfos, &inst, nil, nil)
+	if err != nil {
+		// TODO: use errToResponse here too and introduce a proper error kind ?
+		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
+			return Conflict(err.Error())
+		}
+		return BadRequest(err.Error())
+	}
+	// names received in the request can be snap or snap.app, we need to
+	// extract the actual snap names before associating them with a change
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
+	st.EnsureBefore(0)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func namesToSnapNames(inst *servicestate.Instruction) []string {
+	seen := make(map[string]struct{}, len(inst.Names))
+	for _, snapOrSnapDotApp := range inst.Names {
+		snapName, _ := snap.SplitSnapApp(snapOrSnapDotApp)
+		seen[snapName] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for k := range seen {
+		names = append(names, k)
+	}
+	// keep stable ordering
+	sort.Strings(names)
+	return names
+}

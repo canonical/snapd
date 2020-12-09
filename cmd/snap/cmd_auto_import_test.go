@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -315,7 +314,7 @@ func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
 	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install snapd_recovery_system=20191118"), 0644)
 	c.Assert(err, IsNil)
 
-	restore = boot.MockProcCmdline(mockProcCmdlinePath)
+	restore = osutil.MockProcCmdline(mockProcCmdlinePath)
 	defer restore()
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
@@ -511,6 +510,9 @@ func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
 
 func (s *SnapSuite) TestAutoImportAssertsManagedEmptyReply(c *C) {
 	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restore = logger.MockLogger()
 	defer restore()
 
 	fakeAssertData := []byte("my-assertion")

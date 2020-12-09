@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: boot.sh has side-effects
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
 # XXX: dirs.sh has side-effects
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -244,7 +240,7 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
-    if [ "$(bootenv snap_mode)" = "try" ]; then
+    if [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi

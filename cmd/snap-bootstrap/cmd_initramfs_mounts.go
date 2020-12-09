@@ -485,7 +485,7 @@ func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
 func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error) error {
 	part := m.degradedState.partition(partName)
 	if err != nil {
-		if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+		if _, ok := err.(disks.PartitionNotFoundError); ok {
 			// explicit error that the device was not found
 			part.FindState = partitionNotFound
 			m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
@@ -690,7 +690,7 @@ func (m *recoverModeStateMachine) finalize() error {
 	// check soundness
 	// the grade check makes sure that if data was mounted unencrypted
 	// but the model is secured it will end up marked as untrusted
-	isEncrypted := m.isEncryptedDev || m.model.Grade() == asserts.ModelSecured
+	isEncrypted := m.isEncryptedDev || m.model.StorageSafety() == asserts.StorageSafetyEncrypted
 	part := m.degradedState.partition("ubuntu-data")
 	if part.MountState == partitionMounted && isEncrypted {
 		// check that save and data match
@@ -755,7 +755,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-boot")
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
+	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
 	if err := m.setFindState("ubuntu-boot", partUUID, findErr); err != nil {
 		return nil, err
 	}
@@ -1131,6 +1131,12 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 	if err != nil {
 		return nil, err
 	}
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// expected recovery model we sealed against.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected recovery models
 
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
@@ -1220,9 +1226,9 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
 		if err != nil {
-			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
 				// non-encrypted device
 				return false, nil
@@ -1253,7 +1259,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-seed")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	if err != nil {
 		return err
 	}
@@ -1277,8 +1283,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
-	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
-	// one recorded in ubuntu-data modeenv during install
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// run model.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected models
 
 	// 3.2. mount Data
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")

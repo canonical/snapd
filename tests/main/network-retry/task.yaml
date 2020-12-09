@@ -10,6 +10,11 @@ prepare: |
         mv /etc/resolv.conf /etc/resolv.conf.save
     fi
     systemctl stop snapd.service
+    if systemctl is-active systemd-resolved; then
+        systemctl stop systemd-resolved
+        touch resolved.active
+    fi
+
 restore: |
     echo "Unbreak DNS"
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
@@ -17,6 +22,9 @@ restore: |
        mv "${resolvConf}.save" "${resolvConf}"
     else
        mv /etc/resolv.conf.save /etc/resolv.conf
+    fi
+    if [ -e resolved.active ]; then
+        systemctl start systemd-resolved
     fi
     systemctl stop snapd.service
 

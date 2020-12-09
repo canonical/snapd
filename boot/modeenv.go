@@ -38,6 +38,10 @@ import (
 
 type bootAssetsMap map[string][]string
 
+// bootCommandLines is a list of kernel command lines. The command lines are
+// marshalled as JSON as a comma can be present in the module parameters.
+type bootCommandLines []string
+
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
@@ -62,6 +66,12 @@ type Modeenv struct {
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
+	// CurrentKernelCommandLines is a list of the expected kernel command
+	// lines when booting into run mode. It will typically only be one
+	// element for normal operations, but may contain two elements during
+	// update scenarios.
+	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
+	// TODO:UC20 add a per recovery system list of kernel command lines
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -151,6 +161,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
 
 	// save all the rest of the keys we don't understand
 	keys, err := cfg.Options("")
@@ -246,6 +257,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
+	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
 
 	// write all the extra keys at the end
 	// sort them for test convenience
@@ -398,5 +410,18 @@ func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*b = bootAssetsMap(asMap)
+	return nil
+}
+
+func (s bootCommandLines) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]string(s))
+}
+
+func (s *bootCommandLines) UnmarshalJSON(data []byte) error {
+	var asList []string
+	if err := json.Unmarshal(data, &asList); err != nil {
+		return err
+	}
+	*s = bootCommandLines(asList)
 	return nil
 }

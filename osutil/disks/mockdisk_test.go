@@ -20,9 +20,9 @@
 package disks_test
 
 import (
-	. "gopkg.in/check.v1"
+	"fmt"
 
-	"golang.org/x/xerrors"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -37,6 +37,49 @@ var _ = Suite(&mockDiskSuite{})
 
 func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
+	// one disk with different device names
+	d1 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label1": "part1",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+	}
+
+	d2 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label2": "part2",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d2",
+	}
+
+	m := map[string]*disks.MockDiskMapping{
+		"devName1":   d1,
+		"devName2":   d1,
+		"other-disk": d2,
+	}
+
+	r := disks.MockDeviceNameDisksToPartitionMapping(m)
+	defer r()
+
+	res, err := disks.DiskFromDeviceName("devName1")
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, d1)
+
+	res2, err := disks.DiskFromDeviceName("devName2")
+	c.Assert(err, IsNil)
+	c.Assert(res2, DeepEquals, d1)
+
+	_, err = disks.DiskFromDeviceName("devName3")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("device name %q not mocked", "devName3"))
+
+	res3, err := disks.DiskFromDeviceName("other-disk")
+	c.Assert(err, IsNil)
+	c.Assert(res3, DeepEquals, d2)
 }
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
@@ -118,6 +161,9 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 		FilesystemLabelToPartUUID: map[string]string{
 			"label1": "part1",
 		},
+		PartitionLabelToPartUUID: map[string]string{
+			"part-label1": "part1",
+		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
@@ -125,6 +171,9 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d2 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"label2": "part2",
+		},
+		PartitionLabelToPartUUID: map[string]string{
+			"part-label2": "part2",
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
@@ -143,10 +192,15 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	foundDisk, err := disks.DiskFromMountPoint("mount1", nil)
 	c.Assert(err, IsNil)
 
-	// and it has labels
-	label, err := foundDisk.FindMatchingPartitionUUID("label1")
+	// and it has filesystem labels
+	uuid, err := foundDisk.FindMatchingPartitionUUIDWithFsLabel("label1")
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "part1")
+	c.Assert(uuid, Equals, "part1")
+
+	// and partition labels
+	uuid, err = foundDisk.FindMatchingPartitionUUIDWithPartLabel("part-label1")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "part1")
 
 	// the same mount point is always from the same disk
 	matches, err := foundDisk.MountPointIsFromDisk("mount1", nil)
@@ -168,15 +222,29 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, IsNil)
 
 	// we can find label2 from mount3's disk
-	label, err = foundDisk2.FindMatchingPartitionUUID("label2")
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label2")
 	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "part2")
+	c.Assert(uuid, Equals, "part2")
+
+	// and the partition label
+	uuid, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label2")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "part2")
 
 	// we can't find label1 from mount1's or mount2's disk
-	_, err = foundDisk2.FindMatchingPartitionUUID("label1")
+	_, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label1")
 	c.Assert(err, ErrorMatches, "filesystem label \"label1\" not found")
-	var errNotFound disks.FilesystemLabelNotFoundError
-	c.Assert(xerrors.As(err, &errNotFound), Equals, true)
+	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
+		SearchType:  "filesystem-label",
+		SearchQuery: "label1",
+	})
+
+	_, err = foundDisk2.FindMatchingPartitionUUIDWithPartLabel("part-label1")
+	c.Assert(err, ErrorMatches, "partition label \"part-label1\" not found")
+	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: "part-label1",
+	})
 
 	// mount1 and mount2 do not match mount3 disk
 	matches, err = foundDisk2.MountPointIsFromDisk("mount1", nil)
@@ -215,12 +283,12 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevice
 	c.Assert(err, IsNil)
 
 	// next we find ubuntu-seed (also not decrypted)
-	label, err := d.FindMatchingPartitionUUID("ubuntu-seed")
+	label, err := d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ubuntu-seed-part")
 
 	// then we find ubuntu-data-enc, which is not a decrypted device
-	label, err = d.FindMatchingPartitionUUID("ubuntu-data-enc")
+	label, err = d.FindMatchingPartitionUUIDWithFsLabel("ubuntu-data-enc")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ubuntu-data-enc-part")
 

@@ -21,11 +21,14 @@
 package secboot
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/canonical/go-tpm2"
@@ -224,31 +227,19 @@ func LockTPMSealedKeys() error {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(
-	disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions,
-) (UnlockResult, error) {
-	res := UnlockResult{
-		UnlockMethod: NotUnlocked,
-	}
-
-	if opts == nil {
-		opts = &UnlockVolumeUsingSealedKeyOptions{}
-	}
-	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
-	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{}
 
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
-		var errNotFound disks.FilesystemLabelNotFoundError
+		var errNotFound disks.PartitionNotFoundError
 		if !xerrors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			// TODO: need to defer the connection to the default TPM somehow
@@ -256,23 +247,124 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 		}
 		// otherwise it is an error not found and we should search for the
 		// unencrypted device
-		partUUID, err = disk.FindMatchingPartitionUUID(name)
+		partUUID, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
 		if err != nil {
 			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
 	}
 
-	res.PartDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
+	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it
 		// the filesystem device for the unencrypted case is the same as the
 		// partition device
+		res.PartDevice = partDevice
 		res.FsDevice = res.PartDevice
 		return res, nil
 	}
 
+	mapperName := name + "-" + randutilRandomKernelUUID()
+	sourceDevice := partDevice
+	targetDevice := filepath.Join("/dev/mapper", mapperName)
+
+	if FDEHasRevealKey() {
+		return unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	} else {
+		return unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	}
+}
+
+// FDERevealKeyRequest carries the operation and parameters for the
+// fde-reveal-key binary to support unsealing keys that were sealed
+// with the "fde-setup" hook.
+type FDERevealKeyRequest struct {
+	Op string `json:"op"`
+
+	SealedKey []byte `json:"sealed-key"`
+	KeyName   string `json:"key-name"`
+
+	// TODO: add VolumeName,SourceDevicePath later
+}
+
+// fdeRevealKeyRuntimeMax is the maximum runtime a fde-reveal-key can execute
+// XXX: what is a reasonable default here?
+var fdeRevealKeyRuntimeMax = "2m"
+
+// overridden in tests
+var fdeRevealKeyCommandExtra []string
+
+// fdeRevealKeyCommand returns a *exec.Cmd that is suitable to run
+// fde-reveal-key using systemd-run
+func fdeRevealKeyCommand() *exec.Cmd {
+	// TODO: put this into a new "systemd/run" package
+	cmd := exec.Command(
+		"systemd-run",
+		"--pipe", "--same-dir", "--wait", "--collect",
+		"--service-type=exec",
+		"--quiet",
+		// ensure we get some result from the hook within a
+		// reasonable timeout and output from systemd if
+		// things go wrong
+		fmt.Sprintf("--property=RuntimeMaxSec=%s", fdeRevealKeyRuntimeMax),
+		// this ensures we get useful output for e.g. segfaults
+		`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" != 0 ]; then echo "service result: $SERVICE_RESULT" 1>&2; fi'`,
+		// Do not allow mounting, this ensures hooks in initrd
+		// can not mess around with ubuntu-data.
+		//
+		// Note that this is not about perfect confinement, more about
+		// making sure that people using the hook know that we do not
+		// want them to mess around outside of just providing unseal.
+		"--property=SystemCallFilter=~@mount",
+	)
+	if fdeRevealKeyCommandExtra != nil {
+		cmd.Args = append(cmd.Args, fdeRevealKeyCommandExtra...)
+	}
+	// fde-reveal-key is what we actually need to run
+	cmd.Args = append(cmd.Args, "fde-reveal-key")
+	return cmd
+}
+
+func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+
+	sealedKey, err := ioutil.ReadFile(sealedEncryptionKeyFile)
+	if err != nil {
+		return res, fmt.Errorf("cannot read sealed key file: %v", err)
+	}
+	buf, err := json.Marshal(FDERevealKeyRequest{
+		Op:        "reveal",
+		SealedKey: sealedKey,
+		KeyName:   name,
+	})
+	if err != nil {
+		return res, fmt.Errorf("cannot build request for fde-reveal-key: %v", err)
+	}
+	cmd := fdeRevealKeyCommand()
+	cmd.Stdin = bytes.NewReader(buf)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return res, fmt.Errorf("cannot run fde-reveal-key: %v", osutil.OutputErr(output, err))
+	}
+
+	// the output of fde-reveal-key is the unsealed key
+	unsealedKey := output
+	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
+		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
+	}
+	res.FsDevice = targetDevice
+	res.UnlockMethod = UnlockedWithSealedKey
+	return res, nil
+}
+
+func unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
+	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
+
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 	// Obtain a TPM connection.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
@@ -287,10 +379,6 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(
 	// Also check if the TPM device is enabled. The platform firmware may disable the storage
 	// and endorsement hierarchies, but the device will remain visible to the operating system.
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
-
-	mapperName := name + "-" + randutilRandomKernelUUID()
-	sourceDevice := res.PartDevice
-	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	// if we don't have a tpm, and we allow using a recovery key, do that
 	// directly
@@ -323,7 +411,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 	if err != nil {
 		return unlockRes, err
 	}

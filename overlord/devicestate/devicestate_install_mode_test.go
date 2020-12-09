@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -87,12 +88,13 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
+const (
+	pcSnapID       = "pcididididididididididididididid"
+	pcKernelSnapID = "pckernelidididididididididididid"
+	core20SnapID   = "core20ididididididididididididid"
+)
+
 func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
-	const (
-		pcSnapID       = "pcididididididididididididididid"
-		pcKernelSnapID = "pckernelidididididididididididid"
-		core20SnapID   = "core20ididididididididididididid"
-	)
 	si := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(1),
@@ -439,7 +441,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
 	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
-	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
@@ -481,7 +483,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
-	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errMatch string) {
@@ -796,4 +798,149 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(s.restartRequests, HasLen, 1)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+
+	for _, tc := range []struct {
+		kernelYaml string
+		tpmErr     error
+		encrypt    bool
+	}{
+		// unhappy: no tpm, no hook
+		{kernelYamlNoFdeSetup, fmt.Errorf("tpm says no"), false},
+		// happy: either tpm or hook or both
+		{kernelYamlWithFdeSetup, nil, true},
+		{kernelYamlNoFdeSetup, nil, true},
+		{kernelYamlWithFdeSetup, fmt.Errorf("tpm says no"), true},
+	} {
+		// TODO: right now having the hook in the kernel is enough
+		//       to trigger encryption, soon the code will try to
+		//       actually run the hook with "op":"features"
+		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
+		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
+		encrypt, err := devicestate.CheckEncryption(st, deviceCtx)
+		c.Assert(err, IsNil)
+		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	var testCases = []struct {
+		grade, storageSafety string
+
+		expectedEncryption bool
+	}{
+		// we don't test unset here because the assertion assembly
+		// will ensure it has a default
+		{"dangerous", "prefer-unencrypted", false},
+		{"dangerous", "prefer-encrypted", true},
+		{"dangerous", "encrypted", true},
+		{"signed", "prefer-unencrypted", false},
+		{"signed", "prefer-encrypted", true},
+		{"signed", "encrypted", true},
+		// secured+prefer-{,un}encrypted is an error at the
+		// assertion level already so cannot be tested here
+		{"secured", "encrypted", true},
+	}
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+
+		encrypt, err := devicestate.CheckEncryption(s.state, deviceCtx)
+		c.Assert(err, IsNil)
+		c.Check(encrypt, Equals, tc.expectedEncryption)
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
+	defer restore()
+
+	var testCases = []struct {
+		grade, storageSafety string
+
+		expectedErr string
+	}{
+		// we don't test unset here because the assertion assembly
+		// will ensure it has a default
+		{
+			"dangerous", "encrypted",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+		}, {
+			"signed", "encrypted",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+		}, {
+			"secured", "",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+		}, {
+			"secured", "encrypted",
+			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+		},
+	}
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+		_, err := devicestate.CheckEncryption(s.state, deviceCtx)
+		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
+	}
 }

@@ -45,6 +45,8 @@ import (
 )
 
 type servicesTestSuite struct {
+	testutil.DBusTest
+
 	tempdir string
 
 	sysdLog [][]string
@@ -59,6 +61,7 @@ type servicesTestSuite struct {
 var _ = Suite(&servicesTestSuite{})
 
 func (s *servicesTestSuite) SetUpTest(c *C) {
+	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
@@ -86,6 +89,7 @@ func (s *servicesTestSuite) TearDownTest(c *C) {
 	s.systemctlRestorer()
 	s.delaysRestorer()
 	dirs.SetRootDir("")
+	s.DBusTest.TearDownTest(c)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
@@ -574,18 +578,6 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "enable", filepath.Base(svcFile)},
 		{"--user", "start", filepath.Base(svcFile)},
-	})
-}
-
-func (s *servicesTestSuite) TestEnableServices(c *C) {
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-
-	err := wrappers.EnableSnapServices(info, nil)
-	c.Assert(err, IsNil)
-
-	c.Assert(s.sysdLog, DeepEquals, [][]string{
-		{"enable", filepath.Base(svcFile)},
 	})
 }
 

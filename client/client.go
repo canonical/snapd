@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -698,7 +698,11 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
+	opts := &doOptions{
+		Timeout: 25 * time.Second,
+		Retry:   doRetry,
+	}
+	if _, err := client.doSyncWithOpts("GET", "/v2/system-info", nil, nil, nil, &sysInfo, opts); err != nil {
 		return nil, fmt.Errorf("cannot obtain system details: %v", err)
 	}
 
