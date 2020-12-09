@@ -143,3 +143,7 @@ type UnlockResult struct {
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }
+
+// FDEHasReveal is setup by devicestate/fde to support device-specific
+// full disk encryption implementations.
+var FDEHasRevealKey = func() bool { return false }

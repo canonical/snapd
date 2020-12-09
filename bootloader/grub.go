@@ -34,7 +34,6 @@ import (
 // sanity - grub implements the required interfaces
 var (
 	_ Bootloader                        = (*grub)(nil)
-	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
 	_ TrustedAssetsBootloader           = (*grub)(nil)
@@ -73,10 +72,6 @@ func newGrub(rootdir string, opts *Options) Bootloader {
 
 func (g *grub) Name() string {
 	return "grub"
-}
-
-func (g *grub) setRootDir(rootdir string) {
-	g.rootdir = rootdir
 }
 
 func (g *grub) dir() string {

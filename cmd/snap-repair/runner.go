@@ -305,9 +305,9 @@ var (
 		},
 	))
 
-	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
+	peekRetryStrategy = retry.LimitCount(6, retry.LimitTime(44*time.Second,
 		retry.Exponential{
-			Initial: 300 * time.Millisecond,
+			Initial: 500 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
@@ -347,6 +347,8 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
 			logger.Debugf("fetching repair %s-%d", brandID, repairID)
+
+			// TODO: use something like TransferSpeedMonitoringWriter to avoid stalling here
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,
@@ -439,6 +441,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 	var rsp peekResp
 
 	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		// TODO: setup a overall request timeout using contexts
+		// can be many minutes but not unlimited like now
 		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
 			return nil, err

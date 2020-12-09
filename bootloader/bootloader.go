@@ -77,6 +77,9 @@ func (o *Options) validate() error {
 	if o.NoSlashBoot && o.Role == RoleSole {
 		return fmt.Errorf("internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
 	}
+	if o.PrepareImageTime && o.Role == RoleRunMode {
+		return fmt.Errorf("internal error: cannot use run mode bootloader at prepare-image time")
+	}
 	return nil
 }
 
@@ -108,11 +111,6 @@ type Bootloader interface {
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
-}
-
-type installableBootloader interface {
-	Bootloader
-	setRootDir(string)
 }
 
 type RecoveryAwareBootloader interface {

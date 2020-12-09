@@ -86,7 +86,8 @@ func (pol *policy16) extraSnapDefaultChannel() string {
 	return "stable"
 }
 
-func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
+func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error {
+	availableSnaps := availableByMode["run"]
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {
 		if info.Type() == snap.TypeGadget || info.Type() == snap.TypeApp {
@@ -109,12 +110,17 @@ func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.SnapName(), info.Base)
 }
 
-func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, error) {
+func (pol *policy16) checkAvailable(snapRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool {
+	availableSnaps := availableByMode["run"]
+	return availableSnaps.Contains(snapRef)
+}
+
+func (pol *policy16) needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error) {
+	availableSnaps := availableByMode["run"]
 	// do we need to add implicitly either snapd (or core)
 	hasCore := availableSnaps.Contains(naming.Snap("core"))
 	if len(pol.needsCore) != 0 && !hasCore {
 		if pol.model.Base() != "" {
-			// TODO: later turn this into an error? for sure for UC20
 			pol.warningf("model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended", pol.model.Base(), strutil.Quoted(pol.needsCore))
 		}
 		return true, nil
@@ -131,7 +137,8 @@ func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, e
 	return false, nil
 }
 
-func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.ModelSnap {
+func (pol *policy16) implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap {
+	availableSnaps := availableByMode["run"]
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
 		return []*asserts.ModelSnap{makeSystemSnap("core")}
 	}
@@ -141,7 +148,8 @@ func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.Mo
 	return nil
 }
 
-func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
+func (pol *policy16) implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap {
+	availableSnaps := availableByMode["run"]
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
 		return []*OptionsSnap{{Name: "core"}}
 	}

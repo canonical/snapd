@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,35 +20,58 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"time"
 
-	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/servicestate"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
-)
+	"github.com/gorilla/mux"
 
-type Resp = resp
-type ErrorResult = errorResult
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+)
 
 var MinLane = minLane
 
+func NewAndAddRoutes() (*Daemon, error) {
+	d, err := New()
+	if err != nil {
+		return nil, err
+	}
+	d.addRoutes()
+	return d, nil
+}
+
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
+	d := &Daemon{overlord: o, state: o.State()}
 	d.addRoutes()
 	return d
+}
+
+func (d *Daemon) RouterMatch(req *http.Request, m *mux.RouteMatch) bool {
+	return d.router.Match(req, m)
 }
 
 func (d *Daemon) Overlord() *overlord.Overlord {
 	return d.overlord
 }
 
-func MockEnsureStateSoon(mock func(*state.State)) (restore func()) {
+func (d *Daemon) RequestedRestart() state.RestartType {
+	return d.requestedRestart
+}
+
+func MockUcrednetGet(mock func(remoteAddr string) (pid int32, uid uint32, socket string, err error)) (restore func()) {
+	oldUcrednetGet := ucrednetGet
+	ucrednetGet = mock
+	return func() {
+		ucrednetGet = oldUcrednetGet
+	}
+}
+
+func MockEnsureStateSoon(mock func(*state.State)) (original func(*state.State), restore func()) {
 	oldEnsureStateSoon := ensureStateSoon
 	ensureStateSoon = mock
-	return func() {
+	return ensureStateSoonImpl, func() {
 		ensureStateSoon = oldEnsureStateSoon
 	}
 }
@@ -69,10 +92,20 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	}
 }
 
-func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
-	old := servicestateControl
-	servicestateControl = f
+func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstall := snapstateInstall
+	snapstateInstall = mock
 	return func() {
-		servicestateControl = old
+		snapstateInstall = oldSnapstateInstall
 	}
+}
+
+type (
+	Resp            = resp
+	ErrorResult     = errorResult
+	SnapInstruction = snapInstruction
+)
+
+func (inst *snapInstruction) Dispatch() snapActionFunc {
+	return inst.dispatch()
 }

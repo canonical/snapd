@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -68,7 +70,8 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	state *state.State
+	state   *state.State
+	hookMgr *hookstate.HookManager
 
 	cachedKeypairMgr asserts.KeypairManager
 
@@ -100,6 +103,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	m := &DeviceManager{
 		state:    s,
+		hookMgr:  hookManager,
 		newStore: newStore,
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
@@ -145,6 +149,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
+	boot.RunFDESetupHook = m.runFDESetupHook
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
 }
@@ -1195,7 +1201,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemMode := m.SystemMode()
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
-			return fmt.Errorf("cannot get curent system: %v", err)
+			return fmt.Errorf("cannot get current system: %v", err)
 		}
 		systemLabel = currentSys.System
 	}
@@ -1359,6 +1365,7 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
 	st := m.state
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
@@ -1383,5 +1390,85 @@ func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
 	//       hooks returns any {"features":} reply we consider the
 	//       hardware supported. If the hook errors or if it
 	//       returns {"error":"hardware-unsupported"} we don't.
+	return nil
+}
+
+func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+	// TODO:UC20: when this runs on refresh we need to be very careful
+	// that we never run this when the kernel is not fully configured
+	// i.e. when there are no security profiles for the hook
+
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
+	hooksup := &hookstate.HookSetup{
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
+		Hook:     "fde-setup",
+		// XXX: should this be configurable somehow?
+		Timeout: 5 * time.Minute,
+	}
+	req := &fde.SetupRequest{
+		Op:      op,
+		Key:     &params.Key,
+		KeyName: params.KeyName,
+		// TODO: include boot chains
+	}
+	for _, model := range params.Models {
+		req.Models = append(req.Models, map[string]string{
+			"series":     model.Series(),
+			"brand-id":   model.BrandID(),
+			"model":      model.Model(),
+			"grade":      string(model.Grade()),
+			"signkey-id": model.SignKeyID(),
+		})
+	}
+	contextData := map[string]interface{}{
+		"fde-setup-request": req,
+	}
+	st.Unlock()
+	defer st.Lock()
+	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
+	}
+	// the hook is expected to call "snapctl fde-setup-result" which
+	// wil set the "fde-setup-result" value on the task
+	var hookResult []byte
+	context.Lock()
+	err = context.Get("fde-setup-result", &hookResult)
+	context.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
+	}
+
+	return hookResult, nil
+}
+
+type fdeSetupHandler struct {
+	context *hookstate.Context
+}
+
+func newFdeSetupHandler(ctx *hookstate.Context) hookstate.Handler {
+	return fdeSetupHandler{context: ctx}
+}
+
+func (h fdeSetupHandler) Before() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Done() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Error(err error) error {
 	return nil
 }

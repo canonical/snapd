@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
@@ -132,7 +133,7 @@ func (l *lkenvTestSuite) TestCopyStringNoPanic(c *C) {
 func (l *lkenvTestSuite) TestGetBootImageName(c *C) {
 	for _, version := range lkversions {
 		for _, setValue := range []bool{true, false} {
-			env := lkenv.NewEnv(l.envPath, version)
+			env := lkenv.NewEnv(l.envPath, "", version)
 			c.Check(env, NotNil)
 
 			if setValue {
@@ -173,7 +174,7 @@ func (l *lkenvTestSuite) TestSet(c *C) {
 		},
 	}
 	for _, t := range tt {
-		env := lkenv.NewEnv(l.envPath, t.version)
+		env := lkenv.NewEnv(l.envPath, "", t.version)
 		c.Check(env, NotNil)
 		env.Set(t.key, t.val)
 		c.Check(env.Get(t.key), Equals, t.val)
@@ -248,7 +249,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			err := ioutil.WriteFile(testFile, buf, 0644)
 			c.Assert(err, IsNil, comment)
 
-			env := lkenv.NewEnv(testFile, t.version)
+			env := lkenv.NewEnv(testFile, "", t.version)
 			c.Check(env, NotNil, comment)
 
 			for k, v := range t.keyValuePairs {
@@ -258,7 +259,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 			err = env.Save()
 			c.Assert(err, IsNil, comment)
 
-			env2 := lkenv.NewEnv(testFile, t.version)
+			env2 := lkenv.NewEnv(testFile, "", t.version)
 			err = env2.Load()
 			c.Assert(err, IsNil, comment)
 
@@ -268,7 +269,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 
 			// check the backup too
 			if makeBackup {
-				env3 := lkenv.NewEnv(testFileBackup, t.version)
+				env3 := lkenv.NewEnv(testFileBackup, "", t.version)
 				err := env3.Load()
 				c.Assert(err, IsNil, comment)
 
@@ -285,7 +286,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				_, err = io.Copy(f, bytes.NewBuffer(buf))
 				c.Assert(err, IsNil, comment)
 
-				env4 := lkenv.NewEnv(testFile, t.version)
+				env4 := lkenv.NewEnv(testFile, "", t.version)
 				err = env4.Load()
 				c.Assert(err, IsNil, comment)
 
@@ -340,13 +341,82 @@ func (l *lkenvTestSuite) TestLoadValidatesCRC32(c *C) {
 		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
-		env := lkenv.NewEnv(testFile, version)
+		env := lkenv.NewEnv(testFile, "", version)
 		c.Assert(env, NotNil)
 
 		err = env.LoadEnv(testFile)
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot validate %s: expected checksum 0x%X, got 0x%X", testFile, expCrc32, 0))
 	}
 
+}
+
+func (l *lkenvTestSuite) TestNewBackupFileLocation(c *C) {
+	// creating with the second argument as the empty string falls back to
+	// the main path + "bak"
+	for _, version := range lkversions {
+		logbuf, restore := logger.MockLogger()
+		defer restore()
+
+		testFile := filepath.Join(c.MkDir(), "lk.bin")
+		c.Assert(testFile, testutil.FileAbsent)
+		c.Assert(testFile+"bak", testutil.FileAbsent)
+		// make empty files for Save() to overwrite
+		err := ioutil.WriteFile(testFile, nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(testFile+"bak", nil, 0644)
+		c.Assert(err, IsNil)
+		env := lkenv.NewEnv(testFile, "", version)
+		c.Assert(env, NotNil)
+		err = env.Save()
+		c.Assert(err, IsNil)
+
+		// make sure both the primary and backup files were written and can be
+		// successfully loaded
+		env2 := lkenv.NewEnv(testFile, "", version)
+		err = env2.Load()
+		c.Assert(err, IsNil)
+
+		env3 := lkenv.NewEnv(testFile+"bak", "", version)
+		err = env3.Load()
+		c.Assert(err, IsNil)
+
+		// no messages logged
+		c.Assert(logbuf.String(), Equals, "")
+	}
+
+	// now specify a different backup file location
+	for _, version := range lkversions {
+		logbuf, restore := logger.MockLogger()
+		defer restore()
+		testFile := filepath.Join(c.MkDir(), "lk.bin")
+		testFileBackup := filepath.Join(c.MkDir(), "lkbackup.bin")
+		err := ioutil.WriteFile(testFile, nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(testFileBackup, nil, 0644)
+		c.Assert(err, IsNil)
+
+		env := lkenv.NewEnv(testFile, testFileBackup, version)
+		c.Assert(env, NotNil)
+		err = env.Save()
+		c.Assert(err, IsNil)
+
+		// make sure both the primary and backup files were written and can be
+		// successfully loaded
+		env2 := lkenv.NewEnv(testFile, "", version)
+		err = env2.Load()
+		c.Assert(err, IsNil)
+
+		env3 := lkenv.NewEnv(testFileBackup, "", version)
+		err = env3.Load()
+		c.Assert(err, IsNil)
+
+		// no "bak" files present
+		c.Assert(testFile+"bak", testutil.FileAbsent)
+		c.Assert(testFileBackup+"bak", testutil.FileAbsent)
+
+		// no messages logged
+		c.Assert(logbuf.String(), Equals, "")
+	}
 }
 
 func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
@@ -436,7 +506,7 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 		c.Assert(err, IsNil)
 
 		// now try importing the file with LoadEnv()
-		env := lkenv.NewEnv(testFile, t.version)
+		env := lkenv.NewEnv(testFile, "", t.version)
 		c.Assert(env, NotNil)
 
 		var expNum, gotNum uint32
@@ -461,6 +531,17 @@ func (l *lkenvTestSuite) TestLoadValidatesVersionSignatureConsistency(c *C) {
 	}
 }
 
+func (l *lkenvTestSuite) TestLoadPropagatesErrNotExist(c *C) {
+	// make sure that if the env file doesn't exist, the error returned from
+	// Load() is os.ErrNotExist, even if it isn't exactly that
+	env := lkenv.NewEnv("some-nonsense-file-this-doesnt-exist", "", lkenv.V1)
+	c.Check(env, NotNil)
+
+	err := env.Load()
+	c.Assert(xerrors.Is(err, os.ErrNotExist), Equals, true, Commentf("err is %+v", err))
+	c.Assert(err, ErrorMatches, "cannot open LK env file: open some-nonsense-file-this-doesnt-existbak: no such file or directory")
+}
+
 func (l *lkenvTestSuite) TestLoad(c *C) {
 	for _, version := range lkversions {
 		for _, makeBackup := range []bool{true, false} {
@@ -480,7 +561,7 @@ func (l *lkenvTestSuite) TestLoad(c *C) {
 			c.Assert(err, IsNil)
 
 			// create an env for this file and try to load it
-			env := lkenv.NewEnv(testFile, version)
+			env := lkenv.NewEnv(testFile, "", version)
 			c.Check(env, NotNil)
 
 			err = env.Load()
@@ -617,7 +698,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 		err := ioutil.WriteFile(l.envPath, buf, 0644)
 		c.Assert(err, IsNil, comment)
 
-		env := lkenv.NewEnv(l.envPath, t.version)
+		env := lkenv.NewEnv(l.envPath, "", t.version)
 		c.Assert(env, Not(IsNil), comment)
 
 		var findFunc func(string) (string, error)
@@ -724,7 +805,7 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 }
 
 func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
-	env := lkenv.NewEnv(l.envPath, lkenv.V1)
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Assert(env, NotNil)
 
 	_, err := env.FindFreeRecoverySystemBootPartition("blah")
@@ -741,7 +822,7 @@ func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
 }
 
 func (l *lkenvTestSuite) TestV2RunNoRecoverySystemSupport(c *C) {
-	env := lkenv.NewEnv(l.envPath, lkenv.V2Run)
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Run)
 	c.Assert(env, NotNil)
 
 	_, err := env.FindFreeRecoverySystemBootPartition("blah")
@@ -758,7 +839,7 @@ func (l *lkenvTestSuite) TestV2RunNoRecoverySystemSupport(c *C) {
 }
 
 func (l *lkenvTestSuite) TestV2RecoveryNoKernelSupport(c *C) {
-	env := lkenv.NewEnv(l.envPath, lkenv.V2Recovery)
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
 	c.Assert(env, NotNil)
 
 	_, err := env.FindFreeKernelBootPartition("blah")
@@ -808,7 +889,7 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
 	c.Assert(err, IsNil)
 
-	env := lkenv.NewEnv(l.envPath, lkenv.V1)
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Check(env, NotNil)
 	err = env.Load()
 	c.Assert(err, IsNil)
