@@ -131,12 +131,14 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 		Op:      "initial-setup",
 		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "the-key-name",
-		Model: map[string]string{
-			"series":     "16",
-			"brand-id":   "my-brand",
-			"model":      "my-model",
-			"grade":      "secured",
-			"signkey-id": "the-signkey-id",
+		Models: []map[string]string{
+			{
+				"series":     "16",
+				"brand-id":   "my-brand",
+				"model":      "my-model",
+				"grade":      "secured",
+				"signkey-id": "the-signkey-id",
+			},
 		},
 	}
 	s.mockContext.Lock()
@@ -147,7 +149,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	c.Assert(err, IsNil)
 
 	jsonEncodedEncryptionKey := `[1,2,3,4,` + strings.Repeat("0,", len(secboot.EncryptionKey{})-5) + `0]`
-	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%s,"key-name":"the-key-name","model":{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}}`+"\n", jsonEncodedEncryptionKey))
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%s,"key-name":"the-key-name","models":[{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}]}`+"\n", jsonEncodedEncryptionKey))
 	c.Check(string(stderr), Equals, "")
 }
 

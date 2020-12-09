@@ -35,9 +35,9 @@ type validationState struct {
 	SystemSave *VolumeStructure
 }
 
-func ruleValidateVolumes(vols map[string]Volume, model Model) error {
+func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
 	for name, v := range vols {
-		if err := ruleValidateVolume(name, &v, model); err != nil {
+		if err := ruleValidateVolume(name, v, model); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
@@ -216,11 +216,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			realSource := filepath.Join(gadgetSnapRootDir, c.Source)
+			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
+			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
-			if strings.HasSuffix(c.Source, "/") {
+			if strings.HasSuffix(c.ResolvedSource(), "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
 					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
@@ -268,7 +269,7 @@ func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraint
 	}
 
 	for name, vol := range info.Volumes {
-		lv, err := LayoutVolume(gadgetSnapRootDir, &vol, defaultConstraints)
+		lv, err := LayoutVolume(gadgetSnapRootDir, vol, defaultConstraints)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
