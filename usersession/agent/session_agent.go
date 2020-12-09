@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -53,24 +54,6 @@ type SessionAgent struct {
 }
 
 const sessionAgentBusName = "io.snapcraft.SessionAgent"
-
-func dbusSessionBus() (*dbus.Conn, error) {
-	// use a private connection to the session bus, this way we can manage
-	// its lifetime without worrying of breaking other code
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
-}
 
 // A ResponseFunc handles one of the individual verbs for a method
 type ResponseFunc func(*Command, *http.Request) Response
@@ -217,7 +200,7 @@ func (s *SessionAgent) Init() error {
 }
 
 func (s *SessionAgent) tryConnectSessionBus() (err error) {
-	s.bus, err = dbusSessionBus()
+	s.bus, err = dbusutil.SessionBusPrivate()
 	if err != nil {
 		// ssh sessions on Ubuntu 16.04 may have a user
 		// instance of systemd but no D-Bus session bus.  So
