@@ -67,9 +67,7 @@ func Run(gadgetRoot, kernelRoot, device string, options Options, observer gadget
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
-	if err := gadget.ResolveContentPaths(gadgetRoot, kernelRoot, lv); err != nil {
-		return nil, fmt.Errorf("cannot resolve gadget references: %v", err)
-	}
+	// TODO: use gadget.ResolveContentPaths(gadgetRoot, kernelRoot, lv) here
 
 	// XXX: the only situation where auto-detect is not desired is
 	//      in (spread) testing - consider to remove forcing a device
