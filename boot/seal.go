@@ -326,7 +326,9 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	}
 }
 
-func resealKeyToModeenvUsingFDESetupHook(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
+var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
+
+func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	// TODO: Implement reseal using the fde-setup hook. This will
 	//       require a helper like "shouldResealUsinHook()" that
 	//       will be set by devicestate and returns (bool, error).
