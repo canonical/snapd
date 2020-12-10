@@ -238,20 +238,21 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		// copy existing mock
 		m := mockOnDiskStructureSystemSeed
-		m.LaidOutContent = []gadget.LaidOutContent{
-			{
-				VolumeContent: &gadget.VolumeContent{
-					UnresolvedSource: "grubx64.efi",
-					Target:           "EFI/boot/grubx64.efi",
-				},
+		m.LaidOutStructure.VolumeStructure.Content = []gadget.VolumeContent{
+			gadget.VolumeContent{
+				UnresolvedSource: "grubx64.efi",
+				Target:           "EFI/boot/grubx64.efi",
 			},
 		}
+		err := gadget.ResolveContentPathsForStructure(s.gadgetRoot, "", nil, m.LaidOutStructure.VolumeStructure)
+		c.Assert(err, IsNil)
+
 		obs := &mockWriteObserver{
 			c:              c,
 			observeErr:     tc.observeErr,
 			expectedStruct: &m.LaidOutStructure,
 		}
-		err := install.WriteContent(&m, s.gadgetRoot, obs)
+		err = install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {

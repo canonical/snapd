@@ -257,7 +257,7 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *Volume) error 
 		return err
 	}
 	for i := range lv.Structure {
-		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Structure[i]); err != nil {
+		if err := ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Structure[i]); err != nil {
 			return err
 		}
 	}
@@ -265,7 +265,7 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *Volume) error 
 	return nil
 }
 
-func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
+func ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
 	for i := range ps.Content {
 		source := ps.Content[i].UnresolvedSource
 		if source != "" {
