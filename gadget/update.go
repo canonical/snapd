@@ -44,7 +44,11 @@ type GadgetData struct {
 	// Info is the gadget metadata
 	Info *Info
 	// RootDir is the root directory of gadget snap data
+	// XXX: should be GadgetRootDir
 	RootDir string
+
+	// KernelRootDir is the root directory of kernel snap data
+	KernelRootDir string
 }
 
 // UpdatePolicyFunc is a callback that evaluates the provided pair of structures
@@ -146,11 +150,16 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
-
+	if err := ResolveContentPaths(old.RootDir, old.KernelRootDir, pOld.Volume); err != nil {
+		return fmt.Errorf("cannot resolve old gadget references: %v", err)
+	}
 	// layout new
 	pNew, err := LayoutVolume(new.RootDir, newVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
+	}
+	if err := ResolveContentPaths(new.RootDir, new.KernelRootDir, pNew.Volume); err != nil {
+		return fmt.Errorf("cannot resolve new gadget references: %v", err)
 	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {

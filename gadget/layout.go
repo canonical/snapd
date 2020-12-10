@@ -248,7 +248,7 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 // paths.
 //
 // XXX: maybe move into LayoutVolume(), operator on *Volume and make private?
-func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume) error {
+func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *Volume) error {
 	// Note that the kernelRootDir may reference the running
 	// kernel if there is a gadget update or the new kernel if
 	// there is a kernel update.
@@ -256,8 +256,8 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume)
 	if err != nil {
 		return err
 	}
-	for i := range lv.Volume.Structure {
-		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
+	for i := range lv.Structure {
+		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Structure[i]); err != nil {
 			return err
 		}
 	}

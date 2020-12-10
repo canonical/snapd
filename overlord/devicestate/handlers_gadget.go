@@ -104,6 +104,12 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	if isRemodel {
 		model = remodelCtx.Model()
 	}
+
+	// TODO: This handler will be called for both kernel and gadget
+	//       updates (or maybe have an exta handler for kernel?).
+	//       The {current,pending}Data KernelRootDir needs to get
+	//       set so that $kernel:data refs are correctly resolved.
+
 	// be extra paranoid when checking we are installing the right gadget
 	expectedGadgetSnap := model.Gadget()
 	if snapsup.InstanceName() != expectedGadgetSnap {
