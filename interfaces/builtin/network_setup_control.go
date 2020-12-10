@@ -32,7 +32,9 @@ const networkSetupControlBaseDeclarationSlots = `
 const networkSetupControlConnectedPlugAppArmor = `
 # Description: Can read/write netplan configuration files
 
-# Allow use of the netplan binary from the base snap
+# Allow use of the netplan binary from the base snap. With this interface, this 
+# is expected to be able to apply and generate new network configuration, as 
+# well as get information about the current network configuration.
 /usr/sbin/netplan ixr,
 # core18+ has /usr/sbin/netplan as a symlink to this script
 /usr/share/netplan/netplan.script ixr,
