@@ -1374,6 +1374,11 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	}
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	// TODO: this can happen during early first-boot when
+	//       "markBootSuccessful" is called but no kernel is installed yet
+	if err == state.ErrNoState {
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("cannot get kernel info: %v", err)
 	}
