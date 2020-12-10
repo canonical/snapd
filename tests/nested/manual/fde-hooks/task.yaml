@@ -21,6 +21,15 @@ prepare: |
   # nested_create_core_vm picks this up
   mkdir -p ./extra-initrd/usr/bin/
   go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+
+  # FIXME: hack systemd-run to just run "fde-reveal-key" to workaround
+  # https://github.com/snapcore/core-initrd/issues/13
+  cat > ./extra-initrd/usr/bin/systemd-run <<'EOF'
+  #!/bin/sh
+  exec fde-reveal-key
+  EOF
+  chmod +x ./extra-initrd/usr/bin/systemd-run
+  
   # create fde-setup hook inside the kernel
   mkdir -p ./extra-kernel-snap/meta/hooks
   go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
