@@ -24,6 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -296,12 +297,17 @@ func stampSealedKeys(rootdir string, content sealingMethod) error {
 	return nil
 }
 
+var errSealingNoKeys = errors.New("no-sealed-keys")
+
 // sealedKeysMethod return whether any keys were sealed at all
-func sealedKeysMethod(rootdir string) (sealingMethod, error) {
+func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
 	// TODO:UC20: consider more than the marker for cases where we reseal
 	// outside of run mode
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	content, err := ioutil.ReadFile(stamp)
+	if os.IsNotExist(err) {
+		return sm, errSealingNoKeys
+	}
 	return sealingMethod(content), err
 }
 
@@ -309,7 +315,7 @@ func sealedKeysMethod(rootdir string) (sealingMethod, error) {
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	method, err := sealedKeysMethod(rootdir)
-	if os.IsNotExist(err) {
+	if err == errSealingNoKeys {
 		// nothing to do
 		return nil
 	}
