@@ -410,10 +410,10 @@ func targetForSourceDir(source, target string) string {
 	return filepath.Join(target, filepath.Base(source))
 }
 
-func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(resolvedSource)
 	if err != nil {
-		return fmt.Errorf("cannot list source directory %q: %v", source, err)
+		return fmt.Errorf("cannot list source directory %q: %v", resolvedSource, err)
 	}
 
 	target = targetForSourceDir(resolvedSource, target)
@@ -425,7 +425,6 @@ func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, resolvedSour
 	// and write the content of source to target
 	skipped := 0
 	for _, fi := range fis {
-		pSrc := filepath.Join(source, fi.Name())
 		pResolvedSrc := filepath.Join(resolvedSource, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
 
@@ -433,12 +432,11 @@ func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, resolvedSour
 		if fi.IsDir() {
 			// continue updating contents of the directory rather
 			// than the directory itself
-			pSrc += "/"
 			pResolvedSrc += "/"
 			pDst += "/"
 			update = f.updateDirectory
 		}
-		if err := update(dstRoot, pSrc, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
+		if err := update(dstRoot, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
 			if err == ErrNoUpdate {
 				skipped++
 				continue
@@ -454,7 +452,7 @@ func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, resolvedSour
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
 	dstPath, backupPath := f.entryDestPaths(dstRoot, resolvedSource, target, backupDir)
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
@@ -463,7 +461,7 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, resolvedSou
 
 	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(resolvedSource) {
-		return fmt.Errorf("cannot update file %s: symbolic links are not supported", source)
+		return fmt.Errorf("cannot update file %s: symbolic links are not supported", resolvedSource)
 	}
 
 	if osutil.FileExists(ignoreStamp) {
@@ -497,9 +495,9 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 
 	srcPath := content.ResolvedSource()
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
-		return f.updateDirectory(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.updateDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	} else {
-		return f.updateOrSkipFile(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.updateOrSkipFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -556,16 +554,15 @@ func (f *mountedFilesystemUpdater) Backup() error {
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(resolvedSource)
 	if err != nil {
-		return fmt.Errorf("cannot backup directory %q: %v", source, err)
+		return fmt.Errorf("cannot backup directory %q: %v", resolvedSource, err)
 	}
 
-	target = targetForSourceDir(source, target)
+	target = targetForSourceDir(resolvedSource, target)
 
 	for _, fi := range fis {
-		pSrc := filepath.Join(source, fi.Name())
 		pResolvedSrc := filepath.Join(resolvedSource, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
 
@@ -573,7 +570,6 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 		if fi.IsDir() {
 			// continue backing up the contents of the directory
 			// rather than the directory itself
-			pSrc += "/"
 			pResolvedSrc += "/"
 			pDst += "/"
 			backup = f.backupOrCheckpointDirectory
@@ -581,7 +577,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointDirectory(dstRoot, source, 
 		if err := f.checkpointPrefix(dstRoot, pDst, backupDir); err != nil {
 			return err
 		}
-		if err := backup(dstRoot, pSrc, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
+		if err := backup(dstRoot, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
 		}
 	}
@@ -635,8 +631,8 @@ func (f *mountedFilesystemUpdater) ignoreChange(change *ContentChange, backupPat
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
-	change, err := f.backupOrCheckpointFile(dstRoot, source, resolvedSource, target, preserveInDst, backupDir)
+func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+	change, err := f.backupOrCheckpointFile(dstRoot, resolvedSource, target, preserveInDst, backupDir)
 	if err != nil {
 		return err
 	}
@@ -662,7 +658,7 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 // When content of the new file is different, a backup of the original file is
 // created. Returns a content change if a file will be written by the update
 // pass.
-func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) (change *ContentChange, err error) {
+func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) (change *ContentChange, err error) {
 	dstPath, backupPath := f.entryDestPaths(dstRoot, resolvedSource, target, backupDir)
 
 	backupName := backupPath + ".backup"
@@ -788,10 +784,10 @@ func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 	}
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
 		// backup directory contents
-		return f.backupOrCheckpointDirectory(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.backupOrCheckpointDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	} else {
 		// backup a file
-		return f.observedBackupOrCheckpointFile(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.observedBackupOrCheckpointFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -828,16 +824,15 @@ func (f *mountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backup
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
 	fis, err := f.sourceDirectoryEntries(resolvedSource)
 	if err != nil {
-		return fmt.Errorf("cannot rollback directory %q: %v", source, err)
+		return fmt.Errorf("cannot rollback directory %q: %v", resolvedSource, err)
 	}
 
-	target = targetForSourceDir(source, target)
+	target = targetForSourceDir(resolvedSource, target)
 
 	for _, fi := range fis {
-		pSrc := filepath.Join(source, fi.Name())
 		pResolvedSrc := filepath.Join(resolvedSource, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
 
@@ -846,11 +841,10 @@ func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, source, resolvedSo
 			// continue rolling back the contents of the directory
 			// rather than the directory itself
 			rollback = f.rollbackDirectory
-			pSrc += "/"
 			pResolvedSrc += "/"
 			pDst += "/"
 		}
-		if err := rollback(dstRoot, pSrc, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
+		if err := rollback(dstRoot, pResolvedSrc, pDst, preserveInDst, backupDir); err != nil {
 			return err
 		}
 		if err := f.rollbackPrefix(dstRoot, pDst, backupDir); err != nil {
@@ -861,9 +855,9 @@ func (f *mountedFilesystemUpdater) rollbackDirectory(dstRoot, source, resolvedSo
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, resolvedSource, target string, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, resolvedSource, target string, preserveInDst []string, backupDir string) error {
 	srcPath := resolvedSource
-	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
+	dstPath, backupPath := f.entryDestPaths(dstRoot, resolvedSource, target, backupDir)
 
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
@@ -923,10 +917,10 @@ func (f *mountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, cont
 	var err error
 	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
 		// rollback directory
-		err = f.rollbackDirectory(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		err = f.rollbackDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	} else {
 		// rollback file
-		err = f.rollbackFile(volumeRoot, content.UnresolvedSource, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		err = f.rollbackFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
 	}
 	if err != nil {
 		return err

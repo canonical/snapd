@@ -2097,7 +2097,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/data.backup"), 0, nil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /foo: symbolic links are not supported")
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file .*/foo: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir(c *C) {
@@ -2137,7 +2137,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar.backup"), 0, nil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /baz: symbolic links are not supported")
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file .*/baz: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {
