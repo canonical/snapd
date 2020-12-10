@@ -22,9 +22,9 @@ package gadget
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -209,9 +209,6 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 
 // content validation
 
-// XXX: needs to match kernel/kernel.go
-var validKernelAssetName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]*$")
-
 func splitKernelRef(kernelRef string) (asset, content string, err error) {
 	// kernel ref has format: $kernel:<asset-name>/<content-name> where
 	// asset name and content is listed in kernel.yaml, content looks like a
@@ -236,7 +233,7 @@ func splitKernelRef(kernelRef string) (asset, content string, err error) {
 	if filepath.Clean(nonDirContent) != nonDirContent || strings.Contains(content, "..") || nonDirContent == "/" {
 		return "", "", fmt.Errorf("invalid content in kernel ref %q", kernelRef)
 	}
-	if !validKernelAssetName.MatchString(asset) {
+	if !kernel.ValidAssetName.MatchString(asset) {
 		return "", "", fmt.Errorf("invalid asset name in kernel ref %q", kernelRef)
 	}
 	return asset, content, nil
