@@ -4,120 +4,51 @@
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
+    . "$TESTSLIB/tools/tests.pkg.apt.sh"
     for i in "$@"; do
-        case "$i" in
-            man)
-                echo "man-db"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 ubuntu_14_04_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
+    . "$TESTSLIB/tools/tests.pkg.apt.sh"
     for i in "$@"; do
-        case "$i" in
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            *)
-                debian_name_package "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 fedora_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
+    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
     for i in "$@"; do
-        case "$i" in
-            openvswitch-switch)
-                echo "openvswitch"
-                ;;
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            python3-gi)
-                echo "python3-gobject"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 amazon_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
+    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
     for i in "$@"; do
-        case "$i" in
-            xdelta3)
-                echo "xdelta"
-                ;;
-            openvswitch-switch)
-                echo "openvswitch"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 opensuse_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
+    . "$TESTSLIB/tools/tests.pkg.zypper.sh"
     for i in "$@"; do
-        case "$i" in
-            python3-yaml)
-                echo "python3-PyYAML"
-                ;;
-            dbus-x11)
-                echo "dbus-1-x11"
-                ;;
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            python3-dbus)
-                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
-                echo "dbus-1-python3"
-                ;;
-            python3-gi)
-                echo "python3-gobject"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 arch_name_package() {
-    case "$1" in
-        python3-yaml)
-            echo "python-yaml"
-            ;;
-        dbus-x11)
-            # no separate dbus-x11 package in arch
-            echo "dbus"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        openvswitch-switch)
-            echo "openvswitch"
-            ;;
-        man)
-            echo "man-db"
-            ;;
-        python3-dbus)
-            echo "python-dbus"
-            ;;
-        python3-gi)
-            echo "python-gobject"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
+    #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
+    . "$TESTSLIB/tools/tests.pkg.pacman.sh"
+    for i in "$@"; do
+        remap_one "$i"
+    done
 }
 
 distro_name_package() {
