@@ -135,10 +135,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	model := deviceCtx.Model()
 
 	// make sure that gadget is usable for the set up we want to use it in
-	gadgetContaints := gadget.ValidationConstraints{
+	gadgetConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	if err := gadget.Validate(gadgetDir, model, &gadgetContaints); err != nil {
+	ginfo, err := gadget.ReadInfo(gadgetDir, model, &gadgetConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(ginfo, gadgetDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 

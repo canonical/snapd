@@ -3583,7 +3583,7 @@ volumes:
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	gi, err := gadget.ReadInfo(info.MountDir(), nil)
+	gi, err := gadget.ReadInfo(info.MountDir(), nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(gi, NotNil)
 

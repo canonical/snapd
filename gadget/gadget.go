@@ -363,10 +363,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		}
 	}
 
-	// XXX non-basic validation, should be done optionally/separately
+	/*// XXX non-basic validation, should be done optionally/separately
 	if err := ruleValidateVolumes(gi.Volumes, model); err != nil {
 		return nil, err
-	}
+	}*/
 
 	return &gi, nil
 }
@@ -445,16 +445,35 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
 // root directory.
-func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
+// If validationConstraints is not nil, it also performs consistency rules validation as Validate does using the given validationConstraints.
+func ReadInfo(gadgetSnapRootDir string, model Model, validationConstraints *ValidationConstraints) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	return readInfo(ioutil.ReadFile, gadgetYamlFn, model)
+	ginfo, err := readInfo(ioutil.ReadFile, gadgetYamlFn, model)
+	if err != nil {
+		return nil, err
+	}
+	if validationConstraints != nil {
+		if err := Validate(ginfo, model, validationConstraints); err != nil {
+			return nil, err
+		}
+	}
+	return ginfo, nil
+
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
 // meta/gadget.yaml in the given snap container.
+// It also performs consistency rules validation as Validate does.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
 	gadgetYamlFn := "meta/gadget.yaml"
-	return readInfo(snapf.ReadFile, gadgetYamlFn, model)
+	ginfo, err := readInfo(snapf.ReadFile, gadgetYamlFn, model)
+	if err != nil {
+		return nil, err
+	}
+	if err := Validate(ginfo, model, nil); err != nil {
+		return nil, err
+	}
+	return ginfo, nil
 }
 
 func fmtIndexAndName(idx int, name string) string {
@@ -878,7 +897,7 @@ func IsCompatible(current, new *Info) error {
 // LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
 func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, model)
+	info, err := ReadInfo(gadgetRoot, model, nil)
 	if err != nil {
 		return nil, err
 	}
