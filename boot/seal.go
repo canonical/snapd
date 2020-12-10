@@ -336,13 +336,18 @@ var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImp
 
 func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	// TODO: Implement reseal using the fde-setup hook. This will
-	//       require a helper like "shouldResealUsinHook()" that
-	//       will be set by devicestate and returns (bool, error).
-	//       It needs to return "false" during seeding because then
-	//       there is no kernel available yet. It will also need to
-	//       run HasFDESetupHook internally and return an error if
-	//       the hook goes missing (e.g. because a kernel refresh losses
-	//       the hook by accident).
+	//       require a helper like "FDEShouldResealUsingSetupHook"
+	//       that will be set by devicestate and returns (bool,
+	//       error).  It needs to return "false" during seeding
+	//       because then there is no kernel available yet.  It
+	//       can though return true as soon as there's an active
+	//       kernel if seeded is false
+	//
+	//       It will also need to run HasFDESetupHook internally
+	//       and return an error if the hook goes missing
+	//       (e.g. because a kernel refresh losses the hook by
+	//       accident). It could also run features directly and
+	//       check for "reseal" in features.
 	return nil
 }
 
