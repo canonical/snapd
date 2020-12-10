@@ -24,15 +24,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func TestInstall(t *testing.T) { TestingT(t) }
 
 type partitionTestSuite struct {
 	testutil.BaseTest
@@ -176,6 +180,13 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
+
+type uc20Constraints struct{}
+
+func (c uc20Constraints) Classic() bool             { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
+
+var uc20mod = uc20Constraints{}
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))

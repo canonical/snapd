@@ -2,7 +2,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,19 +24,15 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestInstall(t *testing.T) { TestingT(t) }
 
 type installSuite struct {
 	testutil.BaseTest
@@ -374,13 +370,6 @@ func (s *installSuite) TestIDCompatibility(c *C) {
 	}
 	c.Logf("-----")
 }
-
-type uc20Constraints struct{}
-
-func (c uc20Constraints) Classic() bool             { return false }
-func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
-
-var uc20mod = uc20Constraints{}
 
 func layoutFromYaml(c *C, gadgetYaml string, model gadget.Model) *gadget.LaidOutVolume {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
