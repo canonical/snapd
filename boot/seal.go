@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -57,6 +58,14 @@ var (
 	RunFDESetupHook = func(op string, params *FDESetupHookParams) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
+)
+
+type sealingMethod string
+
+const (
+	sealingMethodLegacyTPM    = sealingMethod("")
+	sealingMethodTPM          = sealingMethod("tpm")
+	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
@@ -211,7 +220,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir, "tpm"); err != nil {
+	if err := stampSealedKeys(InstallHostWritableDir, sealingMethodTPM); err != nil {
 		return err
 	}
 
@@ -275,7 +284,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	return nil
 }
 
-func stampSealedKeys(rootdir, content string) error {
+func stampSealedKeys(rootdir string, content sealingMethod) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
@@ -287,34 +296,49 @@ func stampSealedKeys(rootdir, content string) error {
 	return nil
 }
 
-// hasSealedKeys return whether any keys were sealed at all
-func hasSealedKeys(rootdir string) bool {
+// sealedKeysMethod return whether any keys were sealed at all
+func sealedKeysMethod(rootdir string) (sealingMethod, error) {
 	// TODO:UC20: consider more than the marker for cases where we reseal
 	// outside of run mode
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	return osutil.FileExists(stamp)
-}
-
-func resealKeyToModeenvUsingFDESetupHook(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
-	// TODO: implement reseal using the fde-setup hook
-	return nil
+	content, err := ioutil.ReadFile(stamp)
+	return sealingMethod(content), err
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
-	if !hasSealedKeys(rootdir) {
+	method, err := sealedKeysMethod(rootdir)
+	if os.IsNotExist(err) {
 		// nothing to do
 		return nil
 	}
-	hasHook, err := HasFDESetupHook()
 	if err != nil {
-		return fmt.Errorf("cannot check for fde-setup hook in reseal: %v", err)
+		return err
 	}
-	if hasHook {
+	switch method {
+	case sealingMethodFDESetupHook:
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, model, modeenv, expectReseal)
+	case sealingMethodTPM, sealingMethodLegacyTPM:
+		return resealKeyToModeenvSecboot(rootdir, model, modeenv, expectReseal)
+	default:
+		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
+}
 
+func resealKeyToModeenvUsingFDESetupHook(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
+	// TODO: Implement reseal using the fde-setup hook. This will
+	//       require a helper like "shouldResealUsinHook()" that
+	//       will be set by devicestate and returns (bool, error).
+	//       It needs to return "false" during seeding because then
+	//       there is no kernel available yet. It will also need to
+	//       run HasFDESetupHook internally and return an error if
+	//       the hook goes missing (e.g. because a kernel refresh losses
+	//       the hook by accident).
+	return nil
+}
+
+func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,

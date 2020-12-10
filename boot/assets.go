@@ -355,7 +355,10 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	}
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
-	trackTrustedAssets := hasSealedKeys(dirs.GlobalRootDir)
+	var trackTrustedAssets bool
+	if _, err := sealedKeysMethod(dirs.GlobalRootDir); err == nil {
+		trackTrustedAssets = true
+	}
 
 	// see what we need to observe for the run bootloader
 	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuBootDir,
