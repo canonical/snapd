@@ -421,6 +421,7 @@ func (s *validateGadgetTestSuite) TestValidateKernelAssetsRef(c *C) {
 		// assets and content need to be there
 		{"$kernel:/", false},
 		{"$kernel:a/", false},
+		{"$kernel:/a", false},
 	} {
 		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
