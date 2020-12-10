@@ -38,9 +38,11 @@ type ValidateApplyOptions struct {
 type ValidationSetResult struct {
 	AccountID string `json:"account-id"`
 	Name      string `json:"name"`
-	PinnedAt  int    `json:"pinned-at,omitempty"`
-	Mode      string `json:"mode"`
+	// set sequence key and optional pinned-at (=)
 	Sequence  int    `json:"sequence,omitempty"`
+	PinnedAt  int    `json:"pinned-at,omitempty"`
+	// set current state
+	Mode      string `json:"mode"`
 	Valid     bool   `json:"valid"`
 	// TODO: flags/states for notes column
 }

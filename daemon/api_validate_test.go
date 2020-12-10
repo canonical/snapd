@@ -230,7 +230,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
 	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
-		"account": "foo",
+		"account-id": "foo",
 		"name":    "other",
 	})
 }
@@ -252,7 +252,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	c.Assert(res, check.NotNil)
 	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
 	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
-		"account":  "foo",
+		"account-id":  "foo",
 		"name":     "bar",
 		"sequence": 333,
 	})

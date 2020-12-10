@@ -69,7 +69,7 @@ func modeString(mode assertstate.ValidationSetMode) (string, error) {
 
 func validationSetNotFound(accountID, name string, sequence int) Response {
 	v := map[string]interface{}{
-		"account": accountID,
+		"account-id": accountID,
 		"name":    name,
 	}
 	if sequence != 0 {
