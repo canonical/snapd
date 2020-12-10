@@ -732,6 +732,7 @@ func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResul
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
+type snapsActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
 	"install": snapInstall,
@@ -748,6 +749,20 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 		logger.Panicf("dispatch only handles single-snap ops; got %d", len(inst.Snaps))
 	}
 	return snapInstructionDispTable[inst.Action]
+}
+
+func (inst *snapInstruction) dispatchForMany() (op snapsActionFunc) {
+	switch inst.Action {
+	case "refresh":
+		op = snapUpdateMany
+	case "install":
+		op = snapInstallMany
+	case "remove":
+		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
+	}
+	return op
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
@@ -816,8 +831,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
-	st := c.d.overlord.State()
+func trySnap(st *state.State, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
 	st.Lock()
 	defer st.Unlock()
 
@@ -899,18 +913,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	var op func(*snapInstruction, *state.State) (*snapInstructionResult, error)
-
-	switch inst.Action {
-	case "refresh":
-		op = snapUpdateMany
-	case "install":
-		op = snapInstallMany
-	case "remove":
-		op = snapRemoveMany
-	case "snapshot":
-		op = snapshotMany
-	default:
+	op := inst.dispatchForMany()
+	if op == nil {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	res, err := op(&inst, st)
@@ -973,7 +977,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		if len(form.Value["snap-path"]) == 0 {
 			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
+		return trySnap(c.d.overlord.State(), r, user, form.Value["snap-path"][0], flags)
 	}
 	flags.RemoveSnapPath = true
 
