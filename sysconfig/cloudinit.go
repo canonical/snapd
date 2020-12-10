@@ -148,6 +148,18 @@ var (
 	cloudInitSnapdRestrictFile = "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 	cloudInitDisabledFile      = "/etc/cloud/cloud-init.disabled"
 
+	// for NoCloud datasource, we need to specify "manual_cache_clean: true"
+	// because the default is false, and this key being true essentially informs
+	// cloud-init that it should always trust the instance-id it has cached in
+	// the image, and shouldn't assume that there is a new one on every boot, as
+	// otherwise we have bugs like https://bugs.launchpad.net/snapd/+bug/1905983
+	// where subsequent boots after cloud-init runs and gets restricted it will
+	// try to detect the instance_id by reading from the NoCloud datasource
+	// fs_label, but we set that to "null" so it fails to read anything and thus
+	// can't detect the effective instance_id and assumes it is different and
+	// applies default config which can overwrite valid config from the initial
+	// boot if that is not the default config
+	// see also https://cloudinit.readthedocs.io/en/latest/topics/boot.html?highlight=manual_cache_clean#first-boot-determination
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
   NoCloud:
