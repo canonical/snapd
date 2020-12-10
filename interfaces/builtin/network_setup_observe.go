@@ -32,6 +32,17 @@ const networkSetupObserveBaseDeclarationSlots = `
 const networkSetupObserveConnectedPlugAppArmor = `
 # Description: Can read netplan configuration files
 
+# Allow use of the netplan binary from the base snap
+/usr/sbin/netplan ixr,
+# core18+ has /usr/sbin/netplan as a symlink to this script
+/usr/share/netplan/netplan.script ixr,
+# netplan related files
+/usr/share/netplan/ r,
+/usr/share/netplan/** r,
+
+# Netplan uses busctl internally, so allow using that as well
+/usr/bin/busctl ixr,
+
 /etc/netplan/{,**} r,
 /etc/network/{,**} r,
 /etc/systemd/network/{,**} r,
