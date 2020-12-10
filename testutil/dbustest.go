@@ -60,6 +60,11 @@ type DBusTest struct {
 	SessionBus *dbus.Conn
 }
 
+// sessionBusConfigTemplate is a minimal session dbus daemon
+// configuration template for use in the unit tests. In comparison to
+// the typical disto session config, it contains no <servicedir>
+// directives to avoid activating services installed on the test
+// system.
 const sessionBusConfigTemplate = `<busconfig>
   <type>session</type>
   <listen>unix:path=%s/user_bus_socket</listen>
