@@ -216,11 +216,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			realSource := filepath.Join(gadgetSnapRootDir, c.Source)
+			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
+			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
-			if strings.HasSuffix(c.Source, "/") {
+			if strings.HasSuffix(c.ResolvedSource(), "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
 					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
