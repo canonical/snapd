@@ -407,29 +407,45 @@ var gadgetYamlContentKernelRef = gadgetYamlContentNoSave + `
 
 func (s *validateGadgetTestSuite) TestValidateKernelAssetsRef(c *C) {
 	for _, tc := range []struct {
-		source string
-		good   bool
+		source, asset, content string
+		good                   bool
 	}{
-		{"$kernel:a/b", true},
-		{"$kernel:aa/bb", true},
-		{"$kernel:a-a/b-b", true},
-		{"$kernel:aB-0/cD-3", true},
-		{"$kernel:aB-0/foo-21B.dtb", true},
-		{"$kernel:aB-0/nested/bar-77A.raw", true},
+		{"$kernel:a/b", "a", "b", true},
+		{"$kernel:A/b", "A", "b", true},
+		{"$kernel:a-a/bb", "a-a", "bb", true},
+		{"$kernel:a-a/b-b", "a-a", "b-b", true},
+		{"$kernel:aB-0/cD-3", "aB-0", "cD-3", true},
+		{"$kernel:aB-0/foo-21B.dtb", "aB-0", "foo-21B.dtb", true},
+		{"$kernel:aB-0/nested/bar-77A.raw", "aB-0", "nested/bar-77A.raw", true},
+		{"$kernel:a/a/", "a", "a/", true},
 		// no starting with "-"
-		{"$kernel:-/-", false},
+		{source: "$kernel:-/-"},
 		// assets and content need to be there
-		{"$kernel:/", false},
-		{"$kernel:a/", false},
-		{"$kernel:/a", false},
+		{source: "$kernel:ab"},
+		{source: "$kernel:/"},
+		{source: "$kernel:a/"},
+		{source: "$kernel:/a"},
+		// invalid asset name
+		{source: "$kernel:#garbage/a"},
+		// invalid content part
+		{source: "$kernel:a//"},
+		{source: "$kernel:a///"},
+		{source: "$kernel:a////"},
+		{source: "$kernel:a/a/../"},
 	} {
 		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
 		err := gadget.Validate(s.dir, nil, nil)
 		if tc.good {
 			c.Check(err, IsNil, Commentf(tc.source))
+			// asset validates correctly, so let's make sure that
+			// individual pieces are correct too
+			assetName, content, err := gadget.SplitKernelRef(tc.source)
+			c.Assert(err, IsNil)
+			c.Check(assetName, Equals, tc.asset)
+			c.Check(content, Equals, tc.content)
 		} else {
-			errStr := fmt.Sprintf(`invalid volume "vol1": cannot use kernel reference "%s"`, regexp.QuoteMeta(tc.source))
+			errStr := fmt.Sprintf(`invalid volume "vol1": cannot use kernel reference "%s": .*`, regexp.QuoteMeta(tc.source))
 			c.Check(err, ErrorMatches, errStr, Commentf(tc.source))
 		}
 	}

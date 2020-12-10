@@ -209,7 +209,38 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 
 // content validation
 
-var assetsKernelRefRE = regexp.MustCompile(`^\$kernel:([a-zA-Z0-9]+[a-zA-Z0-9-]*)/([a-zA-Z0-9/]+[a-zA-Z0-9/.-]*)$`)
+// XXX: needs to match kernel/kernel.go
+var validKernelAssetName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]*$")
+
+func splitKernelRef(kernelRef string) (asset, content string, err error) {
+	// kernel ref has format: $kernel:<asset-name>/<content-name> where
+	// asset name and content is listed in kernel.yaml, content looks like a
+	// sane path
+	if !strings.HasPrefix(kernelRef, "$kernel:") {
+		return "", "", fmt.Errorf("not a kernel ref")
+	}
+	assetAndContent := kernelRef[len("$kernel:"):]
+	idx := strings.Index(assetAndContent, "/")
+	if idx == -1 {
+		return "", "", fmt.Errorf("invalid asset and content in kernel ref %q", kernelRef)
+	}
+	asset, content = assetAndContent[:idx], assetAndContent[idx+1:]
+	nonDirContent := content
+	if strings.HasSuffix(nonDirContent, "/") {
+		// a single trailing / is allowed to indicate all content under directory
+		nonDirContent = strings.TrimSuffix(nonDirContent, "/")
+	}
+	if len(asset) == 0 || len(content) == 0 {
+		return "", "", fmt.Errorf("missing asset name or content in kernel ref %q", kernelRef)
+	}
+	if filepath.Clean(nonDirContent) != nonDirContent || strings.Contains(content, "..") || nonDirContent == "/" {
+		return "", "", fmt.Errorf("invalid content in kernel ref %q", kernelRef)
+	}
+	if !validKernelAssetName.MatchString(asset) {
+		return "", "", fmt.Errorf("invalid asset name in kernel ref %q", kernelRef)
+	}
+	return asset, content, nil
+}
 
 func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
 	// bare structure content is checked to exist during layout
@@ -222,9 +253,8 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			if strings.HasPrefix(c.UnresolvedSource, "$kernel:") {
 				// This only validates that the ref is valid.
 				// Resolving happens with ResolveContentPaths()
-				match := assetsKernelRefRE.FindStringSubmatch(c.UnresolvedSource)
-				if match == nil {
-					return fmt.Errorf("cannot use kernel reference %q", c.UnresolvedSource)
+				if _, _, err := splitKernelRef(c.UnresolvedSource); err != nil {
+					return fmt.Errorf("cannot use kernel reference %q: %v", c.UnresolvedSource, err)
 				}
 				continue
 			}
