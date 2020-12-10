@@ -83,7 +83,7 @@ type MountedFilesystemWriter struct {
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	// TODO: remove contentDir arg
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
@@ -308,9 +308,9 @@ type mountedFilesystemUpdater struct {
 // structure, with structure content coming from provided root directory. The
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
-func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
+func newMountedFilesystemUpdater(ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
 	// avoid passing observer, writes will not be observed
-	fw, err := NewMountedFilesystemWriter(rootDir, ps, nil)
+	fw, err := NewMountedFilesystemWriter(ps, nil)
 	if err != nil {
 		return nil, err
 	}
