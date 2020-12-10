@@ -128,7 +128,7 @@ func ensureVolumeRuleConsistencyNoConstraints(state *validationState) error {
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", implicitSystemDataLabel, state.SystemData.Label)
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -166,7 +166,7 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 		if !wantsSystemSeed(model) {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -193,7 +193,7 @@ func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	return ensureVolumeRuleConsistencyWithConstraints(state, model)
 }
 
-func ensureSeedDataLabelsUnset(state *validationState) error {
+func checkSeedDataImplicitLabels(state *validationState) error {
 	if err := checkImplicitLabel(SystemData, state.SystemData, ubuntuDataLabel); err != nil {
 		return err
 	}
