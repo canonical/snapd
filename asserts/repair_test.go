@@ -228,13 +228,19 @@ func (s *repairSuite) TestDecodeModesAndBases(c *C) {
 			comment: "core20 base with single invalid mode",
 			bases:   []string{"core20"},
 			modes:   []string{"not-a-real-uc20-mode"},
-			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run, recover and install\)`,
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run and recover\)`,
 		},
 		{
 			comment: "core20 base with invalid modes",
 			bases:   []string{"core20"},
 			modes:   []string{"run", "not-a-real-uc20-mode"},
-			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run, recover and install\)`,
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run and recover\)`,
+		},
+		{
+			comment: "core20 base with install mode",
+			bases:   []string{"core20"},
+			modes:   []string{"install"},
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"install\" \(valid values are run and recover\)`,
 		},
 
 		// happy uc18/uc16 cases
@@ -262,9 +268,23 @@ func (s *repairSuite) TestDecodeModesAndBases(c *C) {
 			modes:   []string{"run"},
 			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases",
 		},
+		{
+			comment: "core16 base with non-empty modes",
+			bases:   []string{"core16"},
+			modes:   []string{"run"},
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases",
+		},
+
+		// unhappy non-core specific cases
+		{
+			comment: "invalid snap name as base",
+			bases:   []string{"foo....bar"},
+			err:     "assertion repair: cannot use \"foo....bar\" as element in \"bases\": invalid snap name: \"foo....bar\"",
+		},
 	}
 
 	for _, t := range tt {
+		comment := Commentf(t.comment)
 		repairStr := strings.Replace(repairExample, "MODELSLINE", s.modelsLine, 1)
 		repairStr = strings.Replace(repairStr, "TSLINE", s.tsLine, 1)
 
@@ -287,14 +307,14 @@ func (s *repairSuite) TestDecodeModesAndBases(c *C) {
 
 		assert, err := asserts.Decode([]byte(repairStr))
 		if t.err != "" {
-			c.Assert(err, ErrorMatches, t.err)
+			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 			repair, ok := assert.(*asserts.Repair)
-			c.Assert(ok, Equals, true)
+			c.Assert(ok, Equals, true, comment)
 
-			c.Assert(repair.Bases(), DeepEquals, t.expbases)
-			c.Assert(repair.Modes(), DeepEquals, t.expmodes)
+			c.Assert(repair.Bases(), DeepEquals, t.expbases, comment)
+			c.Assert(repair.Modes(), DeepEquals, t.expmodes, comment)
 		}
 	}
 }

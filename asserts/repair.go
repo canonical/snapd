@@ -21,10 +21,10 @@ package asserts
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -162,25 +162,33 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// verify that modes is a list of only "run", "recover" and "install"
+	// validate that all base snap names are valid snap names
+	for _, b := range bases {
+		if err := naming.ValidateSnap(b); err != nil {
+			return nil, fmt.Errorf("cannot use %q as element in \"bases\": %v", b, err)
+		}
+	}
+
+	// verify that modes is a list of only "run" and "recover"
 	if len(modes) != 0 {
 		for _, m := range modes {
 			// note we could import boot here to use i.e. boot.ModeRun, but that
 			// might make import cycles happen some day if boot needs to use
 			// the asserts package for some odd reason, so instead just use the
 			// values directly, they're unlikely to change now
-			if !strutil.ListContains([]string{"run", "recover", "install"}, m) {
-				return nil, fmt.Errorf("header \"modes\" contains an invalid element: %q (valid values are run, recover and install)", m)
+			if !strutil.ListContains([]string{"run", "recover"}, m) {
+				return nil, fmt.Errorf("header \"modes\" contains an invalid element: %q (valid values are run and recover)", m)
 			}
 		}
 
 		// if modes is non-empty, then bases must be core2X, i.e. core20+
+		// however, we don't know what future bases could be UC20-like and named
+		// differently yet, so we just fail on bases that we know as of today
+		// are _not_ UC20: core and core18
 
-		// TODO: we should have a more centralized helper for identifying core2X
-		//       snaps to make it easier to add new base snaps
-		uc20AndUpBaseSnapRegexp := regexp.MustCompile(`^core2(0|2)$`)
 		for _, b := range bases {
-			if !uc20AndUpBaseSnapRegexp.MatchString(b) {
+			// fail on uc16 and uc18 base snaps
+			if b == "core" || b == "core18" || b == "core16" {
 				return nil, fmt.Errorf("in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases")
 			}
 		}
