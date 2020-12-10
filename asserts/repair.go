@@ -165,17 +165,17 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	// validate that all base snap names are valid snap names
 	for _, b := range bases {
 		if err := naming.ValidateSnap(b); err != nil {
-			return nil, fmt.Errorf("cannot use %q as element in \"bases\": %v", b, err)
+			return nil, fmt.Errorf("invalid snap name %q in \"bases\"", b)
 		}
 	}
 
 	// verify that modes is a list of only "run" and "recover"
 	if len(modes) != 0 {
 		for _, m := range modes {
-			// note we could import boot here to use i.e. boot.ModeRun, but that
-			// might make import cycles happen some day if boot needs to use
-			// the asserts package for some odd reason, so instead just use the
-			// values directly, they're unlikely to change now
+			// note that we could import boot here to use i.e. boot.ModeRun, but
+			// that is rather a heavy package considering that this package is
+			// used in many places, so instead just use the values directly,
+			// they're unlikely to change now
 			if !strutil.ListContains([]string{"run", "recover"}, m) {
 				return nil, fmt.Errorf("header \"modes\" contains an invalid element: %q (valid values are run and recover)", m)
 			}
@@ -189,7 +189,7 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		for _, b := range bases {
 			// fail on uc16 and uc18 base snaps
 			if b == "core" || b == "core18" || b == "core16" {
-				return nil, fmt.Errorf("in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases")
+				return nil, fmt.Errorf("in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes")
 			}
 		}
 	}

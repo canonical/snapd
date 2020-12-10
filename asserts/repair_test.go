@@ -260,26 +260,26 @@ func (s *repairSuite) TestDecodeModesAndBases(c *C) {
 			comment: "core18 base with non-empty modes",
 			bases:   []string{"core18"},
 			modes:   []string{"run"},
-			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases",
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
 		},
 		{
 			comment: "core base with non-empty modes",
 			bases:   []string{"core"},
 			modes:   []string{"run"},
-			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases",
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
 		},
 		{
 			comment: "core16 base with non-empty modes",
 			bases:   []string{"core16"},
 			modes:   []string{"run"},
-			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting Ubuntu Core 20 boot bases",
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
 		},
 
 		// unhappy non-core specific cases
 		{
 			comment: "invalid snap name as base",
 			bases:   []string{"foo....bar"},
-			err:     "assertion repair: cannot use \"foo....bar\" as element in \"bases\": invalid snap name: \"foo....bar\"",
+			err:     "assertion repair: invalid snap name \"foo....bar\" in \"bases\"",
 		},
 	}
 
