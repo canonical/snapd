@@ -16,9 +16,7 @@ restore: |
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
-        umount "${LOOP}p3"
-        umount "${LOOP}p4"
-        umount "${LOOP}p5"
+        umount "${LOOP}p2"
     fi
 
 prepare: |

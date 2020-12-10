@@ -195,12 +195,12 @@ type VolumeContent struct {
 }
 
 func (vc VolumeContent) ResolvedSource() string {
-	// TODO: ensure that sources are always resolved and only return
-	//       vc.resolvedSource(). This will come in the next PR.
-	if vc.resolvedSource != "" {
-		return vc.resolvedSource
+	// TODO: this is only needed so that
+	// validateGadgetTestSuite.TestValidateFilesystemContent works
+	if vc.resolvedSource == "" {
+		return vc.UnresolvedSource
 	}
-	return vc.UnresolvedSource
+	return vc.resolvedSource
 }
 
 func (vc VolumeContent) String() string {
