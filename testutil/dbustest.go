@@ -22,8 +22,10 @@ package testutil
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/godbus/dbus"
 
@@ -58,6 +60,21 @@ type DBusTest struct {
 	SessionBus *dbus.Conn
 }
 
+const sessionBusConfigTemplate = `<busconfig>
+  <type>session</type>
+  <listen>unix:path=%s/user_bus_socket</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <!-- Allow everything to be sent -->
+    <allow send_destination="*" eavesdrop="true"/>
+    <!-- Allow everything to be received -->
+    <allow eavesdrop="true"/>
+    <!-- Allow anyone to own anything -->
+    <allow own="*"/>
+  </policy>
+</busconfig>
+`
+
 func (s *DBusTest) SetUpSuite(c *C) {
 	if _, err := exec.LookPath("dbus-daemon"); err != nil {
 		c.Skip(fmt.Sprintf("cannot run test without dbus-daemon: %s", err))
@@ -69,7 +86,11 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	}
 
 	s.tmpdir = c.MkDir()
-	s.dbusDaemon = exec.Command("dbus-daemon", "--session", "--print-address", fmt.Sprintf("--address=unix:path=%s/user_bus_socket", s.tmpdir))
+	configFile := filepath.Join(s.tmpdir, "session.conf")
+	err := ioutil.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644)
+	c.Assert(err, IsNil)
+	s.dbusDaemon = exec.Command("dbus-daemon", "--print-address", fmt.Sprintf("--config-file=%s", configFile))
+	s.dbusDaemon.Stderr = os.Stderr
 	pout, err := s.dbusDaemon.StdoutPipe()
 	c.Assert(err, IsNil)
 	err = s.dbusDaemon.Start()
