@@ -1356,7 +1356,7 @@ volumes:
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
-								{Source: "foo-content", Target: "/"},
+								{UnresolvedSource: "foo-content", Target: "/"},
 							},
 						}, {
 							Name: "bare-one",
@@ -1383,7 +1383,7 @@ volumes:
 							Size:       10 * quantity.SizeMiB,
 							Filesystem: "ext4",
 							Content: []gadget.VolumeContent{
-								{Source: "new-foo-content", Target: "/"},
+								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
 						}, {
 							Name: "bare-one",

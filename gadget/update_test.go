@@ -624,7 +624,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
-			{Source: "/second-content", Target: "/"},
+			{UnresolvedSource: "/second-content", Target: "/"},
 		},
 	}
 	lastStruct := gadget.VolumeStructure{
@@ -632,7 +632,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
-			{Source: "/third-content", Target: "/"},
+			{UnresolvedSource: "/third-content", Target: "/"},
 		},
 	}
 	// start with identical data for new and old infos, they get updated by
@@ -731,7 +731,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.StartOffset, Equals, (1+5)*quantity.SizeMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].Source, Equals, "/second-content")
+			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
 			c.Check(ps.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
@@ -926,7 +926,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		Filesystem: "ext4",
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
-			{Source: "/", Target: "/"},
+			{UnresolvedSource: "/", Target: "/"},
 		},
 		Update: gadget.VolumeUpdate{Edition: 5},
 	}

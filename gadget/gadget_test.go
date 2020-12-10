@@ -648,14 +648,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 						Filesystem:  "vfat",
 						Content: []gadget.VolumeContent{
 							{
-								Source: "subdir/",
-								Target: "/",
-								Unpack: false,
+								UnresolvedSource: "subdir/",
+								Target:           "/",
+								Unpack:           false,
 							},
 							{
-								Source: "foo",
-								Target: "/",
-								Unpack: false,
+								UnresolvedSource: "foo",
+								Target:           "/",
+								Unpack:           false,
 							},
 						},
 					},
@@ -687,8 +687,8 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Type:       "0C",
 						Content: []gadget.VolumeContent{
 							{
-								Source: "splash.bmp",
-								Target: ".",
+								UnresolvedSource: "splash.bmp",
+								Target:           ".",
 							},
 						},
 					},
@@ -822,9 +822,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 						Type:        "0C",
 						Filesystem:  "vfat",
 						Content: []gadget.VolumeContent{{
-							Source: "subdir/",
-							Target: "/",
-							Unpack: false,
+							UnresolvedSource: "subdir/",
+							Target:           "/",
+							Unpack:           false,
 						}},
 						Update: gadget.VolumeUpdate{
 							Edition: 5,
@@ -1296,7 +1296,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 
 	err = gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{Source: "foo"}}},
+			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
 	}, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
