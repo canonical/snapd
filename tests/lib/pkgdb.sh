@@ -440,7 +440,7 @@ distro_install_build_snapd(){
                 ;;
         esac
 
-        if os.query is-arch; then
+        if os.query is-arch-linux; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
