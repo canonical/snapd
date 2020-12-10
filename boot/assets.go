@@ -355,7 +355,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	}
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
-	var trackTrustedAssets bool
+	trackTrustedAssets := false
 	if _, err := sealedKeysMethod(dirs.GlobalRootDir); err == nil {
 		trackTrustedAssets = true
 	}
