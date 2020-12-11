@@ -2874,6 +2874,9 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 
 	m := &boot.Modeenv{
 		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -2914,6 +2917,9 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyWithReseal(c *C) {
 	m := &boot.Modeenv{
 		Mode:           "run",
 		CurrentKernels: []string{"pc-kernel_500.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"hash-1"},
 		},
@@ -2962,7 +2968,9 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 
 	m := &boot.Modeenv{
 		Mode: "run",
-		// XXX: CurrentKernelCommandLines should be set?
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run mocked unchanged panic=-1",
+		},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -2981,7 +2989,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Assert(m2.CurrentKernelCommandLines, HasLen, 0)
+	c.Assert(m2.CurrentKernelCommandLines, HasLen, 1)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
@@ -3008,6 +3016,9 @@ func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
 
 	m := &boot.Modeenv{
 		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3031,7 +3042,11 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run unexpected cmdline")
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev)
-	c.Assert(err, ErrorMatches, `internal error: unexpected current kernel command line content: "snapd_recovery_mode=run unexpected cmdline" expected: "snapd_recovery_mode=run this is mocked panic=-1"`)
+	c.Assert(err, ErrorMatches, `internal error: current kernel command lines is unset`)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 }

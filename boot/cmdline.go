@@ -256,19 +256,12 @@ func observeCommandLineUpdate(model *asserts.Model) error {
 		return err
 	}
 
-	cmdlineBootedWith, err := osutil.KernelCommandLine()
-	if err != nil {
-		return err
+	if len(m.CurrentKernelCommandLines) == 0 {
+		return fmt.Errorf("internal error: current kernel command lines is unset")
 	}
-	// this is the current expected command line
-	cmdline, err := ComposeCommandLine(model)
-	if err != nil {
-		return err
-	}
-	if cmdline != cmdlineBootedWith {
-		return fmt.Errorf("internal error: unexpected current kernel command line content: %q expected: %q",
-			cmdlineBootedWith, cmdline)
-	}
+	// this is the current expected command line which was recorded by
+	// bootstate
+	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
 	candidateCmdline, err := ComposeCandidateCommandLine(model)
 	if err != nil {
