@@ -188,11 +188,34 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
-// LockTPMSealedKeys manually locks access to the sealed keys. Meant to be
+// LockSealedKeys manually locks access to the sealed keys. Meant to be
 // called in place of passing lockKeysOnFinish as true to
 // UnlockVolumeUsingSealedKeyIfEncrypted for cases where we don't know if a
 // given call is the last one to unlock a volume like in degraded recover mode.
-func LockTPMSealedKeys() error {
+func LockSealedKeys() error {
+	if FDEHasRevealKey() {
+		return lockFDERevealSealedKeys()
+	}
+	return lockTPMSealedKeys()
+}
+
+func lockFDERevealSealedKeys() error {
+	buf, err := json.Marshal(FDERevealKeyRequest{
+		Op: "lock",
+	})
+	if err != nil {
+		return fmt.Errorf(`cannot build request for fde-reveal-key "lock": %v`, err)
+	}
+	cmd := fdeRevealKeyCommand()
+	cmd.Stdin = bytes.NewReader(buf)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf(`cannot run fde-reveal-key "lock": %v`, osutil.OutputErr(output, err))
+	}
+	return nil
+}
+
+func lockTPMSealedKeys() error {
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
 		if xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
@@ -282,8 +305,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 type FDERevealKeyRequest struct {
 	Op string `json:"op"`
 
-	SealedKey []byte `json:"sealed-key"`
-	KeyName   string `json:"key-name"`
+	SealedKey []byte `json:"sealed-key,omitempty"`
+	KeyName   string `json:"key-name,omitempty"`
 
 	// TODO: add VolumeName,SourceDevicePath later
 }

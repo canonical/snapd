@@ -1248,3 +1248,31 @@ printf "unsealed-key-from-hook"
 	})
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
 }
+
+func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
+	// this test uses a real systemd-run --user so check here if that
+	// actually works
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+	}
+
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+`, fdeRevealKeyStdin))
+	defer mockSystemdRun.Restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-reveal-key"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, `{"op":"lock"}`)
+}
