@@ -181,3 +181,11 @@ func MockRunFDESetupHook(f func(string, *FDESetupHookParams) ([]byte, error)) (r
 	RunFDESetupHook = f
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }
+
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Modeenv, bool) error) (restore func()) {
+	old := resealKeyToModeenvUsingFDESetupHook
+	resealKeyToModeenvUsingFDESetupHook = f
+	return func() {
+		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
