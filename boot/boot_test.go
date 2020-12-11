@@ -3047,6 +3047,39 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 }
 
+func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	bl := bootloadertest.Mock("not-managed", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	bootloader.ForceError(errors.New("mocked find error"))
+	defer bootloader.ForceError(nil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, ErrorMatches, "internal error: cannot find trusted assets bootloader under .*: mocked find error")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 }
