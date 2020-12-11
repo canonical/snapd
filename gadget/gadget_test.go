@@ -1023,7 +1023,7 @@ func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 
 func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
 	vs := mustParseStructureNoImplicit(c, s)
-	gadget.SetImplicitForVolumeStructure(vs, 0)
+	gadget.SetImplicitForVolumeStructure(vs, 0, make(map[string]bool))
 	return vs
 }
 
@@ -1168,7 +1168,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume("name", &gadget.Volume{Schema: tc.s}, nil)
+		err := gadget.ValidateVolume("name", &gadget.Volume{Schema: tc.s}, nil, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1198,7 +1198,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(tc.s, &gadget.Volume{}, nil)
+		err := gadget.ValidateVolume(tc.s, &gadget.Volume{}, nil, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1213,7 +1213,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 			{Name: "duplicate", Type: "bare", Size: 1024},
 			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
@@ -1223,7 +1223,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
 
 	// writable isn't special
@@ -1255,7 +1255,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 					Type:  "21686148-6449-6E6F-744E-656564454649",
 					Size:  quantity.SizeMiB,
 				}},
-			}, constraints)
+			}, constraints, nil)
 			c.Assert(err, ErrorMatches, x.errMsg)
 		}
 	}
@@ -1273,7 +1273,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			Size:  quantity.SizeMiB,
 		}},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
 }
 
@@ -1283,7 +1283,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume("name", &gadget.Volume{
@@ -1291,14 +1291,14 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024, Name: "foo"},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
@@ -1901,6 +1901,68 @@ volumes:
 			c.Check(vs.Label, Equals, t.fsLabel)
 		}
 		c.Check(foundStruct, Equals, true)
+	}
+}
+
+func (s *validateGadgetTestSuite) TestGadgetImplicitFSLabelDuplicate(c *C) {
+	const pcYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 50M
+      - name: data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+        role: system-data
+`
+
+	tests := []struct {
+		yaml  string
+		label string
+		mod   gadget.Model
+		err   string
+	}{
+		{pcYaml, "foo", coreConstraints, ""},
+		{pcYaml, "writable", coreConstraints, `.*: filesystem label "writable" is implied by system-data role but was already set elsewhere`},
+		{pcYaml, "writable", nil, ""},
+		{string(gadgetYamlUC20PC), "ubuntu-data", nil, ""},
+		{string(gadgetYamlUC20PC), "ubuntu-data", uc20Constraints, `.*: filesystem label "ubuntu-data" is implied by system-data role but was already set elsewhere`},
+		{string(gadgetYamlUC20PC), "ubuntu-save", uc20Constraints, `.*: filesystem label "ubuntu-save" is implied by system-save role but was already set elsewhere`},
+		{string(gadgetYamlUC20PC), "ubuntu-seed", uc20Constraints, `.*: filesystem label "ubuntu-seed" is implied by system-seed role but was already set elsewhere`},
+		{string(gadgetYamlUC20PC), "ubuntu-boot", uc20Constraints, `.*: filesystem label "ubuntu-boot" is implied by system-boot role but was already set elsewhere`},
+	}
+
+	for _, t := range tests {
+		dup := fmt.Sprintf(`
+      - name: dup
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        filesystem-label: %s
+        size: 1M
+
+`, t.label)
+
+		yaml := strings.TrimSpace(t.yaml) + dup
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), t.mod)
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
 	}
 }
 

@@ -338,8 +338,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 
 	// basic validation
 	var bootloadersFound int
+	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, v, model); err != nil {
+		if err := validateVolume(name, v, model, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -360,15 +361,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	}
 
 	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(name, v, model); err != nil {
+		if err := setImplicitForVolume(name, v, model, knownFsLabelsPerVolume[name]); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
-
-	/*// XXX non-basic validation, should be done optionally/separately
-	if err := ruleValidateVolumes(gi.Volumes, model); err != nil {
-		return nil, err
-	}*/
 
 	return &gi, nil
 }
@@ -391,21 +387,21 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setImplicitForVolume(name string, vol *Volume, model Model) error {
+func setImplicitForVolume(name string, vol *Volume, model Model, knownFsLabels map[string]bool) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
 	for i := range vol.Structure {
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs); err != nil {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
 	if vs.Role == "" && vs.Type == schemaMBR {
 		vs.Role = schemaMBR
 		return nil
@@ -416,17 +412,25 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 		return nil
 	}
 	if vs.Label == "" {
+		var implicitLabel string
 		switch {
 		case rs == volRuleset16 && vs.Role == SystemData:
-			vs.Label = implicitSystemDataLabel
+			implicitLabel = implicitSystemDataLabel
 		case rs == volRuleset20 && vs.Role == SystemData:
-			vs.Label = ubuntuDataLabel
+			implicitLabel = ubuntuDataLabel
 		case rs == volRuleset20 && vs.Role == SystemSeed:
-			vs.Label = ubuntuSeedLabel
+			implicitLabel = ubuntuSeedLabel
 		case rs == volRuleset20 && vs.Role == SystemBoot:
-			vs.Label = ubuntuBootLabel
+			implicitLabel = ubuntuBootLabel
 		case rs == volRuleset20 && vs.Role == SystemSave:
-			vs.Label = ubuntuSaveLabel
+			implicitLabel = ubuntuSaveLabel
+		}
+		if implicitLabel != "" {
+			if knownFsLabels[implicitLabel] {
+				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
+			}
+			knownFsLabels[implicitLabel] = true
+			vs.Label = implicitLabel
 		}
 	}
 	return nil
@@ -510,7 +514,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, model Model) error {
+func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolume map[string]map[string]bool) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -524,6 +528,10 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
+
+	if knownFsLabelsPerVolume != nil {
+		knownFsLabelsPerVolume[name] = knownFsLabels
+	}
 
 	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
@@ -554,7 +562,6 @@ func validateVolume(name string, vol *Volume, model Model) error {
 			knownStructures[s.Name] = &ps
 		}
 		if s.Label != "" {
-			// XXX what about implicit labels
 			if seen := knownFsLabels[s.Label]; seen {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
