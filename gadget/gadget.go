@@ -71,6 +71,12 @@ const (
 	// of system-data role
 	implicitSystemDataLabel = "writable"
 
+	// UC20 filesystem labels for roles
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
+	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
+
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
@@ -152,15 +158,6 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
-}
-
-// EffectiveFilesystemLabel returns the effective filesystem label, either
-// explicitly provided or implied by the structure's role
-func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.Role == SystemData {
-		return implicitSystemDataLabel
-	}
-	return vs.Label
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -415,6 +412,20 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 		// legacy behavior, for gadgets that only specify a filesystem-label, eg. pc
 		vs.Role = SystemBoot
 		return nil
+	}
+	if vs.Label == "" {
+		switch {
+		case rs == volRuleset16 && vs.Role == SystemData:
+			vs.Label = implicitSystemDataLabel
+		case rs == volRuleset20 && vs.Role == SystemData:
+			vs.Label = ubuntuDataLabel
+		case rs == volRuleset20 && vs.Role == SystemSeed:
+			vs.Label = ubuntuSeedLabel
+		case rs == volRuleset20 && vs.Role == SystemBoot:
+			vs.Label = ubuntuBootLabel
+		case rs == volRuleset20 && vs.Role == SystemSave:
+			vs.Label = ubuntuSaveLabel
+		}
 	}
 	return nil
 }
@@ -864,10 +875,10 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, nil)
+func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
 	}
