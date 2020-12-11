@@ -28,6 +28,7 @@ import (
 
 var (
 	EFIImageFromBootFile = efiImageFromBootFile
+	LockTPMSealedKeys    = lockTPMSealedKeys
 )
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {

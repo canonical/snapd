@@ -53,7 +53,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	if options.Encrypt {
@@ -63,7 +63,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	lv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
