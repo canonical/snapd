@@ -993,6 +993,14 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	})
 	defer restore()
 
+	// TODO: this simulates that the hook is not available yet
+	//       because of e.g. seeding. Longer term there will be
+	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
+	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+		return false, fmt.Errorf("hook may not available yet because e.g. seeding")
+	})
+	defer restore()
+
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	err := os.MkdirAll(filepath.Dir(marker), 0755)
 	c.Assert(err, IsNil)
