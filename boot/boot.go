@@ -402,7 +402,7 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices use managed boot config
-		return false, ErrUnsupportedSystemMode
+		return false, nil
 	}
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")

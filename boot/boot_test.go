@@ -2984,11 +2984,11 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 	c.Assert(m2.CurrentKernelCommandLines, HasLen, 0)
 }
 
-func (s *bootConfigSuite) TestBootConfigUpdateNonUC20Err(c *C) {
+func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 	nonUC20coreDev := boottest.MockDevice("pc-kernel")
 	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
 	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev)
-	c.Assert(err, Equals, boot.ErrUnsupportedSystemMode)
+	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 }
