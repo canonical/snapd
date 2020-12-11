@@ -80,6 +80,9 @@ func runFdeRevealKey() error {
 		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
 		// nothing right now
+	case "features":
+		// XXX: Not used right now but might in the future?
+		fmt.Fprintf(os.Stdout, "[]")
 	default:
 		return fmt.Errorf(`unsupported operations %q`, js.Op)
 	}
