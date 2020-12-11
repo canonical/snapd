@@ -34,7 +34,7 @@ var (
 var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 )
@@ -201,7 +201,7 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	return oldV, newV, nil
 }
 
-func isSameOffset(one *quantity.Size, two *quantity.Size) bool {
+func isSameOffset(one *quantity.Offset, two *quantity.Offset) bool {
 	if one == nil && two == nil {
 		return true
 	}

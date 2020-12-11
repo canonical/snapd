@@ -612,9 +612,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	})
 }
 
-func asSizePtr(size quantity.Size) *quantity.Size {
-	gsz := quantity.Size(size)
-	return &gsz
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
@@ -641,7 +641,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 					{
 						Label:       "system-boot",
 						Role:        "system-boot", // implicit
-						Offset:      asSizePtr(12345),
+						Offset:      asOffsetPtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -709,7 +709,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:   "u-boot",
 						Type:   "bare",
 						Size:   623000,
-						Offset: asSizePtr(0),
+						Offset: asOffsetPtr(0),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -816,7 +816,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 					{
 						Label:       "system-boot",
 						Role:        "system-boot", // implicit
-						Offset:      asSizePtr(12345),
+						Offset:      asOffsetPtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -867,19 +867,19 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		err string
 	}{
 		{"1234", &gadget.RelativeOffset{Offset: 1234}, ""},
-		{"1234M", &gadget.RelativeOffset{Offset: 1234 * quantity.SizeMiB}, ""},
-		{"4096M", &gadget.RelativeOffset{Offset: 4096 * quantity.SizeMiB}, ""},
+		{"1234M", &gadget.RelativeOffset{Offset: 1234 * quantity.OffsetMiB}, ""},
+		{"4096M", &gadget.RelativeOffset{Offset: 4096 * quantity.OffsetMiB}, ""},
 		{"0", &gadget.RelativeOffset{}, ""},
 		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
-		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * quantity.SizeMiB}, ""},
-		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * quantity.SizeGiB}, ""},
-		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * quantity.SizeGiB}, ""},
+		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * quantity.OffsetMiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024 * quantity.OffsetMiB}, ""},
+		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024 * quantity.OffsetMiB}, ""},
 		{"foo+4097M", nil, `cannot parse relative offset "foo\+4097M": offset above 4G limit`},
 		{"foo+", nil, `cannot parse relative offset "foo\+": missing offset`},
 		{"foo+++12", nil, `cannot parse relative offset "foo\+\+\+12": cannot parse offset "\+\+12": .*`},
 		{"+12", nil, `cannot parse relative offset "\+12": missing volume name`},
 		{"a0M", nil, `cannot parse relative offset "a0M": cannot parse offset "a0M": no numerical prefix.*`},
-		{"-123", nil, `cannot parse relative offset "-123": cannot parse offset "-123": size cannot be negative`},
+		{"-123", nil, `cannot parse relative offset "-123": cannot parse offset "-123": offset cannot be negative`},
 		{"123a", nil, `cannot parse relative offset "123a": cannot parse offset "123a": invalid suffix "a"`},
 	} {
 		c.Logf("tc: %v", i)

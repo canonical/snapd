@@ -112,7 +112,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 //
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs quantity.Size, err error) {
+func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs quantity.Offset, err error) {
 	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}

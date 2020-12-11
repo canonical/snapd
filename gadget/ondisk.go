@@ -199,7 +199,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		ds[i] = OnDiskStructure{
 			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     quantity.Size(p.Start) * sectorSize,
+				StartOffset:     quantity.Offset(p.Start) * quantity.Offset(sectorSize),
 				Index:           i + 1,
 			},
 			Node: p.Node,
@@ -249,9 +249,9 @@ func deviceName(name string, index int) string {
 // list of the partitions to be created.
 func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
 	// Keep track what partitions we already have on disk
-	seen := map[quantity.Size]bool{}
+	seen := map[quantity.Offset]bool{}
 	for _, s := range dl.Structure {
-		start := s.StartOffset / sectorSize
+		start := s.StartOffset / quantity.Offset(sectorSize)
 		seen[start] = true
 	}
 
@@ -278,7 +278,7 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		s := p.VolumeStructure
 
 		// Skip partitions that are already in the volume
-		start := p.StartOffset / sectorSize
+		start := p.StartOffset / quantity.Offset(sectorSize)
 		if seen[start] {
 			continue
 		}
@@ -293,8 +293,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 
 		// Check if the data partition should be expanded
 		size := s.Size
-		if s.Role == SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
-			size = dl.Size - p.StartOffset
+		if s.Role == SystemData && canExpandData && quantity.Size(p.StartOffset)+s.Size < dl.Size {
+			size = dl.Size - quantity.Size(p.StartOffset)
 		}
 
 		// Can we use the index here? Get the largest existing partition number and
@@ -302,7 +302,8 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		// (can this actually happen in our images?)
 		node := deviceName(dl.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name)
+			p.StartOffset/quantity.Offset(sectorSize), size/sectorSize, ptype, s.Name)
+
 		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,
