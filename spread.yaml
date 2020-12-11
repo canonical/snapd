@@ -104,7 +104,9 @@ backends:
                   secureboot: true
             - ubuntu-20.10-64:
                   workers: 8
-                  image: ubuntu-20.10-64
+            - ubuntu-21.04-64:
+                  workers: 8
+                  image: ubuntu-os-cloud-devel/ubuntu-2104
 
             - debian-9-64:
                   workers: 6
