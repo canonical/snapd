@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,8 @@
  *
  */
 
-package gadget
+package daemon
 
-import (
-	"errors"
-
-	"github.com/snapcore/snapd/gadget/quantity"
+var (
+	TrySnap = trySnap
 )
-
-var errNotImplemented = errors.New("not implemented")
-
-func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
-}
-
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (string, quantity.Offset, error) {
-	return "", 0, errNotImplemented
-}
-
-func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
-}
