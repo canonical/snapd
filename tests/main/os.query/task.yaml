@@ -1,12 +1,12 @@
 summary: smoke test for the system-state tool
 
 execute: |
-
     # Check help
     os.query | MATCH "usage: is-core, is-classic"
     os.query -h | MATCH "usage: is-core, is-classic"
     os.query --help | MATCH "usage: is-core, is-classic"
 
+    # Validate the ubuntu systems
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
             os.query is-core
@@ -57,8 +57,16 @@ execute: |
             not os.query is-core
             os.query is-ubuntu
             ;;
-        ubuntu-2*)
+        ubuntu-20.10-*)
             os.query is-classic
+            os.query is-groovy
+            not os.query is-focal
+            not os.query is-core
+            os.query is-ubuntu
+            ;;
+        ubuntu-21.04-*)
+            os.query is-classic
+            os.query is-hirsute
             not os.query is-focal
             not os.query is-core
             os.query is-ubuntu
@@ -71,6 +79,27 @@ execute: |
             ;;
     esac
 
+    # Validate the architecture queries
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-*-arm-32*)
+            os.query is-arm
+            os.query is-armhf
+        ;;
+        ubuntu-core-*-arm-64*)
+            os.query is-arm
+            os.query is-arm64
+        ;;
+        ubuntu-*-32)
+            os.query is-pc-i386
+            not os.query is-arm
+        ;;
+        *)
+            os.query is-pc-amd64
+            not os.query is-arm
+        ;;
+    esac
+
+    # Validate the other systems
     case "$SPREAD_SYSTEM" in
         fedora-*)
             os.query is-fedora
@@ -89,5 +118,15 @@ execute: |
             ;;
         centos-*)
             os.query is-centos
+            ;;
+    esac
+
+    # Validate the other sub systems
+    case "$SPREAD_SYSTEM" in
+        opensuse-tumbleweed-*)
+            os.query is-opensuse-tumbleweed
+            ;;
+        debian-sid-*)
+            os.query is-debian-sid
             ;;
     esac
