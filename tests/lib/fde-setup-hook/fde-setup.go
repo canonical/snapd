@@ -44,7 +44,7 @@ func runFdeSetup() error {
 	switch js.Op {
 	case "features":
 		// no special features supported by this hook
-		fdeSetupResult = []byte("[]")
+		fdeSetupResult = []byte(`{"features":[]}`)
 	case "initial-setup":
 		// "seal"
 		fdeSetupResult = xor13(js.Key)
@@ -82,7 +82,7 @@ func runFdeRevealKey() error {
 		// nothing right now
 	case "features":
 		// XXX: Not used right now but might in the future?
-		fmt.Fprintf(os.Stdout, "[]")
+		fmt.Fprintf(os.Stdout, `{"features":[]}`)
 	default:
 		return fmt.Errorf(`unsupported operations %q`, js.Op)
 	}
