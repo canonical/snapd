@@ -283,3 +283,19 @@ func observeCommandLineUpdate(model *asserts.Model) error {
 	}
 	return nil
 }
+
+// kernelCommandLinesForResealWithFallback provides the list of kernel command
+// lines for use during reseal. During normal operation, the command lines will
+// be listed in the modeenv.
+func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Modeenv) (cmdlines []string, err error) {
+	if len(modeenv.CurrentKernelCommandLines) > 0 {
+		return modeenv.CurrentKernelCommandLines, nil
+	}
+	// fallback for when reseal is called before mark boot successful set a
+	// default during snapd update
+	cmdline, err := ComposeCommandLine(model)
+	if err != nil {
+		return nil, err
+	}
+	return []string{cmdline}, nil
+}
