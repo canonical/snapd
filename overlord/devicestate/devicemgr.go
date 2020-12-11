@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1380,19 +1381,6 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
 
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
-}
-
-func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
-	// TODO: run the fde-setup hook with "op":"features".  If the
-	//       hooks returns any {"features":} reply we consider the
-	//       hardware supported. If the hook errors or if it
-	//       returns {"error":"hardware-unsupported"} we don't.
-	return nil
-}
-
 func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	// TODO:UC20: when this runs on refresh we need to be very careful
 	// that we never run this when the kernel is not fully configured
@@ -1451,6 +1439,39 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 
 	return hookResult, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	if err != nil {
+		return err
+	}
+
+	// first check for an error
+	var errRes struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(output, &errRes); err == nil && errRes.Error != "" {
+		return fmt.Errorf("cannot use hook, it returned error: %v", errRes.Error)
+	}
+	// then check  for features, any feature reply is considered good
+	var featuresRes struct {
+		Features []string `json:"features"`
+	}
+	if err := json.Unmarshal(output, &featuresRes); err == nil {
+		return nil
+	}
+	// unexpected result are an error
+	return fmt.Errorf("cannot parse hook output: %q", string(output))
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
 }
 
 type fdeSetupHandler struct {
