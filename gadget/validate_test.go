@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,9 +88,9 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 
 		// we have the system-seed role
 		{state(true, ""), ""},
-		{state(true, "foobar"), "system-data structure must not have a label"},
-		{state(true, "writable"), "system-data structure must not have a label"},
-		{state(true, "ubuntu-data"), "system-data structure must not have a label"},
+		{state(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
+		{state(true, "writable"), `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{state(true, "ubuntu-data"), ""},
 
 		// we don't have the system-seed role (old systems)
 		{state(false, ""), ""}, // implicit is ok
@@ -102,7 +102,7 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 
 		err := gadget.EnsureVolumeRuleConsistency(tc.s, nil)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -114,15 +114,15 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 		err string
 	}{
 		{"", ""},
-		{"foobar", "system-seed structure must not have a label"},
-		{"ubuntu-seed", "system-seed structure must not have a label"},
+		{"foobar", `system-seed structure must have an implicit label or "ubuntu-seed", not "foobar"`},
+		{"ubuntu-seed", ""},
 	} {
 		c.Logf("tc: %v %v", i, tc.l)
 		s := state(true, "")
 		s.SystemSeed.Label = tc.l
 		err := gadget.EnsureVolumeRuleConsistency(s, nil)
 		if tc.err != "" {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -147,7 +147,7 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 	// use illegal label on system-save
 	vsWithSave.SystemSave.Label = "foo"
 	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
-	c.Assert(err, ErrorMatches, "system-save structure must not have a label")
+	c.Assert(err, ErrorMatches, `system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
 	// complains when either system-seed or system-data is missing
 	vsWithSave.SystemSeed = nil
 	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)

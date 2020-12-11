@@ -34,11 +34,6 @@ import (
 )
 
 const (
-	ubuntuBootLabel = "ubuntu-boot"
-	ubuntuSeedLabel = "ubuntu-seed"
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
-
 	sectorSize quantity.Size = 512
 )
 
@@ -108,8 +103,7 @@ type OnDiskVolume struct {
 	// size in bytes
 	Size quantity.Size
 	// sector size in bytes
-	SectorSize     quantity.Size
-	partitionTable *sfdiskPartitionTable
+	SectorSize quantity.Size
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -228,13 +222,12 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	}
 
 	dl := &OnDiskVolume{
-		Structure:      ds,
-		ID:             ptable.ID,
-		Device:         ptable.Device,
-		Schema:         ptable.Label,
-		Size:           numSectors * sectorSize,
-		SectorSize:     sectorSize,
-		partitionTable: &ptable,
+		Structure:  ds,
+		ID:         ptable.ID,
+		Device:     ptable.Device,
+		Schema:     ptable.Label,
+		Size:       numSectors * sectorSize,
+		SectorSize: sectorSize,
 	}
 
 	return dl, nil
@@ -255,12 +248,11 @@ func deviceName(name string, index int) string {
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
 func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
-	ptable := dl.partitionTable
-
 	// Keep track what partitions we already have on disk
-	seen := map[uint64]bool{}
-	for _, p := range ptable.Partitions {
-		seen[p.Start] = true
+	seen := map[quantity.Offset]bool{}
+	for _, s := range dl.Structure {
+		start := s.StartOffset / quantity.Offset(sectorSize)
+		seen[start] = true
 	}
 
 	// Check if the last partition has a system-data role
@@ -287,14 +279,14 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 
 		// Skip partitions that are already in the volume
 		start := p.StartOffset / quantity.Offset(sectorSize)
-		if seen[uint64(start)] {
+		if seen[start] {
 			continue
 		}
 
 		// Only allow the creation of partitions with known GUIDs
 		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(ptable.Label, p.Type)
-		if ptable.Label == "gpt" && !creationSupported(ptype) {
+		ptype := partitionType(dl.Schema, p.Type)
+		if dl.Schema == "gpt" && !creationSupported(ptype) {
 			logger.Noticef("cannot create partition with unsupported type %s", ptype)
 			continue
 		}
@@ -308,21 +300,9 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
-		node := deviceName(ptable.Device, pIndex)
+		node := deviceName(dl.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			p.StartOffset/quantity.Offset(sectorSize), size/sectorSize, ptype, s.Name)
-
-		// Set expected labels based on role
-		switch s.Role {
-		case SystemBoot:
-			s.Label = ubuntuBootLabel
-		case SystemSeed:
-			s.Label = ubuntuSeedLabel
-		case SystemData:
-			s.Label = ubuntuDataLabel
-		case SystemSave:
-			s.Label = ubuntuSaveLabel
-		}
 
 		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure: p,
@@ -335,7 +315,7 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 }
 
 // UpdatePartitionList re-reads the partitioning data from the device and
-// updates the partition list in the specified volume.
+// updates the volume structures in the specified volume.
 func UpdatePartitionList(dl *OnDiskVolume) error {
 	layout, err := OnDiskVolumeFromDevice(dl.Device)
 	if err != nil {
@@ -346,8 +326,6 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	}
 
 	dl.Structure = layout.Structure
-	dl.partitionTable = layout.partitionTable
-
 	return nil
 }
 
