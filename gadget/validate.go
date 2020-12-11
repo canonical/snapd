@@ -94,7 +94,6 @@ func ruleValidateVolume(name string, vol *Volume, model Model) error {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 
-		// XXX what about implicit roles?
 		switch s.Role {
 		case SystemSeed:
 			if state.SystemSeed != nil {

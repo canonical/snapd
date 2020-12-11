@@ -383,6 +383,57 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C) {
+	// this is consistency-wise broken because of the duplicated
+	// system-boot role, of which one is implicit
+	brokenGadgetYaml := []byte(`volumes:
+  hybrid:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+          - source: mmx64.efi
+            target: EFI/boot/mmx64.efi
+          - source: grub.cfg
+            target: EFI/ubuntu/grub.cfg
+      - name: Ubuntu Boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        filesystem: ext4
+        filesystem-label: ubuntu-boot
+        role: system-boot
+        size: 750M
+`)
+
+	constraints := &modelConstraints{
+		classic: false,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, constraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, constraints, nil)
+	c.Check(err, ErrorMatches, `invalid volume "hybrid": cannot have more than one partition with system-boot role`)
+}
+
 func (s *validateGadgetTestSuite) TestValidateContentMissingRawContent(c *C) {
 	var gadgetYamlContent = `
 volumes:
