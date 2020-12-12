@@ -69,39 +69,84 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 
 }
 
-func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
-	state := func(seed bool, label string) *gadget.ValidationState {
-		systemDataVolume := &gadget.VolumeStructure{Label: label}
-		systemSeedVolume := (*gadget.VolumeStructure)(nil)
-		if seed {
-			systemSeedVolume = &gadget.VolumeStructure{}
+// rolesYaml produces gadget metadata with volumes with structure withs the given
+// role if data, seed or save are != "-", and with their label set to the value
+func rolesYaml(c *C, data, seed, save string) *gadget.Info {
+	h := `volumes:
+  roles:
+    schema: gpt
+    bootloader: grub
+    structure:
+`
+	if data != "-" {
+		h += `
+      - name: data
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`
+		if data != "" {
+			h += fmt.Sprintf("        filesystem-label: %s\n", data)
 		}
-		return &gadget.ValidationState{
-			SystemSeed: systemSeedVolume,
-			SystemData: systemDataVolume,
+	}
+	if seed != "-" {
+		h += `
+      - name: seed
+        size: 1G
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-seed
+`
+		if seed != "" {
+			h += fmt.Sprintf("        filesystem-label: %s\n", seed)
 		}
 	}
 
+	if save != "-" {
+		h += `
+      - name: save
+        size: 32M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+`
+		if save != "" {
+			h += fmt.Sprintf("        filesystem-label: %s\n", save)
+		}
+	}
+
+	gi, err := gadget.InfoFromGadgetYaml([]byte(h), nil)
+	c.Assert(err, IsNil)
+	return gi
+}
+
+func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
+	ginfo := func(hasSeed bool, label string) *gadget.Info {
+		seed := "-"
+		if hasSeed {
+			seed = ""
+		}
+		return rolesYaml(c, label, seed, "-")
+	}
+
 	for i, tc := range []struct {
-		s   *gadget.ValidationState
+		gi  *gadget.Info
 		err string
 	}{
 
 		// we have the system-seed role
-		{state(true, ""), ""},
-		{state(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
-		{state(true, "writable"), `.* must have an implicit label or "ubuntu-data", not "writable"`},
-		{state(true, "ubuntu-data"), ""},
+		{ginfo(true, ""), ""},
+		{ginfo(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
+		{ginfo(true, "writable"), `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{ginfo(true, "ubuntu-data"), ""},
 
 		// we don't have the system-seed role (old systems)
-		{state(false, ""), ""}, // implicit is ok
-		{state(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
-		{state(false, "writable"), ""},
-		{state(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{ginfo(false, ""), ""}, // implicit is ok
+		{ginfo(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
+		{ginfo(false, "writable"), ""},
+		{ginfo(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
-		c.Logf("tc: %v %p %v", i, tc.s.SystemSeed, tc.s.SystemData.Label)
+		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
 
-		err := gadget.EnsureVolumeRuleConsistency(tc.s, nil)
+		err := gadget.Validate(tc.gi, nil, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -115,13 +160,12 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 		err string
 	}{
 		{"", ""},
-		{"foobar", `system-seed structure must have an implicit label or "ubuntu-seed", not "foobar"`},
+		{"foobar", `.* system-seed structure must have an implicit label or "ubuntu-seed", not "foobar"`},
 		{"ubuntu-seed", ""},
 	} {
 		c.Logf("tc: %v %v", i, tc.l)
-		s := state(true, "")
-		s.SystemSeed.Label = tc.l
-		err := gadget.EnsureVolumeRuleConsistency(s, nil)
+		gi := rolesYaml(c, "", tc.l, "-")
+		err := gadget.Validate(gi, nil, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -130,32 +174,28 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 	}
 
 	// Check system-seed without system-data
-	vs := &gadget.ValidationState{}
-	err := gadget.EnsureVolumeRuleConsistency(vs, nil)
+	gi := rolesYaml(c, "-", "-", "-")
+	err := gadget.Validate(gi, nil, nil)
 	c.Assert(err, IsNil)
-	vs.SystemSeed = &gadget.VolumeStructure{}
-	err = gadget.EnsureVolumeRuleConsistency(vs, nil)
-	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
+	gi = rolesYaml(c, "-", "", "-")
+	err = gadget.Validate(gi, nil, nil)
+	c.Assert(err, ErrorMatches, ".* the system-seed role requires system-data to be defined")
 
 	// Check system-save
-	vsWithSave := &gadget.ValidationState{
-		SystemData: &gadget.VolumeStructure{},
-		SystemSeed: &gadget.VolumeStructure{},
-		SystemSave: &gadget.VolumeStructure{},
-	}
-	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
+	giWithSave := rolesYaml(c, "", "", "")
+	err = gadget.Validate(giWithSave, nil, nil)
 	c.Assert(err, IsNil)
 	// use illegal label on system-save
-	vsWithSave.SystemSave.Label = "foo"
-	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
-	c.Assert(err, ErrorMatches, `system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
+	giWithSave = rolesYaml(c, "", "", "foo")
+	err = gadget.Validate(giWithSave, nil, nil)
+	c.Assert(err, ErrorMatches, `.* system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
 	// complains when either system-seed or system-data is missing
-	vsWithSave.SystemSeed = nil
-	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
-	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
-	vsWithSave.SystemData = nil
-	err = gadget.EnsureVolumeRuleConsistency(vsWithSave, nil)
-	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+	giWithSave = rolesYaml(c, "", "-", "")
+	err = gadget.Validate(giWithSave, nil, nil)
+	c.Assert(err, ErrorMatches, ".*system-save requires system-seed and system-data structures")
+	giWithSave = rolesYaml(c, "-", "-", "")
+	err = gadget.Validate(giWithSave, nil, nil)
+	c.Assert(err, ErrorMatches, ".* system-save requires system-seed and system-data structures")
 }
 
 func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {

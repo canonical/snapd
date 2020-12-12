@@ -20,7 +20,6 @@
 package gadget
 
 type (
-	ValidationState          = validationState
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
 )
@@ -35,7 +34,6 @@ var (
 
 	RuleValidateVolumes         = ruleValidateVolumes
 	RuleValidateVolumeStructure = ruleValidateVolumeStructure
-	EnsureVolumeRuleConsistency = ensureVolumeRuleConsistency
 
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
