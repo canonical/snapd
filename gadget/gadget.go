@@ -282,14 +282,14 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// Model carries information about the model that is relevant to gadget.
+// Model carries characteristics about the model that are relevant to gadget.
 // Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Classic() bool
 	Grade() asserts.ModelGrade
 }
 
-func classicOrUnconstrained(m Model) bool {
+func classicOrUndetermined(m Model) bool {
 	return m == nil || m.Classic()
 }
 
@@ -330,7 +330,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		}
 	}
 
-	if len(gi.Volumes) == 0 && classicOrUnconstrained(model) {
+	if len(gi.Volumes) == 0 && classicOrUndetermined(model) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -438,7 +438,7 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 
 func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
 	gmeta, err := f(gadgetYamlFn)
-	if classicOrUnconstrained(model) && os.IsNotExist(err) {
+	if classicOrUndetermined(model) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &Info{}, nil
 	}

@@ -158,13 +158,13 @@ func (s *validateGadgetTestSuite) TestEnsureVolumeRuleConsistency(c *C) {
 	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutConstraints(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {
 	for i, tc := range []struct {
 		role  string
 		label string
 		err   string
 	}{
-		// when constraints are nil, the system-seed role and ubuntu-data label on the
+		// when model is nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
 		{"system-seed", "", ""},
 		{"system-seed", "writable", `.* must have an implicit label or "ubuntu-data", not "writable"`},
@@ -210,7 +210,7 @@ volumes:
 	}
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithConstraints(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithModelCharateristics(c *C) {
 	bloader := `
 volumes:
   pc:
@@ -226,8 +226,6 @@ volumes:
 		saveLabel   string
 		err         string
 	}{
-		// when constraints are nil, the system-seed role and ubuntu-data label on the
-		// system-data structure should be consistent
 		{addSeed: true, requireSeed: true},
 		{addSeed: true, err: `.* model does not support the system-seed role`},
 		{addSeed: true, dataLabel: "writable", requireSeed: true,
@@ -280,14 +278,13 @@ volumes:
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 
-		constraints := &modelConstraints{
+		mod := &modelCharateristics{
 			classic:    false,
 			systemSeed: tc.requireSeed,
 		}
-
-		ginfo, err := gadget.ReadInfo(s.dir, constraints)
+		ginfo, err := gadget.ReadInfo(s.dir, mod)
 		c.Assert(err, IsNil)
-		err = gadget.Validate(ginfo, constraints, nil)
+		err = gadget.Validate(ginfo, mod, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -298,12 +295,13 @@ volumes:
 	// test error with no volumes
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(bloader))
 
-	constraints := &modelConstraints{
+	mod := &modelCharateristics{
 		systemSeed: true,
 	}
-	ginfo, err := gadget.ReadInfo(s.dir, constraints)
+
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
-	err = gadget.Validate(ginfo, constraints, nil)
+	err = gadget.Validate(ginfo, mod, nil)
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
@@ -373,13 +371,13 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
         size: 750M
 `)
 
-	constraints := &modelConstraints{
+	mod := &modelCharateristics{
 		classic: false,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, constraints)
+	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, mod)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(giMeta, constraints, nil)
+	err = gadget.Validate(giMeta, mod, nil)
 	c.Check(err, IsNil)
 }
 
@@ -424,13 +422,13 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
         size: 750M
 `)
 
-	constraints := &modelConstraints{
+	mod := &modelCharateristics{
 		classic: false,
 	}
-	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, constraints)
+	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, mod)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(giMeta, constraints, nil)
+	err = gadget.Validate(giMeta, mod, nil)
 	c.Check(err, ErrorMatches, `invalid volume "hybrid": cannot have more than one partition with system-boot role`)
 }
 
@@ -556,7 +554,7 @@ var gadgetYamlContentWithSave = gadgetYamlContentNoSave + `
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
-	mod := &modelConstraints{systemSeed: true}
+	mod := &modelCharateristics{systemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -567,7 +565,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
-	mod := &modelConstraints{systemSeed: true}
+	mod := &modelCharateristics{systemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{

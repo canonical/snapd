@@ -158,7 +158,7 @@ func validateReservedLabels(vs *VolumeStructure) error {
 	return nil
 }
 
-func ensureVolumeRuleConsistencyNoConstraints(state *validationState) error {
+func ensureVolumeRuleConsistencyNoModel(state *validationState) error {
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
 		// happy so far
@@ -181,7 +181,7 @@ func ensureVolumeRuleConsistencyNoConstraints(state *validationState) error {
 	return nil
 }
 
-func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Model) error {
+func ensureVolumeRuleConsistencyWithModel(state *validationState, model Model) error {
 	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
 	//       roles too? they should only be used on uc20 systems, so models that
 	//       have a grade set and are not classic
@@ -229,9 +229,9 @@ func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) 
 
 func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	if model == nil {
-		return ensureVolumeRuleConsistencyNoConstraints(state)
+		return ensureVolumeRuleConsistencyNoModel(state)
 	}
-	return ensureVolumeRuleConsistencyWithConstraints(state, model)
+	return ensureVolumeRuleConsistencyWithModel(state, model)
 }
 
 func checkSeedDataImplicitLabels(state *validationState) error {
