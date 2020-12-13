@@ -53,17 +53,24 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 		{role: "system-boot", label: "ubuntu-boot"},
 		{label: "random-ubuntu-label"},
 	} {
-		err := gadget.RuleValidateVolumeStructure(&gadget.VolumeStructure{
-			Type:       "21686148-6449-6E6F-744E-656564454649",
-			Role:       tc.role,
-			Filesystem: "ext4",
-			Label:      tc.label,
-			Size:       10 * 1024,
-		})
+		gi := &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"vol0": {
+					Structure: []gadget.VolumeStructure{{
+						Type:       "21686148-6449-6E6F-744E-656564454649",
+						Role:       tc.role,
+						Filesystem: "ext4",
+						Label:      tc.label,
+						Size:       10 * 1024,
+					}},
+				},
+			},
+		}
+		err := gadget.Validate(gi, nil, nil)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, ".* "+tc.err)
 		}
 	}
 
@@ -134,21 +141,21 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 
 		// we have the system-seed role
 		{ginfo(true, ""), ""},
-		{ginfo(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
-		{ginfo(true, "writable"), `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{ginfo(true, "foobar"), `must have an implicit label or "ubuntu-data", not "foobar"`},
+		{ginfo(true, "writable"), `must have an implicit label or "ubuntu-data", not "writable"`},
 		{ginfo(true, "ubuntu-data"), ""},
 
 		// we don't have the system-seed role (old systems)
 		{ginfo(false, ""), ""}, // implicit is ok
-		{ginfo(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
+		{ginfo(false, "foobar"), `must have an implicit label or "writable", not "foobar"`},
 		{ginfo(false, "writable"), ""},
-		{ginfo(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{ginfo(false, "ubuntu-data"), `must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
 		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
 
 		err := gadget.Validate(tc.gi, nil, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, ".* "+tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -160,14 +167,14 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		err string
 	}{
 		{"", ""},
-		{"foobar", `.* system-seed structure must have an implicit label or "ubuntu-seed", not "foobar"`},
+		{"foobar", `system-seed structure must have an implicit label or "ubuntu-seed", not "foobar"`},
 		{"ubuntu-seed", ""},
 	} {
 		c.Logf("tc: %v %v", i, tc.l)
 		gi := rolesYaml(c, "", tc.l, "-")
 		err := gadget.Validate(gi, nil, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, ".* "+tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -207,11 +214,11 @@ func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharaterist
 		// when model is nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
 		{"system-seed", "", ""},
-		{"system-seed", "writable", `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{"system-seed", "writable", `must have an implicit label or "ubuntu-data", not "writable"`},
 		{"system-seed", "ubuntu-data", ""},
 		{"", "", ""},
 		{"", "writable", ""},
-		{"", "ubuntu-data", `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{"", "ubuntu-data", `must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
 		c.Logf("tc: %v %v %v", i, tc.role, tc.label)
 		b := &bytes.Buffer{}
@@ -243,7 +250,7 @@ volumes:
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, nil, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, ".* "+tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -267,23 +274,23 @@ volumes:
 		err         string
 	}{
 		{addSeed: true, requireSeed: true},
-		{addSeed: true, err: `.* model does not support the system-seed role`},
+		{addSeed: true, err: `model does not support the system-seed role`},
 		{addSeed: true, dataLabel: "writable", requireSeed: true,
-			err: `.* system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
+			err: `system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
 		{addSeed: true, dataLabel: "writable",
-			err: `.* model does not support the system-seed role`},
+			err: `model does not support the system-seed role`},
 		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true},
 		{addSeed: true, dataLabel: "ubuntu-data",
-			err: `.* model does not support the system-seed role`},
+			err: `model does not support the system-seed role`},
 		{dataLabel: "writable", requireSeed: true,
-			err: `.* model requires system-seed structure, but none was found`},
+			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "writable"},
 		{dataLabel: "ubuntu-data", requireSeed: true,
-			err: `.* model requires system-seed structure, but none was found`},
-		{dataLabel: "ubuntu-data", err: `.* system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
-		{addSave: true, err: `.* system-save requires system-seed and system-data structures`},
+			err: `model requires system-seed structure, but none was found`},
+		{dataLabel: "ubuntu-data", err: `system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
+		{addSave: true, err: `system-save requires system-seed and system-data structures`},
 		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
-			err: `.* system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
+			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
 	} {
 		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.requireSeed)
 		b := &bytes.Buffer{}
@@ -326,7 +333,7 @@ volumes:
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, mod, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, ".* "+tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}

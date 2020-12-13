@@ -32,9 +32,6 @@ var (
 
 	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
 
-	RuleValidateVolumes         = ruleValidateVolumes
-	RuleValidateVolumeStructure = ruleValidateVolumeStructure
-
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
