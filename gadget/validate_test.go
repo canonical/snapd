@@ -268,11 +268,14 @@ volumes:
 	for i, tc := range []struct {
 		addSeed     bool
 		dataLabel   string
+		noData      bool
 		requireSeed bool
 		addSave     bool
 		saveLabel   string
 		err         string
 	}{
+		{addSeed: true, noData: true, requireSeed: true, err: "the system-seed role requires system-data to be defined"},
+		{addSeed: true, noData: true, requireSeed: false, err: "the system-seed role requires system-data to be defined"},
 		{addSeed: true, requireSeed: true},
 		{addSeed: true, err: `model does not support the system-seed role`},
 		{addSeed: true, dataLabel: "writable", requireSeed: true,
@@ -304,12 +307,15 @@ volumes:
         role: system-seed`)
 		}
 
-		fmt.Fprintf(b, `
+		if !tc.noData {
+			fmt.Fprintf(b, `
       - name: Data
         size: 10M
         type: 83
         role: system-data
         filesystem-label: %s`, tc.dataLabel)
+		}
+
 		if tc.addSave {
 			fmt.Fprintf(b, `
       - name: Save
@@ -354,7 +360,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot"} {
+	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
