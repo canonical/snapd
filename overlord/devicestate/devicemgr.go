@@ -1457,8 +1457,11 @@ func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
 	if err := json.Unmarshal(output, &res); err != nil {
 		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
 	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
 	if res.Error != "" {
-		return fmt.Errorf("cannot use hook, it returned error: %v", res.Error)
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
 	}
 	return nil
 }
