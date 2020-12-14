@@ -997,7 +997,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	//       because of e.g. seeding. Longer term there will be
 	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
 	restore = boot.MockHasFDESetupHook(func() (bool, error) {
-		return false, fmt.Errorf("hook may not available yet because e.g. seeding")
+		return false, fmt.Errorf("hook not available yet because e.g. seeding")
 	})
 	defer restore()
 
