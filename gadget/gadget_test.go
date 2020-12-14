@@ -1629,7 +1629,7 @@ volumes:
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
-		_, err = gadget.ReadInfo(s.dir, nil, &gadget.ValidationConstraints{})
+		_, err = gadget.ReadInfo(s.dir, nil, &gadget.ValidationOptions{DoValidation: true})
 		c.Check(err, ErrorMatches, tc.err)
 	}
 }
@@ -1647,7 +1647,7 @@ volumes:
 	constraints := &modelConstraints{
 		systemSeed: true,
 	}
-	_, err = gadget.ReadInfo(s.dir, constraints, &gadget.ValidationConstraints{})
+	_, err = gadget.ReadInfo(s.dir, constraints, &gadget.ValidationOptions{DoValidation: true})
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
 }
 

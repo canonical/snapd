@@ -425,7 +425,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		gadgetInfo, err := gadget.ReadInfo(gadgetUnpackDir, model, &gadget.ValidationConstraints{})
+		gadgetInfo, err := gadget.ReadInfo(gadgetUnpackDir, model, &gadget.ValidationOptions{DoValidation: true})
 		if err != nil {
 			return err
 		}

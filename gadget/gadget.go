@@ -443,17 +443,22 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 	return InfoFromGadgetYaml(gmeta, model)
 }
 
+type ValidationOptions struct {
+	DoValidation bool
+	ValidationConstraints
+}
+
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
 // root directory.
-// If validationConstraints is not nil, it also performs consistency rules validation as Validate does using the given validationConstraints.
-func ReadInfo(gadgetSnapRootDir string, model Model, validationConstraints *ValidationConstraints) (*Info, error) {
+// If validationOpts.DoValidation is true, it also performs consistency rules validation as Validate does using the included constraints.
+func ReadInfo(gadgetSnapRootDir string, model Model, validationOpts *ValidationOptions) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	ginfo, err := readInfo(ioutil.ReadFile, gadgetYamlFn, model)
 	if err != nil {
 		return nil, err
 	}
-	if validationConstraints != nil {
-		if err := Validate(ginfo, model, validationConstraints); err != nil {
+	if validationOpts != nil && validationOpts.DoValidation {
+		if err := Validate(ginfo, model, &validationOpts.ValidationConstraints); err != nil {
 			return nil, err
 		}
 	}
