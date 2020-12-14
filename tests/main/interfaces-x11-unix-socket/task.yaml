@@ -32,7 +32,7 @@ execute: |
     not x11-client.rm -f /tmp/.X11-unix/X0
 
     # Ubuntu Core does not have a system:x11 implicit slot
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         exit 0
     fi
 

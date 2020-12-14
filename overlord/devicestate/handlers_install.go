@@ -126,7 +126,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := checkEncryption(st, deviceCtx)
+	useEncryption, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -332,7 +332,7 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = checkFDEFeatures(st, kernelInfo)
+			checkEncryptionErr = m.checkFDEFeatures(st)
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in

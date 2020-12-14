@@ -7,7 +7,7 @@ prepare: |
     # we can only talk from an unconfied dbus-send to the service on classic,
     # on ubuntu-core devices *all* dbus calls are mediated.
     echo "Ensure the dbus service is up"
-    if ! grep -q ID=ubuntu-core /etc/os-release; then
+    if os.query is-classic; then
         dbus-send --system --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"
     fi
 
