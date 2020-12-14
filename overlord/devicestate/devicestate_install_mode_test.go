@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -1020,4 +1021,41 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 			c.Check(err, IsNil, Commentf("%v", tc))
 		}
 	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogs(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		return fmt.Errorf("tpm says no")
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              pcKernelSnapID,
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              pcSnapID,
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+	c.Check(err, IsNil)
+	c.Check(logbuf.String(), Matches, "(?s).*: ignoring error from check encryption: tpm says no\n")
 }

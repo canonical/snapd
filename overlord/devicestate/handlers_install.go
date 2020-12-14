@@ -350,6 +350,9 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
+		// log any errors even if they are not fatal
+		logger.Noticef("ignoring error from check encryption: %v", checkEncryptionErr)
+
 		// not required, go without
 		return false, nil
 	}
