@@ -1480,7 +1480,7 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		Version: "v1.33",
 	}
 	shID := uint64(12)
-	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"})
 	c.Check(err, check.IsNil)
 
 	// now export it
@@ -1502,7 +1502,7 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 		},
 		Version: "v1.33",
 	}
-	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"})
 	c.Check(err, check.IsNil)
 
 	export3, err := backend.NewSnapshotExport(ctx, shw.SetID)
