@@ -20,7 +20,9 @@ func xor13(bs []byte) []byte {
 	return out
 }
 
-// XXX: import struct from snapd instead?
+// Note that this does not import the snapd structs to ensure we don't
+// accidentally break something in the contract and miss that we broke
+// it because we use the internal thing "externally" here
 type fdeSetupJSON struct {
 	Op string `json:"op"`
 

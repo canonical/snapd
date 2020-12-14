@@ -41,8 +41,7 @@ prepare: |
 execute: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  # Wait for snapd to be seeded
-  nested_exec sudo snap wait system seed.loaded
+
   # check that we have an encrypted system
   nested_exec "find /dev/mapper" | MATCH ubuntu-data-[0-9a-f-]+
   nested_exec "test -e /var/lib/snapd/device/fde/recovery.key"
