@@ -1660,8 +1660,9 @@ volumes:
 	mod := &modelCharateristics{
 		systemSeed: true,
 	}
+
 	_, err = gadget.ReadInfoAndValidate(s.dir, mod, nil)
-	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
+	c.Assert(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
@@ -2090,7 +2091,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesSystemSeed(
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelCharateristics{systemSeed: true})
-	c.Check(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
+	c.Check(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
 type gadgetCompatibilityTestSuite struct{}

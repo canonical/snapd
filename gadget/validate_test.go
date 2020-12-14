@@ -43,12 +43,16 @@ func (s *validateGadgetTestSuite) SetUpTest(c *C) {
 func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) {
 	for _, tc := range []struct {
 		role, label, err string
+		model            gadget.Model
 	}{
 		{label: "ubuntu-seed", err: `label "ubuntu-seed" is reserved`},
-		// 2020-12-02: disable for customer hotfix
-		/*{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`},*/
 		{label: "ubuntu-data", err: `label "ubuntu-data" is reserved`},
-		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`},
+		// ok to allow hybrid 20-ready devices
+		{label: "ubuntu-boot"},
+		{label: "ubuntu-save"},
+		// reserved only if seed present/expected
+		{label: "ubuntu-boot", err: `label "ubuntu-boot" is reserved`, model: uc20Mod},
+		{label: "ubuntu-save", err: `label "ubuntu-save" is reserved`, model: uc20Mod},
 		// these are ok
 		{role: "system-boot", label: "ubuntu-boot"},
 		{label: "random-ubuntu-label"},
@@ -66,11 +70,11 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 				},
 			},
 		}
-		err := gadget.Validate(gi, nil, nil)
+		err := gadget.Validate(gi, tc.model, nil)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
-			c.Check(err, ErrorMatches, ".* "+tc.err)
+			c.Check(err, ErrorMatches, ".*: "+tc.err)
 		}
 	}
 
@@ -141,21 +145,21 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 
 		// we have the system-seed role
 		{ginfo(true, ""), ""},
-		{ginfo(true, "foobar"), `must have an implicit label or "ubuntu-data", not "foobar"`},
-		{ginfo(true, "writable"), `must have an implicit label or "ubuntu-data", not "writable"`},
+		{ginfo(true, "foobar"), `.* must have an implicit label or "ubuntu-data", not "foobar"`},
+		{ginfo(true, "writable"), `.* must have an implicit label or "ubuntu-data", not "writable"`},
 		{ginfo(true, "ubuntu-data"), ""},
 
 		// we don't have the system-seed role (old systems)
 		{ginfo(false, ""), ""}, // implicit is ok
-		{ginfo(false, "foobar"), `must have an implicit label or "writable", not "foobar"`},
+		{ginfo(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
 		{ginfo(false, "writable"), ""},
-		{ginfo(false, "ubuntu-data"), `must have an implicit label or "writable", not "ubuntu-data"`},
+		{ginfo(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
 		c.Logf("tc: %d %v", i, tc.gi.Volumes["roles"])
 
 		err := gadget.Validate(tc.gi, nil, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, ".* "+tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -174,7 +178,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 		gi := rolesYaml(c, "", tc.l, "-")
 		err := gadget.Validate(gi, nil, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, ".* "+tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -186,7 +190,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	c.Assert(err, IsNil)
 	gi = rolesYaml(c, "-", "", "-")
 	err = gadget.Validate(gi, nil, nil)
-	c.Assert(err, ErrorMatches, ".* the system-seed role requires system-data to be defined")
+	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
 
 	// Check system-save
 	giWithSave := rolesYaml(c, "", "", "")
@@ -195,14 +199,14 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	// use illegal label on system-save
 	giWithSave = rolesYaml(c, "", "", "foo")
 	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, ErrorMatches, `.* system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
+	c.Assert(err, ErrorMatches, `system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
 	// complains when either system-seed or system-data is missing
 	giWithSave = rolesYaml(c, "", "-", "")
 	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, ErrorMatches, ".*system-save requires system-seed and system-data structures")
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
 	giWithSave = rolesYaml(c, "-", "-", "")
 	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, ErrorMatches, ".* system-save requires system-seed and system-data structures")
+	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
 }
 
 func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {
@@ -339,7 +343,7 @@ volumes:
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, mod, nil)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, ".* "+tc.err)
+			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -355,7 +359,7 @@ volumes:
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, nil)
-	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
+	c.Assert(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
@@ -380,7 +384,35 @@ volumes:
 		ginfo, err := gadget.ReadInfo(s.dir, nil)
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, nil, nil)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid volume "pc": cannot have more than one partition with %s role`, role))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role`, role))
+	}
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwiceAcrossVolumes(c *C) {
+
+	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+		gadgetYamlContent := fmt.Sprintf(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: %[1]s
+  other:
+    structure:
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: %[1]s
+`, role)
+		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+		ginfo, err := gadget.ReadInfo(s.dir, nil)
+		c.Assert(err, IsNil)
+		err = gadget.Validate(ginfo, nil, nil)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role across volumes`, role))
 	}
 }
 
@@ -482,7 +514,7 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
 	c.Assert(err, IsNil)
 
 	err = gadget.Validate(giMeta, mod, nil)
-	c.Check(err, ErrorMatches, `invalid volume "hybrid": cannot have more than one partition with system-boot role`)
+	c.Check(err, ErrorMatches, `cannot have more than one partition with system-boot role`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateContentMissingRawContent(c *C) {
