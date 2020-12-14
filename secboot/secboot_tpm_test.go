@@ -1188,7 +1188,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTrun
 
 	// the hook script only verifies that the stdout file is empty since we
 	// need to write to the stderr file for performing the test, but we still
-	// check the stderr file for correct permisison
+	// check the stderr file for correct permissions
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 # check that stdin has the right sealed key content 
 if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"AQIDBA==\",\"key-name\":\"name\"}" ]; then
