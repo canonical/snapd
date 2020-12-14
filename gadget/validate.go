@@ -43,7 +43,7 @@ type ValidationConstraints struct {
 
 // Validate validates the given gadget metadata against the consistency rules
 // for roles, labels etc as implied by the model and extra constraints
-// tha might be known only at runtime.
+// that might be known only at runtime.
 func Validate(info *Info, model Model, extra *ValidationConstraints) error {
 	if err := ruleValidateVolumes(info.Volumes, model); err != nil {
 		return err
@@ -69,7 +69,7 @@ func validateEncryptionSupport(info *Info) error {
 		if !haveSave {
 			return fmt.Errorf("volume %q has no structure with system-save role", name)
 		}
-		// XXX: shall we make sure that size of ubuntu-save is reasonable?
+		// TODO:UC20: shall we make sure that size of ubuntu-save is reasonable?
 	}
 	return nil
 }
@@ -280,10 +280,11 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 
 // ValidateContent checks whether the given directory contains valid matching content with respect to the given pre-validated gadget metadata.
 func ValidateContent(info *Info, gadgetSnapRootDir string) error {
-	// TODO: also validate that only one "<bl-name>.conf" file is in the root
-	//       directory  of the gadget snap, because the "<bl-name>.conf" file
-	//       indicates precisely which bootloader the gadget uses and as such
-	//       there cannot be more than one such bootloader
+	// TODO: also validate that only one "<bl-name>.conf" file is
+	// in the root directory of the gadget snap, because the
+	// "<bl-name>.conf" file indicates precisely which bootloader
+	// the gadget uses and as such there cannot be more than one
+	// such bootloader
 	for name, vol := range info.Volumes {
 		lv, err := LayoutVolume(gadgetSnapRootDir, vol, defaultConstraints)
 		if err != nil {

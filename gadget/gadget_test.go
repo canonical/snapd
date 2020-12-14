@@ -1590,7 +1590,7 @@ volumes:
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
 }
 
-func (s *gadgetYamlTestSuite) TestReaindInfoValidateConsistencyWithoutConstraints(c *C) {
+func (s *gadgetYamlTestSuite) TestReadInfoValidatesConsistencyWithoutConstraints(c *C) {
 	for i, tc := range []struct {
 		role  string
 		label string
@@ -1634,7 +1634,7 @@ volumes:
 	}
 }
 
-func (s *gadgetYamlTestSuite) TestReadInfoValidateConsistencyWithConstraints(c *C) {
+func (s *gadgetYamlTestSuite) TestReadInfoValidatesConsistencyWithConstraints(c *C) {
 	bloader := `
 volumes:
   pc:
@@ -2029,7 +2029,6 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesConstraints
 
 	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelConstraints{systemSeed: true})
 	c.Check(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
-
 }
 
 type gadgetCompatibilityTestSuite struct{}

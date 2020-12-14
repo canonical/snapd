@@ -204,7 +204,6 @@ volumes:
 		err = gadget.Validate(ginfo, nil, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
-
 		} else {
 			c.Check(err, IsNil)
 		}
@@ -308,7 +307,7 @@ volumes:
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
-func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwice(c *C) {
+func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
 
 	for _, role := range []string{"system-seed", "system-data", "system-boot"} {
 		gadgetYamlContent := fmt.Sprintf(`
