@@ -57,6 +57,8 @@ func shellcheckSeenAlready(script string) bool {
 	return false
 }
 
+var pristineEnv = os.Environ()
+
 func maybeShellcheck(c *check.C, script string, wholeScript io.Reader) {
 	// MockCommand is used sometimes in SetUptTest, so it adds up
 	// even for the empty script, don't recheck the essentially same
@@ -70,6 +72,7 @@ func maybeShellcheck(c *check.C, script string, wholeScript io.Reader) {
 		return
 	}
 	cmd := exec.Command(shellcheckPath, "-s", "bash", "-")
+	cmd.Env = pristineEnv
 	cmd.Stdin = wholeScript
 	out, err := cmd.CombinedOutput()
 	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
