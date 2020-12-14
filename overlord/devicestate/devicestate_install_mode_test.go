@@ -987,9 +987,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		expectedErr string
 	}{
 		// invalid json
-		{"xxx", `cannot parse hook output: "xxx"`},
+		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`},
 		// no output is invalid
-		{"", `cannot parse hook output: ""`},
+		{"", `cannot parse hook output "": unexpected end of JSON input`},
 		// specific error
 		{`{"error":"failed"}`, `cannot use hook, it returned error: failed`},
 		// valid
@@ -997,7 +997,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{`{"features":["a"]}`, ""},
 		{`{"features":["a","b"]}`, ""},
 		// features must be list of strings
-		{`{"features":[1]}`, "cannot parse hook output:.*"},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()

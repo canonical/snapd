@@ -1450,23 +1450,17 @@ func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
 	if err != nil {
 		return err
 	}
-
-	// first check for an error
-	var errRes struct {
-		Error string `json:"error"`
-	}
-	if err := json.Unmarshal(output, &errRes); err == nil && errRes.Error != "" {
-		return fmt.Errorf("cannot use hook, it returned error: %v", errRes.Error)
-	}
-	// then check  for features, any feature reply is considered good
-	var featuresRes struct {
+	var res struct {
 		Features []string `json:"features"`
+		Error    string   `json:"error"`
 	}
-	if err := json.Unmarshal(output, &featuresRes); err == nil {
-		return nil
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
 	}
-	// unexpected result are an error
-	return fmt.Errorf("cannot parse hook output: %q", string(output))
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook, it returned error: %v", res.Error)
+	}
+	return nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
