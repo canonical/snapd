@@ -1177,7 +1177,7 @@ var gadgetYamlWithKernelRef = `
             target: /
 `
 
-func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeAssets(c *C) {
+func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 	kernelYaml := ""
 
 	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
