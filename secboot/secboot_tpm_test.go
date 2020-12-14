@@ -58,7 +58,10 @@ type secbootSuite struct {
 var _ = Suite(&secbootSuite{})
 
 func (s *secbootSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	rootDir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(rootDir, "/run"), 0755)
+	c.Assert(err, IsNil)
+	dirs.SetRootDir(rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
@@ -1167,7 +1170,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	})
 	defer restore()
 
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", `echo failed; false`)
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()
 	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
@@ -1189,6 +1192,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 failed
 service result: exit-code
 -----`)
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *C) {
@@ -1247,6 +1252,9 @@ printf "unsealed-key-from-hook"
 		{"fde-reveal-key"},
 	})
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
@@ -1275,4 +1283,7 @@ cat - > %s
 		{"fde-reveal-key"},
 	})
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, `{"op":"lock"}`)
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
