@@ -391,7 +391,10 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 		case osutil.FileExists(filepath.Join(runDir, "fde-reveal-key.success")):
 			return ioutil.ReadFile(filepath.Join(runDir, "fde-reveal-key.stdout"))
 		default:
-			time.Sleep(1 * time.Second)
+			// 50 ms means we check at a frequency 20 Hz, fast enough to not
+			// hold up boot, but not too fast that we are hogging the CPU from
+			// the thing we are waiting to finish running
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 }
