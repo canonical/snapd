@@ -17,7 +17,7 @@ execute: |
 
     # The format of code produced by "gofmt" drifts over time. Perform checks
     # only on a fixed version to avoid hair-pulling annoyance every six months.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-16.04-* ]]; then
+    if not os.query is-xenial; then
         skip='SKIP_GOFMT=1'
     fi
 

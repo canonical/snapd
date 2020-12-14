@@ -2,7 +2,7 @@ summary: Ensure network retry works correctly
 
 prepare: |
     echo "Break DNS"
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
        resolvConf=$(realpath /etc/resolv.conf)
        mv "${resolvConf}" "${resolvConf}.save"
        echo "${resolvConf}" > resolvConf.txt
@@ -17,7 +17,7 @@ prepare: |
 
 restore: |
     echo "Unbreak DNS"
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
        resolvConf=$(cat resolvConf.txt)
        mv "${resolvConf}.save" "${resolvConf}"
     else

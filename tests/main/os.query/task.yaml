@@ -13,47 +13,61 @@ execute: |
             os.query is-core16
             not os.query is-core18
             not os.query is-classic
+            os.query is-ubuntu
             ;;
         ubuntu-core-18-*)
             os.query is-core
             os.query is-core18
             not os.query is-core20
             not os.query is-classic
+            os.query is-ubuntu
             ;;
         ubuntu-core-20-*)
             os.query is-core
             os.query is-core20
             not os.query is-core18
             not os.query is-classic
+            os.query is-ubuntu
             ;;
-        ubuntu-14-*)
+        ubuntu-14.04-*)
             os.query is-classic
             os.query is-trusty
             not os.query is-bionic
             not os.query is-core
+            os.query is-ubuntu
             ;;
-        ubuntu-16-*)
+        ubuntu-16.04-*)
             os.query is-classic
             os.query is-xenial
             not os.query is-bionic
             not os.query is-core
+            os.query is-ubuntu
             ;;
-        ubuntu-18-*)
+        ubuntu-18.04-*)
             os.query is-classic
             os.query is-bionic
             not os.query is-focal
             not os.query is-core
+            os.query is-ubuntu
             ;;
         ubuntu-20.04-*)
             os.query is-classic
             os.query is-focal
             not os.query is-xenial
             not os.query is-core
+            os.query is-ubuntu
+            ;;
+        ubuntu-2*)
+            os.query is-classic
+            not os.query is-focal
+            not os.query is-core
+            os.query is-ubuntu
             ;;
         *)
             os.query is-classic
             not os.query is-focal
             not os.query is-core
+            not os.query is-ubuntu
             ;;
     esac
 
@@ -65,7 +79,7 @@ execute: |
             os.query is-opensuse
             ;;
         arch-*)
-            os.query is-arch
+            os.query is-arch-linux
             ;;
         debian-*)
             os.query is-debian

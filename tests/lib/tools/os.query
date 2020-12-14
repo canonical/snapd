@@ -4,7 +4,7 @@ show_help() {
     echo "usage: is-core, is-classic"
     echo "       is-core16, is-core18, is-core20"
     echo "       is-trusty, is-xenial, is-bionic, is-focal"
-    echo "       is-debian, is-fedora, is-amazon-linux, is-arch, is-centos, is-opensuse"
+    echo "       is-ubuntu, is-debian, is-fedora, is-amazon-linux, is-arch-linux, is-centos, is-opensuse"
     echo ""
     echo "Get general information about the current system"
 }
@@ -45,6 +45,10 @@ is_focal() {
     grep -qFx 'UBUNTU_CODENAME=focal' /etc/os-release
 }
 
+is_ubuntu() {
+    grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
+}
+
 is_debian() {
     grep -qFx 'ID=debian' /etc/os-release
 }
@@ -61,7 +65,7 @@ is_centos() {
     grep -qFx 'ID="centos"' /etc/os-release
 }
 
-is_arch() {
+is_arch_linux() {
     grep -qFx 'ID=arch' /etc/os-release
 }
 
