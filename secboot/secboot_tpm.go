@@ -356,6 +356,7 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 		fmt.Sprintf("--property=StandardInput=file:%s/fde-reveal-key.stdin", runDir),
 		fmt.Sprintf("--property=StandardOutput=file:%s/fde-reveal-key.stdout", runDir),
 		fmt.Sprintf("--property=StandardError=file:%s/fde-reveal-key.stderr", runDir),
+		// this ensures we get useful output for e.g. segfaults
 		fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" = 0 ]; then touch %[1]s/fde-reveal-key.success; else echo "service result: $SERVICE_RESULT" >%[1]s/fde-reveal-key.failed; fi'`, runDir),
 	)
 	if fdeRevealKeyCommandExtra != nil {
