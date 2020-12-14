@@ -54,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snapfile"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -101,12 +100,6 @@ var api = []*Command{
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
-	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}/icon",
-		UserOK: true,
-		GET:    appIconGet,
-	}
-
 	snapsCmd = &Command{
 		Path:     "/v2/snaps",
 		UserOK:   true,
@@ -121,12 +114,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getSnapInfo,
 		POST:     postSnap,
-	}
-
-	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
 	}
 )
 
@@ -218,34 +205,6 @@ func getStore(c *Command) snapstate.StoreService {
 	defer st.Unlock()
 
 	return snapstate.Store(st, nil)
-}
-
-func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
-	theStore := getStore(c)
-
-	// TODO: use a per-request context
-	sections, err := theStore.Sections(context.TODO(), user)
-	switch err {
-	case nil:
-		// pass
-	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
-	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
-		return Unauthorized("%v", err)
-	default:
-		return InternalError("%v", err)
-	}
-
-	return SyncResponse(sections, nil)
 }
 
 // plural!
@@ -773,6 +732,7 @@ func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResul
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
+type snapsActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
 	"install": snapInstall,
@@ -789,6 +749,20 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 		logger.Panicf("dispatch only handles single-snap ops; got %d", len(inst.Snaps))
 	}
 	return snapInstructionDispTable[inst.Action]
+}
+
+func (inst *snapInstruction) dispatchForMany() (op snapsActionFunc) {
+	switch inst.Action {
+	case "refresh":
+		op = snapUpdateMany
+	case "install":
+		op = snapInstallMany
+	case "remove":
+		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
+	}
+	return op
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
@@ -857,8 +831,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
-	st := c.d.overlord.State()
+func trySnap(st *state.State, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
 	st.Lock()
 	defer st.Unlock()
 
@@ -940,18 +913,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	var op func(*snapInstruction, *state.State) (*snapInstructionResult, error)
-
-	switch inst.Action {
-	case "refresh":
-		op = snapUpdateMany
-	case "install":
-		op = snapInstallMany
-	case "remove":
-		op = snapRemoveMany
-	case "snapshot":
-		op = snapshotMany
-	default:
+	op := inst.dispatchForMany()
+	if op == nil {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	res, err := op(&inst, st)
@@ -1014,7 +977,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		if len(form.Value["snap-path"]) == 0 {
 			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
+		return trySnap(c.d.overlord.State(), r, user, form.Value["snap-path"][0], flags)
 	}
 	flags.RemoveSnapPath = true
 
@@ -1162,36 +1125,3 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 }
 
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
-
-func iconGet(st *state.State, name string) Response {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil {
-		if err == state.ErrNoState {
-			return SnapNotFound(name, err)
-		}
-		return InternalError("cannot consult state: %v", err)
-	}
-	sideInfo := snapst.CurrentSideInfo()
-	if sideInfo == nil {
-		return NotFound("snap has no current revision")
-	}
-
-	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
-
-	if icon == "" {
-		return NotFound("local snap has no icon")
-	}
-
-	return fileResponse(icon)
-}
-
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-
-	return iconGet(c.d.overlord.State(), name)
-}

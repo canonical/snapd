@@ -71,6 +71,12 @@ const (
 	// of system-data role
 	implicitSystemDataLabel = "writable"
 
+	// UC20 filesystem labels for roles
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
+	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
+
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
@@ -113,7 +119,7 @@ type VolumeStructure struct {
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset *quantity.Size `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
@@ -154,22 +160,13 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
-// EffectiveFilesystemLabel returns the effective filesystem label, either
-// explicitly provided or implied by the structure's role
-func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.Role == SystemData {
-		return implicitSystemDataLabel
-	}
-	return vs.Label
-}
-
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
 type VolumeContent struct {
-	// Source is the data of the partition relative to the gadget base
-	// directory
-	Source string `yaml:"source"`
+	// UnresovedSource is the data of the partition relative to
+	// the gadget base directory
+	UnresolvedSource string `yaml:"source"`
 	// Target is the location of the data inside the root filesystem
 	Target string `yaml:"target"`
 
@@ -177,7 +174,7 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset *quantity.Size `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
@@ -189,11 +186,16 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
+func (vc VolumeContent) ResolvedSource() string {
+	// TODO: implement resolved sources
+	return vc.UnresolvedSource
+}
+
 func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
 	}
-	return fmt.Sprintf("source:%s", vc.Source)
+	return fmt.Sprintf("source:%s", vc.UnresolvedSource)
 }
 
 type VolumeUpdate struct {
@@ -411,6 +413,20 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 		vs.Role = SystemBoot
 		return nil
 	}
+	if vs.Label == "" {
+		switch {
+		case rs == volRuleset16 && vs.Role == SystemData:
+			vs.Label = implicitSystemDataLabel
+		case rs == volRuleset20 && vs.Role == SystemData:
+			vs.Label = ubuntuDataLabel
+		case rs == volRuleset20 && vs.Role == SystemSeed:
+			vs.Label = ubuntuSeedLabel
+		case rs == volRuleset20 && vs.Role == SystemBoot:
+			vs.Label = ubuntuBootLabel
+		case rs == volRuleset20 && vs.Role == SystemSave:
+			vs.Label = ubuntuSaveLabel
+		}
+	}
 	return nil
 }
 
@@ -463,7 +479,7 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
 	// same for system-boot-select and at least 2 system-boot-image roles?
@@ -471,13 +487,13 @@ func validateVolume(name string, vol *Volume, model Model) error {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start quantity.Size
+		var start quantity.Offset
 		if s.Offset != nil {
 			start = *s.Offset
 		} else {
 			start = previousEnd
 		}
-		end := start + s.Size
+		end := start + quantity.Offset(s.Size)
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
@@ -520,7 +536,7 @@ func isMBR(vs *VolumeStructure) bool {
 }
 
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
@@ -544,7 +560,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 			previous := structures[pidx-1]
 			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
 		}
-		previousEnd = ps.StartOffset + ps.Size
+		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
@@ -715,7 +731,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 }
 
 func validateBareContent(vc *VolumeContent) error {
-	if vc.Source != "" || vc.Target != "" {
+	if vc.UnresolvedSource != "" || vc.Target != "" {
 		return fmt.Errorf("cannot use non-image content for bare file system")
 	}
 	if vc.Image == "" {
@@ -728,7 +744,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.Source == "" || vc.Target == "" {
+	if vc.UnresolvedSource == "" || vc.Target == "" {
 		return fmt.Errorf("missing source or target")
 	}
 	return nil
@@ -765,7 +781,7 @@ type RelativeOffset struct {
 	// address write will be calculated.
 	RelativeTo string
 	// Offset is a 32-bit value
-	Offset quantity.Size
+	Offset quantity.Offset
 }
 
 func (r *RelativeOffset) String() string {
@@ -779,31 +795,31 @@ func (r *RelativeOffset) String() string {
 }
 
 // parseRelativeOffset parses a string describing an offset that can be
-// expressed relative to a named structure, with the format: [<name>+]<size>.
+// expressed relative to a named structure, with the format: [<name>+]<offset>.
 func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 	toWhat := ""
-	sizeSpec := grs
+	offsSpec := grs
 	if idx := strings.IndexRune(grs, '+'); idx != -1 {
-		toWhat, sizeSpec = grs[:idx], grs[idx+1:]
+		toWhat, offsSpec = grs[:idx], grs[idx+1:]
 		if toWhat == "" {
 			return nil, errors.New("missing volume name")
 		}
 	}
-	if sizeSpec == "" {
+	if offsSpec == "" {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := quantity.ParseSize(sizeSpec)
+	offset, err := quantity.ParseOffset(offsSpec)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
+		return nil, fmt.Errorf("cannot parse offset %q: %v", offsSpec, err)
 	}
-	if size > 4*quantity.SizeGiB {
+	if offset > 4*1024*quantity.OffsetMiB {
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
 	return &RelativeOffset{
 		RelativeTo: toWhat,
-		Offset:     size,
+		Offset:     offset,
 	}, nil
 }
 
@@ -859,10 +875,10 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, nil)
+func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
 	}
@@ -872,7 +888,7 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 	}
 
 	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 

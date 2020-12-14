@@ -37,50 +37,10 @@ import (
 
 var errNoSnap = errors.New("snap not installed")
 
-// snapIcon tries to find the icon inside the snap
-func snapIcon(info snap.PlaceInfo) string {
-	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
-		return ""
-	}
-
-	return found[0]
-}
-
-func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
-	if snapID == "" {
-		return snap.StoreAccount{}, nil
-	}
-
-	pubAcct, err := assertstate.Publisher(st, snapID)
-	if err != nil {
-		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
-	}
-	return snap.StoreAccount{
-		ID:          pubAcct.AccountID(),
-		Username:    pubAcct.Username(),
-		DisplayName: pubAcct.DisplayName(),
-		Validation:  pubAcct.Validation(),
-	}, nil
-}
-
 type aboutSnap struct {
 	info   *snap.Info
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
-}
-
-func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
-	if h == nil {
-		return nil
-	}
-	return &client.SnapHealth{
-		Revision:  h.Revision,
-		Timestamp: h.Timestamp,
-		Status:    h.Status.String(),
-		Message:   h.Message,
-		Code:      h.Code,
-	}
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -185,6 +145,36 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
+func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
+	}
+
+	pubAcct, err := assertstate.Publisher(st, snapID)
+	if err != nil {
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
+
+func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
+	if h == nil {
+		return nil
+	}
+	return &client.SnapHealth{
+		Revision:  h.Revision,
+		Timestamp: h.Timestamp,
+		Status:    h.Status.String(),
+		Message:   h.Message,
+		Code:      h.Code,
+	}
+}
+
 func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
 	result, err := clientutil.ClientSnapFromSnapInfo(localSnap, sd)
@@ -219,4 +209,14 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	result.Health = about.health
 
 	return result
+}
+
+// snapIcon tries to find the icon inside the snap
+func snapIcon(info snap.PlaceInfo) string {
+	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
+	if len(found) == 0 {
+		return ""
+	}
+
+	return found[0]
 }

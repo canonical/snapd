@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -128,7 +128,7 @@ func ensureVolumeRuleConsistencyNoConstraints(state *validationState) error {
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", implicitSystemDataLabel, state.SystemData.Label)
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -158,16 +158,15 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-				implicitSystemDataLabel, state.SystemData.Label)
+		if err := checkImplicitLabel(SystemData, state.SystemData, implicitSystemDataLabel); err != nil {
+			return err
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
 		if !wantsSystemSeed(model) {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -179,6 +178,14 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 	return nil
 }
 
+func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) error {
+	if vs.Label != "" && vs.Label != implicitLabel {
+		return fmt.Errorf("%s structure must have an implicit label or %q, not %q", role, implicitLabel, vs.Label)
+
+	}
+	return nil
+}
+
 func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	if model == nil {
 		return ensureVolumeRuleConsistencyNoConstraints(state)
@@ -186,12 +193,12 @@ func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	return ensureVolumeRuleConsistencyWithConstraints(state, model)
 }
 
-func ensureSeedDataLabelsUnset(state *validationState) error {
-	if state.SystemData.Label != "" {
-		return fmt.Errorf("system-data structure must not have a label")
+func checkSeedDataImplicitLabels(state *validationState) error {
+	if err := checkImplicitLabel(SystemData, state.SystemData, ubuntuDataLabel); err != nil {
+		return err
 	}
-	if state.SystemSeed.Label != "" {
-		return fmt.Errorf("system-seed structure must not have a label")
+	if err := checkImplicitLabel(SystemSeed, state.SystemSeed, ubuntuSeedLabel); err != nil {
+		return err
 	}
 	return nil
 }
@@ -200,8 +207,8 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 	if state.SystemData == nil || state.SystemSeed == nil {
 		return fmt.Errorf("system-save requires system-seed and system-data structures")
 	}
-	if state.SystemSave.Label != "" {
-		return fmt.Errorf("system-save structure must not have a label")
+	if err := checkImplicitLabel(SystemSave, state.SystemSave, ubuntuSaveLabel); err != nil {
+		return err
 	}
 	return nil
 }
@@ -216,11 +223,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			realSource := filepath.Join(gadgetSnapRootDir, c.Source)
+			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
+			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
-			if strings.HasSuffix(c.Source, "/") {
+			if strings.HasSuffix(c.ResolvedSource(), "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
 					return fmt.Errorf("structure %v, content %v: %v", s, c, err)

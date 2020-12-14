@@ -248,11 +248,11 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
@@ -263,7 +263,7 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
@@ -271,7 +271,7 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
@@ -283,11 +283,11 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     2 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
 		},
@@ -481,15 +481,6 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 			},
 			err: `cannot change filesystem label from "writable" to ""`,
 		}, {
-			// from implicit filesystem label to explicit one
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data", Label: "writable"},
-			},
-			err: ``,
-		}, {
 			// all ok
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
@@ -633,7 +624,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
-			{Source: "/second-content", Target: "/"},
+			{UnresolvedSource: "/second-content", Target: "/"},
 		},
 	}
 	lastStruct := gadget.VolumeStructure{
@@ -641,7 +632,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
-			{Source: "/third-content", Target: "/"},
+			{UnresolvedSource: "/third-content", Target: "/"},
 		},
 	}
 	// start with identical data for new and old infos, they get updated by
@@ -726,7 +717,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
-			c.Check(ps.StartOffset, Equals, 1*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
@@ -737,10 +728,10 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
-			c.Check(ps.StartOffset, Equals, (1+5)*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+5)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].Source, Equals, "/second-content")
+			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
 			c.Check(ps.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
@@ -935,7 +926,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		Filesystem: "ext4",
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
-			{Source: "/", Target: "/"},
+			{UnresolvedSource: "/", Target: "/"},
 		},
 		Update: gadget.VolumeUpdate{Edition: 5},
 	}
@@ -1074,7 +1065,7 @@ func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Name:   "mbr",
 		Role:   "mbr",
 		Size:   446,
-		Offset: asSizePtr(0),
+		Offset: asOffsetPtr(0),
 	}
 
 	oldVol := oldData.Info.Volumes["foo"]
@@ -1396,7 +1387,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * quantity.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err := gadget.UpdaterForStructure(psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -1408,7 +1399,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * quantity.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err = gadget.UpdaterForStructure(psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)

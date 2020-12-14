@@ -449,7 +449,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -605,11 +605,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
-	s.testHappyRoundtrip(c, "marker", false)
-}
-
-func (s *snapshotSuite) TestHappyRoundtripAutomaticSnapshot(c *check.C) {
-	s.testHappyRoundtrip(c, "marker", true)
+	s.testHappyRoundtrip(c, "marker")
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
@@ -618,7 +614,7 @@ func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "marker", false)
+	s.testHappyRoundtrip(c, "marker")
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
@@ -627,10 +623,10 @@ func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "../common/marker", false)
+	s.testHappyRoundtrip(c, "../common/marker")
 }
 
-func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool) {
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -641,7 +637,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, &backend.Flags{Auto: auto})
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -650,7 +646,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	c.Check(shw.Epoch, check.DeepEquals, epoch)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
-	c.Check(shw.Auto, check.Equals, auto)
+	c.Check(shw.Auto, check.Equals, false)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
@@ -673,7 +669,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 		c.Check(sh.Revision, check.Equals, info.Revision, comm)
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
-		c.Check(sh.Auto, check.Equals, auto)
+		c.Check(sh.Auto, check.Equals, false)
 	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
@@ -715,7 +711,7 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -739,7 +735,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil)
+	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
@@ -1005,7 +1001,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 
@@ -1152,7 +1148,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	}
 	// create a snapshot
 	shID := uint64(12)
-	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})
 	c.Check(err, check.IsNil)
 
 	// content.json + num_files + export.json + footer

@@ -1348,12 +1348,14 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 			Op:      "initial-setup",
 			Key:     &mockKey,
 			KeyName: "some-key-name",
-			Model: map[string]string{
-				"series":     "16",
-				"brand-id":   "canonical",
-				"model":      "pc",
-				"grade":      "unset",
-				"signkey-id": mockModel.SignKeyID(),
+			Models: []map[string]string{
+				{
+					"series":     "16",
+					"brand-id":   "canonical",
+					"model":      "pc",
+					"grade":      "unset",
+					"signkey-id": mockModel.SignKeyID(),
+				},
 			},
 		})
 
@@ -1370,9 +1372,9 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &mockKey,
+		Key:     mockKey,
 		KeyName: "some-key-name",
-		Model:   mockModel,
+		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1409,9 +1411,9 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
-		Model:   mockModel,
+		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1453,9 +1455,9 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
-		Model:   mockModel,
+		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
