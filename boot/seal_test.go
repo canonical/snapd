@@ -980,3 +980,32 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
 }
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookSad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return nil
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, IsNil)
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+}

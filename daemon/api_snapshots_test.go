@@ -88,7 +88,7 @@ func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
 func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
 
-	defer daemon.MockSnapshotList(func(context.Context, uint64, []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(context.Context, *state.State, uint64, []string) ([]client.SnapshotSet, error) {
 		return snapshots, nil
 	})()
 
@@ -105,7 +105,7 @@ func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
 
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, st *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		c.Assert(setID, check.Equals, uint64(42))
 		return snapshots[1:], nil
 	})()
@@ -120,7 +120,7 @@ func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 }
 
 func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, _ *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		c.Fatal("snapshotList should not be reached (should have been blocked by validation!)")
 		return nil, nil
 	})()
@@ -135,7 +135,7 @@ func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
 }
 
 func (s *snapshotSuite) TestListSnapshotsListError(c *check.C) {
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, _ *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		return nil, errors.New("no")
 	})()
 
