@@ -329,9 +329,29 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create tmp dir for fde-reveal-key: %v", err)
 	}
-	err = ioutil.WriteFile(filepath.Join(runDir, "fde-reveal-key.stdin"), stdin, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create stdin for fde-reveal-key: %v", err)
+
+	// delete and re-create the std{in,out,err} stream files that we use for the
+	// hook to be robust against bugs where the files are created with too
+	// permissive permissions or not properly deleted afterwards since the hook
+	// will be invoked multiple times during the initrd and we want to be really
+	// careful since the stdout file will contain the unsealed encryption key
+	for _, stream := range []string{"stdin", "stdout", "stderr"} {
+		streamFile := filepath.Join(runDir, "fde-reveal-key."+stream)
+		// we want to make sure that the file permissions for stdout are always
+		// 0600, so to ensure this is the case and be robust against bugs, we
+		// always delete the file and re-create it with 0600
+
+		// note that if the file already exists, WriteFile will not change the
+		// permissions, so deleting first is the right thing to do
+		os.Remove(streamFile)
+		if stream == "stdin" {
+			err = ioutil.WriteFile(streamFile, stdin, 0600)
+		} else {
+			err = ioutil.WriteFile(streamFile, nil, 0600)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot create %s for fde-reveal-key: %v", stream, err)
+		}
 	}
 
 	// TODO: put this into a new "systemd/run" package
@@ -354,6 +374,8 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 		// WORKAROUNDS
 		// workaround the lack of "--pipe"
 		fmt.Sprintf("--property=StandardInput=file:%s/fde-reveal-key.stdin", runDir),
+		// NOTE: these files are manually created above with 0600 because by
+		// default systemd will create them 0644 and we want to be paranoid here
 		fmt.Sprintf("--property=StandardOutput=file:%s/fde-reveal-key.stdout", runDir),
 		fmt.Sprintf("--property=StandardError=file:%s/fde-reveal-key.stderr", runDir),
 		// this ensures we get useful output for e.g. segfaults
