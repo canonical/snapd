@@ -234,21 +234,25 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 	st.Lock()
 	defer st.Unlock()
 
-	if req.Action == "forget" {
+	switch req.Action {
+	case "forget":
 		return forgetValidationSet(st, accountID, name, req.Sequence)
-	}
-	if req.Action != "apply" {
+	case "apply":
+		return updateValidationSet(st, accountID, name, req.Mode, req.Sequence)
+	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
+}
 
+func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int) Response {
 	var mode assertstate.ValidationSetMode
-	switch req.Mode {
+	switch reqMode {
 	case "monitor":
 		mode = assertstate.Monitor
 	case "enforce":
 		mode = assertstate.Enforce
 	default:
-		return BadRequest("invalid mode %q", req.Mode)
+		return BadRequest("invalid mode %q", reqMode)
 	}
 
 	// TODO: if pinned, check if we have the needed assertion locally;
@@ -260,7 +264,7 @@ func applyValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response
 		Name:      name,
 		Mode:      mode,
 		// note, Sequence may be 0, meaning not pinned.
-		PinnedAt: req.Sequence,
+		PinnedAt: sequence,
 	}
 
 	// TODO: if the mode is enforced  check that the assertion is valid before

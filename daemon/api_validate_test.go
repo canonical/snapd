@@ -42,11 +42,7 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
-}
-
-func (s *apiValidationSetsSuite) TearDownTest(c *check.C) {
-	s.apiBaseSuite.TearDownTest(c)
+	s.AddCleanup(func() { d.Overlord().Stop() })
 }
 
 func mockValidationSetsTracking(st *state.State) {
