@@ -666,6 +666,9 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	// duplicated import attempts
 	snapNames, err = unpackVerifySnapshotImport(ctx, r, id)
 	if err != nil {
+		if _, ok := err.(DuplicatedSnapshotImportError); ok {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if err := tr.Commit(); err != nil {
@@ -689,11 +692,11 @@ func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
 }
 
 type DuplicatedSnapshotImportError struct {
-	setID uint64
+	SetID uint64
 }
 
 func (e DuplicatedSnapshotImportError) Error() string {
-	return fmt.Sprintf("cannot import snapshot, already availalble as snapshot id %v", e.setID)
+	return fmt.Sprintf("cannot import snapshot, already available as snapshot id %v", e.SetID)
 }
 
 func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash []byte) error {

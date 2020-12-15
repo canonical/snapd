@@ -971,7 +971,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	}
 }
 
-func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
+func (s *snapshotSuite) TestImportCheckError(c *check.C) {
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
@@ -988,6 +988,35 @@ func (s *snapshotSuite) TestImportCheckErorr(c *check.C) {
 	c.Assert(err, check.IsNil)
 	_, err = backend.Import(context.Background(), 14, f)
 	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/14_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
+}
+
+func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	ctx := context.TODO()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	shID := uint64(12)
+
+	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"})
+	c.Assert(err, check.IsNil)
+
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
+	c.Assert(err, check.IsNil)
+	err = export.Init()
+	c.Assert(err, check.IsNil)
+
+	buf := bytes.NewBuffer(nil)
+	c.Assert(export.StreamTo(buf), check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(export.Size()))
+
+	// now import it
+	_, err = backend.Import(ctx, 123, buf)
+	dupErr, ok := err.(backend.DuplicatedSnapshotImportError)
+	c.Assert(ok, check.Equals, true)
+	c.Check(dupErr.SetID, check.Equals, shID)
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {

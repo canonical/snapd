@@ -333,6 +333,19 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 	}
 	snapNames, err = backendImport(ctx, setID, r)
 	if err != nil {
+		if dupErr, ok := err.(backend.DuplicatedSnapshotImportError); ok {
+			st.Lock()
+			defer st.Unlock()
+			// trying to import identical snapshot; instead return set ID of
+			// the existing one and reset its expiry time.
+			// XXX: at the moment expiry-time is the only attribute so we can
+			// just remove the record. If we ever add more attributes this needs
+			// to reset expiry-time only.
+			if err := removeSnapshotState(st, dupErr.SetID); err != nil {
+				return 0, nil, err
+			}
+			return dupErr.SetID, snapNames, nil
+		}
 		return 0, nil, err
 	}
 	return setID, snapNames, nil
