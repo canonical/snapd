@@ -354,6 +354,12 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
+		if hasFDESetupHook {
+			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		} else {
+			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		}
+
 		// not required, go without
 		return false, nil
 	}
