@@ -1023,7 +1023,27 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 	}
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogs(c *C) {
+var checkEncryptionModelHeaders = map[string]interface{}{
+	"display-name": "my model",
+	"architecture": "amd64",
+	"base":         "core20",
+	"grade":        "dangerous",
+	"snaps": []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              pcKernelSnapID,
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              pcSnapID,
+			"type":            "gadget",
+			"default-channel": "20",
+		}},
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsTPM(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1035,27 +1055,27 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogs(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
-		"display-name": "my model",
-		"architecture": "amd64",
-		"base":         "core20",
-		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              pcKernelSnapID,
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              pcSnapID,
-				"type":            "gadget",
-				"default-channel": "20",
-			}},
-	})
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
+	// mock kernel installed but no hook or handle so checkEncryption
+	// will fail
+	makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+	c.Check(err, IsNil)
+	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
 }
