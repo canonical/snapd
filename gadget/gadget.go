@@ -475,13 +475,26 @@ func ReadInfoAndValidate(gadgetSnapRootDir string, model Model, validationConstr
 // ReadInfoFromSnapFile reads the gadget specific metadata from
 // meta/gadget.yaml in the given snap container.
 // It also performs consistency rules validation as Validate does.
+// See ReadInfoFromSnapFileNoValidate for a variant that does not.
 func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
-	gadgetYamlFn := "meta/gadget.yaml"
-	ginfo, err := readInfo(snapf.ReadFile, gadgetYamlFn, model)
+	ginfo, err := ReadInfoFromSnapFileNoValidate(snapf, model)
 	if err != nil {
 		return nil, err
 	}
 	if err := Validate(ginfo, model, nil); err != nil {
+		return nil, err
+	}
+	return ginfo, nil
+}
+
+// ReadInfoFromSnapFileNoValidate reads the gadget specific metadata from
+// meta/gadget.yaml in the given snap container.
+// See ReadInfoFromSnapFile for a variant that does consistency rules
+// validation like Validate as well.
+func ReadInfoFromSnapFileNoValidate(snapf snap.Container, model Model) (*Info, error) {
+	gadgetYamlFn := "meta/gadget.yaml"
+	ginfo, err := readInfo(snapf.ReadFile, gadgetYamlFn, model)
+	if err != nil {
 		return nil, err
 	}
 	return ginfo, nil
