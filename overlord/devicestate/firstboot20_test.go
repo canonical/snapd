@@ -52,6 +52,12 @@ type firstBoot20Suite struct {
 	*seedtest.TestingSeed20
 }
 
+var (
+	allGrades = []asserts.ModelGrade{
+		asserts.ModelDangerous,
+	}
+)
+
 var _ = Suite(&firstBoot20Suite{})
 
 func (s *firstBoot20Suite) SetUpTest(c *C) {
@@ -70,7 +76,7 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -103,6 +109,7 @@ volumes:
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"grade":        string(modelGrade),
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -130,7 +137,8 @@ volumes:
 	}, nil)
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv) {
+
+func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -147,7 +155,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	defer systemctlRestorer()
 
 	sysLabel := m.RecoverySystem
-	model := s.setupCore20Seed(c, sysLabel)
+	model := s.setupCore20Seed(c, sysLabel, modelGrade)
+	// sanity check that our returned model has the expected grade
+	c.Assert(model.Grade(), Equals, modelGrade)
 
 	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
@@ -322,7 +332,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunMode(c *C) {
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
@@ -331,7 +343,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
 		RecoverySystem: "20191019",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
@@ -340,5 +354,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 		RecoverySystem: "20191020",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
