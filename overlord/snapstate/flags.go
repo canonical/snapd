@@ -82,7 +82,7 @@ type Flags struct {
 	// to be installed, and installed with devmode confinement turned on.
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
-	OverrideToDevModeViaModel bool `json:"disallow-devmode,omitempty"`
+	OverrideToDevModeViaModel bool `json:"override-to-devmode-via-model,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -91,10 +91,12 @@ func (f Flags) DevModeAllowed() bool {
 	return f.DevMode || f.JailMode || f.OverrideToDevModeViaModel
 }
 
-// ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
+// ForSnapSetup returns a copy of the Flags with the flags that we don't need in
+// SnapSetup set to false (so they're not serialized).
 func (f Flags) ForSnapSetup() Flags {
 	f.SkipConfigure = false
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
+	f.OverrideToDevModeViaModel = false
 	return f
 }
