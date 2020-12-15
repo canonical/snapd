@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.48
+Version:        2.48.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -915,6 +915,10 @@ fi
 
 
 %changelog
+* Thu Dec 03 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.48.1
+ - gadget: disable ubuntu-boot role validation check
+
 * Thu Nov 19 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.48
  - osutil: add KernelCommandLineKeyValue
