@@ -46,9 +46,7 @@ type snapshotSuite struct {
 
 func (s *snapshotSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
-	d := s.daemonWithStore(c, s)
-	d.Overlord().Loop()
-	s.AddCleanup(func() { d.Overlord().Stop() })
+	s.daemonWithOverlordMock(c)
 }
 
 func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
