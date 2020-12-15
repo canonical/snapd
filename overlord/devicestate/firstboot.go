@@ -52,10 +52,10 @@ func installSeedSnap(model *asserts.Model, st *state.State, sn *seed.Snap, flags
 
 	// for dangerous models, allow all devmode snaps
 	// XXX: eventually we may need to allow specific snaps to be devmode for
-	// non-dangerous snaps, we can do that here since that information will
+	// non-dangerous models, we can do that here since that information will
 	// probably be in the model assertion which we have here
 	if model.Grade() == asserts.ModelDangerous {
-		flags.OverrideToDevModeViaModel = true
+		flags.ApplySnapDevMode = true
 	}
 
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)

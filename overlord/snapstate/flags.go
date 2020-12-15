@@ -76,19 +76,19 @@ type Flags struct {
 	// otherwise installation fails.
 	RequireTypeBase bool `json:"require-base-type,omitempty"`
 
-	// OverrideToDevModeViaModel overrides allowing a snap to be installed if it
-	// is in confinement devmode. This is set to true for currently only UC20
-	// model grades dangerous for all snaps, where we always allow devmode snaps
-	// to be installed, and installed with devmode confinement turned on.
+	// ApplySnapDevMode overrides allowing a snap to be installed if it is in
+	// devmode confinement. This is set to true for currently only UC20 model
+	// grades dangerous for all snaps, where we always allow devmode snaps to be
+	// installed, and installed with devmode confinement turned on.
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
-	OverrideToDevModeViaModel bool `json:"override-to-devmode-via-model,omitempty"`
+	ApplySnapDevMode bool `json:"override-to-devmode-via-model,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
 // confinement (either set or overridden).
 func (f Flags) DevModeAllowed() bool {
-	return f.DevMode || f.JailMode || f.OverrideToDevModeViaModel
+	return f.DevMode || f.JailMode || f.ApplySnapDevMode
 }
 
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in
@@ -97,6 +97,6 @@ func (f Flags) ForSnapSetup() Flags {
 	f.SkipConfigure = false
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
-	f.OverrideToDevModeViaModel = false
+	f.ApplySnapDevMode = false
 	return f
 }
