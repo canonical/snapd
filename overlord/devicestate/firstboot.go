@@ -39,7 +39,7 @@ import (
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(model *asserts.Model, st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
 	}
@@ -48,14 +48,6 @@ func installSeedSnap(model *asserts.Model, st *state.State, sn *seed.Snap, flags
 	}
 	if sn.DevMode {
 		flags.DevMode = true
-	}
-
-	// for dangerous models, allow all devmode snaps
-	// XXX: eventually we may need to allow specific snaps to be devmode for
-	// non-dangerous models, we can do that here since that information will
-	// probably be in the model assertion which we have here
-	if model.Grade() == asserts.ModelDangerous {
-		flags.ApplySnapDevMode = true
 	}
 
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
@@ -231,7 +223,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	for _, seedSnap := range essentialSeedSnaps {
-		ts, info, err := installSeedSnap(model, st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		// for dangerous models, allow all devmode snaps
+		// XXX: eventually we may need to allow specific snaps to be devmode for
+		// non-dangerous models, we can do that here since that information will
+		// probably be in the model assertion which we have here
+		flags := snapstate.Flags{SkipConfigure: true}
+		if model.Grade() == asserts.ModelDangerous {
+			flags.ApplySnapDevMode = true
+		}
+
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +263,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	for _, seedSnap := range seedSnaps {
 		var flags snapstate.Flags
-		ts, info, err := installSeedSnap(model, st, seedSnap, flags)
+
+		// for dangerous models, allow all devmode snaps
+		// XXX: eventually we may need to allow specific snaps to be devmode for
+		// non-dangerous models, we can do that here since that information will
+		// probably be in the model assertion which we have here
+		if model.Grade() == asserts.ModelDangerous {
+			flags.ApplySnapDevMode = true
+		}
+
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
