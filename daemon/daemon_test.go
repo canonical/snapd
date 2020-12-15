@@ -61,11 +61,12 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
+	testutil.BaseTest
+
 	authorized      bool
 	err             error
 	lastPolkitFlags polkit.CheckFlags
 	notified        []string
-	restoreBackends func()
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -76,7 +77,11 @@ func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string,
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(osutil.MockMountInfo(""))
+
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	systemdSdNotify = func(notif string) error {
@@ -85,7 +90,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	}
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -94,7 +99,8 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	s.authorized = false
 	s.err = nil
 	logger.SetLogger(logger.NullLogger)
-	s.restoreBackends()
+
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {

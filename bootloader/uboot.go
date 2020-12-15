@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,10 +72,6 @@ func newUboot(rootdir string, blOpts *Options) Bootloader {
 
 func (u *uboot) Name() string {
 	return "uboot"
-}
-
-func (u *uboot) setRootDir(rootdir string) {
-	u.rootdir = rootdir
 }
 
 func (u *uboot) dir() string {
@@ -131,12 +128,12 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		return fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
 	}
 
-	systemFile := u.ConfigFile()
+	systemFile := u.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (u *uboot) ConfigFile() string {
-	return u.envFile()
+func (u *uboot) Present() (bool, error) {
+	return osutil.FileExists(u.envFile()), nil
 }
 
 func (u *uboot) envFile() string {

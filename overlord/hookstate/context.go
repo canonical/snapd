@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
@@ -74,6 +75,25 @@ func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler 
 	}, nil
 }
 
+func newEphemeralHookContextWithData(st *state.State, setup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+	context, err := NewContext(nil, st, setup, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if contextData != nil {
+		serialized, err := json.Marshal(contextData)
+		if err != nil {
+			return nil, err
+		}
+		var data map[string]*json.RawMessage
+		if err := json.Unmarshal(serialized, &data); err != nil {
+			return nil, err
+		}
+		context.cache["ephemeral-context"] = data
+	}
+	return context, nil
+}
+
 // InstanceName returns the name of the snap instance containing the hook.
 func (c *Context) InstanceName() string {
 	return c.setup.Snap
@@ -110,7 +130,7 @@ func (c *Context) Handler() Handler {
 	return c.handler
 }
 
-// Lock acquires the lock for this context (required for Set/Get, Cache/Cached),
+// Lock acquires the lock for this context (required for Set/Get, Cache/Cached, Logf/Errorf),
 // and OnDone/Done).
 func (c *Context) Lock() {
 	c.mutex.Lock()
@@ -135,28 +155,6 @@ func (c *Context) writing() {
 	if atomic.LoadInt32(&c.mutexChecker) != 1 {
 		panic("internal error: accessing context without lock")
 	}
-}
-
-func (c *Context) initForRun(handler Handler, contextData map[string]interface{}) error {
-	c.handler = handler
-	if contextData == nil {
-		return nil
-	}
-
-	if !c.IsEphemeral() {
-		return fmt.Errorf("internal error: cannot pass contextData to initForRun for %v", c)
-	}
-
-	serialized, err := json.Marshal(contextData)
-	if err != nil {
-		return err
-	}
-	var data map[string]*json.RawMessage
-	if err := json.Unmarshal(serialized, &data); err != nil {
-		return err
-	}
-	c.cache["ephemeral-context"] = data
-	return nil
 }
 
 // Set associates value with key. The provided value must properly marshal and
@@ -273,4 +271,42 @@ func (c *Context) Done() error {
 
 func (c *Context) IsEphemeral() bool {
 	return c.task == nil
+}
+
+// ChangeID returns change ID for non-ephemeral context
+// or empty string otherwise.
+func (c *Context) ChangeID() string {
+	if task, ok := c.Task(); ok {
+		if chg := task.Change(); chg != nil {
+			return chg.ID()
+		}
+	}
+	return ""
+}
+
+// Logf logs to the context, either to the logger for ephemeral contexts
+// or the task log.
+//
+// Context must be locked.
+func (c *Context) Logf(fmt string, args ...interface{}) {
+	c.writing()
+	if c.IsEphemeral() {
+		logger.Noticef(fmt, args...)
+	} else {
+		c.task.Logf(fmt, args...)
+	}
+}
+
+// Errorf logs errors to the context, either to the logger for
+// ephemeral contexts or the task log.
+//
+// Context must be locked.
+func (c *Context) Errorf(fmt string, args ...interface{}) {
+	c.writing()
+	if c.IsEphemeral() {
+		// XXX: loger has no Errorf() :/
+		logger.Noticef(fmt, args...)
+	} else {
+		c.task.Errorf(fmt, args...)
+	}
 }

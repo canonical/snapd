@@ -68,6 +68,7 @@ var (
 )
 
 type BootAssetsMap = bootAssetsMap
+type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {

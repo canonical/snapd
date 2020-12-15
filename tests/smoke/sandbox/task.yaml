@@ -19,7 +19,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sandbox
 
     # home is not auto-connected on core
-    if grep -q ID=ubuntu-core /etc/os-release; then
+    if os.query is-core; then
         snap connect test-snapd-sandbox:home
     fi
 

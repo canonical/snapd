@@ -37,7 +37,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.46
+    DELTA_REF: 2.48
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -111,12 +111,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-30-64:
-                  workers: 6
-                  manual: true
-            - fedora-31-64:
-                  workers: 6
             - fedora-32-64:
+                  workers: 6
+            - fedora-33-64:
                   workers: 6
 
             - arch-linux-64:
@@ -176,6 +173,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 6
+            - ubuntu-20.10-64:
+                  image: ubuntu-2010-64-virt-enabled
+                  storage: 20G
+                  workers: 6
 
     qemu-nested:
         memory: 4G
@@ -192,8 +193,6 @@ backends:
                   password: ubuntu
 
     qemu:
-        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
-        memory: 2G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
@@ -499,7 +498,7 @@ repack: |
             find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
                 ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
                 -delete
-            tar -C "$tmpdir" -c "$DELTA_PREFIX" > repacked-current.tar
+            tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar
         fi
@@ -579,6 +578,14 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
         # make sure EPEL is enabled
         yum install -y epel-release
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # make sure unattended-upgrades does not get in the way
+        if systemctl is-enabled unattended-upgrades.service; then
+            systemctl stop unattended-upgrades.service
+            systemctl mask unattended-upgrades.service
+        fi
     fi
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
@@ -840,6 +847,7 @@ suites:
             - ubuntu-16.04-64
             - ubuntu-18.04-64
             - ubuntu-20.04-64
+            - ubuntu-20.10-64
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -879,7 +887,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm

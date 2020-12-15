@@ -59,22 +59,21 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
-%global snappy_user_svcs snapd.session-agent.socket
+%global snappy_svcs      snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
+%global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} || 0%{?rhel} >= 8
-# buildmode PIE triggers external linker consumes -extldflags
-%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
-# trigger external linker manually, otherwise -extldflags have no meaning
+# no pass PIE flags due to https://bugzilla.redhat.com/show_bug.cgi?id=1634486
 %define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 
-# These macros are missing BUILDTAGS in RHEL 8
+# These macros are missing BUILDTAGS in RHEL 8, see RHBZ#1825138
 %if 0%{?rhel} == 8
-%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
 # These macros are not defined in RHEL 7
@@ -315,13 +314,19 @@ Provides:      golang(%{import_path}/boot) = %{version}-%{release}
 Provides:      golang(%{import_path}/boot/boottest) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/androidbootenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/bootloader/bootloadertest) = %{version}-%{release}
+Provides:      golang(%{import_path}/bootloader/efi) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/grubenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/cmdutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-bootstrap/bootstrap) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-bootstrap/partition) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
@@ -329,6 +334,7 @@ Provides:      golang(%{import_path}/features) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget) = %{version}-%{release}
 Provides:      golang(%{import_path}/httputil) = %{version}-%{release}
 Provides:      golang(%{import_path}/i18n) = %{version}-%{release}
+Provides:      golang(%{import_path}/i18n/xgettext-go) = %{version}-%{release}
 Provides:      golang(%{import_path}/image) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/apparmor) = %{version}-%{release}
@@ -350,6 +356,7 @@ Provides:      golang(%{import_path}/logger) = %{version}-%{release}
 Provides:      golang(%{import_path}/metautil) = %{version}-%{release}
 Provides:      golang(%{import_path}/netutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/mount) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/squashfs) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/strace) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/sys) = %{version}-%{release}
@@ -357,6 +364,7 @@ Provides:      golang(%{import_path}/osutil/udev/crawler) = %{version}-%{release
 Provides:      golang(%{import_path}/osutil/udev/netlink) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/assertstate) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/assertstate/assertstatetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
@@ -366,6 +374,8 @@ Provides:      golang(%{import_path}/overlord/configstate/proxyconf) = %{version
 Provides:      golang(%{import_path}/overlord/configstate/settings) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate/devicestatetest) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/devicestate/internal) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/healthstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/hooktest) = %{version}-%{release}
@@ -378,17 +388,30 @@ Provides:      golang(%{import_path}/overlord/snapshotstate) = %{version}-%{rele
 Provides:      golang(%{import_path}/overlord/snapshotstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/snapstate/policy) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/snapstate/snapstatetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/standby) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/storecontext) = %{version}-%{release}
 Provides:      golang(%{import_path}/polkit) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress/progresstest) = %{version}-%{release}
+Provides:      golang(%{import_path}/randutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
+Provides:      golang(%{import_path}/sandbox) = %{version}-%{release}
+Provides:      golang(%{import_path}/sandbox/apparmor) = %{version}-%{release}
+Provides:      golang(%{import_path}/sandbox/cgroup) = %{version}-%{release}
 Provides:      golang(%{import_path}/sandbox/seccomp) = %{version}-%{release}
+Provides:      golang(%{import_path}/sandbox/selinux) = %{version}-%{release}
 Provides:      golang(%{import_path}/sanity) = %{version}-%{release}
-Provides:      golang(%{import_path}/selinux) = %{version}-%{release}
+Provides:      golang(%{import_path}/secboot) = %{version}-%{release}
+Provides:      golang(%{import_path}/seed) = %{version}-%{release}
+Provides:      golang(%{import_path}/seed/internal) = %{version}-%{release}
+Provides:      golang(%{import_path}/seed/seedtest) = %{version}-%{release}
+Provides:      golang(%{import_path}/seed/seedwriter) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
+Provides:      golang(%{import_path}/snap/channel) = %{version}-%{release}
+Provides:      golang(%{import_path}/snapdenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/naming) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
@@ -399,8 +422,10 @@ Provides:      golang(%{import_path}/spdx) = %{version}-%{release}
 Provides:      golang(%{import_path}/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/store/storetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/strutil/chrorder) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil/quantity) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil/shlex) = %{version}-%{release}
+Provides:      golang(%{import_path}/sysconfig) = %{version}-%{release}
 Provides:      golang(%{import_path}/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{release}
@@ -408,8 +433,11 @@ Provides:      golang(%{import_path}/testutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeout) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/timings) = %{version}-%{release}
-Provides:      golang(%{import_path}/userd) = %{version}-%{release}
-Provides:      golang(%{import_path}/userd/ui) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/agent) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/autostart) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/client) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/userd) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/userd/ui) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
 Provides:      golang(%{import_path}/xdgopenproxy) = %{version}-%{release}
@@ -523,13 +551,6 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 
 # Build snap-confine
 pushd ./cmd
-# FIXME This is a hack to get rid of a patch we have to ship for the
-# Fedora package at the moment as /usr/lib/rpm/redhat/redhat-hardened-ld
-# accidentially adds -pie for static executables. See
-# https://bugzilla.redhat.com/show_bug.cgi?id=1343892 for a few more
-# details. To prevent this from happening we drop the linker
-# script and define our LDFLAGS manually for now.
-export LDFLAGS="-Wl,-z,relro -z now"
 autoreconf --force --install --verbose
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
 %configure \
@@ -562,6 +583,7 @@ install -d -p %{buildroot}%{_environmentdir}
 install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 install -d -p %{buildroot}%{_unitdir}
+install -d -p %{buildroot}%{_userunitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
@@ -633,7 +655,7 @@ popd
 # Install all systemd and dbus units, and env files
 pushd ./data
 %make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-              SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
+              SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
@@ -708,7 +730,7 @@ sort -u -o devel.file-list devel.file-list
 
 %check
 for binary in snap-exec snap-update-ns snapctl; do
-    ldd bin/$binary | grep 'not a dynamic executable'
+    ldd bin/$binary 2>&1 | grep 'not a dynamic executable'
 done
 
 # snapd tests
@@ -748,6 +770,7 @@ popd
 %{_libexecdir}/snapd/snap-mgmt-selinux
 %endif
 %{_mandir}/man8/snap.8*
+%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
@@ -765,6 +788,7 @@ popd
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
@@ -871,7 +895,7 @@ fi
 
 %postun
 %systemd_postun_with_restart %{snappy_svcs}
-%systemd_user_postun %{snappy_user_svcs}
+%systemd_user_postun_with_restart %{snappy_user_svcs}
 
 %if 0%{?with_selinux}
 %triggerun -- snapd < 2.39
@@ -2055,7 +2079,7 @@ fi
    future work
  - asserts: make clearer that with label we mean a serialized label
  - cmd/snap-bootstrap: tweak recovery trigger log messages
- - asserts: introduce PoolTo 
+ - asserts: introduce PoolTo
  - userd: allow setting default-url-scheme-handler
  - secboot: append uuid to ubuntu-data when decrypting
  - o/configcore: pass extra options to FileSystemOnlyApply

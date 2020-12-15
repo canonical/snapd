@@ -392,58 +392,10 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 // function (for the next) state or nil if it is the final state.
 type stateFunc func() (stateFunc, error)
 
-// recoverModeStateMachine is a state machine implementing the logic for degraded recover
-// mode. the following state diagram shows the logic for the various states and
-// transitions:
-/**
-
-
-TODO: the state diagram is out-of-date, locate save unencrypted is being
-taken care via unlock save w/ fallback key which also works for
-unencrypted save
-
-
-                         +---------+                    +----------+
-                         | start   |                    | mount    |       fail
-                         |         +------------------->+ boot     +------------------------+
-                         |         |                    |          |                        |
-                         +---------+                    +----+-----+                        |
-                                                             |                              |
-                                                     success |                              |
-                                                             |                              |
-                                                             v                              v
-        fail or        +-------------------+  fail,     +----+------+  fail,       +--------+-------+
-        not needed     |    locate save    |  unencrypt |unlock data|  encrypted   | unlock data w/ |
-        +--------------+    unencrypted    +<-----------+w/ run key +--------------+ fallback key   +-------+
-        |              |                   |            |           |              |                |       |
-        |              +--------+----------+            +-----+-----+              +--------+-------+       |
-        |                       |                             |                             |               |
-        |                       |success                      |success                      |               |
-        |                       |                             |                    success  |        fail   |
-        v                       v                             v                             |               |
-+---+---+           +-------+----+                +-------+----+                            |               |
-|       |           | mount      |       success  | mount data |                            |               |
-| done  +<----------+ save       |      +---------+            +<---------------------------+               |
-|       |           |            |      |         |            |                                            |
-+--+----+           +----+-------+      |         +----------+-+                                            |
-   ^                     ^              |                    |                                              |
-   |                     | success      v                    |                                              |
-   |                     |     +--------+----+   fail        |fail                                          |
-   |                     |     | unlock save +--------+      |                                              |
-   |                     +-----+ w/ run key  |        v      v                                              |
-   |                     ^     +-------------+   +----+------+-----+                                        |
-   |                     |                       | unlock save     |                                        |
-   |                     |                       | w/ fallback key +----------------------------------------+
-   |                     +-----------------------+                 |
-   |                             success         +-------+---------+
-   |                                                     |
-   |                                                     |
-   |                                                     |
-   +-----------------------------------------------------+
-                                                fail
-
-*/
-
+// recoverModeStateMachine is a state machine implementing the logic for
+// degraded recover mode.
+// A full state diagram for the state machine can be found in
+// /cmd/snap-bootstrap/degraded-recover-mode.svg in this repo.
 type recoverModeStateMachine struct {
 	// the current state is the one that is about to be executed
 	current stateFunc
@@ -533,7 +485,7 @@ func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
 func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error) error {
 	part := m.degradedState.partition(partName)
 	if err != nil {
-		if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+		if _, ok := err.(disks.PartitionNotFoundError); ok {
 			// explicit error that the device was not found
 			part.FindState = partitionNotFound
 			m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
@@ -803,7 +755,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-boot")
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
+	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
 	if err := m.setFindState("ubuntu-boot", partUUID, findErr); err != nil {
 		return nil, err
 	}
@@ -1179,6 +1131,12 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 	if err != nil {
 		return nil, err
 	}
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// expected recovery model we sealed against.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected recovery models
 
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
@@ -1268,9 +1226,9 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
 		if err != nil {
-			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
 				// non-encrypted device
 				return false, nil
@@ -1301,7 +1259,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-seed")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	if err != nil {
 		return err
 	}
@@ -1325,8 +1283,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
-	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
-	// one recorded in ubuntu-data modeenv during install
+	// at this point on a system with TPM-based encryption
+	// data can be open only if the measured model matches the actual
+	// run model.
+	// TODO:UC20: on ARM systems and no TPM with encryption
+	// we need other ways to make sure that the disk is opened
+	// and we continue booting only for expected models
 
 	// 3.2. mount Data
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")

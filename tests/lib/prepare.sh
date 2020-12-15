@@ -8,8 +8,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -304,7 +302,7 @@ prepare_classic() {
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
-        output=$(bootenv)
+        output=$("$TESTSTOOLS"/boot-state bootenv show)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
@@ -318,7 +316,7 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
         # inotify watch on that path

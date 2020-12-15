@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,12 +52,30 @@ const (
 	SystemSeed = "system-seed"
 	SystemSave = "system-save"
 
-	bootImage  = "system-boot-image"
+	// extracted kernels for all uc systems
+	bootImage = "system-boot-image"
+
+	// extracted kernels for recovery kernels for uc20 specifically
+	seedBootImage = "system-seed-image"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting normal run mode on uc20 and all modes on
+	// uc16 and uc18
 	bootSelect = "system-boot-select"
+
+	// bootloader specific partition which stores bootloader environment vars
+	// for purposes of booting recovery systems on uc20, i.e. recover or install
+	seedBootSelect = "system-seed-select"
 
 	// implicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	implicitSystemDataLabel = "writable"
+
+	// UC20 filesystem labels for roles
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
+	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
 
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
@@ -71,7 +89,7 @@ var (
 )
 
 type Info struct {
-	Volumes map[string]Volume `yaml:"volumes,omitempty"`
+	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
@@ -92,13 +110,6 @@ type Volume struct {
 	Structure []VolumeStructure `yaml:"structure"`
 }
 
-func (v *Volume) EffectiveSchema() string {
-	if v.Schema == "" {
-		return schemaGPT
-	}
-	return v.Schema
-}
-
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
@@ -108,7 +119,7 @@ type VolumeStructure struct {
 	// Label provides the filesystem label
 	Label string `yaml:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset *quantity.Size `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
@@ -125,7 +136,7 @@ type VolumeStructure struct {
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of
 	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
-	// 'system-boot-select'. Structures of type 'mbr', must have a
+	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -146,40 +157,16 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
-	return vs.Type != "bare" && vs.EffectiveRole() != schemaMBR
-}
-
-// EffectiveRole returns the role of given structure
-func (vs *VolumeStructure) EffectiveRole() string {
-	if vs.Role != "" {
-		return vs.Role
-	}
-	if vs.Role == "" && vs.Type == schemaMBR {
-		return schemaMBR
-	}
-	if vs.Label == SystemBoot {
-		// for gadgets that only specify a filesystem-label, eg. pc
-		return SystemBoot
-	}
-	return ""
-}
-
-// EffectiveFilesystemLabel returns the effective filesystem label, either
-// explicitly provided or implied by the structure's role
-func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
-	if vs.EffectiveRole() == SystemData {
-		return implicitSystemDataLabel
-	}
-	return vs.Label
+	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
 type VolumeContent struct {
-	// Source is the data of the partition relative to the gadget base
-	// directory
-	Source string `yaml:"source"`
+	// UnresovedSource is the data of the partition relative to
+	// the gadget base directory
+	UnresolvedSource string `yaml:"source"`
 	// Target is the location of the data inside the root filesystem
 	Target string `yaml:"target"`
 
@@ -187,7 +174,7 @@ type VolumeContent struct {
 	// for a 'bare' type structure
 	Image string `yaml:"image"`
 	// Offset the image is written at
-	Offset *quantity.Size `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
@@ -199,11 +186,16 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
+func (vc VolumeContent) ResolvedSource() string {
+	// TODO: implement resolved sources
+	return vc.UnresolvedSource
+}
+
 func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
 	}
-	return fmt.Sprintf("source:%s", vc.Source)
+	return fmt.Sprintf("source:%s", vc.UnresolvedSource)
 }
 
 type VolumeUpdate struct {
@@ -345,7 +337,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v, model); err != nil {
+		if err := validateVolume(name, v, model); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -365,7 +357,77 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		return nil, fmt.Errorf("too many (%d) bootloaders declared", bootloadersFound)
 	}
 
+	for name, v := range gi.Volumes {
+		if err := setImplicitForVolume(name, v, model); err != nil {
+			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
+		}
+	}
+
+	// XXX non-basic validation, should be done optionally/separately
+	if err := ruleValidateVolumes(gi.Volumes, model); err != nil {
+		return nil, err
+	}
+
 	return &gi, nil
+}
+
+type volRuleset int
+
+const (
+	volRulesetUnknown volRuleset = iota
+	volRuleset16
+	volRuleset20
+)
+
+func whichVolRuleset(model Model) volRuleset {
+	if model == nil {
+		return volRulesetUnknown
+	}
+	if model.Grade() != asserts.ModelGradeUnset {
+		return volRuleset20
+	}
+	return volRuleset16
+}
+
+func setImplicitForVolume(name string, vol *Volume, model Model) error {
+	rs := whichVolRuleset(model)
+	if vol.Schema == "" {
+		// default for schema is gpt
+		vol.Schema = schemaGPT
+	}
+	for i := range vol.Structure {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
+	if vs.Role == "" && vs.Type == schemaMBR {
+		vs.Role = schemaMBR
+		return nil
+	}
+	if rs == volRuleset16 && vs.Role == "" && vs.Label == SystemBoot {
+		// legacy behavior, for gadgets that only specify a filesystem-label, eg. pc
+		vs.Role = SystemBoot
+		return nil
+	}
+	if vs.Label == "" {
+		switch {
+		case rs == volRuleset16 && vs.Role == SystemData:
+			vs.Label = implicitSystemDataLabel
+		case rs == volRuleset20 && vs.Role == SystemData:
+			vs.Label = ubuntuDataLabel
+		case rs == volRuleset20 && vs.Role == SystemSeed:
+			vs.Label = ubuntuSeedLabel
+		case rs == volRuleset20 && vs.Role == SystemBoot:
+			vs.Label = ubuntuBootLabel
+		case rs == volRuleset20 && vs.Role == SystemSave:
+			vs.Label = ubuntuSaveLabel
+		}
+	}
+	return nil
 }
 
 func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
@@ -402,13 +464,6 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-type validationState struct {
-	SystemSeed *VolumeStructure
-	SystemData *VolumeStructure
-	SystemBoot *VolumeStructure
-	SystemSave *VolumeStructure
-}
-
 func validateVolume(name string, vol *Volume, model Model) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
@@ -424,19 +479,21 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
-	state := &validationState{}
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
+	// TODO: should we also validate that if there is a system-recovery-select
+	// role there should also be at least 2 system-recovery-image roles and
+	// same for system-boot-select and at least 2 system-boot-image roles?
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start quantity.Size
+		var start quantity.Offset
 		if s.Offset != nil {
 			start = *s.Offset
 		} else {
 			start = previousEnd
 		}
-		end := start + s.Size
+		end := start + quantity.Offset(s.Size)
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
@@ -451,40 +508,14 @@ func validateVolume(name string, vol *Volume, model Model) error {
 			knownStructures[s.Name] = &ps
 		}
 		if s.Label != "" {
+			// XXX what about implicit labels
 			if seen := knownFsLabels[s.Label]; seen {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
 			knownFsLabels[s.Label] = true
 		}
 
-		switch s.Role {
-		case SystemSeed:
-			if state.SystemSeed != nil {
-				return fmt.Errorf("cannot have more than one partition with system-seed role")
-			}
-			state.SystemSeed = &vol.Structure[idx]
-		case SystemData:
-			if state.SystemData != nil {
-				return fmt.Errorf("cannot have more than one partition with system-data role")
-			}
-			state.SystemData = &vol.Structure[idx]
-		case SystemBoot:
-			if state.SystemBoot != nil {
-				return fmt.Errorf("cannot have more than one partition with system-boot role")
-			}
-			state.SystemBoot = &vol.Structure[idx]
-		case SystemSave:
-			if state.SystemSave != nil {
-				return fmt.Errorf("cannot have more than one partition with system-save role")
-			}
-			state.SystemSave = &vol.Structure[idx]
-		}
-
 		previousEnd = end
-	}
-
-	if err := ensureVolumeConsistency(state, model); err != nil {
-		return err
 	}
 
 	// sort by starting offset
@@ -493,99 +524,25 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func ensureVolumeConsistencyNoConstraints(state *validationState) error {
-	switch {
-	case state.SystemSeed == nil && state.SystemData == nil:
-		// happy so far
-	case state.SystemSeed != nil && state.SystemData == nil:
-		return fmt.Errorf("the system-seed role requires system-data to be defined")
-	case state.SystemSeed == nil && state.SystemData != nil:
-		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", implicitSystemDataLabel, state.SystemData.Label)
-		}
-	case state.SystemSeed != nil && state.SystemData != nil:
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
-			return err
-		}
+// isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
+func isMBR(vs *VolumeStructure) bool {
+	if vs.Role == schemaMBR {
+		return true
 	}
-	if state.SystemSave != nil {
-		if err := ensureSystemSaveConsistency(state); err != nil {
-			return err
-		}
+	if vs.Role == "" && vs.Type == schemaMBR {
+		return true
 	}
-	return nil
-}
-
-func ensureVolumeConsistencyWithConstraints(state *validationState, model Model) error {
-	switch {
-	case state.SystemSeed == nil && state.SystemData == nil:
-		if wantsSystemSeed(model) {
-			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
-		}
-	case state.SystemSeed != nil && state.SystemData == nil:
-		return fmt.Errorf("the system-seed role requires system-data to be defined")
-	case state.SystemSeed == nil && state.SystemData != nil:
-		// error if we have the SystemSeed constraint but no actual system-seed structure
-		if wantsSystemSeed(model) {
-			return fmt.Errorf("model requires system-seed structure, but none was found")
-		}
-		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-				implicitSystemDataLabel, state.SystemData.Label)
-		}
-	case state.SystemSeed != nil && state.SystemData != nil:
-		// error if we don't have the SystemSeed constraint but we have a system-seed structure
-		if !wantsSystemSeed(model) {
-			return fmt.Errorf("model does not support the system-seed role")
-		}
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
-			return err
-		}
-	}
-	if state.SystemSave != nil {
-		if err := ensureSystemSaveConsistency(state); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ensureVolumeConsistency(state *validationState, model Model) error {
-	if model == nil {
-		return ensureVolumeConsistencyNoConstraints(state)
-	}
-	return ensureVolumeConsistencyWithConstraints(state, model)
-}
-
-func ensureSeedDataLabelsUnset(state *validationState) error {
-	if state.SystemData.Label != "" {
-		return fmt.Errorf("system-data structure must not have a label")
-	}
-	if state.SystemSeed.Label != "" {
-		return fmt.Errorf("system-seed structure must not have a label")
-	}
-	return nil
-}
-
-func ensureSystemSaveConsistency(state *validationState) error {
-	if state.SystemData == nil || state.SystemSeed == nil {
-		return fmt.Errorf("system-save requires system-seed and system-data structures")
-	}
-	if state.SystemSave.Label != "" {
-		return fmt.Errorf("system-save structure must not have a label")
-	}
-	return nil
+	return false
 }
 
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if ps.EffectiveRole() == schemaMBR {
+		if isMBR(ps.VolumeStructure) {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
@@ -603,7 +560,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 			previous := structures[pidx-1]
 			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
 		}
-		previousEnd = ps.StartOffset + ps.Size
+		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
@@ -619,31 +576,6 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
-	}
-	return nil
-}
-
-var (
-	reservedLabels = []string{
-		// 2020-12-02 disabled because of customer gadget hotfix
-		/*ubuntuBootLabel,*/
-		ubuntuSeedLabel,
-		ubuntuDataLabel,
-		ubuntuSaveLabel,
-	}
-)
-
-func validateReservedLabels(vs *VolumeStructure) error {
-	if vs.Role != "" {
-		// structure specifies a role, its labels will be checked later
-		return nil
-	}
-	if vs.Label == "" {
-		return nil
-	}
-	if strutil.ListContains(reservedLabels, vs.Label) {
-		// a structure without a role uses one of reserved labels
-		return fmt.Errorf("label %q is reserved", vs.Label)
 	}
 	return nil
 }
@@ -682,10 +614,6 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
-		return err
-	}
-
-	if err := validateReservedLabels(vs); err != nil {
 		return err
 	}
 
@@ -790,7 +718,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, bootImage, bootSelect, "":
+	case SystemBoot, bootImage, bootSelect, seedBootSelect, seedBootImage, "":
 		// noop
 	case legacyBootImage, legacyBootSelect:
 		// noop
@@ -803,7 +731,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 }
 
 func validateBareContent(vc *VolumeContent) error {
-	if vc.Source != "" || vc.Target != "" {
+	if vc.UnresolvedSource != "" || vc.Target != "" {
 		return fmt.Errorf("cannot use non-image content for bare file system")
 	}
 	if vc.Image == "" {
@@ -816,7 +744,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.Source == "" || vc.Target == "" {
+	if vc.UnresolvedSource == "" || vc.Target == "" {
 		return fmt.Errorf("missing source or target")
 	}
 	return nil
@@ -853,7 +781,7 @@ type RelativeOffset struct {
 	// address write will be calculated.
 	RelativeTo string
 	// Offset is a 32-bit value
-	Offset quantity.Size
+	Offset quantity.Offset
 }
 
 func (r *RelativeOffset) String() string {
@@ -867,31 +795,31 @@ func (r *RelativeOffset) String() string {
 }
 
 // parseRelativeOffset parses a string describing an offset that can be
-// expressed relative to a named structure, with the format: [<name>+]<size>.
+// expressed relative to a named structure, with the format: [<name>+]<offset>.
 func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 	toWhat := ""
-	sizeSpec := grs
+	offsSpec := grs
 	if idx := strings.IndexRune(grs, '+'); idx != -1 {
-		toWhat, sizeSpec = grs[:idx], grs[idx+1:]
+		toWhat, offsSpec = grs[:idx], grs[idx+1:]
 		if toWhat == "" {
 			return nil, errors.New("missing volume name")
 		}
 	}
-	if sizeSpec == "" {
+	if offsSpec == "" {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := quantity.ParseSize(sizeSpec)
+	offset, err := quantity.ParseOffset(offsSpec)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
+		return nil, fmt.Errorf("cannot parse offset %q: %v", offsSpec, err)
 	}
-	if size > 4*quantity.SizeGiB {
+	if offset > 4*1024*quantity.OffsetMiB {
 		return nil, fmt.Errorf("offset above 4G limit")
 	}
 
 	return &RelativeOffset{
 		RelativeTo: toWhat,
-		Offset:     size,
+		Offset:     offset,
 	}, nil
 }
 
@@ -926,6 +854,10 @@ func IsCompatible(current, new *Info) error {
 		return err
 	}
 
+	if currentVol.Schema == "" || newVol.Schema == "" {
+		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
+	}
+
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
@@ -943,10 +875,10 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, nil)
+func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
 	}
@@ -956,12 +888,12 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 	}
 
 	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, &vol, constraints)
+		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
 		if err != nil {
 			return nil, err
 		}

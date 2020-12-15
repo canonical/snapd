@@ -179,11 +179,11 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 // missing from the kernel command line or it has no value (eg. quiet), the key
 // is omitted from the returned map.
 func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
-	buf, err := ioutil.ReadFile(procCmdline)
+	cmdline, err := KernelCommandLine()
 	if err != nil {
 		return nil, err
 	}
-	params, err := KernelCommandLineSplit(strings.TrimSpace(string(buf)))
+	params, err := KernelCommandLineSplit(cmdline)
 	if err != nil {
 		return nil, err
 	}
@@ -202,4 +202,13 @@ func KernelCommandLineKeyValues(keys ...string) (map[string]string, error) {
 		}
 	}
 	return m, nil
+}
+
+// KernelCommandLine returns the command line reported by the running kernel.
+func KernelCommandLine() (string, error) {
+	buf, err := ioutil.ReadFile(procCmdline)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(buf)), nil
 }

@@ -77,6 +77,9 @@ func (o *Options) validate() error {
 	if o.NoSlashBoot && o.Role == RoleSole {
 		return fmt.Errorf("internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
 	}
+	if o.PrepareImageTime && o.Role == RoleRunMode {
+		return fmt.Errorf("internal error: cannot use run mode bootloader at prepare-image time")
+	}
 	return nil
 }
 
@@ -92,8 +95,12 @@ type Bootloader interface {
 	// Name returns the bootloader name.
 	Name() string
 
-	// ConfigFile returns the name of the config file.
-	ConfigFile() string
+	// Present returns whether the bootloader is currently present on the
+	// system - in other words whether this bootloader has been installed to the
+	// current system. Implementations should only return non-nil error if they
+	// can positively identify that the bootloader is installed, but there is
+	// actually an error with the installation.
+	Present() (bool, error)
 
 	// InstallBootConfig will try to install the boot config in the
 	// given gadgetDir to rootdir.
@@ -104,11 +111,6 @@ type Bootloader interface {
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
-}
-
-type installableBootloader interface {
-	Bootloader
-	setRootDir(string)
 }
 
 type RecoveryAwareBootloader interface {
@@ -170,8 +172,9 @@ type TrustedAssetsBootloader interface {
 	// ManagedAssets returns a list of boot assets managed by the bootloader
 	// in the boot filesystem. Does not require rootdir to be set.
 	ManagedAssets() []string
-	// UpdateBootConfig updates the boot config assets used by the bootloader.
-	UpdateBootConfig(*Options) error
+	// UpdateBootConfig attempts to update the boot config assets used by
+	// the bootloader. Returns true when assets were updated.
+	UpdateBootConfig() (bool, error)
 	// CommandLine returns the kernel command line composed of mode and
 	// system arguments, built-in bootloader specific static arguments
 	// corresponding to the on-disk boot asset edition, followed by any
@@ -215,28 +218,31 @@ func genericSetBootConfigFromAsset(systemFile, assetName string) error {
 	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
 }
 
-func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (updated bool, err error) {
 	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
 	if err != nil && err != errNoEdition {
-		return err
+		return false, err
 	}
 	if err == errNoEdition {
-		return nil
+		return false, nil
 	}
 	newBootConfig := assets.Internal(assetName)
 	if len(newBootConfig) == 0 {
-		return fmt.Errorf("no boot config asset with name %q", assetName)
+		return false, fmt.Errorf("no boot config asset with name %q", assetName)
 	}
 	bc, err := configAssetFrom(newBootConfig)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if bc.Edition() <= currentBootConfigEdition {
 		// edition of the candidate boot config is lower than or equal
 		// to one currently installed
-		return nil
+		return false, nil
 	}
-	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
+	if err := osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
@@ -291,9 +297,14 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 		opts = &Options{}
 	}
 
+	// note that the order of this is not deterministic
 	for _, blNew := range bootloaders {
 		bl := blNew(rootdir, opts)
-		if osutil.FileExists(bl.ConfigFile()) {
+		present, err := bl.Present()
+		if err != nil {
+			return nil, fmt.Errorf("bootloader %q found but not usable: %v", bl.Name(), err)
+		}
+		if present {
 			return bl, nil
 		}
 	}
