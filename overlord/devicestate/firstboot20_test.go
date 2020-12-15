@@ -115,7 +115,18 @@ volumes:
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.AssertedSnapID("core20"),
+				"type": "base",
+			},
+		},
 	}, nil)
 }
 
