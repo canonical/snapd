@@ -94,7 +94,7 @@ func (sh *Snapshot) IsValid() bool {
 }
 
 // ContentHash returns a hash that can be used to identify the snapshot
-// but does not contain data like "time"
+// by its content, leaving out metadata like "time" or "set-id".
 func (sh *Snapshot) ContentHash() ([]byte, error) {
 	sh2 := *sh
 	sh2.SetID = 0
@@ -143,7 +143,8 @@ func (ss bySnap) Len() int           { return len(ss) }
 func (ss bySnap) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
 func (ss bySnap) Less(i, j int) bool { return ss[i].Snap < ss[j].Snap }
 
-// ContentHash returns a hash that can be used to identify the SnapshotSet
+// ContentHash returns a hash that can be used to identify the SnapshotSet by
+// its content.
 func (ss SnapshotSet) ContentHash() ([]byte, error) {
 	sortedSnapshots := make([]*Snapshot, len(ss.Snapshots))
 	copy(sortedSnapshots, ss.Snapshots)

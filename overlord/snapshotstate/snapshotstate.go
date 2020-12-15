@@ -317,12 +317,6 @@ func List(ctx context.Context, st *state.State, setID uint64, snapNames []string
 	return sets, nil
 }
 
-// XXX: Something needs to cleanup incomplete imports. This is conceptually
-//      very simple: on startup, do:
-//      for setID in *_importing:
-//          newImportTransaction(setID).Cancel()
-//      But it needs to happen early *before* anything can start new imports
-
 // Import a given snapshot ID from an exported snapshot
 func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
 	st.Lock()
