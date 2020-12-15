@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -1388,4 +1389,59 @@ cat - > %s
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *secbootSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
+	// this test uses a real systemd-run --user so check here if that
+	// actually works
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+	}
+
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
+	defer mockSystemdRun.Restore()
+
+	restore = secboot.MockFdeRevealKeyPollWaitParanoiaFactor(100)
+	defer restore()
+
+	restore = secboot.MockFdeRevealKeyRuntimeMax(100 * time.Millisecond)
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": service result: timeout`)
+}
+
+func (s *secbootSuite) TestLockSealedKeysHonorsParanoia(c *C) {
+	// this test uses a real systemd-run --user so check here if that
+	// actually works
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+	}
+
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
+	defer mockSystemdRun.Restore()
+
+	restore = secboot.MockFdeRevealKeyPollWaitParanoiaFactor(1)
+	defer restore()
+
+	// shorter than the fdeRevealKeyPollWait time
+	restore = secboot.MockFdeRevealKeyRuntimeMax(1 * time.Millisecond)
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": internal error: systemd-run did not honor RuntimeMax=1ms setting`)
 }
