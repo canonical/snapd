@@ -199,7 +199,7 @@ volumes:
         filesystem-label: %s`, tc.label)
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
-		ginfo, err := gadget.ReadInfo(s.dir, nil, nil)
+		ginfo, err := gadget.ReadInfo(s.dir, nil)
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, nil, nil)
 		if tc.err != "" {
@@ -285,7 +285,7 @@ volumes:
 			systemSeed: tc.requireSeed,
 		}
 
-		ginfo, err := gadget.ReadInfo(s.dir, constraints, nil)
+		ginfo, err := gadget.ReadInfo(s.dir, constraints)
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, constraints, nil)
 		if tc.err != "" {
@@ -301,7 +301,7 @@ volumes:
 	constraints := &modelConstraints{
 		systemSeed: true,
 	}
-	ginfo, err := gadget.ReadInfo(s.dir, constraints, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, constraints)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, constraints, nil)
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
@@ -326,7 +326,7 @@ volumes:
 `, role)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-		ginfo, err := gadget.ReadInfo(s.dir, nil, nil)
+		ginfo, err := gadget.ReadInfo(s.dir, nil)
 		c.Assert(err, IsNil)
 		err = gadget.Validate(ginfo, nil, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid volume "pc": cannot have more than one partition with %s role`, role))
@@ -399,7 +399,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
@@ -429,7 +429,7 @@ volumes:
 	// only content for the first volume
 	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
@@ -452,7 +452,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	ginfo, err := gadget.ReadInfo(s.dir, nil, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir)
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
@@ -506,7 +506,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
 	mod := &modelConstraints{systemSeed: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
@@ -517,7 +517,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
 	mod := &modelConstraints{systemSeed: true}
-	ginfo, err := gadget.ReadInfo(s.dir, mod, nil)
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,

@@ -443,27 +443,33 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 	return InfoFromGadgetYaml(gmeta, model)
 }
 
-type ValidationOptions struct {
-	DoValidation bool
-	ValidationConstraints
-}
-
 // ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
 // root directory.
-// If validationOpts.DoValidation is true, it also performs consistency rules validation as Validate does using the included constraints.
-func ReadInfo(gadgetSnapRootDir string, model Model, validationOpts *ValidationOptions) (*Info, error) {
+// See ReadInfoAndValidate for a variant that does consistency rules
+// validation like Validate.
+func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	ginfo, err := readInfo(ioutil.ReadFile, gadgetYamlFn, model)
 	if err != nil {
 		return nil, err
 	}
-	if validationOpts != nil && validationOpts.DoValidation {
-		if err := Validate(ginfo, model, &validationOpts.ValidationConstraints); err != nil {
-			return nil, err
-		}
-	}
 	return ginfo, nil
 
+}
+
+// ReadInfoAndValidate reads the gadget specific metadata from
+// meta/gadget.yaml in the snap root directory.
+// It also performs consistency rules validation as Validate does
+// using the given constraints. See ReadInfo for a variant that does not.
+func ReadInfoAndValidate(gadgetSnapRootDir string, model Model, validationConstraints *ValidationConstraints) (*Info, error) {
+	ginfo, err := ReadInfo(gadgetSnapRootDir, model)
+	if err != nil {
+		return nil, err
+	}
+	if err := Validate(ginfo, model, validationConstraints); err != nil {
+		return nil, err
+	}
+	return ginfo, err
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
@@ -902,7 +908,7 @@ func IsCompatible(current, new *Info) error {
 // LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
 func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, model, nil)
+	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
 	}

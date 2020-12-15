@@ -35,11 +35,11 @@ func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, mode
 }
 
 func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetData, error) {
-	// we do not ask for consistency validation here but pass
-	// validationConstraints = nil, because those have been done
-	// when the gadget was installed for current/already local
-	// revisions, or in the check-snap task for incoming gadgets.
-	gi, err := gadget.ReadInfo(info.MountDir(), model, nil)
+	// we do not perform consistency validation here because that
+	// has been done when the gadget was installed for
+	// current/already local revisions, or in the check-snap task
+	// for incoming gadgets.
+	gi, err := gadget.ReadInfo(info.MountDir(), model)
 	if err != nil {
 		return nil, err
 	}

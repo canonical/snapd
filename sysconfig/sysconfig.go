@@ -90,7 +90,7 @@ func ConfigureTargetSystem(opts *Options) error {
 	case opts.GadgetSnap != nil:
 		gadgetInfo, err = gadget.ReadInfoFromSnapFile(opts.GadgetSnap, nil)
 	case opts.GadgetDir != "":
-		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil, nil)
+		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
 	}
 
 	if err != nil {
