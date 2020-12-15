@@ -1057,5 +1057,5 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogs(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 	c.Check(err, IsNil)
-	c.Check(logbuf.String(), Matches, "(?s).*: ignoring error from check encryption: tpm says no\n")
+	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
 }
