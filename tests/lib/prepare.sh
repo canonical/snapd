@@ -510,6 +510,11 @@ uc20_build_initramfs_kernel_snap() {
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
 
+        # copy any extra files to the same location inside the initrd
+        if [ -d ../extra-initrd/ ]; then
+            cp -a ../extra-initrd/* "$skeletondir"/main
+        fi
+
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
@@ -576,6 +581,11 @@ uc20_build_initramfs_kernel_snap() {
         rm -rf fake
     )
 
+    # copy any extra files that tests may need for the kernel
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+    
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 }
