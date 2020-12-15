@@ -31,6 +31,7 @@ var (
 	MountFilesystem = mountFilesystem
 
 	CreateMissingPartitions = createMissingPartitions
+	BuildPartitionList      = buildPartitionList
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
