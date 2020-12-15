@@ -1417,3 +1417,31 @@ func (s *secbootSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 	err := secboot.LockSealedKeys()
 	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": service result: timeout`)
 }
+
+func (s *secbootSuite) TestLockSealedKeysHonorsParanoia(c *C) {
+	// this test uses a real systemd-run --user so check here if that
+	// actually works
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+	}
+
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
+	defer mockSystemdRun.Restore()
+
+	restore = secboot.MockFdeRevealKeyPollWaitParanoiaFactor(1)
+	defer restore()
+
+	// shorter than the fdeRevealKeyPollWait time
+	restore = secboot.MockFdeRevealKeyRuntimeMax(1 * time.Millisecond)
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": internal error: systemd-run did not honor RuntimeMax=1ms setting`)
+}
