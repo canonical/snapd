@@ -166,7 +166,7 @@ func verifyDesktopFileLocation(desktopFile string) error {
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
 		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
-		return fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+		return fmt.Errorf("internal error: only launching snap applications from /var/lib/snapd/desktop/applications is supported")
 	}
 
 	return nil
