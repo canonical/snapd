@@ -313,7 +313,16 @@ type FDERevealKeyRequest struct {
 
 // fdeRevealKeyRuntimeMax is the maximum runtime a fde-reveal-key can execute
 // XXX: what is a reasonable default here?
-var fdeRevealKeyRuntimeMax = "2m"
+var fdeRevealKeyRuntimeMax = 2 * time.Minute
+
+// 50 ms means we check at a frequency 20 Hz, fast enough to not hold
+// up boot, but not too fast that we are hogging the CPU from the
+// thing we are waiting to finish running
+var fdeRevealKeyPollWait = 50 * time.Millisecond
+
+// fdeRevealKeyPollWaitParanoiaFactor controls much longer we wait
+// then fdeRevealKeyRuntimeMax before stopping to poll for results
+var fdeRevealKeyPollWaitParanoiaFactor = 2
 
 // overridden in tests
 var fdeRevealKeyCommandExtra []string
@@ -400,9 +409,15 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 		return output, err
 	}
 
-	// this will terminate eventually because of
-	// fdeRevealKeyRuntimeMax above
-	for {
+	// This loop will be terminate by systemd-run, either because
+	// fde-reveal-key exists or it gets killed when it reaches the
+	// fdeRevealKeyRuntimeMax defined above.
+	//
+	// However we are paranoid and exit this loop if systemd
+	// did not terminate the process after twice the allocated
+	// runtime
+	maxLoops := int(fdeRevealKeyRuntimeMax/fdeRevealKeyPollWait) * fdeRevealKeyPollWaitParanoiaFactor
+	for i := 0; i < maxLoops; i++ {
 		switch {
 		case osutil.FileExists(filepath.Join(runDir, "fde-reveal-key.failed")):
 			stderr, _ := ioutil.ReadFile(filepath.Join(runDir, "fde-reveal-key.stderr"))
@@ -413,12 +428,13 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 		case osutil.FileExists(filepath.Join(runDir, "fde-reveal-key.success")):
 			return ioutil.ReadFile(filepath.Join(runDir, "fde-reveal-key.stdout"))
 		default:
-			// 50 ms means we check at a frequency 20 Hz, fast enough to not
-			// hold up boot, but not too fast that we are hogging the CPU from
-			// the thing we are waiting to finish running
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(fdeRevealKeyPollWait)
 		}
 	}
+
+	// this should never happen, the loop above should be terminated
+	// via systemd
+	return nil, fmt.Errorf("internal error: systemd-run did not honor RuntimeMax=%s setting", fdeRevealKeyRuntimeMax)
 }
 
 func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
