@@ -221,7 +221,21 @@ func ensureRolesConsistency(roles map[string]*roleInst, expectedSeed bool) error
 		}
 	}
 
-	// XXX make sure if expectedSeed that all roles come from the same volume?
+	if expectedSeed {
+		// make sure that all roles come from the same volume
+		// TODO:UC20: there is more to do in order to support multi-volume situations
+
+		// if SystemSeed is unset we must have failed earlier
+		seedVolName := roles[SystemSeed].volName
+
+		for _, otherRole := range []string{SystemBoot, SystemData, SystemSave} {
+			ri := roles[otherRole]
+			if ri != nil && ri.volName != seedVolName {
+				return fmt.Errorf("system-boot|data|save are expected to share the same volume as system-seed")
+			}
+		}
+	}
+
 	return nil
 }
 
