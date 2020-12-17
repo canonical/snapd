@@ -78,8 +78,9 @@ type Flags struct {
 
 	// ApplySnapDevMode overrides allowing a snap to be installed if it is in
 	// devmode confinement. This is set to true for currently only UC20 model
-	// grades dangerous for all snaps, where we always allow devmode snaps to be
-	// installed, and installed with devmode confinement turned on.
+	// grades dangerous for all snaps during first boot, where we always allow
+	// devmode snaps to be installed, and installed with devmode confinement
+	// turned on.
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"override-to-devmode-via-model,omitempty"`

@@ -142,7 +142,7 @@ volumes:
 	}
 
 	for _, sn := range extraDevModeSnaps {
-		name, channel := splitSnapNameWithChannels(sn)
+		name, channel := splitSnapNameWithChannel(sn)
 		model["snaps"] = append(model["snaps"].([]interface{}), map[string]interface{}{
 			"name":            name,
 			"type":            "app",
@@ -154,7 +154,7 @@ volumes:
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func splitSnapNameWithChannels(sn string) (name, channel string) {
+func splitSnapNameWithChannel(sn string) (name, channel string) {
 	nameParts := strings.SplitN(sn, "=", 2)
 	name = nameParts[0]
 	channel = ""
@@ -167,7 +167,7 @@ func splitSnapNameWithChannels(sn string) (name, channel string) {
 func stripSnapNamesWithChannels(snaps []string) []string {
 	names := []string{}
 	for _, sn := range snaps {
-		name, _ := splitSnapNameWithChannels(sn)
+		name, _ := splitSnapNameWithChannel(sn)
 		names = append(names, name)
 	}
 	return names
@@ -257,8 +257,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	}
 	checkOrder(c, tsAll, snaps...)
 
-	// if the model is dangerous check that all snaps in the model have the flag
-	// set
+	// if the model is dangerous check that the devmode snaps in the model have
+	// the flag set in snapstate for DevMode confinement
 	// XXX: eventually we may need more complicated checks here and for
 	// non-dangerous models only specific snaps may have this flag set
 	if modelGrade == asserts.ModelDangerous {

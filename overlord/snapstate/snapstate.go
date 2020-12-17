@@ -660,7 +660,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
 	// if snap is allowed to be devmode via the dangerous model and it's
 	// confinement is indeed devmode, promote the flags.DevMode to true
-	if flags.ApplySnapDevMode && info.Confinement == snap.DevModeConfinement {
+	if flags.ApplySnapDevMode && info.NeedsDevMode() {
 		// TODO: what about jail-mode? will we also allow putting devmode
 		// snaps (i.e. snaps with snap.yaml with confinement: devmode) into
 		// strict confinement via the model assertion?
