@@ -83,7 +83,7 @@ type Flags struct {
 	// turned on.
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
-	ApplySnapDevMode bool `json:"override-to-devmode-via-model,omitempty"`
+	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -95,6 +95,7 @@ func (f Flags) DevModeAllowed() bool {
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in
 // SnapSetup set to false (so they're not serialized).
 func (f Flags) ForSnapSetup() Flags {
+	// TODO: consider using instead/also json:"-" in the struct?
 	f.SkipConfigure = false
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
