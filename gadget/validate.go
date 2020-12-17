@@ -35,6 +35,9 @@ type validationState struct {
 	SystemSave *VolumeStructure
 }
 
+// ValidationConstraints carries extra constraints on top of those
+// implied by the model to use for gadget validation.
+// They might be constraints that are determined only at runtime.
 type ValidationConstraints struct {
 	// EncryptedData when true indicates that the gadget will be used on a
 	// device where the data partition will be encrypted.

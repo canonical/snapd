@@ -454,13 +454,14 @@ func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 		return nil, err
 	}
 	return ginfo, nil
-
 }
 
 // ReadInfoAndValidate reads the gadget specific metadata from
 // meta/gadget.yaml in the snap root directory.
 // It also performs consistency rules validation as Validate does
 // using the given constraints. See ReadInfo for a variant that does not.
+// See also ValidateContent for further validating the content itself
+// instead of the metadata.
 func ReadInfoAndValidate(gadgetSnapRootDir string, model Model, validationConstraints *ValidationConstraints) (*Info, error) {
 	ginfo, err := ReadInfo(gadgetSnapRootDir, model)
 	if err != nil {
