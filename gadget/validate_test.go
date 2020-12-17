@@ -200,13 +200,13 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	giWithSave = rolesYaml(c, "", "", "foo")
 	err = gadget.Validate(giWithSave, nil, nil)
 	c.Assert(err, ErrorMatches, `system-save structure must have an implicit label or "ubuntu-save", not "foo"`)
-	// complains when either system-seed or system-data is missing
+	// complains when save is alone
 	giWithSave = rolesYaml(c, "", "-", "")
 	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 	giWithSave = rolesYaml(c, "-", "-", "")
 	err = gadget.Validate(giWithSave, nil, nil)
-	c.Assert(err, ErrorMatches, "system-save requires system-seed and system-data structures")
+	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 }
 
 func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {
@@ -295,7 +295,8 @@ volumes:
 		{dataLabel: "ubuntu-data", requireSeed: true,
 			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "ubuntu-data", err: `system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
-		{addSave: true, err: `system-save requires system-seed and system-data structures`},
+		{addSave: true, requireSeed: true, addSeed: true},
+		{addSave: true, err: `model does not support the system-save role`},
 		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
 			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
 	} {

@@ -213,7 +213,9 @@ func ensureRolesConsistency(roles map[string]*roleInst, expectedSeed bool) error
 		}
 	}
 	if roles[SystemSave] != nil {
-		// XXX what if expectedSeed is false?
+		if !expectedSeed {
+			return fmt.Errorf("model does not support the system-save role")
+		}
 		if err := ensureSystemSaveRuleConsistency(roles); err != nil {
 			return err
 		}
@@ -225,7 +227,8 @@ func ensureRolesConsistency(roles map[string]*roleInst, expectedSeed bool) error
 
 func ensureSystemSaveRuleConsistency(roles map[string]*roleInst) error {
 	if roles[SystemData] == nil || roles[SystemSeed] == nil {
-		return fmt.Errorf("system-save requires system-seed and system-data structures")
+		// previous checks should stop reaching here
+		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
 	}
 	if err := checkImplicitLabel(SystemSave, roles[SystemSave].s, ubuntuSaveLabel); err != nil {
 		return err
