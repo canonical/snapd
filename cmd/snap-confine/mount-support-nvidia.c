@@ -123,6 +123,9 @@ static const char *nvidia_globs[] = {
 	"libnvimp.so*",
 	"libnvrm.so*",
 	"libnvrm_graphics.so*",
+	"libnpp{c,ig,ial,icc,idei,ist,if,im,itc}*.so*",
+	"libcufft.so*",
+	"libcublas{,Lt}.so*"
 	"tls/libnvidia-tls.so*",
 	"vdpau/libvdpau_nvidia.so*",
 };
