@@ -300,7 +300,7 @@ func wantsSystemSeed(m Model) bool {
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
-// as well, based whether the model is for classic, UC16/18 or UC20.
+// as well, based on whether the model is for classic, UC16/18 or UC20.
 // UC gadget metadata is expected to have volumes definitions.
 func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var gi Info

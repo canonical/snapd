@@ -44,9 +44,9 @@ type ValidationConstraints struct {
 	EncryptedData bool
 }
 
-// Validate validates the given gadget metadata against the consistency rules
-// for role usage, labels etc as implied by the model and extra constraints
-// that might be known only at runtime.
+// Validate checks that the given gadget metadata matches the
+// consistency rules for role usage, labels etc as implied by the
+// model and extra constraints that might be known only at runtime.
 func Validate(info *Info, model Model, extra *ValidationConstraints) error {
 	if err := ruleValidateVolumes(info.Volumes, model); err != nil {
 		return err
