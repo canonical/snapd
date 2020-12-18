@@ -41,7 +41,7 @@ func MockSnapshotSave(newSave func(*state.State, []string, []string) (uint64, []
 	}
 }
 
-func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
+func MockSnapshotList(newList func(context.Context, *state.State, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
 	oldList := snapshotList
 	snapshotList = newList
 	return func() {

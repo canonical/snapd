@@ -52,14 +52,12 @@ type SetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
-	Key     []byte `json:"key,omitempty"`
-	KeyName string `json:"key-name,omitempty"`
+	Key     *secboot.EncryptionKey `json:"key,omitempty"`
+	KeyName string                 `json:"key-name,omitempty"`
 
-	// Model related fields, this will be set to follow the
-	// secboot:SnapModel interface.
-	//
-	// XXX: do we need this to be a list? i.e. multiple models?
-	Model map[string]string `json:"model,omitempty"`
+	// List of models with their related fields, this will be set
+	// to follow the secboot:SnapModel interface.
+	Models []map[string]string `json:"models,omitempty"`
 
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing

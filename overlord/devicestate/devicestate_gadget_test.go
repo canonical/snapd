@@ -89,6 +89,46 @@ var uc20gadgetYamlWithSave = uc20gadgetYaml + `
         size: 50M
 `
 
+// this is the kind of volumes setup recommended to be prepared for a possible
+// UC18 -> UC20 transition
+var hybridGadgetYaml = `
+volumes:
+  hybrid:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+          - source: mmx64.efi
+            target: EFI/boot/mmx64.efi
+          - source: grub.cfg
+            target: EFI/ubuntu/grub.cfg
+      - name: Ubuntu Boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        filesystem: ext4
+        filesystem-label: ubuntu-boot
+        size: 750M
+`
+
 func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -131,7 +171,7 @@ func (s *deviceMgrGadgetSuite) setupUC20ModelWithGadget(c *C, gadget string) {
 	})
 }
 
-func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *state.Change, tsk *state.Task) {
+func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlContent, gadgetYamlContentNext string) (chg *state.Change, tsk *state.Task) {
 	siCurrent := &snap.SideInfo{
 		RealName: "foo-gadget",
 		Revision: snap.R(33),
@@ -142,17 +182,16 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	gadgetYamlContent := gadgetYaml
-	if modelGrade != "" {
-		gadgetYamlContent = uc20gadgetYaml
-	}
 	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
 		{"meta/gadget.yaml", gadgetYamlContent},
 		{"managed-asset", "managed asset rev 33"},
 		{"trusted-asset", "trusted asset rev 33"},
 	})
+	if gadgetYamlContentNext == "" {
+		gadgetYamlContentNext = gadgetYamlContent
+	}
 	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
-		{"meta/gadget.yaml", gadgetYamlContent},
+		{"meta/gadget.yaml", gadgetYamlContentNext},
 		{"managed-asset", "managed asset rev 34"},
 		// SHA3-384: 88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b
 		{"trusted-asset", "trusted asset rev 34"},
@@ -185,7 +224,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade string) (chg *
 	return chg, tsk
 }
 
-func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool) {
+func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool, gadgetYamlCont, gadgetYamlContNext string) {
 	var updateCalled bool
 	var passedRollbackDir string
 
@@ -250,7 +289,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	})
 	defer restore()
 
-	chg, t := s.setupGadgetUpdate(c, grade)
+	chg, t := s.setupGadgetUpdate(c, grade, gadgetYamlCont, gadgetYamlContNext)
 
 	// procure modeenv and stamp that we sealed keys
 	if grade != "" {
@@ -294,17 +333,17 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	// unset grade
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption)
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleWithEncryption(c *C) {
 	encryption := true
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleNoEncryption(c *C) {
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption)
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
@@ -315,7 +354,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	})
 	defer restore()
 
-	chg, t := s.setupGadgetUpdate(c, "")
+	chg, t := s.setupGadgetUpdate(c, "", gadgetYaml, "")
 
 	s.se.Ensure()
 	s.se.Wait()
@@ -341,7 +380,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 	})
 	defer restore()
 
-	chg, t := s.setupGadgetUpdate(c, "")
+	chg, t := s.setupGadgetUpdate(c, "", gadgetYaml, "")
 
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
@@ -367,7 +406,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 		return errors.New("gadget exploded")
 	})
 	defer restore()
-	chg, t := s.setupGadgetUpdate(c, "")
+	chg, t := s.setupGadgetUpdate(c, "", gadgetYaml, "")
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -716,9 +755,10 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 				},
 			},
 		},
@@ -750,9 +790,10 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 					ID:         "123",
 				},
 			},
@@ -805,4 +846,63 @@ func (s *deviceMgrGadgetSuite) TestGadgetUpdateBlocksOtherTasks(c *C) {
 
 	// not blocking without gadget update task
 	c.Assert(devicestate.GadgetUpdateBlocked(t1, []*state.Task{t2}), Equals, false)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	// simulate first-boot/seeding, there is no existing snap state information
+
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", hybridGadgetYaml},
+	})
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+
+	s.setupModelWithGadget(c, "foo-gadget")
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
+	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridShouldWork(c *C) {
+	encryption := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYaml, "")
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWork(c *C) {
+	encryption := false
+	// this is not gadget yaml that we should support, by the UC16/18
+	// rules it actually has two system-boot role partitions,
+	hybridGadgetYamlBroken := hybridGadgetYaml + `
+        role: system-boot
+`
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
 }

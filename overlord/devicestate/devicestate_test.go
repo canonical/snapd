@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -53,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -1313,6 +1315,154 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
 	}
+}
+
+func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
+	st := s.state
+
+	st.Lock()
+	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	st.Unlock()
+
+	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+
+	var hookCalled []string
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		// check that the context has the right data
+		c.Check(ctx.HookName(), Equals, "fde-setup")
+		var fdeSetup fde.SetupRequest
+		ctx.Get("fde-setup-request", &fdeSetup)
+		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
+			Op:      "initial-setup",
+			Key:     &mockKey,
+			KeyName: "some-key-name",
+			Models: []map[string]string{
+				{
+					"series":     "16",
+					"brand-id":   "canonical",
+					"model":      "pc",
+					"grade":      "unset",
+					"signkey-id": mockModel.SignKeyID(),
+				},
+			},
+		})
+
+		// the snapctl fde-setup-result will set the data
+		ctx.Set("fde-setup-result", []byte("sealed-key"))
+		hookCalled = append(hookCalled, ctx.InstanceName())
+		return nil, nil
+	}
+
+	rhk := hookstate.MockRunHook(hookInvoke)
+	defer rhk()
+
+	s.o.Loop()
+	defer s.o.Stop()
+
+	params := &boot.FDESetupHookParams{
+		Key:     mockKey,
+		KeyName: "some-key-name",
+		Models:  []*asserts.Model{mockModel},
+	}
+	st.Lock()
+	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	st.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, "sealed-key")
+	c.Check(hookCalled, DeepEquals, []string{"pc-kernel"})
+}
+
+func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
+	st := s.state
+
+	st.Lock()
+	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	st.Unlock()
+
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
+	}
+
+	rhk := hookstate.MockRunHook(hookInvoke)
+	defer rhk()
+
+	s.o.Loop()
+	defer s.o.Stop()
+
+	params := &boot.FDESetupHookParams{
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
+		KeyName: "some-key-name",
+		Models:  []*asserts.Model{mockModel},
+	}
+	st.Lock()
+	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	st.Unlock()
+	c.Assert(err, ErrorMatches, `cannot run hook for "initial-setup": run hook "fde-setup": hook failed`)
+}
+
+func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
+	st := s.state
+
+	st.Lock()
+	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	st.Unlock()
+
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		// Simulate an incorrect type for fde-setup-result here to
+		// test error string from runFDESetupHook.
+		// This should never happen in practice, "snapctl fde-setup"
+		// will always set this to []byte
+		ctx.Lock()
+		ctx.Set("fde-setup-result", "not-bytes")
+		ctx.Unlock()
+		return nil, nil
+	}
+
+	rhk := hookstate.MockRunHook(hookInvoke)
+	defer rhk()
+
+	s.o.Loop()
+	defer s.o.Stop()
+
+	params := &boot.FDESetupHookParams{
+		Key:     secboot.EncryptionKey{1, 2, 3, 4},
+		KeyName: "some-key-name",
+		Models:  []*asserts.Model{mockModel},
+	}
+	st.Lock()
+	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	st.Unlock()
+	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "initial-setup": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
 }
 
 type startOfOperationTimeSuite struct {

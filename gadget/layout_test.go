@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -44,7 +43,7 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 }
 
 var defaultConstraints = gadget.LayoutConstraints{
-	NonMBRStartOffset: 1 * quantity.SizeMiB,
+	NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	SectorSize:        512,
 }
 
@@ -66,21 +65,19 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 		Size:       3 * quantity.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		LaidOutStructure: []gadget.LaidOutStructure{
-			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB}, StartOffset: 1 * quantity.SizeMiB},
-		},
+		LaidOutStructure: []gadget.LaidOutStructure{{
+			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
+			StartOffset:     1 * quantity.OffsetMiB,
+		}},
 	})
 }
 
 func mustParseVolume(c *C, gadgetYaml, volume string) *gadget.Volume {
-	var gi gadget.Info
-	err := yaml.Unmarshal([]byte(gadgetYaml), &gi)
+	gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
 	c.Assert(err, IsNil)
 	v, ok := gi.Volumes[volume]
 	c.Assert(ok, Equals, true, Commentf("volume %q not found in gadget", volume))
-	err = gadget.ValidateVolume("foo", &v, nil)
-	c.Assert(err, IsNil)
-	return &v
+	return v
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeMinimal(c *C) {
@@ -109,12 +106,12 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     401 * quantity.SizeMiB,
+				StartOffset:     401 * quantity.OffsetMiB,
 				Index:           1,
 			},
 		},
@@ -152,22 +149,22 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     401 * quantity.SizeMiB,
+				StartOffset:     401 * quantity.OffsetMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     901 * quantity.SizeMiB,
+				StartOffset:     901 * quantity.OffsetMiB,
 				Index:           2,
 			},
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1001 * quantity.SizeMiB,
+				StartOffset:     1001 * quantity.OffsetMiB,
 				Index:           3,
 			},
 		},
@@ -209,22 +206,22 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     200 * quantity.SizeMiB,
+				StartOffset:     200 * quantity.OffsetMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * quantity.SizeMiB,
+				StartOffset:     800 * quantity.OffsetMiB,
 				Index:           0,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     1200 * quantity.SizeMiB,
+				StartOffset:     1200 * quantity.OffsetMiB,
 				Index:           2,
 			},
 		},
@@ -265,22 +262,22 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     200 * quantity.SizeMiB,
+				StartOffset:     200 * quantity.OffsetMiB,
 				Index:           1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     700 * quantity.SizeMiB,
+				StartOffset:     700 * quantity.OffsetMiB,
 				Index:           2,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * quantity.SizeMiB,
+				StartOffset:     800 * quantity.OffsetMiB,
 				Index:           0,
 			},
 		},
@@ -363,7 +360,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 	v, err := gadget.LayoutVolume(p.dir, vol, constraints)
@@ -478,17 +475,17 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
-						StartOffset:   1 * quantity.SizeMiB,
+						StartOffset:   1 * quantity.OffsetMiB,
 						Size:          quantity.SizeMiB,
 						Index:         1,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   2 * quantity.SizeMiB,
+						StartOffset:   2 * quantity.OffsetMiB,
 						Size:          quantity.SizeMiB,
 						Index:         0,
 					},
@@ -530,17 +527,17 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   1 * quantity.SizeMiB,
+						StartOffset:   1 * quantity.OffsetMiB,
 						Size:          quantity.SizeMiB,
 						Index:         0,
 					},
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
-						StartOffset:   2 * quantity.SizeMiB,
+						StartOffset:   2 * quantity.OffsetMiB,
 						Size:          quantity.SizeMiB,
 						Index:         1,
 					},
@@ -579,11 +576,11 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
-						StartOffset:   1 * quantity.SizeMiB,
+						StartOffset:   1 * quantity.OffsetMiB,
 						Size:          size1_5MiB,
 					},
 				},
@@ -622,7 +619,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 			},
 		},
 	})
@@ -667,7 +664,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           1,
 			},
 		},
@@ -676,7 +673,7 @@ volumes:
 	// still valid
 	constraints := gadget.LayoutConstraints{
 		// 512kiB
-		NonMBRStartOffset: 512 * quantity.SizeKiB,
+		NonMBRStartOffset: 512 * quantity.OffsetKiB,
 		SectorSize:        512,
 	}
 	v, err = gadget.LayoutVolume(p.dir, vol, constraints)
@@ -694,7 +691,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     512 * quantity.SizeKiB,
+				StartOffset:     512 * quantity.OffsetKiB,
 				Index:           1,
 			},
 		},
@@ -729,7 +726,7 @@ volumes:
 
 	// sector size is properly recorded
 	constraintsSector := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        1024,
 	}
 	v, err = gadget.LayoutVolume(p.dir, vol, constraintsSector)
@@ -746,7 +743,7 @@ volumes:
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           1,
 			},
 		},
@@ -776,7 +773,7 @@ volumes:
 	vol := mustParseVolume(c, gadgetYaml, "first")
 
 	constraintsBadSectorSize := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        384,
 	}
 	_, err := gadget.LayoutVolume(p.dir, vol, constraintsBadSectorSize)
@@ -785,7 +782,7 @@ volumes:
 
 func (p *layoutTestSuite) TestLayoutVolumeConstraintsNeedsSectorSize(c *C) {
 	constraintsBadSectorSize := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		// SectorSize left unspecified
 	}
 	_, err := gadget.LayoutVolume(p.dir, &gadget.Volume{}, constraintsBadSectorSize)
@@ -825,7 +822,7 @@ volumes:
 				Index:           0,
 			}, {
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           1,
 			},
 		},
@@ -879,33 +876,33 @@ volumes:
 			}, {
 				// foo
 				VolumeStructure: &vol.Structure[1],
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 				Index:           1,
 				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asSizePtr(92),
+				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
 						Size:          200 * quantity.SizeKiB,
-						StartOffset:   1 * quantity.SizeMiB,
+						StartOffset:   1 * quantity.OffsetMiB,
 						// offset-write: bar+10
-						AbsoluteOffsetWrite: asSizePtr(2*quantity.SizeMiB + 10),
+						AbsoluteOffsetWrite: asOffsetPtr(2*quantity.OffsetMiB + 10),
 					},
 				},
 			}, {
 				// bar
 				VolumeStructure: &vol.Structure[2],
-				StartOffset:     2 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
 				Index:           2,
 				// break for gofmt < 1.11
-				AbsoluteOffsetWrite: asSizePtr(600),
+				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
 						Size:          150 * quantity.SizeKiB,
-						StartOffset:   2 * quantity.SizeMiB,
+						StartOffset:   2 * quantity.OffsetMiB,
 						// offset-write: bar+10
-						AbsoluteOffsetWrite: asSizePtr(450),
+						AbsoluteOffsetWrite: asOffsetPtr(450),
 					},
 				},
 			},
@@ -1041,7 +1038,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				StartOffset:     800 * quantity.SizeMiB,
+				StartOffset:     800 * quantity.OffsetMiB,
 				Index:           0,
 			},
 		},
@@ -1081,18 +1078,18 @@ volumes:
 	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		VolumeStructure: &vol.Structure[0],
-		StartOffset:     1 * quantity.SizeMiB,
+		StartOffset:     1 * quantity.OffsetMiB,
 		Index:           0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * quantity.SizeKiB,
-				StartOffset:   1 * quantity.SizeMiB,
+				StartOffset:   1 * quantity.OffsetMiB,
 				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * quantity.SizeKiB,
-				StartOffset:   1*quantity.SizeMiB + 300*quantity.SizeKiB,
+				StartOffset:   1*quantity.OffsetMiB + 300*quantity.OffsetKiB,
 				Index:         1,
 			},
 		},
@@ -1113,28 +1110,28 @@ volumes:
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * quantity.SizeKiB,
-				StartOffset:   300 * quantity.SizeKiB,
+				StartOffset:   300 * quantity.OffsetKiB,
 				Index:         1,
 			},
 		},
 	})
 
-	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*quantity.SizeMiB)
+	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*quantity.OffsetMiB)
 	c.Assert(shiftedTo2M, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		VolumeStructure: &vol.Structure[0],
-		StartOffset:     2 * quantity.SizeMiB,
+		StartOffset:     2 * quantity.OffsetMiB,
 		Index:           0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * quantity.SizeKiB,
-				StartOffset:   2 * quantity.SizeMiB,
+				StartOffset:   2 * quantity.OffsetMiB,
 				Index:         0,
 			}, {
 				VolumeContent: &vol.Structure[0].Content[1],
 				Size:          150 * quantity.SizeKiB,
-				StartOffset:   2*quantity.SizeMiB + 300*quantity.SizeKiB,
+				StartOffset:   2*quantity.OffsetMiB + 300*quantity.OffsetKiB,
 				Index:         1,
 			},
 		},

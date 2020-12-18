@@ -20,7 +20,6 @@
 package gadget
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -28,31 +27,12 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const (
-	ubuntuBootLabel = "ubuntu-boot"
-	ubuntuSeedLabel = "ubuntu-seed"
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
-
 	sectorSize quantity.Size = 512
 )
-
-var createdPartitionGUID = []string{
-	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
-	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
-}
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
 type sfdiskDeviceDump struct {
@@ -108,8 +88,7 @@ type OnDiskVolume struct {
 	// size in bytes
 	Size quantity.Size
 	// sector size in bytes
-	SectorSize     quantity.Size
-	partitionTable *sfdiskPartitionTable
+	SectorSize quantity.Size
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -205,7 +184,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		ds[i] = OnDiskStructure{
 			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     quantity.Size(p.Start) * sectorSize,
+				StartOffset:     quantity.Offset(p.Start) * quantity.Offset(sectorSize),
 				Index:           i + 1,
 			},
 			Node: p.Node,
@@ -228,114 +207,19 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	}
 
 	dl := &OnDiskVolume{
-		Structure:      ds,
-		ID:             ptable.ID,
-		Device:         ptable.Device,
-		Schema:         ptable.Label,
-		Size:           numSectors * sectorSize,
-		SectorSize:     sectorSize,
-		partitionTable: &ptable,
+		Structure:  ds,
+		ID:         ptable.ID,
+		Device:     ptable.Device,
+		Schema:     ptable.Label,
+		Size:       numSectors * sectorSize,
+		SectorSize: sectorSize,
 	}
 
 	return dl, nil
 }
 
-func deviceName(name string, index int) string {
-	if len(name) > 0 {
-		last := name[len(name)-1]
-		if last >= '0' && last <= '9' {
-			return fmt.Sprintf("%sp%d", name, index)
-		}
-	}
-	return fmt.Sprintf("%s%d", name, index)
-}
-
-// BuildPartitionList builds a list of partitions based on the current
-// device contents and gadget structure list, in sfdisk dump format, and
-// returns a partitioning description suitable for sfdisk input and a
-// list of the partitions to be created.
-func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
-	ptable := dl.partitionTable
-
-	// Keep track what partitions we already have on disk
-	seen := map[uint64]bool{}
-	for _, p := range ptable.Partitions {
-		seen[p.Start] = true
-	}
-
-	// Check if the last partition has a system-data role
-	canExpandData := false
-	if n := len(pv.LaidOutStructure); n > 0 {
-		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == SystemData {
-			canExpandData = true
-		}
-	}
-
-	// The partition index
-	pIndex := 0
-
-	// Write new partition data in named-fields format
-	buf := &bytes.Buffer{}
-	for _, p := range pv.LaidOutStructure {
-		if !p.IsPartition() {
-			continue
-		}
-
-		pIndex++
-		s := p.VolumeStructure
-
-		// Skip partitions that are already in the volume
-		start := p.StartOffset / sectorSize
-		if seen[uint64(start)] {
-			continue
-		}
-
-		// Only allow the creation of partitions with known GUIDs
-		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(ptable.Label, p.Type)
-		if ptable.Label == "gpt" && !creationSupported(ptype) {
-			logger.Noticef("cannot create partition with unsupported type %s", ptype)
-			continue
-		}
-
-		// Check if the data partition should be expanded
-		size := s.Size
-		if s.Role == SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
-			size = dl.Size - p.StartOffset
-		}
-
-		// Can we use the index here? Get the largest existing partition number and
-		// build from there could be safer if the disk partitions are not consecutive
-		// (can this actually happen in our images?)
-		node := deviceName(ptable.Device, pIndex)
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name)
-
-		// Set expected labels based on role
-		switch s.Role {
-		case SystemBoot:
-			s.Label = ubuntuBootLabel
-		case SystemSeed:
-			s.Label = ubuntuSeedLabel
-		case SystemData:
-			s.Label = ubuntuDataLabel
-		case SystemSave:
-			s.Label = ubuntuSaveLabel
-		}
-
-		toBeCreated = append(toBeCreated, OnDiskStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Size:             size,
-		})
-	}
-
-	return buf, toBeCreated
-}
-
 // UpdatePartitionList re-reads the partitioning data from the device and
-// updates the partition list in the specified volume.
+// updates the volume structures in the specified volume.
 func UpdatePartitionList(dl *OnDiskVolume) error {
 	layout, err := OnDiskVolumeFromDevice(dl.Device)
 	if err != nil {
@@ -346,23 +230,7 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	}
 
 	dl.Structure = layout.Structure
-	dl.partitionTable = layout.partitionTable
-
 	return nil
-}
-
-func partitionType(label, ptype string) string {
-	t := strings.Split(ptype, ",")
-	if len(t) < 1 {
-		return ""
-	}
-	if len(t) == 1 {
-		return t[0]
-	}
-	if label == "gpt" {
-		return t[1]
-	}
-	return t[0]
 }
 
 // lsblkFilesystemInfo represents the lsblk --fs JSON output format.

@@ -28,9 +28,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -57,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snapfile"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -98,24 +94,14 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	validationSetsListCmd,
+	validationSetsCmd,
 	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
 }
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
-	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}/icon",
-		UserOK: true,
-		GET:    appIconGet,
-	}
-
-	findCmd = &Command{
-		Path:   "/v2/find",
-		UserOK: true,
-		GET:    searchStore,
-	}
-
 	snapsCmd = &Command{
 		Path:     "/v2/snaps",
 		UserOK:   true,
@@ -130,29 +116,6 @@ var (
 		PolkitOK: "io.snapcraft.snapd.manage",
 		GET:      getSnapInfo,
 		POST:     postSnap,
-	}
-
-	buyCmd = &Command{
-		Path: "/v2/buy",
-		POST: postBuy,
-	}
-
-	readyToBuyCmd = &Command{
-		Path: "/v2/buy/ready",
-		GET:  readyToBuy,
-	}
-
-	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
-	}
-
-	aliasesCmd = &Command{
-		Path:   "/v2/aliases",
-		UserOK: true,
-		GET:    getAliases,
-		POST:   changeAliases,
 	}
 )
 
@@ -246,241 +209,6 @@ func getStore(c *Command) snapstate.StoreService {
 	return snapstate.Store(st, nil)
 }
 
-func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
-	theStore := getStore(c)
-
-	// TODO: use a per-request context
-	sections, err := theStore.Sections(context.TODO(), user)
-	switch err {
-	case nil:
-		// pass
-	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
-	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
-		return Unauthorized("%v", err)
-	default:
-		return InternalError("%v", err)
-	}
-
-	return SyncResponse(sections, nil)
-}
-
-func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-	query := r.URL.Query()
-	q := query.Get("q")
-	commonID := query.Get("common-id")
-	// TODO: support both "category" (search v2) and "section"
-	section := query.Get("section")
-	name := query.Get("name")
-	scope := query.Get("scope")
-	private := false
-	prefix := false
-
-	if sel := query.Get("select"); sel != "" {
-		switch sel {
-		case "refresh":
-			if commonID != "" {
-				return BadRequest("cannot use 'common-id' with 'select=refresh'")
-			}
-			if name != "" {
-				return BadRequest("cannot use 'name' with 'select=refresh'")
-			}
-			if q != "" {
-				return BadRequest("cannot use 'q' with 'select=refresh'")
-			}
-			return storeUpdates(c, r, user)
-		case "private":
-			private = true
-		}
-	}
-
-	if name != "" {
-		if q != "" {
-			return BadRequest("cannot use 'q' and 'name' together")
-		}
-		if commonID != "" {
-			return BadRequest("cannot use 'common-id' and 'name' together")
-		}
-
-		if name[len(name)-1] != '*' {
-			return findOne(c, r, user, name)
-		}
-
-		prefix = true
-		q = name[:len(name)-1]
-	}
-
-	if commonID != "" && q != "" {
-		return BadRequest("cannot use 'common-id' and 'q' together")
-	}
-
-	theStore := getStore(c)
-	ctx := store.WithClientUserAgent(r.Context(), r)
-	found, err := theStore.Find(ctx, &store.Search{
-		Query:    q,
-		Prefix:   prefix,
-		CommonID: commonID,
-		Category: section,
-		Private:  private,
-		Scope:    scope,
-	}, user)
-	switch err {
-	case nil:
-		// pass
-	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
-	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
-	default:
-		if e, ok := err.(*url.Error); ok {
-			if neterr, ok := e.Err.(*net.OpError); ok {
-				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
-					return SyncResponse(&resp{
-						Type:   ResponseTypeError,
-						Result: &errorResult{Message: dnserr.Error(), Kind: client.ErrorKindDNSFailure},
-						Status: 400,
-					}, nil)
-				}
-			}
-		}
-		if e, ok := err.(net.Error); ok && e.Timeout() {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindNetworkTimeout},
-				Status: 400,
-			}, nil)
-		}
-		if e, ok := err.(*httputil.PersistentNetworkError); ok {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
-				Status: 400,
-			}, nil)
-		}
-
-		return InternalError("%v", err)
-	}
-
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
-		Sources:           []string{"store"},
-	}
-
-	return sendStorePackages(route, meta, found)
-}
-
-func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
-	if err := snap.ValidateName(name); err != nil {
-		return BadRequest(err.Error())
-	}
-
-	theStore := getStore(c)
-	spec := store.SnapSpec{
-		Name: name,
-	}
-	ctx := store.WithClientUserAgent(r.Context(), r)
-	snapInfo, err := theStore.SnapInfo(ctx, spec, user)
-	switch err {
-	case nil:
-		// pass
-	case store.ErrInvalidCredentials:
-		return Unauthorized("%v", err)
-	case store.ErrSnapNotFound:
-		return SnapNotFound(name, err)
-	default:
-		return InternalError("%v", err)
-	}
-
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
-		Sources:           []string{"store"},
-	}
-
-	results := make([]*json.RawMessage, 1)
-	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	results[0] = (*json.RawMessage)(&data)
-	return SyncResponse(results, meta)
-}
-
-func shouldSearchStore(r *http.Request) bool {
-	// we should jump to the old behaviour iff q is given, or if
-	// sources is given and either empty or contains the word
-	// 'store'.  Otherwise, local results only.
-
-	query := r.URL.Query()
-
-	if _, ok := query["q"]; ok {
-		logger.Debugf("use of obsolete \"q\" parameter: %q", r.URL)
-		return true
-	}
-
-	if src, ok := query["sources"]; ok {
-		logger.Debugf("use of obsolete \"sources\" parameter: %q", r.URL)
-		if len(src) == 0 || strings.Contains(src[0], "store") {
-			return true
-		}
-	}
-
-	return false
-}
-
-func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
-	state := c.d.overlord.State()
-	state.Lock()
-	updates, err := snapstateRefreshCandidates(state, user)
-	state.Unlock()
-	if err != nil {
-		return InternalError("cannot list updates: %v", err)
-	}
-
-	return sendStorePackages(route, nil, updates)
-}
-
-func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
-	results := make([]*json.RawMessage, 0, len(found))
-	for _, x := range found {
-		url, err := route.URL("name", x.InstanceName())
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.InstanceName(), x.Revision, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		raw := json.RawMessage(data)
-		results = append(results, &raw)
-	}
-
-	return SyncResponse(results, meta)
-}
-
 // plural!
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
@@ -541,6 +269,28 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+}
+
+func shouldSearchStore(r *http.Request) bool {
+	// we should jump to the old behaviour iff q is given, or if
+	// sources is given and either empty or contains the word
+	// 'store'.  Otherwise, local results only.
+
+	query := r.URL.Query()
+
+	if _, ok := query["q"]; ok {
+		logger.Debugf("use of obsolete \"q\" parameter: %q", r.URL)
+		return true
+	}
+
+	if src, ok := query["sources"]; ok {
+		logger.Debugf("use of obsolete \"sources\" parameter: %q", r.URL)
+		if len(src) == 0 || strings.Contains(src[0], "store") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // licenseData holds details about the snap license, and may be
@@ -984,6 +734,7 @@ func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResul
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
+type snapsActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
 	"install": snapInstall,
@@ -1000,6 +751,20 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 		logger.Panicf("dispatch only handles single-snap ops; got %d", len(inst.Snaps))
 	}
 	return snapInstructionDispTable[inst.Action]
+}
+
+func (inst *snapInstruction) dispatchForMany() (op snapsActionFunc) {
+	switch inst.Action {
+	case "refresh":
+		op = snapUpdateMany
+	case "install":
+		op = snapInstallMany
+	case "remove":
+		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
+	}
+	return op
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
@@ -1068,8 +833,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
-	st := c.d.overlord.State()
+func trySnap(st *state.State, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
 	st.Lock()
 	defer st.Unlock()
 
@@ -1151,18 +915,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	var op func(*snapInstruction, *state.State) (*snapInstructionResult, error)
-
-	switch inst.Action {
-	case "refresh":
-		op = snapUpdateMany
-	case "install":
-		op = snapInstallMany
-	case "remove":
-		op = snapRemoveMany
-	case "snapshot":
-		op = snapshotMany
-	default:
+	op := inst.dispatchForMany()
+	if op == nil {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	res, err := op(&inst, st)
@@ -1225,7 +979,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		if len(form.Value["snap-path"]) == 0 {
 			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
+		return trySnap(c.d.overlord.State(), r, user, form.Value["snap-path"][0], flags)
 	}
 	flags.RemoveSnapPath = true
 
@@ -1373,243 +1127,3 @@ func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 }
 
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
-
-func iconGet(st *state.State, name string) Response {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil {
-		if err == state.ErrNoState {
-			return SnapNotFound(name, err)
-		}
-		return InternalError("cannot consult state: %v", err)
-	}
-	sideInfo := snapst.CurrentSideInfo()
-	if sideInfo == nil {
-		return NotFound("snap has no current revision")
-	}
-
-	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision))
-
-	if icon == "" {
-		return NotFound("local snap has no icon")
-	}
-
-	return fileResponse(icon)
-}
-
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-
-	return iconGet(c.d.overlord.State(), name)
-}
-
-func convertBuyError(err error) Response {
-	switch err {
-	case nil:
-		return nil
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
-	case store.ErrUnauthenticated:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindLoginRequired,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrTOSNotAccepted:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindTermsNotAccepted,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrNoPaymentMethods:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindNoPaymentMethods,
-			},
-			Status: 400,
-		}, nil)
-	case store.ErrPaymentDeclined:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindPaymentDeclined,
-			},
-			Status: 400,
-		}, nil)
-	default:
-		return InternalError("%v", err)
-	}
-}
-
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts client.BuyOptions
-
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
-
-	s := getStore(c)
-
-	buyResult, err := s.Buy(&opts, user)
-
-	if resp := convertBuyError(err); resp != nil {
-		return resp
-	}
-
-	return SyncResponse(buyResult, nil)
-}
-
-func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
-		return resp
-	}
-
-	return SyncResponse(true, nil)
-}
-
-// aliasAction is an action performed on aliases
-type aliasAction struct {
-	Action string `json:"action"`
-	Snap   string `json:"snap"`
-	App    string `json:"app"`
-	Alias  string `json:"alias"`
-	// old now unsupported api
-	Aliases []string `json:"aliases"`
-}
-
-func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
-	var a aliasAction
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into an alias action: %v", err)
-	}
-	if len(a.Aliases) != 0 {
-		return BadRequest("cannot interpret request, snaps can no longer be expected to declare their aliases")
-	}
-
-	var taskset *state.TaskSet
-	var err error
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	switch a.Action {
-	default:
-		return BadRequest("unsupported alias action: %q", a.Action)
-	case "alias":
-		taskset, err = snapstate.Alias(st, a.Snap, a.App, a.Alias)
-	case "unalias":
-		if a.Alias == a.Snap {
-			// Do What I mean:
-			// check if a snap is referred/intended
-			// or just an alias
-			var snapst snapstate.SnapState
-			err := snapstate.Get(st, a.Snap, &snapst)
-			if err != nil && err != state.ErrNoState {
-				return InternalError("%v", err)
-			}
-			if err == state.ErrNoState { // not a snap
-				a.Snap = ""
-			}
-		}
-		if a.Snap != "" {
-			a.Alias = ""
-			taskset, err = snapstate.DisableAllAliases(st, a.Snap)
-		} else {
-			taskset, a.Snap, err = snapstate.RemoveManualAlias(st, a.Alias)
-		}
-	case "prefer":
-		taskset, err = snapstate.Prefer(st, a.Snap)
-	}
-	if err != nil {
-		return errToResponse(err, nil, BadRequest, "%v")
-	}
-
-	var summary string
-	switch a.Action {
-	case "alias":
-		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
-	case "unalias":
-		if a.Alias != "" {
-			summary = fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), a.Alias, a.Snap)
-		} else {
-			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
-		}
-	case "prefer":
-		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
-	}
-
-	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
-	st.EnsureBefore(0)
-
-	return AsyncResponse(nil, &Meta{Change: change.ID()})
-}
-
-type aliasStatus struct {
-	Command string `json:"command"`
-	Status  string `json:"status"`
-	Manual  string `json:"manual,omitempty"`
-	Auto    string `json:"auto,omitempty"`
-}
-
-// getAliases produces a response with a map snap -> alias -> aliasStatus
-func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-
-	res := make(map[string]map[string]aliasStatus)
-
-	allStates, err := snapstate.All(state)
-	if err != nil {
-		return InternalError("cannot list local snaps: %v", err)
-	}
-
-	for snapName, snapst := range allStates {
-		if err != nil {
-			return InternalError("cannot retrieve info for snap %q: %v", snapName, err)
-		}
-		if len(snapst.Aliases) != 0 {
-			snapAliases := make(map[string]aliasStatus)
-			res[snapName] = snapAliases
-			autoDisabled := snapst.AutoAliasesDisabled
-			for alias, aliasTarget := range snapst.Aliases {
-				aliasStatus := aliasStatus{
-					Manual: aliasTarget.Manual,
-					Auto:   aliasTarget.Auto,
-				}
-				status := "auto"
-				tgt := aliasTarget.Effective(autoDisabled)
-				if tgt == "" {
-					status = "disabled"
-					tgt = aliasTarget.Auto
-				} else if aliasTarget.Manual != "" {
-					status = "manual"
-				}
-				aliasStatus.Status = status
-				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
-				snapAliases[alias] = aliasStatus
-			}
-		}
-	}
-
-	return SyncResponse(res, nil)
-}
