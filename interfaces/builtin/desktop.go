@@ -20,12 +20,15 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -284,12 +287,34 @@ type desktopInterface struct {
 	commonInterface
 }
 
-func (iface *desktopInterface) fontconfigDirs() []string {
+func (iface *desktopInterface) mountFontCache(attribs interfaces.Attrer) (bool, error) {
+	shouldMount, ok := attribs.Lookup("mount-font-cache")
+	if !ok {
+		// If the attribute is not present, we mount the font cache
+		return true, nil
+	}
+	shouldMountBool, ok := shouldMount.(bool)
+	if !ok {
+		return false, fmt.Errorf("attribute mount-font-cache must be boolean, got %T", shouldMount)
+	}
+	return shouldMountBool, nil
+}
+
+func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([]string, error) {
 	fontDirs := []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
 	}
-	return append(fontDirs, dirs.SystemFontconfigCacheDirs...)
+
+	shouldMountFontCache, err := iface.mountFontCache(plug)
+	if err != nil {
+		return nil, err
+	}
+	if shouldMountFontCache {
+		fontDirs = append(fontDirs, dirs.SystemFontconfigCacheDirs...)
+	}
+
+	return fontDirs, nil
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -307,7 +332,11 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	}
 
 	// Allow mounting fonts
-	for _, dir := range iface.fontconfigDirs() {
+	fontDirs, err := iface.fontconfigDirs(plug)
+	if err != nil {
+		return err
+	}
+	for _, dir := range fontDirs {
 		source := "/var/lib/snapd/hostfs" + dir
 		target := dirs.StripRootDir(dir)
 		emit("  # Read-only access to %s\n", target)
@@ -332,7 +361,11 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		return nil
 	}
 
-	for _, dir := range iface.fontconfigDirs() {
+	fontDirs, err := iface.fontconfigDirs(plug)
+	if err != nil {
+		return err
+	}
+	for _, dir := range fontDirs {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
@@ -361,6 +394,11 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 	}
 
 	return nil
+}
+
+func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	_, err := iface.mountFontCache(plug)
+	return err
 }
 
 func init() {
