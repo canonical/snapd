@@ -263,7 +263,8 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
 
-	encryptionKey secboot.EncryptionKey
+	dataEncryptionKey secboot.EncryptionKey
+	saveEncryptionKey secboot.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -338,8 +339,9 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+	o.dataEncryptionKey = key
+	o.saveEncryptionKey = saveKey
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
@@ -353,7 +355,17 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	}
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
-	trackTrustedAssets := hasSealedKeys(dirs.GlobalRootDir)
+	trackTrustedAssets := false
+	_, err := sealedKeysMethod(dirs.GlobalRootDir)
+	switch {
+	case err == nil:
+		trackTrustedAssets = true
+	case err == errNoSealedKeys:
+		// nothing to do
+	case err != nil:
+		// all other errors
+		return nil, err
+	}
 
 	// see what we need to observe for the run bootloader
 	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuBootDir,

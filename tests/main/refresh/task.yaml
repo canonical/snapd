@@ -9,6 +9,9 @@ details: |
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
+
 environment:
     SNAP_NAME/parallel_strict_fake,parallel_strict_remote: test-snapd-tools_instance
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools
@@ -112,7 +115,7 @@ execute: |
     tests.cleanup defer snap unset system experimental.refresh-app-awareness
 
     #shellcheck source=tests/lib/pkgdb.sh
-    if os.query is-classic && ! os.query is-trusty && [ "$(. /etc/os-release && echo "$ID")" != amzn ]; then
+    if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux; then
       . "$TESTSLIB/pkgdb.sh"
       distro_install_package inotify-tools
       # XXX: probably a bug in defer, this fails without ' ' quotes around the rest.
@@ -130,7 +133,7 @@ execute: |
     fi
 
     echo "When the snap is refreshed"
-    snap refresh --channel=edge "$SNAP_NAME"
+    snap refresh --ignore-running --channel=edge "$SNAP_NAME"
 
     if [ -f /tmp/inhibit.events ]; then
       echo "During the refresh process, the inhibition lock was established and released"

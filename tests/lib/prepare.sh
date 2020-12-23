@@ -8,8 +8,6 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -304,7 +302,7 @@ prepare_classic() {
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
-        output=$(bootenv)
+        output=$("$TESTSTOOLS"/boot-state bootenv show)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
@@ -318,7 +316,7 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
         # inotify watch on that path
@@ -343,12 +341,12 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_core20_snap_with_tweaks() {
-    local CORE20SNAP="$1"
+repack_core_snap_with_tweaks() {
+    local CORESNAP="$1"
     local TARGET="$2"
 
-    local UNPACK_DIR="/tmp/core20-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+    local UNPACK_DIR="/tmp/core-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
@@ -512,6 +510,11 @@ uc20_build_initramfs_kernel_snap() {
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
 
+        # copy any extra files to the same location inside the initrd
+        if [ -d ../extra-initrd/ ]; then
+            cp -a ../extra-initrd/* "$skeletondir"/main
+        fi
+
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
@@ -578,6 +581,11 @@ uc20_build_initramfs_kernel_snap() {
         rm -rf fake
     )
 
+    # copy any extra files that tests may need for the kernel
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+    
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 }

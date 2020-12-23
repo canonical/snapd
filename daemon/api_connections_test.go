@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"encoding/json"
@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -35,10 +36,8 @@ import (
 
 // Tests for GET /v2/connections
 
-func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState map[string]interface{}, repoConnected []string, expected map[string]interface{}) {
-	c.Assert(s.d, check.NotNil, check.Commentf("call s.daemon() first"))
-
-	repo := s.d.overlord.InterfaceManager().Repository()
+func (s *interfacesSuite) testConnectionsConnected(c *check.C, d *daemon.Daemon, query string, connsState map[string]interface{}, repoConnected []string, expected map[string]interface{}) {
+	repo := d.Overlord().InterfaceManager().Repository()
 	for crefStr, cstate := range connsState {
 		// if repoConnected is defined, then given connection must be on
 		// list, otherwise it's not going to be connected in the repository
@@ -65,7 +64,7 @@ func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState
 		c.Assert(err, check.IsNil)
 	}
 
-	st := s.d.overlord.State()
+	st := d.Overlord().State()
 	st.Lock()
 	st.Set("conns", connsState)
 	st.Unlock()
@@ -73,11 +72,11 @@ func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState
 	s.testConnections(c, query, expected)
 }
 
-func (s *apiSuite) testConnections(c *check.C, query string, expected map[string]interface{}) {
+func (s *interfacesSuite) testConnections(c *check.C, query string, expected map[string]interface{}) {
 	req, err := http.NewRequest("GET", query, nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -85,12 +84,12 @@ func (s *apiSuite) testConnections(c *check.C, query string, expected map[string
 	c.Check(body, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestConnectionsUnhappy(c *check.C) {
+func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 	s.daemon(c)
 	req, err := http.NewRequest("GET", "/v2/connections?select=bad", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -105,7 +104,7 @@ func (s *apiSuite) TestConnectionsUnhappy(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsEmpty(c *check.C) {
+func (s *interfacesSuite) TestConnectionsEmpty(c *check.C) {
 	s.daemon(c)
 	s.testConnections(c, "/v2/connections", map[string]interface{}{
 		"result": map[string]interface{}{
@@ -129,12 +128,12 @@ func (s *apiSuite) TestConnectionsEmpty(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsNotFound(c *check.C) {
+func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
 	s.daemon(c)
 	req, err := http.NewRequest("GET", "/v2/connections?snap=not-found", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	connectionsCmd.GET(connectionsCmd, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -151,7 +150,7 @@ func (s *apiSuite) TestConnectionsNotFound(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsUnconnected(c *check.C) {
+func (s *interfacesSuite) TestConnectionsUnconnected(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
@@ -190,11 +189,11 @@ func (s *apiSuite) TestConnectionsUnconnected(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
+func (s *interfacesSuite) TestConnectionsBySnapName(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -239,7 +238,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 		"type":        "sync",
 	})
 
-	s.testConnectionsConnected(c, "/v2/connections?snap=producer", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
@@ -286,17 +285,17 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
+func (s *interfacesSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	for _, missingPlugOrSlot := range []string{"consumer:plug2 producer:slot", "consumer:plug producer:slot2"} {
-		s.testConnectionsConnected(c, "/v2/connections?snap=producer", map[string]interface{}{
+		s.testConnectionsConnected(c, d, "/v2/connections?snap=producer", map[string]interface{}{
 			"consumer:plug producer:slot": map[string]interface{}{
 				"interface": "test",
 			},
@@ -349,11 +348,11 @@ func (s *apiSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
+func (s *interfacesSuite) TestConnectionsBySnapAlias(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, coreProducerYaml)
@@ -421,7 +420,7 @@ func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
 		},
 	}
 
-	s.testConnectionsConnected(c, "/v2/connections?snap=core", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?snap=core", map[string]interface{}{
 		"consumer:plug core:slot": map[string]interface{}{
 			"interface": "test",
 		},
@@ -440,13 +439,13 @@ func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsByIfaceName(c *check.C) {
+func (s *interfacesSuite) TestConnectionsByIfaceName(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 	restore = builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "different"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -533,7 +532,7 @@ plugs:
 	})
 
 	// modifies state internally
-	s.testConnectionsConnected(c, "/v2/connections?interfaces=test", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?interfaces=test", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
@@ -591,16 +590,16 @@ plugs:
 	})
 }
 
-func (s *apiSuite) TestConnectionsDefaultManual(c *check.C) {
+func (s *interfacesSuite) TestConnectionsDefaultManual(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
@@ -647,16 +646,16 @@ func (s *apiSuite) TestConnectionsDefaultManual(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
+func (s *interfacesSuite) TestConnectionsDefaultAuto(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"auto":      true,
@@ -723,16 +722,16 @@ func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsDefaultGadget(c *check.C) {
+func (s *interfacesSuite) TestConnectionsDefaultGadget(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,
@@ -781,16 +780,16 @@ func (s *apiSuite) TestConnectionsDefaultGadget(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsAll(c *check.C) {
+func (s *interfacesSuite) TestConnectionsAll(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections?select=all", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections?select=all", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,
@@ -836,16 +835,16 @@ func (s *apiSuite) TestConnectionsAll(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsOnlyUndesired(c *check.C) {
+func (s *interfacesSuite) TestConnectionsOnlyUndesired(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,
@@ -864,16 +863,16 @@ func (s *apiSuite) TestConnectionsOnlyUndesired(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
+func (s *interfacesSuite) TestConnectionsHotplugGone(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface":    "test",
 			"hotplug-gone": true,
@@ -890,11 +889,11 @@ func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestConnectionsSorted(c *check.C) {
+func (s *interfacesSuite) TestConnectionsSorted(c *check.C) {
 	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer restore()
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	var anotherConsumerYaml = `
 name: another-consumer-%s
@@ -926,7 +925,7 @@ slots:
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, anotherProducerYaml)
 
-	s.testConnectionsConnected(c, "/v2/connections", map[string]interface{}{
+	s.testConnectionsConnected(c, d, "/v2/connections", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 			"by-gadget": true,

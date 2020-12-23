@@ -61,11 +61,12 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
+	testutil.BaseTest
+
 	authorized      bool
 	err             error
 	lastPolkitFlags polkit.CheckFlags
 	notified        []string
-	restoreBackends func()
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -76,7 +77,11 @@ func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string,
 }
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(osutil.MockMountInfo(""))
+
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	systemdSdNotify = func(notif string) error {
@@ -85,7 +90,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	}
 	s.notified = nil
 	polkitCheckAuthorization = s.checkAuthorization
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -94,7 +99,8 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	s.authorized = false
 	s.err = nil
 	logger.SetLogger(logger.NullLogger)
-	s.restoreBackends()
+
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {
@@ -218,68 +224,15 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 
 	b, err := json.Marshal(maintErr)
 	c.Assert(err, check.IsNil)
-
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
-
 	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
 	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
 
-	// mark as already seeded
-	s.markSeeded(d)
-	// and pretend we have snaps
-	st := d.overlord.State()
-	st.Lock()
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
-	})
-	st.Unlock()
-	// 1 snap => extended timeout 30s + 5s
-	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
-
-	l1, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-	l2, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	snapdAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{Listener: l1, accept: snapdAccept}
-
-	snapAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{Listener: l2, accept: snapAccept}
-
+	// after starting, maintenance.json should be removed
 	d.Start()
-
-	snapdDone := make(chan struct{})
-	go func() {
-		select {
-		case <-snapdAccept:
-		case <-time.After(2 * time.Second):
-			c.Fatal("snapd accept was not called")
-		}
-		close(snapdDone)
-	}()
-
-	snapDone := make(chan struct{})
-	go func() {
-		select {
-		case <-snapAccept:
-		case <-time.After(2 * time.Second):
-			c.Fatal("snapd accept was not called")
-		}
-		close(snapDone)
-	}()
-
-	<-snapdDone
-	<-snapDone
-
-	// maintenance.json should be removed
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
-
 	d.Stop(nil)
 }
 

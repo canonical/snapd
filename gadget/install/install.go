@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -52,12 +53,17 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+	logger.Noticef("installing a new system")
+	logger.Noticef("        gadget data from: %v", gadgetRoot)
+	if options.Encrypt {
+		logger.Noticef("        encryption: on")
+	}
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	lv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
@@ -85,13 +91,13 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(diskLayout); err != nil {
+	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
 		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "*.sealed-key"))
 	for _, keyFile := range sealedKeyFiles {
 		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
@@ -124,11 +130,18 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	var keysForRoles map[string]*EncryptionKeySet
 
 	for _, part := range created {
+		roleFmt := ""
+		if part.Role != "" {
+			roleFmt = fmt.Sprintf("role %v", part.Role)
+		}
+		logger.Noticef("created new partition %v for structure %v (size %v) %s",
+			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
 			keys, err := makeKeySet()
 			if err != nil {
 				return nil, err
 			}
+			logger.Noticef("encrypting partition device %v", part.Node)
 			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
 			if err != nil {
 				return nil, err
@@ -144,6 +157,7 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 				keysForRoles = map[string]*EncryptionKeySet{}
 			}
 			keysForRoles[part.Role] = keys
+			logger.Noticef("encrypted device %v", part.Node)
 		}
 
 		if err := makeFilesystem(&part); err != nil {
@@ -166,30 +180,74 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 	}, nil
 }
 
+// isCreatableAtInstall returns whether the gadget structure would be created at
+// install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
+func isCreatableAtInstall(gv *gadget.VolumeStructure) bool {
+	// a structure is creatable at install if it is one of the roles for
+	// system-save, system-data, or system-boot
+	switch gv.Role {
+	case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
+		return true
+	default:
+		return false
+	}
+}
+
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {
-	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) bool {
+	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) (bool, string) {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		nameMatch := gv.Name == dv.Name
 		if gadgetLayout.Schema == "mbr" {
-			// partitions have no names in MBR
+			// partitions have no names in MBR so bypass the name check
 			nameMatch = true
 		}
-		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
+		// Previous installation may have failed before filesystem creation or
+		// partition may be encrypted, so if the on disk offset matches the
+		// gadget offset, and the gadget structure is creatable during install,
+		// then they are equal
+		// otherwise, if they are not created during installation, the
+		// filesystem must be the same
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (isCreatableAtInstall(gv) || dv.Filesystem == gv.Filesystem)
+		sizeMatches := dv.Size == gv.Size
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
-			return check && dv.Size >= gv.Size
+			sizeMatches = dv.Size >= gv.Size
 		}
-		return check && dv.Size == gv.Size
+		if check && sizeMatches {
+			return true, ""
+		}
+		switch {
+		case !nameMatch:
+			// don't return a reason if the names don't match
+			return false, ""
+		case ds.StartOffset != gs.StartOffset:
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))", ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+			return false, "filesystems do not match and the partition is not creatable at install"
+		case dv.Size < gv.Size:
+			return false, "on disk size is smaller than gadget size"
+		case gv.Role != gadget.SystemData && dv.Size > gv.Size:
+			return false, "on disk size is larger than gadget size (and the role should not be expanded)"
+		default:
+			return false, "some other logic condition (should be impossible?)"
+		}
 	}
-	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) bool {
+
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) (bool, string) {
+		reasonAbsent := ""
 		for _, h := range haystack {
-			if eq(needle, h) {
-				return true
+			matches, reasonNotMatches := eq(needle, h)
+			if matches {
+				return true, ""
+			}
+			// this has the effect of only returning the last non-empty reason
+			// string
+			if reasonNotMatches != "" {
+				reasonAbsent = reasonNotMatches
 			}
 		}
-		return false
+		return false, reasonAbsent
 	}
 
 	if gadgetLayout.Size > diskLayout.Size {
@@ -207,8 +265,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
-		if !contains(gadgetLayout.LaidOutStructure, ds) {
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
+		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
+		if !present {
+			if reasonAbsent != "" {
+				// use the right format so that it can be
+				// appended to the error message
+				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+			}
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 

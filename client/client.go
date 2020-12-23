@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -346,9 +346,7 @@ var doNoTimeoutAndRetry = &doOptions{
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
 	opts = ensureDoOpts(opts)
 
-	if err := client.checkMaintenanceJSON(); err != nil {
-		return 500, err
-	}
+	client.checkMaintenanceJSON()
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
@@ -424,14 +422,16 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 // maintenance, either for snapd restarting itself to update, or rebooting the
 // system to update the kernel or base snap, etc. If there is ongoing
 // maintenance, then the maintenance object on the client is set appropriately.
-// note that currently checkMaintenanceJSON does not return non-nil errors, so
-// if the file is missing or corrupt or empty, nothing will happen
-func (client *Client) checkMaintenanceJSON() error {
+// note that currently checkMaintenanceJSON does not return errors, such that
+// if the file is missing or corrupt or empty, nothing will happen and it will
+// be silently ignored
+func (client *Client) checkMaintenanceJSON() {
 	f, err := os.Open(dirs.SnapdMaintenanceFile)
 	// just continue if we can't read the maintenance file
 	if err != nil {
-		return nil
+		return
 	}
+	defer f.Close()
 
 	// we have a maintenance file, try to read it
 	maintenance := &Error{}
@@ -439,7 +439,7 @@ func (client *Client) checkMaintenanceJSON() error {
 	if err := json.NewDecoder(f).Decode(&maintenance); err != nil {
 		// if the json is malformed, just ignore it for now, we only use it for
 		// positive identification of snapd down for maintenance
-		return nil
+		return
 	}
 
 	if maintenance != nil {
@@ -455,8 +455,6 @@ func (client *Client) checkMaintenanceJSON() error {
 		// this also means an empty json object in maintenance.json doesn't get
 		// treated as a real maintenance downtime for example
 	}
-
-	return nil
 }
 
 func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
@@ -466,9 +464,7 @@ func (client *Client) doSyncWithOpts(method, path string, query url.Values, head
 	// won't respond and return a specific error, but that's a big behavior
 	// change we probably shouldn't make right now, not to mention it probably
 	// requires adjustments in other areas too
-	if err := client.checkMaintenanceJSON(); err != nil {
-		return nil, err
-	}
+	client.checkMaintenanceJSON()
 
 	var rsp response
 	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
@@ -702,7 +698,11 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
+	opts := &doOptions{
+		Timeout: 25 * time.Second,
+		Retry:   doRetry,
+	}
+	if _, err := client.doSyncWithOpts("GET", "/v2/system-info", nil, nil, nil, &sysInfo, opts); err != nil {
 		return nil, fmt.Errorf("cannot obtain system details: %v", err)
 	}
 
@@ -735,5 +735,15 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 		urlParams.Set(k, v)
 	}
 	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
+	return err
+}
+
+type SystemRecoveryKeysResponse struct {
+	RecoveryKey  string `json:"recovery-key"`
+	ReinstallKey string `json:"reinstall-key"`
+}
+
+func (client *Client) SystemRecoveryKeys(result interface{}) error {
+	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
 }
