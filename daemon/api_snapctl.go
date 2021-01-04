@@ -69,7 +69,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		context.Unlock()
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.uid)
+	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]interface{}{

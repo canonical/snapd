@@ -279,9 +279,9 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
-		c.Check(ucred.uid, check.Equals, uint32(42))
-		c.Check(ucred.pid, check.Equals, int32(100))
-		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return accessOK
 	})
@@ -315,9 +315,9 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
-		c.Check(ucred.uid, check.Equals, uint32(42))
-		c.Check(ucred.pid, check.Equals, int32(100))
-		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return accessOK
 	})

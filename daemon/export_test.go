@@ -61,15 +61,11 @@ func (d *Daemon) RequestedRestart() state.RestartType {
 	return d.requestedRestart
 }
 
-func MockUcrednetGet(mock func(remoteAddr string) (pid int32, uid uint32, socket string, err error)) (restore func()) {
+type Ucrednet = ucrednet
+
+func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
 	oldUcrednetGet := ucrednetGet
-	ucrednetGet = func(remoteAddr string) (*ucrednet, error) {
-		pid, uid, socket, err := mock(remoteAddr)
-		if err != nil {
-			return nil, err
-		}
-		return &ucrednet{pid, uid, socket}, nil
-	}
+	ucrednetGet = mock
 	return func() {
 		ucrednetGet = oldUcrednetGet
 	}
