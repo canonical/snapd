@@ -181,6 +181,67 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
+var mockOnDiskStructureSave = gadget.OnDiskStructure{
+	Node: "/dev/node3",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Save",
+			Size:       128 * quantity.SizeMiB,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-save",
+			Label:      "ubuntu-save",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1260388352,
+		Index:       3,
+	},
+	Size: 128 * quantity.SizeMiB,
+}
+
+var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
+	Node: "/dev/node4",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Writable",
+			Size:       1200 * quantity.SizeMiB,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-data",
+			Label:      "ubuntu-data",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1394606080,
+		Index:       4,
+	},
+	// expanded to fill the disk
+	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
+}
+
+func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
+	defer cmdLsblk.Restore()
+
+	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	// the expected expanded writable partition size is:
+	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
+	sfdiskInput, create := install.BuildPartitionList(dl, pv)
+	c.Assert(sfdiskInput.String(), Equals,
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+`)
+	c.Check(create, NotNil)
+	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
+}
+
 type uc20Constraints struct{}
 
 func (c uc20Constraints) Classic() bool             { return false }

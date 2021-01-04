@@ -59,7 +59,10 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	sets, err := snapshotList(context.TODO(), setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	sets, err := snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
 	if err != nil {
 		return InternalError("%v", err)
 	}
