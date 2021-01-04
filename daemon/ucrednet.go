@@ -38,7 +38,9 @@ const (
 
 var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);$`)
 
-func ucrednetGet(remoteAddr string) (*ucrednet, error) {
+var ucrednetGet = ucrednetGetImpl
+
+func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
 	// NOTE treat remoteAddr at one point included a user-controlled
 	// string. In case that happens again by accident, treat it as tainted,
 	// and be very suspicious of it.

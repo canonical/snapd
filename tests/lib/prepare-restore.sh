@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: boot.sh has side-effects
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
 # XXX: dirs.sh has side-effects
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -24,9 +20,6 @@ set -e
 
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 
 ###
@@ -223,7 +216,7 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+    if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
@@ -247,7 +240,7 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
-    if [ "$(bootenv snap_mode)" = "try" ]; then
+    if [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
@@ -286,7 +279,7 @@ prepare_project() {
 
     distro_update_package_db
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
         if [[ "$SPREAD_REBOOT" == 0 ]]; then
@@ -345,7 +338,7 @@ prepare_project() {
     fi
 
     # so is ubuntu-14.04
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
             echo "broken test setup"
@@ -548,7 +541,7 @@ prepare_project() {
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         disable_journald_rate_limiting
@@ -566,7 +559,7 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if is_core_system; then
+    if os.query is-core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -588,7 +581,7 @@ prepare_suite_each() {
     local variant="$1"
 
     # back test directory to be restored during the restore
-    tar cf "${PWD}.tar" "$PWD"
+    tests.backup prepare
 
     # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
     if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
@@ -616,7 +609,7 @@ prepare_suite_each() {
 
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
-        if is_classic_system; then
+        if os.query is-classic; then
             prepare_each_classic
         fi
     fi
@@ -642,13 +635,7 @@ restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
     # restore test directory saved during prepare
-    if [ -f "${PWD}.tar" ]; then
-        rm -rf "$PWD"
-        tar -C/ -xf "${PWD}.tar"
-        rm -rf "${PWD}.tar"
-        # $PWD was removed and recreated, enter the new directory
-        cd "$PWD"
-    fi
+    tests.backup restore
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
         echo "Save snaps profiler log"
@@ -688,7 +675,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd

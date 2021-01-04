@@ -95,7 +95,7 @@ execute: |
 
     # Classic confinement snaps run in the host system's mount
     # namespace, so there are no restrictions on it's file access.
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         exit 0
     fi
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic

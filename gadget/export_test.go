@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,16 +25,17 @@ type (
 	RawStructureUpdater      = rawStructureUpdater
 )
 
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
-
 var (
 	ValidateStructureType   = validateStructureType
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+
+	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
+
+	RuleValidateVolumes         = ruleValidateVolumes
+	RuleValidateVolumeStructure = ruleValidateVolumeStructure
+	EnsureVolumeRuleConsistency = ensureVolumeRuleConsistency
 
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
@@ -46,12 +47,9 @@ var (
 
 	UpdaterForStructure = updaterForStructure
 
-	EnsureVolumeConsistency = ensureVolumeConsistency
-
 	Flatten = flatten
 
-	FilesystemInfo                 = filesystemInfo
-	OnDiskVolumeFromPartitionTable = onDiskVolumeFromPartitionTable
+	FilesystemInfo = filesystemInfo
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
@@ -59,7 +57,6 @@ var (
 	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
 	FindMountPointForStructure         = findMountPointForStructure
 
-	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
 )
 

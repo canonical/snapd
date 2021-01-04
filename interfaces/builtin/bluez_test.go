@@ -100,6 +100,7 @@ apps:
 `
 
 const bluezCoreYaml = `name: core
+type: os
 version: 0
 slots:
   bluez:

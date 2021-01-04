@@ -78,7 +78,10 @@ type Snapshot struct {
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
 
-	// set if the snapshot was created automatically on snap removal
+	// set if the snapshot was created automatically on snap removal;
+	// note, this is only set inside actual snapshot file for old snapshots;
+	// newer snapd just updates this flag on the fly for snapshots
+	// returned by List().
 	Auto bool `json:"auto,omitempty"`
 }
 

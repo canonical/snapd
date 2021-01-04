@@ -88,7 +88,7 @@ func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
 func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
 
-	defer daemon.MockSnapshotList(func(context.Context, uint64, []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(context.Context, *state.State, uint64, []string) ([]client.SnapshotSet, error) {
 		return snapshots, nil
 	})()
 
@@ -105,7 +105,7 @@ func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 	snapshots := []client.SnapshotSet{{ID: 1}, {ID: 42}}
 
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, st *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		c.Assert(setID, check.Equals, uint64(42))
 		return snapshots[1:], nil
 	})()
@@ -120,7 +120,7 @@ func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 }
 
 func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, _ *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		c.Fatal("snapshotList should not be reached (should have been blocked by validation!)")
 		return nil, nil
 	})()
@@ -135,7 +135,7 @@ func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
 }
 
 func (s *snapshotSuite) TestListSnapshotsListError(c *check.C) {
-	defer daemon.MockSnapshotList(func(_ context.Context, setID uint64, _ []string) ([]client.SnapshotSet, error) {
+	defer daemon.MockSnapshotList(func(_ context.Context, _ *state.State, setID uint64, _ []string) ([]client.SnapshotSet, error) {
 		return nil, errors.New("no")
 	})()
 
@@ -390,7 +390,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 
 	setID := uint64(3)
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
 		return setID, snapNames, nil
 	})()
 
@@ -406,7 +406,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader, int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
 		return uint64(0), nil, errors.New("no")
 	})()
 
@@ -437,7 +437,7 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	var dataRead int
 
-	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader, expectedSize int64) (uint64, []string, error) {
+	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, error) {
 		data, err := ioutil.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		dataRead = len(data)

@@ -10,12 +10,12 @@ details: |
     A snap declaring a plug on this interface must be able to access network services.
 
 # amazon: uses nmap-netcat
-systems: [-fedora-*, -opensuse-*, -amazon-*, -centos-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -amazon-*, -centos-*, -ubuntu-14.04*]
 
 environment:
     SNAP_NAME: network-consumer
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
 
 prepare: |
@@ -25,13 +25,10 @@ prepare: |
     echo "And a service is listening"
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    systemctl stop "$SERVICE_NAME"
 
 execute: |
     echo "The interface is connected by default"
