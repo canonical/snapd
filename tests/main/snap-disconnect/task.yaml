@@ -15,9 +15,6 @@ restore: |
     rm -f ./*.snap
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     inspect_connection() {
       CONN="$1"
       # shellcheck disable=SC2002
@@ -62,7 +59,7 @@ execute: |
 
 
     # these checks rely on automatic connection of home on non-core systems
-    if ! is_core_system; then
+    if ! os.query is-core; then
       echo "Checking that --forget forgets connection when auto-connected"
       snap remove --purge "$SNAP_FILE"
       snap install --dangerous "$SNAP_FILE"

@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,6 +53,12 @@ type firstBoot20Suite struct {
 	// MakeAssertedSnap, MakeSeed) for tests.
 	*seedtest.TestingSeed20
 }
+
+var (
+	allGrades = []asserts.ModelGrade{
+		asserts.ModelDangerous,
+	}
+)
 
 var _ = Suite(&firstBoot20Suite{})
 
@@ -70,7 +78,7 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -98,11 +106,15 @@ volumes:
 	makeSnap("pc-kernel=20")
 	makeSnap("core20")
 	makeSnap("pc=20")
+	for _, sn := range extraDevModeSnaps {
+		makeSnap(sn)
+	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"grade":        string(modelGrade),
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -115,11 +127,85 @@ volumes:
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
-	}, nil)
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.AssertedSnapID("core20"),
+				"type": "base",
+			},
+		},
+	}
+
+	for _, sn := range extraDevModeSnaps {
+		name, channel := splitSnapNameWithChannel(sn)
+		model["snaps"] = append(model["snaps"].([]interface{}), map[string]interface{}{
+			"name":            name,
+			"type":            "app",
+			"id":              s.AssertedSnapID(name),
+			"default-channel": channel,
+		})
+	}
+
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv) {
+func splitSnapNameWithChannel(sn string) (name, channel string) {
+	nameParts := strings.SplitN(sn, "=", 2)
+	name = nameParts[0]
+	channel = ""
+	if len(nameParts) == 2 {
+		channel = nameParts[1]
+	}
+	return name, channel
+}
+
+func stripSnapNamesWithChannels(snaps []string) []string {
+	names := []string{}
+	for _, sn := range snaps {
+		name, _ := splitSnapNameWithChannel(sn)
+		names = append(names, name)
+	}
+	return names
+}
+
+func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFlag ...string) {
+	allDevModeSnaps := stripSnapNamesWithChannels(snapsWithDevModeFlag)
+
+	// XXX: mostly same code from checkOrder helper in firstboot_test.go, maybe
+	// combine someday?
+	matched := 0
+	var prevTask *state.Task
+	for i, ts := range tsAll {
+		task0 := ts.Tasks()[0]
+		waitTasks := task0.WaitTasks()
+		if i == 0 {
+			c.Check(waitTasks, HasLen, 0)
+		} else {
+			c.Check(waitTasks, testutil.Contains, prevTask)
+		}
+		prevTask = task0
+		if task0.Kind() != "prerequisites" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName()) {
+			c.Assert(snapsup.DevMode, Equals, true)
+			matched++
+		} else {
+			// it should not have DevMode true
+			c.Assert(snapsup.DevMode, Equals, false)
+		}
+	}
+	c.Check(matched, Equals, len(snapsWithDevModeFlag))
+}
+
+func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -136,7 +222,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	defer systemctlRestorer()
 
 	sysLabel := m.RecoverySystem
-	model := s.setupCore20Seed(c, sysLabel)
+	model := s.setupCore20Seed(c, sysLabel, modelGrade, extraDevModeSnaps...)
+	// sanity check that our returned model has the expected grade
+	c.Assert(model.Grade(), Equals, modelGrade)
 
 	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
@@ -162,7 +250,20 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "pc-kernel", "core20", "pc")
+	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
+	allDevModeSnaps := stripSnapNamesWithChannels(extraDevModeSnaps)
+	if len(extraDevModeSnaps) != 0 {
+		snaps = append(snaps, allDevModeSnaps...)
+	}
+	checkOrder(c, tsAll, snaps...)
+
+	// if the model is dangerous check that the devmode snaps in the model have
+	// the flag set in snapstate for DevMode confinement
+	// XXX: eventually we may need more complicated checks here and for
+	// non-dangerous models only specific snaps may have this flag set
+	if modelGrade == asserts.ModelDangerous {
+		checkSnapstateDevModeFlags(c, tsAll, allDevModeSnaps...)
+	}
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -277,7 +378,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
 		// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
 		//     installSeedSnap() after restart
-		// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
+		// * 1 from boot.GetCurrentBoot() from FinishRestart after restart
 		_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 		c.Assert(numKernelCalls, Equals, 3)
 	}
@@ -305,13 +406,24 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	}
 }
 
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeDangerousWithDevmode(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m, asserts.ModelDangerous, "test-devmode=20")
+}
+
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunMode(c *C) {
 	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
@@ -320,7 +432,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
 		RecoverySystem: "20191019",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
@@ -329,5 +443,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 		RecoverySystem: "20191020",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }

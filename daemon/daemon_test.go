@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -57,14 +58,22 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
+	testutil.BaseTest
+
+	authorized      bool
+	err             error
+	lastPolkitFlags polkit.CheckFlags
 	notified        []string
-	restoreBackends func()
 }
 
 var _ = check.Suite(&daemonSuite{})
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(osutil.MockMountInfo(""))
+
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	systemdSdNotify = func(notif string) error {
@@ -72,13 +81,16 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.notified = nil
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	systemdSdNotify = systemd.SdNotify
 	dirs.SetRootDir("")
-	s.restoreBackends()
+	s.authorized = false
+	s.err = nil
+
+	s.BaseTest.TearDownTest(c)
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -192,6 +204,27 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	})
 }
 
+func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
+	// write a maintenance.json file that has that the system is restarting
+	maintErr := &errorResult{
+		Kind:    client.ErrorKindDaemonRestart,
+		Message: systemRestartMsg,
+	}
+
+	b, err := json.Marshal(maintErr)
+	c.Assert(err, check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
+
+	d := newTestDaemon(c)
+	makeDaemonListeners(c, d)
+
+	// after starting, maintenance.json should be removed
+	d.Start()
+	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
+	d.Stop(nil)
+}
+
 func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	d := newTestDaemon(c)
 
@@ -246,9 +279,9 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
-		c.Check(ucred.uid, check.Equals, uint32(42))
-		c.Check(ucred.pid, check.Equals, int32(100))
-		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return nil
 	})
@@ -282,9 +315,9 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
-		c.Check(ucred.uid, check.Equals, uint32(42))
-		c.Check(ucred.pid, check.Equals, int32(100))
-		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return nil
 	})
@@ -457,7 +490,12 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
 
 	c.Assert(d.Start(), check.IsNil)
-	defer d.Stop(nil)
+	stoppedYet := false
+	defer func() {
+		if !stoppedYet {
+			d.Stop(nil)
+		}
+	}()
 
 	snapdDone := make(chan struct{})
 	go func() {
@@ -489,6 +527,11 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
 	}
+
+	d.Stop(nil)
+	stoppedYet = true
+
+	c.Assert(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1", "STOPPING=1"})
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -744,7 +787,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 
 	defer func() {
 		d.mu.Lock()
-		d.restartSystem = state.RestartUnset
+		d.requestedRestart = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -755,7 +798,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	}
 
 	d.mu.Lock()
-	rs := d.restartSystem
+	rs := d.requestedRestart
 	d.mu.Unlock()
 
 	c.Check(rs, check.Equals, restartKind)
@@ -791,6 +834,17 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 		// should be good enough
 		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
 	}
+
+	// finally check that maintenance.json was written appropriate for this
+	// restart reason
+	b, err := ioutil.ReadFile(dirs.SnapdMaintenanceFile)
+	c.Assert(err, check.IsNil)
+
+	maintErr := &errorResult{}
+	c.Assert(json.Unmarshal(b, maintErr), check.IsNil)
+
+	exp := maintenanceForRestartType(restartKind)
+	c.Assert(maintErr, check.DeepEquals, exp)
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {

@@ -76,8 +76,8 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	c.Check(remoteAddr, check.Matches, "pid=100;uid=42;.*")
 	u, err := ucrednetGet(remoteAddr)
 	c.Assert(err, check.IsNil)
-	c.Check(u.pid, check.Equals, int32(100))
-	c.Check(u.uid, check.Equals, uint32(42))
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -182,9 +182,9 @@ func (s *ucrednetSuite) TestGetNothing(c *check.C) {
 func (s *ucrednetSuite) TestGet(c *check.C) {
 	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
 	c.Assert(err, check.IsNil)
-	c.Check(u.pid, check.Equals, int32(100))
-	c.Check(u.uid, check.Equals, uint32(42))
-	c.Check(u.socket, check.Equals, "/run/snap.socket")
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 }
 
 func (s *ucrednetSuite) TestGetSneak(c *check.C) {

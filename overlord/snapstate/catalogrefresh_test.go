@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -77,6 +78,8 @@ type catalogRefreshTestSuite struct {
 
 	store  *catalogStore
 	tmpdir string
+
+	testutil.BaseTest
 }
 
 var _ = Suite(&catalogRefreshTestSuite{})
@@ -92,11 +95,11 @@ func (s *catalogRefreshTestSuite) SetUpTest(c *C) {
 	// mark system as seeded
 	s.state.Set("seeded", true)
 
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-}
+	// setup a simple deviceCtx since we check that for install mode
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-func (s *catalogRefreshTestSuite) TearDownTest(c *C) {
-	snapstate.CanAutoRefresh = nil
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	s.AddCleanup(func() { snapstate.CanAutoRefresh = nil })
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
@@ -207,6 +210,31 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUnSeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", nil)
 	s.state.Unlock()
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+
+	err := cr7.Ensure()
+	c.Assert(err, IsNil)
+
+	// next should be still zero as we skipped refresh on unseeded system
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	// nothing got created
+	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
+	// mark system as being in install mode
+	trivialInstallDevice := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		SysMode:     "install",
+	}
+
+	r := snapstatetest.MockDeviceContext(trivialInstallDevice)
+	defer r()
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	// next is initially zero

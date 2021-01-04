@@ -20,6 +20,7 @@
 package hookstate
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -260,7 +261,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
 // undoRunHook runs the undo-hook that was requested.
@@ -279,10 +280,39 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
-func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
+func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+	var snapst snapstate.SnapState
+	m.state.Lock()
+	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
+	m.state.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
+	}
+
+	context, err := newEphemeralHookContextWithData(m.state, hooksup, contextData)
+	if err != nil {
+		return nil, err
+	}
+
+	tomb, _ := tomb.WithContext(ctx)
+	if err := m.runHook(context, &snapst, hooksup, tomb); err != nil {
+		return nil, err
+	}
+	return context, nil
+}
+
+func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
+	context, err := NewContext(task, m.state, hooksup, nil, "")
+	if err != nil {
+		return err
+	}
+	return m.runHook(context, snapst, hooksup, tomb)
+}
+
+func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
@@ -304,7 +334,7 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if ok, _ := task.State().Restarting(); ok {
+		if ok, _ := m.state.Restarting(); ok {
 			// don't start running a hook if we are restarting
 			return &state.Retry{}
 		}
@@ -315,11 +345,6 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 	} else if !hooksup.Always {
 		// a noop with no 'always' flag: bail
 		return nil
-	}
-
-	context, err := NewContext(task, task.State(), hooksup, nil, "")
-	if err != nil {
-		return err
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
@@ -352,11 +377,12 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		m.contextsMutex.Unlock()
 	}()
 
-	if err = context.Handler().Before(); err != nil {
+	if err := context.Handler().Before(); err != nil {
 		return err
 	}
 
 	// some hooks get hijacked, e.g. the core configuration
+	var err error
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
 		err = f(context)
@@ -369,9 +395,9 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		}
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
-			task.State().Lock()
-			task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-			task.State().Unlock()
+			context.Lock()
+			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+			context.Unlock()
 		} else {
 			if handlerErr := context.Handler().Error(err); handlerErr != nil {
 				return handlerErr

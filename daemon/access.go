@@ -46,7 +46,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Resp
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	switch authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, action, nil, flags); err {
+	switch authorized, err := polkitCheckAuthorization(ucred.Pid, ucred.Uid, action, nil, flags); err {
 	case nil:
 		if authorized {
 			// polkit says user is authorised
@@ -75,7 +75,7 @@ func requireSnapdSocket(ucred *ucrednet) Response {
 		return Forbidden("access denied")
 	}
 
-	if ucred.socket != dirs.SnapdSocket {
+	if ucred.Socket != dirs.SnapdSocket {
 		return Forbidden("access denied")
 	}
 
@@ -109,7 +109,7 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 		return nil
 	}
 
-	if ucred.uid == 0 {
+	if ucred.Uid == 0 {
 		return nil
 	}
 
@@ -132,7 +132,7 @@ func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 		return rsp
 	}
 
-	if ucred.uid == 0 {
+	if ucred.Uid == 0 {
 		return nil
 	}
 	return Forbidden("access denied")
@@ -146,7 +146,7 @@ func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 		return Forbidden("access denied")
 	}
 
-	if ucred.socket == dirs.SnapSocket {
+	if ucred.Socket == dirs.SnapSocket {
 		return nil
 	}
 	// FIXME: should snapctl access be allowed on the main socket?

@@ -1,12 +1,13 @@
 {
     "type": "model",
-    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "authority-id": "CA5GLZgNQWPhspDQK63Er46Uxz2SO7ez",
     "series": "16",
-    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "brand-id": "CA5GLZgNQWPhspDQK63Er46Uxz2SO7ez",
     "model": "pc",
     "architecture": "amd64",
     "gadget": "pc=18",
     "base": "core18",
     "kernel": "pc-kernel=18",
-    "timestamp": "2019-05-16T18:06:04+00:00"
+    "serial-authority": ["generic"],
+    "timestamp": "2020-11-27T15:30:00Z"
 }

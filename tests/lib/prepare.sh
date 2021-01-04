@@ -8,12 +8,8 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 
 disable_kernel_rate_limiting() {
@@ -55,10 +51,10 @@ ensure_jq() {
         return
     fi
 
-    if is_core18_system; then
+    if os.query is-core18; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
-    elif is_core20_system; then
+    elif os.query is-core20; then
         snap install --devmode --edge jq-core20
         snap alias jq-core20.jq jq
     else
@@ -306,7 +302,7 @@ prepare_classic() {
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
-        output=$(bootenv)
+        output=$("$TESTSTOOLS"/boot-state bootenv show)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
@@ -320,7 +316,7 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
         # inotify watch on that path
@@ -345,12 +341,12 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_core20_snap_with_tweaks() {
-    local CORE20SNAP="$1"
+repack_core_snap_with_tweaks() {
+    local CORESNAP="$1"
     local TARGET="$2"
 
-    local UNPACK_DIR="/tmp/core20-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORE20SNAP"
+    local UNPACK_DIR="/tmp/core-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
 
     mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
     cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
@@ -514,6 +510,11 @@ uc20_build_initramfs_kernel_snap() {
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
 
+        # copy any extra files to the same location inside the initrd
+        if [ -d ../extra-initrd/ ]; then
+            cp -a ../extra-initrd/* "$skeletondir"/main
+        fi
+
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
@@ -580,6 +581,11 @@ uc20_build_initramfs_kernel_snap() {
         rm -rf fake
     )
 
+    # copy any extra files that tests may need for the kernel
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+    
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 }
@@ -719,15 +725,15 @@ setup_reflash_magic() {
     snap wait system seed.loaded
 
     # download the snapd snap for all uc systems except uc16
-    if ! is_core16_system; then
+    if ! os.query is-core16; then
         snap download "--channel=${SNAPD_CHANNEL}" snapd
     fi
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
-    if is_core18_system; then
+    if os.query is-core18; then
         core_name="core18"
-    elif is_core20_system; then        
+    elif os.query is-core20; then
         core_name="core20"
     fi
     # XXX: we get "error: too early for operation, device not yet
@@ -739,7 +745,7 @@ setup_reflash_magic() {
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
-    if is_core16_system || is_core18_system; then
+    if os.query is-core16 || os.query is-core18; then
         UNPACK_DIR="/tmp/$core_name-snap"
         unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
     fi
@@ -759,12 +765,12 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    if is_core18_system; then
+    if os.query is-core18; then
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
-    elif is_core20_system; then
+    elif os.query is-core20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
@@ -822,7 +828,7 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
-    if is_core20_system; then
+    if os.query is-core20; then
         snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
         # make sure we have the snap
         test -e pc-kernel.snap
@@ -837,7 +843,7 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
-    if is_core18_system || is_core20_system; then
+    if os.query is-core18 || os.query is-core20; then
         extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
         extra_snap=("$IMAGE_HOME"/core_*.snap)
@@ -856,7 +862,7 @@ EOF
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
-    if is_core20_system; then
+    if os.query is-core20; then
         # (ab)use ubuntu-seed
         LOOP_PARTITION=2
     else
@@ -866,7 +872,7 @@ EOF
     # expand the uc16 and uc18 images a little bit (400M) as it currently will
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
-    if ! is_core20_system; then
+    if ! os.query is-core20; then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this 
@@ -890,7 +896,7 @@ EOF
     dev=$(basename "$devloop")
 
     # resize the 2nd partition from that loop device to fix the size
-    if ! is_core20_system; then
+    if ! os.query is-core20; then
         resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
 
@@ -903,7 +909,7 @@ EOF
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
-    if is_core16_system || is_core18_system; then
+    if os.query is-core16 || os.query is-core18; then
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
         # are core dumps, but we have a test suite named "core", so including 
@@ -917,7 +923,7 @@ EOF
           --exclude /gopath/pkg/ \
           --include core/ \
           /home/gopath /mnt/user-data/
-    elif is_core20_system; then
+    elif os.query is-core20; then
         # prepare passwd for run-mode-overlay-data
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
@@ -948,7 +954,7 @@ EOF
     fi
 
     # now modify the image writable partition - only possible on uc16 / uc18
-    if is_core16_system || is_core18_system; then
+    if os.query is-core16 || os.query is-core18; then
         # modify the writable partition of "core" so that we have the
         # test user
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
@@ -979,7 +985,7 @@ EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
 
     DEVPREFIX=""
-    if is_core20_system; then
+    if os.query is-core20; then
         DEVPREFIX="/boot"
     fi
     # extract ROOT from /proc/cmdline
@@ -1036,7 +1042,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system || is_core20_system; then
+    if os.query is-core18 || os.query is-core20; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -1047,9 +1053,9 @@ prepare_ubuntu_core() {
     echo "Ensure rsync is available"
     if ! command -v rsync; then
         rsync_snap="test-snapd-rsync"
-        if is_core18_system; then
+        if os.query is-core18; then
             rsync_snap="test-snapd-rsync-core18"
-        elif is_core20_system; then
+        elif os.query is-core20; then
             rsync_snap="test-snapd-rsync-core20"
         fi
         snap install --devmode --edge "$rsync_snap"
@@ -1062,21 +1068,21 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system || is_core20_system; then
+    if os.query is-core18 || os.query is-core20; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
         cache_snaps core
-        if is_core18_system; then
+        if os.query is-core18; then
             cache_snaps test-snapd-sh-core18
         fi
     fi
 
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        if is_core18_system; then
+        if os.query is-core18; then
             cache_snaps test-snapd-profiler-core18
         else
             cache_snaps test-snapd-profiler
