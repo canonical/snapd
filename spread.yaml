@@ -4,7 +4,7 @@ environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
-    PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
+    PROJECT_PATH: '$(HOST: echo "${SPREAD_PROJECT_PATH:-"$GOHOME/src/github.com/snapcore/snapd"}")'
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
     PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
