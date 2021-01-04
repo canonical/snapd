@@ -246,7 +246,7 @@ if [ "$STATIC" = 1 ]; then
         go get -u github.com/gordonklaus/ineffassign
     fi
     # ineffassign knows about ignoring vendor/ \o/
-    ineffassign .
+    ineffassign ./...
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
