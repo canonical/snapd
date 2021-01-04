@@ -288,7 +288,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, missing, err := daemon.ThemeStatusAndMissingSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, err := daemon.ThemeStatusAndMissingSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]daemon.ThemeStatus{
 		"Foo-gtk": daemon.ThemeInstalled,
@@ -305,7 +305,7 @@ slots:
 		"Bar-sounds": daemon.ThemeAvailable,
 		"Baz-sounds": daemon.ThemeUnavailable,
 	})
-	c.Check(missing, DeepEquals, []string{"gtk-theme-bar", "icon-theme-bar", "sound-theme-bar"})
+	c.Check(status.MissingSnaps, DeepEquals, []string{"gtk-theme-bar", "icon-theme-bar", "sound-theme-bar"})
 }
 
 func (s *themesSuite) TestThemesCmd(c *C) {
