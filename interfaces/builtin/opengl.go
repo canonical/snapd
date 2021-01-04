@@ -134,6 +134,7 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,
