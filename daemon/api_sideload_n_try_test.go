@@ -227,7 +227,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -249,7 +249,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -264,7 +264,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	// add the assertions first
 	st := d.Overlord().State()
 
@@ -343,7 +343,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -394,7 +394,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "foo"}, nil
@@ -631,7 +631,7 @@ func (s *trySuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *trySuite) TestTryChangeConflict(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	st := d.Overlord().State()
 
 	// mock a try dir

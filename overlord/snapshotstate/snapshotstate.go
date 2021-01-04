@@ -43,6 +43,7 @@ var (
 	snapstateCheckChangeConflictMany = snapstate.CheckChangeConflictMany
 	backendIter                      = backend.Iter
 	backendEstimateSnapshotSize      = backend.EstimateSnapshotSize
+	backendList                      = backend.List
 
 	// Default expiration time for automatic snapshots, if not set by the user
 	defaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
@@ -290,7 +291,31 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 
 // List valid snapshots.
 // Note that the state must be locked by the caller.
-var List = backend.List
+func List(ctx context.Context, st *state.State, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
+	sets, err := backendList(ctx, setID, snapNames)
+	if err != nil {
+		return nil, err
+	}
+
+	var snapshots map[uint64]*snapshotState
+	if err := st.Get("snapshots", &snapshots); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	// decorate all snapshots with "auto" flag if we have expiry time set for them.
+	for _, sset := range sets {
+		// at the moment we only keep records with expiry time so checking non-zero
+		// expiry-time is not strictly necessary, but it makes it future-proof in case
+		// we add more attributes to these entries.
+		if snapshotState, ok := snapshots[sset.ID]; ok && !snapshotState.ExpiryTime.IsZero() {
+			for _, snapshot := range sset.Snapshots {
+				snapshot.Auto = true
+			}
+		}
+	}
+
+	return sets, nil
+}
 
 // XXX: Something needs to cleanup incomplete imports. This is conceptually
 //      very simple: on startup, do:
