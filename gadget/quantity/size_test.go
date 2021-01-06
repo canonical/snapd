@@ -85,3 +85,20 @@ func (s *sizeTestSuite) TestUnmarshalYAMLSize(c *C) {
 		}
 	}
 }
+
+func (s *sizeTestSuite) TestSizeString(c *C) {
+	var pSize *quantity.Size
+	c.Check(pSize.String(), Equals, "unspecified")
+
+	for _, tc := range []struct {
+		size quantity.Size
+		exp  string
+	}{
+		{512, "512"},
+		{1030, "1030"},
+		{quantity.SizeKiB + 512, "1536"},
+		{578 * quantity.SizeMiB, "606076928"},
+	} {
+		c.Check(tc.size.String(), Equals, tc.exp)
+	}
+}
