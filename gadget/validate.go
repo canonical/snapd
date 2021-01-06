@@ -266,11 +266,12 @@ func splitKernelRef(kernelRef string) (asset, content string, err error) {
 		return "", "", fmt.Errorf("not a kernel ref")
 	}
 	assetAndContent := kernelRef[len("$kernel:"):]
-	idx := strings.Index(assetAndContent, "/")
-	if idx == -1 {
+	l := strings.SplitN(assetAndContent, "/", 2)
+	if len(l) < 2 {
 		return "", "", fmt.Errorf("invalid asset and content in kernel ref %q", kernelRef)
 	}
-	asset, content = assetAndContent[:idx], assetAndContent[idx+1:]
+	asset = l[0]
+	content = l[1]
 	nonDirContent := content
 	if strings.HasSuffix(nonDirContent, "/") {
 		// a single trailing / is allowed to indicate all content under directory
