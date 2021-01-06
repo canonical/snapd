@@ -263,7 +263,7 @@ func splitKernelRef(kernelRef string) (asset, content string, err error) {
 	// asset name and content is listed in kernel.yaml, content looks like a
 	// sane path
 	if !strings.HasPrefix(kernelRef, "$kernel:") {
-		return "", "", fmt.Errorf("not a kernel ref")
+		return "", "", fmt.Errorf("internal error: splitKernelRef called for non kernel ref %q", kernelRef)
 	}
 	assetAndContent := kernelRef[len("$kernel:"):]
 	l := strings.SplitN(assetAndContent, "/", 2)

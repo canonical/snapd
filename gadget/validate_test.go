@@ -584,3 +584,22 @@ func (s *validateGadgetTestSuite) TestValidateContentKernelAssetsRef(c *C) {
 		}
 	}
 }
+
+func (s *validateGadgetTestSuite) TestSplitKernelRefErrors(c *C) {
+	for _, tc := range []struct {
+		kernelRef string
+		errStr    string
+	}{
+		{"no-kernel-ref", `internal error: splitKernelRef called for non kernel ref "no-kernel-ref"`},
+		{"$kernel:a", `invalid asset and content in kernel ref "\$kernel:a"`},
+		{"$kernel:a/", `missing asset name or content in kernel ref "\$kernel:a/"`},
+		{"$kernel:/b", `missing asset name or content in kernel ref "\$kernel:/b"`},
+		{"$kernel:a!invalid/b", `invalid asset name in kernel ref "\$kernel:a!invalid/b"`},
+		{"$kernel:a/b/..", `invalid content in kernel ref "\$kernel:a/b/.."`},
+		{"$kernel:a/b//", `invalid content in kernel ref "\$kernel:a/b//"`},
+		{"$kernel:a/b/./", `invalid content in kernel ref "\$kernel:a/b/./"`},
+	} {
+		_, _, err := gadget.SplitKernelRef(tc.kernelRef)
+		c.Check(err, ErrorMatches, tc.errStr, Commentf("kernelRef: %s", tc.kernelRef))
+	}
+}
