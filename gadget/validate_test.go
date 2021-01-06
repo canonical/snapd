@@ -537,7 +537,7 @@ var gadgetYamlContentKernelRef = gadgetYamlContentNoSave + `
             target: /
 `
 
-func (s *validateGadgetTestSuite) TestValidateKernelAssetsRef(c *C) {
+func (s *validateGadgetTestSuite) TestValidateContentKernelAssetsRef(c *C) {
 	for _, tc := range []struct {
 		source, asset, content string
 		good                   bool
@@ -567,7 +567,9 @@ func (s *validateGadgetTestSuite) TestValidateKernelAssetsRef(c *C) {
 	} {
 		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
-		err := gadget.Validate(s.dir, nil, nil)
+		ginfo, err := gadget.ReadInfoAndValidate(s.dir, nil, nil)
+		c.Assert(err, IsNil)
+		err = gadget.ValidateContent(ginfo, s.dir)
 		if tc.good {
 			c.Check(err, IsNil, Commentf(tc.source))
 			// asset validates correctly, so let's make sure that
