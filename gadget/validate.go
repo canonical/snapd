@@ -259,7 +259,7 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 // content validation
 
 func splitKernelRef(kernelRef string) (asset, content string, err error) {
-	// kernel ref has format: $kernel:<asset-name>/<content-name> where
+	// kernel ref has format: $kernel:<asset-name>/<content-path> where
 	// asset name and content is listed in kernel.yaml, content looks like a
 	// sane path
 	if !strings.HasPrefix(kernelRef, "$kernel:") {
