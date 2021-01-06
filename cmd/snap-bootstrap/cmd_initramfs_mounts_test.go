@@ -219,7 +219,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		return foundUnencrypted(name), nil
 	}))
-	s.AddCleanup(main.MockSecbootLockTPMSealedKeys(func() error {
+	s.AddCleanup(main.MockSecbootLockSealedKeys(func() error {
 		return nil
 	}))
 }
@@ -428,7 +428,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})()
@@ -648,7 +648,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})()
@@ -661,7 +661,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLockingUnhappy(c *C) {
 	// have blocking sealed keys fail
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		return fmt.Errorf("blocking keys failed")
 	})()
 
@@ -1554,7 +1554,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})()
@@ -1760,7 +1760,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnlockSaveFail(c *C) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return fmt.Errorf("blocking keys failed")
 	})()
@@ -1853,7 +1853,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	defer main.MockSecbootLockTPMSealedKeys(func() error {
+	defer main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return fmt.Errorf("blocking keys failed")
 	})()
@@ -2243,7 +2243,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore := main.MockSecbootLockTPMSealedKeys(func() error {
+	restore := main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -3463,7 +3463,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -3660,7 +3660,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataS
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -3856,7 +3856,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -4007,7 +4007,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -4201,7 +4201,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})
@@ -4372,7 +4372,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
-	restore = main.MockSecbootLockTPMSealedKeys(func() error {
+	restore = main.MockSecbootLockSealedKeys(func() error {
 		sealedKeysLocked = true
 		return nil
 	})

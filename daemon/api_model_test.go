@@ -50,18 +50,18 @@ var modelDefaults = map[string]interface{}{
 var _ = check.Suite(&modelSuite{})
 
 type modelSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	data, err := json.Marshal(daemon.PostModelData{NewModel: "invalid model"})
 	c.Check(err, check.IsNil)
 
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Assert(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode new model assertion: .*")
@@ -73,7 +73,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 		"revision": "2",
 	})
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -83,7 +83,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.MockModel(c, st, oldModel)
+	s.mockModel(c, st, oldModel)
 	st.Unlock()
 
 	soon := 0
@@ -111,7 +111,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	// devicestateRemodel
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
 
@@ -131,7 +131,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -140,7 +140,7 @@ func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
-	response := s.Req(c, req, nil)
+	response := s.req(c, req, nil)
 	c.Assert(response, check.FitsTypeOf, &daemon.Resp{})
 	rsp := response.(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
@@ -156,7 +156,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -166,14 +166,14 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.MockModel(c, st, theModel)
+	s.mockModel(c, st, theModel)
 	st.Unlock()
 
 	// make a new get request to the model endpoint
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
@@ -199,7 +199,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -209,13 +209,13 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.MockModel(c, st, theModel)
+	s.mockModel(c, st, theModel)
 	st.Unlock()
 
 	// make a new get request to the model endpoint with json as true
 	req, err := http.NewRequest("GET", "/v2/model?json=true", nil)
 	c.Assert(err, check.IsNil)
-	response := s.Req(c, req, nil)
+	response := s.req(c, req, nil)
 
 	// check that we get an generic response type
 	c.Assert(response, check.FitsTypeOf, &daemon.Resp{})
@@ -236,7 +236,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -245,7 +245,7 @@ func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
-	response := s.Req(c, req, nil)
+	response := s.req(c, req, nil)
 	c.Assert(response, check.FitsTypeOf, &daemon.Resp{})
 	rsp := response.(*daemon.Resp)
 	c.Assert(rsp.Status, check.Equals, 404)
@@ -266,7 +266,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -277,7 +277,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	defer st.Unlock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.MockModel(c, st, theModel)
+	s.mockModel(c, st, theModel)
 
 	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
@@ -303,7 +303,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
@@ -334,7 +334,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -345,7 +345,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	defer st.Unlock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.MockModel(c, st, theModel)
+	s.mockModel(c, st, theModel)
 
 	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
@@ -370,7 +370,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	// make a new get request to the model endpoint with json as true
 	req, err := http.NewRequest("GET", "/v2/model/serial?json=true", nil)
 	c.Assert(err, check.IsNil)
-	response := s.Req(c, req, nil)
+	response := s.req(c, req, nil)
 
 	// check that we get an generic response type
 	c.Assert(response, check.FitsTypeOf, &daemon.Resp{})

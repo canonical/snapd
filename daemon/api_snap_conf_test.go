@@ -28,7 +28,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -36,14 +35,14 @@ import (
 var _ = check.Suite(&snapConfSuite{})
 
 type snapConfSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
 	req, err := http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, statusCode)
 
 	var body map[string]interface{}
@@ -53,7 +52,7 @@ func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, s
 }
 
 func (s *snapConfSuite) TestGetConfSingleKey(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	// Set a config that we'll get in a moment
 	d.Overlord().State().Lock()
@@ -71,7 +70,7 @@ func (s *snapConfSuite) TestGetConfSingleKey(c *check.C) {
 }
 
 func (s *snapConfSuite) TestGetConfCoreSystemAlias(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	// Set a config that we'll get in a moment
 	d.Overlord().State().Lock()
@@ -88,7 +87,7 @@ func (s *snapConfSuite) TestGetConfCoreSystemAlias(c *check.C) {
 }
 
 func (s *snapConfSuite) TestGetConfMissingKey(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
 	c.Check(result, check.DeepEquals, map[string]interface{}{
 		"value": map[string]interface{}{
@@ -101,7 +100,7 @@ func (s *snapConfSuite) TestGetConfMissingKey(c *check.C) {
 }
 
 func (s *snapConfSuite) TestGetRootDocument(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	d.Overlord().State().Lock()
 	tr := config.NewTransaction(d.Overlord().State())
 	tr.Set("test-snap", "test-key1", "test-value1")
@@ -114,7 +113,7 @@ func (s *snapConfSuite) TestGetRootDocument(c *check.C) {
 }
 
 func (s *snapConfSuite) TestGetConfBadKey(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 	// TODO: this one in particular should really be a 400 also
 	result := s.runGetConf(c, "test-snap", []string{"."}, 500)
 	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `invalid option name: ""`})
@@ -128,8 +127,8 @@ hooks:
 `
 
 func (s *snapConfSuite) TestSetConf(c *check.C) {
-	d := s.Daemon(c)
-	s.MockSnap(c, configYaml)
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
 
 	// Mock the hook runner
 	hookRunner := testutil.MockCommand(c, "snap", "")
@@ -146,7 +145,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
@@ -174,8 +173,8 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 }
 
 func (s *snapConfSuite) TestSetConfCoreSystemAlias(c *check.C) {
-	d := s.Daemon(c)
-	s.MockSnap(c, `
+	d := s.daemon(c)
+	s.mockSnap(c, `
 name: core
 version: 1
 `)
@@ -194,7 +193,7 @@ version: 1
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
@@ -225,8 +224,8 @@ version: 1
 }
 
 func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
-	d := s.Daemon(c)
-	s.MockSnap(c, configYaml)
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
 
 	// Mock the hook runner
 	hookRunner := testutil.MockCommand(c, "snap", "")
@@ -243,7 +242,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]interface{}
@@ -268,7 +267,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 }
 
 func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
-	s.DaemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	text, err := json.Marshal(map[string]interface{}{"key": "value"})
 	c.Assert(err, check.IsNil)
@@ -278,7 +277,7 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 
 	var body map[string]interface{}
@@ -296,10 +295,10 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 }
 
 func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
-	s.Daemon(c)
-	s.MockSnap(c, configYaml)
+	s.daemon(c)
+	s.mockSnap(c, configYaml)
 
-	s.SimulateConflict("config-snap")
+	s.simulateConflict("config-snap")
 
 	text, err := json.Marshal(map[string]interface{}{"key": "value"})
 	c.Assert(err, check.IsNil)
@@ -309,7 +308,7 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]interface{}

@@ -132,6 +132,9 @@ const (
 
 	// ErrorKindInsufficientDiskSpace: not enough disk space to perform the request.
 	ErrorKindInsufficientDiskSpace ErrorKind = "insufficient-disk-space"
+
+	// ErrorKindValidationSetNotFound: validation set cannot be found.
+	ErrorKindValidationSetNotFound ErrorKind = "validation-set-not-found"
 )
 
 // Maintenance error kinds.
