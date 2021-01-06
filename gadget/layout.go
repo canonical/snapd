@@ -33,7 +33,7 @@ import (
 type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
-	NonMBRStartOffset quantity.Size
+	NonMBRStartOffset quantity.Offset
 	// SectorSize is the size of the sector to be used for calculations
 	SectorSize quantity.Size
 }
@@ -70,10 +70,10 @@ type LaidOutStructure struct {
 	*VolumeStructure
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
-	StartOffset quantity.Size
+	StartOffset quantity.Offset
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
-	AbsoluteOffsetWrite *quantity.Size
+	AbsoluteOffsetWrite *quantity.Offset
 	// Index of the structure definition in gadget YAML
 	Index int
 	// LaidOutContent is a list of raw content inside the structure
@@ -96,10 +96,10 @@ type LaidOutContent struct {
 	*VolumeContent
 
 	// StartOffset defines the start offset of this content image
-	StartOffset quantity.Size
+	StartOffset quantity.Offset
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this content element within the enclosing volume
-	AbsoluteOffsetWrite *quantity.Size
+	AbsoluteOffsetWrite *quantity.Offset
 	// Size is the maximum size occupied by this image
 	Size quantity.Size
 	// Index of the content in structure declaration inside gadget YAML
@@ -114,7 +114,7 @@ func (p LaidOutContent) String() string {
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
@@ -123,7 +123,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	}
 
 	for idx, s := range volume.Structure {
-		var start quantity.Size
+		var start quantity.Offset
 		if s.Offset == nil {
 			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
 				start = constraints.NonMBRStartOffset
@@ -134,7 +134,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			start = *s.Offset
 		}
 
-		end := start + s.Size
+		end := start + quantity.Offset(s.Size)
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
 			StartOffset:     start,
@@ -160,12 +160,12 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
-	previousEnd = quantity.Size(0)
+	previousEnd = quantity.Offset(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
-		previousEnd = ps.StartOffset + ps.Size
+		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
 
 		offsetWrite, err := resolveOffsetWrite(ps.OffsetWrite, byName)
 		if err != nil {
@@ -200,14 +200,14 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		return nil, err
 	}
 
-	farthestEnd := quantity.Size(0)
-	fartherstOffsetWrite := quantity.Size(0)
+	farthestEnd := quantity.Offset(0)
+	fartherstOffsetWrite := quantity.Offset(0)
 
 	for idx, ps := range structures {
 		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
 			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
 		}
-		if end := ps.StartOffset + ps.Size; end > farthestEnd {
+		if end := ps.StartOffset + quantity.Offset(ps.Size); end > farthestEnd {
 			farthestEnd = end
 		}
 
@@ -225,9 +225,9 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		structures[idx].LaidOutContent = content
 	}
 
-	volumeSize := farthestEnd
-	if fartherstOffsetWrite+SizeLBA48Pointer > farthestEnd {
-		volumeSize = fartherstOffsetWrite + SizeLBA48Pointer
+	volumeSize := quantity.Size(farthestEnd)
+	if fartherstOffsetWrite+quantity.Offset(SizeLBA48Pointer) > farthestEnd {
+		volumeSize = quantity.Size(fartherstOffsetWrite) + SizeLBA48Pointer
 	}
 
 	vol := &LaidOutVolume{
@@ -264,7 +264,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 	}
 
 	content := make([]LaidOutContent, len(ps.Content))
-	previousEnd := quantity.Size(0)
+	previousEnd := quantity.Offset(0)
 
 	for idx, c := range ps.Content {
 		imageSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
@@ -272,7 +272,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q: %v", ps, c.Image, err)
 		}
 
-		var start quantity.Size
+		var start quantity.Offset
 		if c.Offset != nil {
 			start = *c.Offset
 		} else {
@@ -301,8 +301,8 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			// break for gofmt < 1.11
 			AbsoluteOffsetWrite: offsetWrite,
 		}
-		previousEnd = start + actualSize
-		if previousEnd > ps.Size {
+		previousEnd = start + quantity.Offset(actualSize)
+		if quantity.Size(previousEnd) > ps.Size {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}
@@ -314,18 +314,18 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 		if pc.StartOffset < previousEnd {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q overlaps with preceding image %q", ps, pc.Image, content[idx-1].Image)
 		}
-		previousEnd = pc.StartOffset + pc.Size
+		previousEnd = pc.StartOffset + quantity.Offset(pc.Size)
 	}
 
 	return content, nil
 }
 
-func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*LaidOutStructure) (*quantity.Size, error) {
+func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*LaidOutStructure) (*quantity.Offset, error) {
 	if offsetWrite == nil {
 		return nil, nil
 	}
 
-	var relativeToOffset quantity.Size
+	var relativeToOffset quantity.Offset
 	if offsetWrite.RelativeTo != "" {
 		otherStruct, ok := knownStructs[offsetWrite.RelativeTo]
 		if !ok {
@@ -340,16 +340,16 @@ func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*La
 
 // ShiftStructureTo translates the starting offset of a laid out structure and
 // its content to the provided offset.
-func ShiftStructureTo(ps LaidOutStructure, offset quantity.Size) LaidOutStructure {
+func ShiftStructureTo(ps LaidOutStructure, offset quantity.Offset) LaidOutStructure {
 	change := int64(offset - ps.StartOffset)
 
 	newPs := ps
-	newPs.StartOffset = quantity.Size(int64(ps.StartOffset) + change)
+	newPs.StartOffset = quantity.Offset(int64(ps.StartOffset) + change)
 
 	newPs.LaidOutContent = make([]LaidOutContent, len(ps.LaidOutContent))
 	for idx, pc := range ps.LaidOutContent {
 		newPc := pc
-		newPc.StartOffset = quantity.Size(int64(pc.StartOffset) + change)
+		newPc.StartOffset = quantity.Offset(int64(pc.StartOffset) + change)
 		newPs.LaidOutContent[idx] = newPc
 	}
 	return newPs

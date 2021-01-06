@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.48
+Version:        2.48.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -939,6 +939,49 @@ fi
 
 
 %changelog
+* Thu Dec 15 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.48.2
+ - tests: sign new nested-18|20* models to allow for generic serials
+ - secboot: add extra paranoia when waiting for that fde-reveal-key
+ - tests: backport netplan workarounds from #9785
+ - secboot: add workaround for snapcore/core-initrd issue #13
+ - devicestate: log checkEncryption errors via logger.Noticef
+ - tests: add nested spread end-to-end test for fde-hooks
+ - devicestate: implement checkFDEFeatures()
+ - boot: tweak resealing with fde-setup hooks
+ - sysconfig/cloudinit.go: add "manual_cache_clean: true" to cloud-
+   init restrict file
+ - secboot: add new LockSealedKeys() that uses either TPM or
+   fde-reveal-key
+ - gadget: use "sealed-keys" to determine what method to use for
+   reseal
+ - boot: add sealKeyToModeenvUsingFdeSetupHook()
+ - secboot: use `fde-reveal-key` if available to unseal key
+ - cmd/snap-update-ns: fix sorting of overname mount entries wrt
+   other entries
+ - o/devicestate: save model with serial in the device save db
+ - devicestate: add runFDESetupHook() helper
+ - secboot,devicestate: add scaffoling for "fde-reveal-key" support
+ - hookstate: add new HookManager.EphemeralRunHook()
+ - update-pot: fix typo in plural keyword spec
+ - store,cmd/snap-repair: increase initial expontential time
+   intervals
+ - o/devicestate,daemon: fix reboot system action to not require a
+   system label
+ - github: run nested suite when commit is pushed to release branch
+ - tests: reset fakestore unit status
+ - tests: fix uc20-create-parition-* tests for updated gadget
+ - hookstate: implement snapctl fde-setup-{request,result}
+ - devicestate: make checkEncryption fde-setup hook aware
+ - client,snapctl: add naive support for "stdin"
+ - devicestate: support "storage-safety" defaults during install
+ - snap: use the boot-base for kernel hooks
+ - vendor: update secboot repo to avoid including secboot.test binary
+
+* Thu Dec 03 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.48.1
+ - gadget: disable ubuntu-boot role validation check
+
 * Thu Nov 19 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.48
  - osutil: add KernelCommandLineKeyValue

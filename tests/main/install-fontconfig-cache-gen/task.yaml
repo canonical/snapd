@@ -10,7 +10,7 @@ debug: |
     ls -lah /var/cache/fontconfig/
 
 prepare: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         PKG=fonts-kiloji
         NAME=kiloji
     else
@@ -26,7 +26,7 @@ prepare: |
     fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME"
 
 restore: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         PKG=fonts-kiloji
     else
         PKG=fonts-noto-color-emoji
@@ -35,7 +35,7 @@ restore: |
     apt autoremove -y "$PKG" || true
 
 execute: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         NAME=kiloji
     else
         NAME=NotoColorE

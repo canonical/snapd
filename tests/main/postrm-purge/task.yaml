@@ -75,7 +75,7 @@ execute: |
         fi
     done
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         # ubuntu-14.04: systemctl does not list not-found & failed units properly
 
         # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,
