@@ -160,6 +160,154 @@ WantedBy=multi-user.target
 	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
+func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
+	tt := []struct {
+		comment     string
+		plugSnippet string
+	}{
+		// just single bare interfaces with no attributes
+		{
+			"docker-support",
+			`
+  plugs:
+   - docker-support`,
+		},
+		{
+			"k8s-support",
+			`
+  plugs:
+   - kubernetes-support`,
+		},
+		{
+			"lxd-support",
+			`
+  plugs:
+   - lxd-support
+`,
+		},
+		{
+			"greengrass-support",
+			`
+  plugs:
+   - greengrass-support
+`,
+		},
+
+		// multiple interfaces that require Delegate=true, but only one is
+		// generated
+
+		{
+			"multiple interfaces that require Delegate=true",
+			`
+  plugs:
+   - docker-support
+   - kubernetes-support`,
+		},
+
+		// interfaces with flavor attributes
+
+		{
+			"k8s-support with kubelet",
+			`
+  plugs:
+   - kubelet
+plugs:
+ kubelet:
+  interface: kubernetes-support
+  flavor: kubelet
+`,
+		},
+		{
+			"k8s-support with kubeproxy",
+			`
+  plugs:
+   - kubeproxy
+plugs:
+ kubeproxy:
+  interface: kubernetes-support
+  flavor: kubeproxy
+`,
+		},
+		{
+			"greengrass-support with legacy-container flavor",
+			`
+  plugs:
+   - greengrass
+plugs:
+ greengrass:
+  interface: greengrass-support
+  flavor: legacy-container
+`,
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+`+t.plugSnippet,
+			&snap.SideInfo{Revision: snap.R(12)})
+		svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+		err := wrappers.AddSnapServices(info, nil, progress.Null)
+		c.Assert(err, IsNil, comment)
+		c.Check(s.sysdLog, DeepEquals, [][]string{
+			{"daemon-reload"},
+		}, comment)
+
+		content, err := ioutil.ReadFile(svcFile)
+		c.Assert(err, IsNil, comment)
+
+		dir := filepath.Join(dirs.GlobalRootDir, "snap", "hello-snap", "12.mount")
+		c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+TimeoutStopSec=30
+Type=simple
+Delegate=true
+
+[Install]
+WantedBy=multi-user.target
+`,
+			systemd.EscapeUnitNamePath(dir),
+			dirs.GlobalRootDir,
+		), comment)
+
+		s.sysdLog = nil
+		err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
+		c.Assert(err, IsNil, comment)
+		c.Assert(s.sysdLog, HasLen, 2, comment)
+		c.Check(s.sysdLog, DeepEquals, [][]string{
+			{"stop", filepath.Base(svcFile)},
+			{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		}, comment)
+
+		s.sysdLog = nil
+		err = wrappers.RemoveSnapServices(info, progress.Null)
+		c.Assert(err, IsNil, comment)
+		c.Check(osutil.FileExists(svcFile), Equals, false, comment)
+		c.Assert(s.sysdLog, HasLen, 2, comment)
+		c.Check(s.sysdLog, DeepEquals, [][]string{
+			{"disable", filepath.Base(svcFile)},
+			{"daemon-reload"},
+		}, comment)
+
+		s.sysdLog = nil
+	}
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
