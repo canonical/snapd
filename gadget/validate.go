@@ -157,10 +157,10 @@ var (
 		ubuntuSaveLabel,
 	}
 
-	// labels that we don't expect used on a UC16/18 system
+	// labels that we don't expect to be used on a UC16/18 system:
 	//  * seed needs to be the ESP so there's a conflict
-	//  * ubuntu-data is the main data partition which is expected to
-	//    writable instead
+	//  * ubuntu-data is the main data partition which on UC16/18
+	//    is expected to be named writable instead
 	reservedLabelsWithoutSeed = []string{
 		ubuntuSeedLabel,
 		ubuntuDataLabel,
