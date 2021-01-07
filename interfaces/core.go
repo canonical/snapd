@@ -197,6 +197,27 @@ type StaticInfo struct {
 	BaseDeclarationSlots string
 }
 
+// PermanentPlugServiceSnippets will return the set of unique snippets for the
+// systemd service unit that should be generated for a snap with the specified
+// plug.
+// The plug is provided because the snippet may depend on plug attributes for
+// example. The plug is sanitized before the snippets are returned.
+func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips []string, err error) {
+	// sanitize the plug first
+	err = BeforePreparePlug(iface, plug)
+	if err != nil {
+		return nil, err
+	}
+
+	type serviceSnippetPlugger interface {
+		ServicePermanentPlug(plug *snap.PlugInfo) []string
+	}
+	if iface, ok := iface.(serviceSnippetPlugger); ok {
+		snips = iface.ServicePermanentPlug(plug)
+	}
+	return snips, nil
+}
+
 // StaticInfoOf returns the static-info of the given interface.
 func StaticInfoOf(iface Interface) (si StaticInfo) {
 	type metaDataProvider interface {
