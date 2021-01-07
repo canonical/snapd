@@ -1394,3 +1394,29 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 	}
 	return iName < jName
 }
+
+func DeriveSnapdDBusConfig(s *Info) (sessionContent, systemContent map[string]osutil.FileState, err error) {
+	sessionConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/session.d/snapd.*.conf"))
+	if err != nil {
+		return nil, nil, err
+	}
+	sessionContent = make(map[string]osutil.FileState, len(sessionConfigs)+1)
+	for _, config := range sessionConfigs {
+		sessionContent[filepath.Base(config)] = &osutil.FileReference{
+			Path: config,
+		}
+	}
+
+	systemConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/system.d/snapd.*.conf"))
+	if err != nil {
+		return nil, nil, err
+	}
+	systemContent = make(map[string]osutil.FileState, len(systemConfigs)+1)
+	for _, config := range systemConfigs {
+		systemContent[filepath.Base(config)] = &osutil.FileReference{
+			Path: config,
+		}
+	}
+
+	return sessionContent, systemContent, nil
+}
