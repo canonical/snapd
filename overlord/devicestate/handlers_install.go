@@ -259,8 +259,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 
-	// store install-mode log into ubuntu-data partition when
-	// persistent journal is selected
+	// store install-mode log into ubuntu-data partition
 	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
 		logger.Noticef("cannot write logs: %v", err)
 	}
