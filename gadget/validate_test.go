@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -523,4 +525,81 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 		EncryptedData: true,
 	})
 	c.Assert(err, IsNil)
+}
+
+var gadgetYamlContentKernelRef = gadgetYamlContentNoSave + `
+      - name: other
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 10M
+        filesystem: ext4
+        content:
+          - source: REPLACE_WITH_TC
+            target: /
+`
+
+func (s *validateGadgetTestSuite) TestValidateContentKernelAssetsRef(c *C) {
+	for _, tc := range []struct {
+		source, asset, content string
+		good                   bool
+	}{
+		{"$kernel:a/b", "a", "b", true},
+		{"$kernel:A/b", "A", "b", true},
+		{"$kernel:a-a/bb", "a-a", "bb", true},
+		{"$kernel:a-a/b-b", "a-a", "b-b", true},
+		{"$kernel:aB-0/cD-3", "aB-0", "cD-3", true},
+		{"$kernel:aB-0/foo-21B.dtb", "aB-0", "foo-21B.dtb", true},
+		{"$kernel:aB-0/nested/bar-77A.raw", "aB-0", "nested/bar-77A.raw", true},
+		{"$kernel:a/a/", "a", "a/", true},
+		// no starting with "-"
+		{source: "$kernel:-/-"},
+		// assets and content need to be there
+		{source: "$kernel:ab"},
+		{source: "$kernel:/"},
+		{source: "$kernel:a/"},
+		{source: "$kernel:/a"},
+		// invalid asset name
+		{source: "$kernel:#garbage/a"},
+		// invalid content part
+		{source: "$kernel:a//"},
+		{source: "$kernel:a///"},
+		{source: "$kernel:a////"},
+		{source: "$kernel:a/a/../"},
+	} {
+		gadgetYaml := strings.Replace(gadgetYamlContentKernelRef, "REPLACE_WITH_TC", tc.source, -1)
+		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
+		ginfo, err := gadget.ReadInfoAndValidate(s.dir, nil, nil)
+		c.Assert(err, IsNil)
+		err = gadget.ValidateContent(ginfo, s.dir)
+		if tc.good {
+			c.Check(err, IsNil, Commentf(tc.source))
+			// asset validates correctly, so let's make sure that
+			// individual pieces are correct too
+			assetName, content, err := gadget.SplitKernelRef(tc.source)
+			c.Assert(err, IsNil)
+			c.Check(assetName, Equals, tc.asset)
+			c.Check(content, Equals, tc.content)
+		} else {
+			errStr := fmt.Sprintf(`invalid volume "vol1": cannot use kernel reference "%s": .*`, regexp.QuoteMeta(tc.source))
+			c.Check(err, ErrorMatches, errStr, Commentf(tc.source))
+		}
+	}
+}
+
+func (s *validateGadgetTestSuite) TestSplitKernelRefErrors(c *C) {
+	for _, tc := range []struct {
+		kernelRef string
+		errStr    string
+	}{
+		{"no-kernel-ref", `internal error: splitKernelRef called for non kernel ref "no-kernel-ref"`},
+		{"$kernel:a", `invalid asset and content in kernel ref "\$kernel:a"`},
+		{"$kernel:a/", `missing asset name or content in kernel ref "\$kernel:a/"`},
+		{"$kernel:/b", `missing asset name or content in kernel ref "\$kernel:/b"`},
+		{"$kernel:a!invalid/b", `invalid asset name in kernel ref "\$kernel:a!invalid/b"`},
+		{"$kernel:a/b/..", `invalid content in kernel ref "\$kernel:a/b/.."`},
+		{"$kernel:a/b//", `invalid content in kernel ref "\$kernel:a/b//"`},
+		{"$kernel:a/b/./", `invalid content in kernel ref "\$kernel:a/b/./"`},
+	} {
+		_, _, err := gadget.SplitKernelRef(tc.kernelRef)
+		c.Check(err, ErrorMatches, tc.errStr, Commentf("kernelRef: %s", tc.kernelRef))
+	}
 }
