@@ -286,10 +286,11 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 
 func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
-	match := assetsKernelRefRE.FindStringSubmatch(pathOrRef)
-	if match != nil {
-		wantedAsset := match[1]
-		wantedContent := match[2]
+	if strings.HasPrefix(pathOrRef, "$kernel:") {
+		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
+		if err != nil {
+			return "", fmt.Errorf("cannot parse kernel ref: %v", err)
+		}
 		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
 		if !ok {
 			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)

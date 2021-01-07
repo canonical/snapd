@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1191,6 +1192,25 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 
 	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
 	c.Assert(err, ErrorMatches, `cannot find "dtbs" in kernel info from "/.*"`)
+}
+
+func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
+	kernelYaml := ""
+
+	// create invalid kernel ref
+	s := strings.Replace(gadgetYamlWithKernelRef, "$kernel:dtbs", "$kernel:-invalid-kernel-ref", -1)
+	// Note that mustParseVolume does not call ValidateContent() which
+	// would be needed to validate "$kernel:" refs.
+	vol := mustParseVolume(c, s, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapFiles := map[string]string{}
+	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
+	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
+	c.Assert(err, ErrorMatches, `cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeContent(c *C) {
