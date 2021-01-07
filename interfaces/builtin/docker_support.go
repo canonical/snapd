@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -638,31 +637,15 @@ const dockerSupportPrivilegedSecComp = `
 @unrestricted
 `
 
-type dockerSupportInterface struct{}
+const dockerSupportServiceSnippet = `Delegate=true`
 
-func (iface *dockerSupportInterface) Name() string {
-	return "docker-support"
-}
-
-func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              dockerSupportSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
-	}
+type dockerSupportInterface struct {
+	commonInterface
 }
 
 var (
 	parserFeatures = apparmor_sandbox.ParserFeatures
 )
-
-func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.SetControlsDeviceCgroup()
-
-	return nil
-}
 
 func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// https://kubernetes.io/docs/setup/production-environment/container-runtimes/
@@ -716,5 +699,16 @@ func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 }
 
 func init() {
-	registerIface(&dockerSupportInterface{})
+	registerIface(&dockerSupportInterface{commonInterface{
+		name:                 "docker-support",
+		summary:              dockerSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: dockerSupportBaseDeclarationSlots,
+		controlsDeviceCgroup: true,
+		serviceSnippets:      []string{dockerSupportServiceSnippet},
+		// docker-support also uses ptrace(trace), but it already declares this in
+		// the AppArmorConnectedPlug method
+	}})
 }
