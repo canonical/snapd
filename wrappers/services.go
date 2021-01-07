@@ -31,6 +31,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -65,7 +67,7 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 		return nil, err
 	}
 
-	return genServiceFile(app, opts), nil
+	return genServiceFile(app, opts)
 }
 
 func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
@@ -678,10 +680,43 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 	return names
 }
 
-func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) []byte {
+func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte, error) {
 	if opts == nil {
 		opts = &AddSnapServicesOptions{}
 	}
+
+	// assemble all of the service directive snippets for all interfaces that
+	// this service needs to include in the generated systemd file
+
+	// use an ordered set to ensure we don't duplicate any keys from interfaces
+	// that specify the same snippet
+
+	// TODO: maybe we should error if multiple interfaces specify different
+	// values for the same directive, otherwise one of them will overwrite the
+	// other? What happens right now is that the snippet from the plug that
+	// comes last will win in the case of directives that can have only one
+	// value, but for some directives, systemd combines their values into a
+	// list.
+	ifaceServiceSnippets := &strutil.OrderedSet{}
+
+	allIfaces := builtin.Interfaces()
+	for _, plug := range appInfo.Plugs {
+		for _, iface := range allIfaces {
+			if iface.Name() == plug.Interface {
+				snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
+				if err != nil {
+					return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
+				}
+				for _, snip := range snips {
+					ifaceServiceSnippets.Put(snip)
+				}
+			}
+		}
+	}
+
+	// join the service snippets into one string to be included in the
+	// template
+	ifaceSpecifiedServiceSnippet := strings.Join(ifaceServiceSnippets.Items(), "\n")
 
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -743,6 +778,9 @@ KillSignal={{.KillSignal}}
 {{- if .OOMAdjustScore }}
 OOMScoreAdjust={{.OOMAdjustScore}}
 {{- end}}
+{{- if .InterfaceServiceSnippets}}
+{{.InterfaceServiceSnippets}}
+{{- end}}
 {{- if not .App.Sockets}}
 
 [Install]
@@ -787,24 +825,27 @@ WantedBy={{.ServicesTarget}}
 	wrapperData := struct {
 		App *snap.AppInfo
 
-		Restart            string
-		WorkingDir         string
-		StopTimeout        time.Duration
-		StartTimeout       time.Duration
-		ServicesTarget     string
-		PrerequisiteTarget string
-		MountUnit          string
-		Remain             string
-		KillMode           string
-		KillSignal         string
-		OOMAdjustScore     int
-		Before             []string
-		After              []string
+		Restart                  string
+		WorkingDir               string
+		StopTimeout              time.Duration
+		StartTimeout             time.Duration
+		ServicesTarget           string
+		PrerequisiteTarget       string
+		MountUnit                string
+		Remain                   string
+		KillMode                 string
+		KillSignal               string
+		OOMAdjustScore           int
+		Before                   []string
+		After                    []string
+		InterfaceServiceSnippets string
 
 		Home    string
 		EnvVars string
 	}{
 		App: appInfo,
+
+		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
 
 		Restart:        restartCond,
 		StopTimeout:    serviceStopTimeout(appInfo),
@@ -849,7 +890,7 @@ WantedBy={{.ServicesTarget}}
 		logger.Panicf("Unable to execute template: %v", err)
 	}
 
-	return templateOut.Bytes()
+	return templateOut.Bytes(), nil
 }
 
 func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
