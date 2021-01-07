@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/timings"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 // Backend is responsible for maintaining DBus policy files.
@@ -106,7 +105,7 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 }
 
 func setupHostDBusConf(snapInfo *snap.Info) error {
-	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(snapInfo)
+	sessionContent, systemContent, err := snap.DeriveSnapdDBusConfig(snapInfo)
 	if err != nil {
 		return err
 	}
