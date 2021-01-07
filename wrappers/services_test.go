@@ -115,12 +115,32 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
 
-	verbs := []string{"Start", "Stop", "StopPost"}
-	cmds := []string{"", " --command=stop", " --command=post-stop"}
-	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/snap run%s hello-snap.svc1", verbs[i], cmds[i])
-		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
-	}
+	dir := filepath.Join(dirs.GlobalRootDir, "snap", "hello-snap", "12.mount")
+	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	))
 
 	s.sysdLog = nil
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
