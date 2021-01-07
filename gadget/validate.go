@@ -70,13 +70,13 @@ func validateEncryptionSupport(info *Info) error {
 	return nil
 }
 
-type roleInst struct {
+type roleInstance struct {
 	volName string
 	s       *VolumeStructure
 }
 
 func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
-	roles := map[string]*roleInst{
+	roles := map[string]*roleInstance{
 		SystemSeed: nil,
 		SystemBoot: nil,
 		SystemData: nil,
@@ -96,7 +96,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
 				if inst != nil {
 					return fmt.Errorf("cannot have more than one partition with %s role%s", s.Role, xvols)
 				}
-				roles[s.Role] = &roleInst{
+				roles[s.Role] = &roleInstance{
 					volName: name,
 					s:       s,
 				}
@@ -182,7 +182,7 @@ func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error 
 	return nil
 }
 
-func ensureRolesConsistency(roles map[string]*roleInst, expectedSeed bool) error {
+func ensureRolesConsistency(roles map[string]*roleInstance, expectedSeed bool) error {
 	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
 	//       roles too? they should only be used on uc20 systems, so models that
 	//       have a grade set and are not classic
@@ -239,7 +239,7 @@ func ensureRolesConsistency(roles map[string]*roleInst, expectedSeed bool) error
 	return nil
 }
 
-func ensureSystemSaveRuleConsistency(roles map[string]*roleInst) error {
+func ensureSystemSaveRuleConsistency(roles map[string]*roleInstance) error {
 	if roles[SystemData] == nil || roles[SystemSeed] == nil {
 		// previous checks should stop reaching here
 		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
@@ -250,7 +250,7 @@ func ensureSystemSaveRuleConsistency(roles map[string]*roleInst) error {
 	return nil
 }
 
-func checkSeedDataImplicitLabels(roles map[string]*roleInst) error {
+func checkSeedDataImplicitLabels(roles map[string]*roleInstance) error {
 	if err := checkImplicitLabel(SystemData, roles[SystemData].s, ubuntuDataLabel); err != nil {
 		return err
 	}
