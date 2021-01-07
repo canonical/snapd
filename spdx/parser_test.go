@@ -56,6 +56,7 @@ func (s *spdxSuite) TestParseError(c *C) {
 		errStr string
 	}{
 		{"", "empty expression"},
+		{"GPL-2.0++", `unknown license: GPL-2.0\+\+`},
 		{"GPL-3.0 AND ()", "empty expression"},
 		{"()", "empty expression"},
 
