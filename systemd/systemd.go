@@ -260,10 +260,14 @@ type Systemd interface {
 //    non-unique field is encountered a JSON array is used as field value,
 //    listing all field values as elements.
 //
+// and this snippet as well,
+//
+//    Fields containing non-printable or non-UTF8 bytes are
+//    encoded as arrays containing the raw bytes individually
+//    formatted as unsigned numbers.
+//
 // as such, we sometimes get array values which need to be handled differently,
-// and additionally if systemd thinks the value of a string is not safe ascii,
-// it will just turn the whole string into an array of ints, which are just
-// runes and need to be decoded to a string as well.
+// so we manually try to decode the json for each message into different types.
 type Log map[string]*json.RawMessage
 
 const (
@@ -747,10 +751,15 @@ func IsTimeout(err error) bool {
 
 func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
 	valObject, ok := l[key]
-	if !ok || valObject == nil {
+	if !ok {
 		// NOTE: journalctl says that sometimes if a json string would be too
 		// large null is returned, so we may miss a message here
 		return "", fmt.Errorf("key %q missing from message", key)
+	}
+	if valObject == nil {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so in this case the message may be truncated
+		return "", fmt.Errorf("message key %q truncated", key)
 	}
 
 	// first try normal string
@@ -766,6 +775,19 @@ func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (s
 	err = json.Unmarshal(*valObject, &r)
 	if err == nil {
 		return string(r), nil
+	}
+
+	// penultimately, try slice of slices of runes
+	rr := [][]rune{}
+	err = json.Unmarshal(*valObject, &rr)
+	if err == nil {
+		// turn the slice of slices of runes into a slice of strings to call the
+		// handler on it
+		l := make([]string, 0, len(rr))
+		for _, r := range rr {
+			l = append(l, string(r))
+		}
+		return sliceHandler(l)
 	}
 
 	// finally try list of strings
@@ -792,7 +814,7 @@ func (l Log) Time() (time.Time, error) {
 		return "", errors.New("no timestamp")
 	})
 	if err != nil {
-		return time.Time{}, errors.New("no timestamp")
+		return time.Time{}, err
 	}
 
 	// according to systemd.journal-fields(7) it's microseconds as a decimal string
@@ -834,15 +856,16 @@ func (l Log) SID() string {
 func (l Log) PID() string {
 	// look for _PID first as that is underscored and thus "trusted" from
 	// systemd, also don't support multiple arrays if we find then
+	multiplePIDsErr := fmt.Errorf("multiple pids not supported")
 	pid, err := l.parseLogRawMessageString("_PID", func([]string) (string, error) {
-		return "", fmt.Errorf("multiple pids not supported")
+		return "", multiplePIDsErr
 	})
 	if err == nil && pid != "" {
 		return pid
 	}
 
 	pid, err = l.parseLogRawMessageString("SYSLOG_PID", func([]string) (string, error) {
-		return "", fmt.Errorf("multiple pids not supported")
+		return "", multiplePIDsErr
 	})
 	if err == nil && pid != "" {
 		return pid

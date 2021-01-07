@@ -580,28 +580,61 @@ func (s *SystemdTestSuite) TestLogPIDWithNonTrivialKeyValues(c *C) {
 }
 
 func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
-	l1 := Log{
-		"MESSAGE": mustJSONMarshal([]string{"m1", "m2", "m3"}),
+
+	tt := []struct {
+		msg     *json.RawMessage
+		exp     string
+		comment string
+	}{
+		{
+			mustJSONMarshal("m1"),
+			"m1",
+			"simple string",
+		},
+		{
+			mustJSONMarshal([]string{"m1", "m2", "m3"}),
+			"m1\nm2\nm3",
+			"slice of strings",
+		},
+		{
+			// this is just "hello" in ascii
+			mustJSONMarshal([]rune{104, 101, 108, 108, 111}),
+			"hello",
+			"rune arrays are converted to strings",
+		},
+		{
+			// this is "hello\r" in ascii, the \r char is unprintable
+			mustJSONMarshal([]rune{104, 101, 108, 108, 111, 13}),
+			"hello\r",
+			"rune arrays are converted to strings",
+		},
+		{
+			// this is "hel" and "lo" in ascii
+			mustJSONMarshal([][]rune{
+				{104, 101, 108},
+				{108, 111},
+			}),
+			"hel\nlo",
+			"arrays of rune arrays are converted to arrays of strings",
+		},
+		{
+			mustJSONMarshal(5),
+			"-",
+			"non-strings are empty",
+		},
 	}
-	l2 := Log{
-		"MESSAGE": mustJSONMarshal("m1"),
-	}
-	l3 := Log{
-		// this is just "hello" in ascii
-		"MESSAGE": mustJSONMarshal([]rune{104, 101, 108, 108, 111}),
-	}
-	l4 := Log{
-		"MESSAGE": mustJSONMarshal(5),
-	}
+
+	// trivial case
 	c.Check(Log{}.Message(), Equals, "-")
-	// multiple strings are concatenated with newlines
-	c.Check(l1.Message(), Equals, "m1\nm2\nm3")
-	// strings are normal
-	c.Check(l2.Message(), Equals, "m1")
-	// rune arrays are converted to strings
-	c.Check(l3.Message(), Equals, "hello")
-	// non-strings are empty
-	c.Check(l4.Message(), Equals, "-")
+
+	for _, t := range tt {
+		if t.msg == nil {
+
+		}
+		c.Check(Log{
+			"MESSAGE": t.msg,
+		}.Message(), Equals, t.exp)
+	}
 }
 
 func (s *SystemdTestSuite) TestLogSID(c *C) {
@@ -628,7 +661,12 @@ func (s *SystemdTestSuite) TestLogPID(c *C) {
 func (s *SystemdTestSuite) TestTime(c *C) {
 	t, err := Log{}.Time()
 	c.Check(t.IsZero(), Equals, true)
-	c.Check(err, ErrorMatches, "no timestamp")
+	c.Check(err, ErrorMatches, "key \"__REALTIME_TIMESTAMP\" missing from message")
+
+	// multiple timestampe keys mean we don't have a timestamp
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal([]string{"1", "2"})}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `no timestamp`)
 
 	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("what")}.Time()
 	c.Check(t.IsZero(), Equals, true)
