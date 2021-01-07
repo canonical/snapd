@@ -295,7 +295,7 @@ func (iface *desktopInterface) shouldMountFontCache(attribs interfaces.Attrer) (
 	}
 	shouldMount, ok := value.(bool)
 	if !ok {
-		return false, fmt.Errorf("attribute mount-font-cache must be boolean, got %T", value)
+		return false, fmt.Errorf("desktop plug requires bool with 'mount-font-cache'")
 	}
 	return shouldMount, nil
 }

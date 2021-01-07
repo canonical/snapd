@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,16 +246,49 @@ plugs:
 	for _, ent := range spec.MountEntries() {
 		mounts = append(mounts, ent.Dir)
 	}
-	c.Check(mounts, DeepEquals, []string{"/usr/share/fonts", "/usr/local/share/fonts"})
+	c.Check(mounts, Not(testutil.Contains), "/var/cache/fontconfig")
 }
 
-func (s *DesktopInterfaceSuite) TestMountFontCacheNotBool(c *C) {
+func (s *DesktopInterfaceSuite) TestMountFontCacheTrue(c *C) {
 	const mockSnapYaml = `name: desktop-snap
 version: 1.0
 plugs:
   desktop:
-    mount-font-cache: "hello world"
+    mount-font-cache: true
 `
-	_, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
-	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "attribute mount-font-cache must be boolean, got string")
+	plug, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.coreSlot), IsNil)
+	var mounts []string
+	for _, ent := range spec.MountEntries() {
+		mounts = append(mounts, ent.Dir)
+	}
+	c.Check(mounts, testutil.Contains, "/var/cache/fontconfig")
+}
+
+func (s *DesktopInterfaceSuite) TestMountFontCacheNotBool(c *C) {
+	const mockSnapYamlTemplate = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    mount-font-cache: %s
+`
+	for _, value := range []string{
+		`"hello world"`,
+		`""`,
+		"42",
+		"[1,2,3,4]",
+		`{"foo":"bar"}`,
+	} {
+		_, plugInfo := MockConnectedPlug(c, fmt.Sprintf(mockSnapYamlTemplate, value), nil, "desktop")
+		c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "desktop plug requires bool with 'mount-font-cache'", Commentf(value))
+	}
 }
