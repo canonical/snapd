@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,9 +22,9 @@ package gadget
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -34,6 +34,48 @@ type validationState struct {
 	SystemData *VolumeStructure
 	SystemBoot *VolumeStructure
 	SystemSave *VolumeStructure
+}
+
+// ValidationConstraints carries extra constraints on top of those
+// implied by the model to use for gadget validation.
+// They might be constraints that are determined only at runtime.
+type ValidationConstraints struct {
+	// EncryptedData when true indicates that the gadget will be used on a
+	// device where the data partition will be encrypted.
+	EncryptedData bool
+}
+
+// Validate validates the given gadget metadata against the consistency rules
+// for role usage, labels etc as implied by the model and extra constraints
+// that might be known only at runtime.
+func Validate(info *Info, model Model, extra *ValidationConstraints) error {
+	if err := ruleValidateVolumes(info.Volumes, model); err != nil {
+		return err
+	}
+	if extra != nil {
+		if extra.EncryptedData {
+			if err := validateEncryptionSupport(info); err != nil {
+				return fmt.Errorf("gadget does not support encrypted data: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateEncryptionSupport(info *Info) error {
+	for name, vol := range info.Volumes {
+		var haveSave bool
+		for _, s := range vol.Structure {
+			if s.Role == SystemSave {
+				haveSave = true
+			}
+		}
+		if !haveSave {
+			return fmt.Errorf("volume %q has no structure with system-save role", name)
+		}
+		// TODO:UC20: shall we make sure that size of ubuntu-save is reasonable?
+	}
+	return nil
 }
 
 func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
@@ -129,7 +171,7 @@ func ensureVolumeRuleConsistencyNoConstraints(state *validationState) error {
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", implicitSystemDataLabel, state.SystemData.Label)
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -159,16 +201,15 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-				implicitSystemDataLabel, state.SystemData.Label)
+		if err := checkImplicitLabel(SystemData, state.SystemData, implicitSystemDataLabel); err != nil {
+			return err
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
 		if !wantsSystemSeed(model) {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		if err := ensureSeedDataLabelsUnset(state); err != nil {
+		if err := checkSeedDataImplicitLabels(state); err != nil {
 			return err
 		}
 	}
@@ -180,6 +221,14 @@ func ensureVolumeRuleConsistencyWithConstraints(state *validationState, model Mo
 	return nil
 }
 
+func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) error {
+	if vs.Label != "" && vs.Label != implicitLabel {
+		return fmt.Errorf("%s structure must have an implicit label or %q, not %q", role, implicitLabel, vs.Label)
+
+	}
+	return nil
+}
+
 func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	if model == nil {
 		return ensureVolumeRuleConsistencyNoConstraints(state)
@@ -187,12 +236,12 @@ func ensureVolumeRuleConsistency(state *validationState, model Model) error {
 	return ensureVolumeRuleConsistencyWithConstraints(state, model)
 }
 
-func ensureSeedDataLabelsUnset(state *validationState) error {
-	if state.SystemData.Label != "" {
-		return fmt.Errorf("system-data structure must not have a label")
+func checkSeedDataImplicitLabels(state *validationState) error {
+	if err := checkImplicitLabel(SystemData, state.SystemData, ubuntuDataLabel); err != nil {
+		return err
 	}
-	if state.SystemSeed.Label != "" {
-		return fmt.Errorf("system-seed structure must not have a label")
+	if err := checkImplicitLabel(SystemSeed, state.SystemSeed, ubuntuSeedLabel); err != nil {
+		return err
 	}
 	return nil
 }
@@ -201,15 +250,44 @@ func ensureSystemSaveRuleConsistency(state *validationState) error {
 	if state.SystemData == nil || state.SystemSeed == nil {
 		return fmt.Errorf("system-save requires system-seed and system-data structures")
 	}
-	if state.SystemSave.Label != "" {
-		return fmt.Errorf("system-save structure must not have a label")
+	if err := checkImplicitLabel(SystemSave, state.SystemSave, ubuntuSaveLabel); err != nil {
+		return err
 	}
 	return nil
 }
 
 // content validation
 
-var assetsKernelRefRE = regexp.MustCompile(`^\$kernel:([a-zA-Z0-9]+[a-zA-Z0-9-]*)/([a-zA-Z0-9/]+[a-zA-Z0-9/.-]*)$`)
+func splitKernelRef(kernelRef string) (asset, content string, err error) {
+	// kernel ref has format: $kernel:<asset-name>/<content-path> where
+	// asset name and content is listed in kernel.yaml, content looks like a
+	// sane path
+	if !strings.HasPrefix(kernelRef, "$kernel:") {
+		return "", "", fmt.Errorf("internal error: splitKernelRef called for non kernel ref %q", kernelRef)
+	}
+	assetAndContent := kernelRef[len("$kernel:"):]
+	l := strings.SplitN(assetAndContent, "/", 2)
+	if len(l) < 2 {
+		return "", "", fmt.Errorf("invalid asset and content in kernel ref %q", kernelRef)
+	}
+	asset = l[0]
+	content = l[1]
+	nonDirContent := content
+	if strings.HasSuffix(nonDirContent, "/") {
+		// a single trailing / is allowed to indicate all content under directory
+		nonDirContent = strings.TrimSuffix(nonDirContent, "/")
+	}
+	if len(asset) == 0 || len(content) == 0 {
+		return "", "", fmt.Errorf("missing asset name or content in kernel ref %q", kernelRef)
+	}
+	if filepath.Clean(nonDirContent) != nonDirContent || strings.Contains(content, "..") || nonDirContent == "/" {
+		return "", "", fmt.Errorf("invalid content in kernel ref %q", kernelRef)
+	}
+	if !kernel.ValidAssetName.MatchString(asset) {
+		return "", "", fmt.Errorf("invalid asset name in kernel ref %q", kernelRef)
+	}
+	return asset, content, nil
+}
 
 func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
 	// bare structure content is checked to exist during layout
@@ -219,16 +297,17 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
+			// TODO: detect and skip Content with "$kernel:" style
+			// refs if there is no kernelSnapRootDir passed in as
+			// well
 			if strings.HasPrefix(c.UnresolvedSource, "$kernel:") {
 				// This only validates that the ref is valid.
 				// Resolving happens with ResolveContentPaths()
-				match := assetsKernelRefRE.FindStringSubmatch(c.UnresolvedSource)
-				if match == nil {
-					return fmt.Errorf("cannot use kernel reference %q", c.UnresolvedSource)
+				if _, _, err := splitKernelRef(c.UnresolvedSource); err != nil {
+					return fmt.Errorf("cannot use kernel reference %q: %v", c.UnresolvedSource, err)
 				}
 				continue
 			}
-			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
@@ -244,42 +323,13 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 	return nil
 }
 
-func validateEncryptionSupport(info *Info) error {
-	for name, vol := range info.Volumes {
-		var haveSave bool
-		for _, s := range vol.Structure {
-			if s.Role == SystemSave {
-				haveSave = true
-			}
-		}
-		if !haveSave {
-			return fmt.Errorf("volume %q has no structure with system-save role", name)
-		}
-		// XXX: shall we make sure that size of ubuntu-save is reasonable?
-	}
-	return nil
-}
-
-type ValidationConstraints struct {
-	// EncryptedData when true indicates that the gadget will be used on a
-	// device where the data partition will be encrypted.
-	EncryptedData bool
-}
-
-// Validate checks whether the given directory contains valid gadget snap
-// metadata and a matching content, under the provided model constraints, which
-// are handled identically to ReadInfo(). Optionally takes additional validation
-// constraints, which for instance may only be known at run time,
-func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraints) error {
-	// TODO: also validate that only one "<bl-name>.conf" file is in the root
-	//       directory  of the gadget snap, because the "<bl-name>.conf" file
-	//       indicates precisely which bootloader the gadget uses and as such
-	//       there cannot be more than one such bootloader
-	info, err := ReadInfo(gadgetSnapRootDir, model)
-	if err != nil {
-		return fmt.Errorf("invalid gadget metadata: %v", err)
-	}
-
+// ValidateContent checks whether the given directory contains valid matching content with respect to the given pre-validated gadget metadata.
+func ValidateContent(info *Info, gadgetSnapRootDir string) error {
+	// TODO: also validate that only one "<bl-name>.conf" file is
+	// in the root directory of the gadget snap, because the
+	// "<bl-name>.conf" file indicates precisely which bootloader
+	// the gadget uses and as such there cannot be more than one
+	// such bootloader
 	for name, vol := range info.Volumes {
 		lv, err := LayoutVolume(gadgetSnapRootDir, vol, defaultConstraints)
 		if err != nil {
@@ -287,13 +337,6 @@ func Validate(gadgetSnapRootDir string, model Model, extra *ValidationConstraint
 		}
 		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
-		}
-	}
-	if extra != nil {
-		if extra.EncryptedData {
-			if err := validateEncryptionSupport(info); err != nil {
-				return fmt.Errorf("gadget does not support encrypted data: %v", err)
-			}
 		}
 	}
 	return nil

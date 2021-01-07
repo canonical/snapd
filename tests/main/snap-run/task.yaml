@@ -29,11 +29,11 @@ execute: |
     fi
 
     # the strace on 14.04 is too old
-    if grep -q 'VERSION_ID="14.04"' /etc/os-release; then
+    if os.query is-trusty; then
         snap install strace-static
     fi
     # the strace on opensuse is too old
-    if grep -q 'ID=opensuse' /etc/os-release; then
+    if os.query is-opensuse; then
         snap install strace-static
     fi
     # install the snap if no system strace is found
@@ -48,7 +48,7 @@ execute: |
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
-    if [[ "$SPREAD_SYSTEM" == arch-* || "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]] ; then
+    if os.query is-arch-linux || [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]] ; then
         # Arch linux and Opensuse tumbleweed run the mainline kernel, strace
         # (with event filter or not) *may* randomly get stuck on the kernel
         # side, see:

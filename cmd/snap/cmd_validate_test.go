@@ -180,7 +180,7 @@ func (s *validateSuite) TestValidateQueryOne(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":true}}`))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":true}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -193,7 +193,7 @@ func (s *validateSuite) TestValidateQueryOneInvalid(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":false}}`))
+	s.RedirectClientToTestServer(makeFakeValidationSetQueryHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":false}}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -207,8 +207,8 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	defer restore()
 
 	s.RedirectClientToTestServer(makeFakeListValidationsSetsHandler(c, `{"type": "sync", "status-code": 200, "result": [
-		{"validation-set":"foo/bar","mode":"monitor","sequence":3,"valid":true},
-		{"validation-set":"foo/baz","mode":"enforce","sequence":1,"valid":false}
+		{"account-id":"foo","name":"bar","mode":"monitor","pinned-at":2,"sequence":3,"valid":true},
+		{"account-id":"foo","name":"baz","mode":"enforce","sequence":1,"valid":false}
 	]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate"})
@@ -216,7 +216,7 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current       Notes\n"+
-		"foo/bar     monitor  3    valid    \n"+
+		"foo/bar=2   monitor  3    valid    \n"+
 		"foo/baz     enforce  1    invalid  \n",
 	)
 }

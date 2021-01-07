@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,10 @@ func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, mode
 }
 
 func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetData, error) {
+	// we do not perform consistency validation here because that
+	// has been done when the gadget was installed for
+	// current/already local revisions, or in the check-snap task
+	// for incoming gadgets.
 	gi, err := gadget.ReadInfo(info.MountDir(), model)
 	if err != nil {
 		return nil, err

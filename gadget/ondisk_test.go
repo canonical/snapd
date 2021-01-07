@@ -148,41 +148,6 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-var mockOnDiskStructureSave = gadget.OnDiskStructure{
-	Node: "/dev/node3",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Save",
-			Size:       128 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-save",
-			Label:      "ubuntu-save",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1260388352,
-		Index:       3,
-	},
-	Size: 128 * quantity.SizeMiB,
-}
-
-var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node: "/dev/node4",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Writable",
-			Size:       1200 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1394606080,
-		Index:       4,
-	},
-	// expanded to fill the disk
-	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-}
-
 func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
 	defer cmdSfdisk.Restore()
@@ -416,56 +381,6 @@ func (s *ondiskTestSuite) TestDeviceInfoError(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(dl, IsNil)
-}
-
-func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
-	defer cmdSfdisk.Restore()
-
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
-	defer cmdLsblk.Restore()
-
-	ptable := gadget.SFDiskPartitionTable{
-		Label:    "gpt",
-		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-		Device:   "/dev/node",
-		Unit:     "sectors",
-		FirstLBA: 34,
-		LastLBA:  8388574,
-		Partitions: []gadget.SFDiskPartition{
-			{
-				Node:  "/dev/node1",
-				Start: 2048,
-				Size:  2048,
-				Type:  "21686148-6449-6E6F-744E-656564454649",
-				UUID:  "2E59D969-52AB-430B-88AC-F83873519F6F",
-				Name:  "BIOS Boot",
-			},
-			{
-				Node:  "/dev/node2",
-				Start: 4096,
-				Size:  2457600,
-				Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-				UUID:  "216c34ff-9be6-4787-9ab3-a4c1429c3e73",
-				Name:  "Recovery",
-			},
-		},
-	}
-
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
-	c.Assert(err, IsNil)
-
-	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
-	c.Assert(err, IsNil)
-
-	// the expected expanded writable partition size is:
-	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create := gadget.BuildPartitionList(dl, pv)
-	c.Assert(sfdiskInput.String(), Equals,
-		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
-/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
-`)
-	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritable})
 }
 
 func (s *ondiskTestSuite) TestUpdatePartitionList(c *C) {

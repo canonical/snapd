@@ -31,7 +31,7 @@ prepare: |
 execute: |
     SLOT_PROVIDER=
     SLOT_NAME=upower-observe
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         SLOT_PROVIDER=upower
         SLOT_NAME=service
     fi

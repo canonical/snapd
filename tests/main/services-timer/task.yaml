@@ -18,7 +18,7 @@ execute: |
     # Fri 2018-02-23 11:01:00 CET  4min 25s left Fri 2018-02-23 10:51:36 CET  4min 58s ago  snap.timer-service-snap.random-timer.timer  snap.timer-service-snap.random-timer.service
     echo "When disabled, times are not listed by systemd"
     snap disable test-snapd-timer-service
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         for service in regular-timer random-timer range-timer trivial-timer; do
             systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
         done
@@ -28,7 +28,7 @@ execute: |
 
     echo "When reenabled, the timers are present again"
     snap enable test-snapd-timer-service
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         for service in regular-timer random-timer range-timer trivial-timer; do
             systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState=enabled"
         done
@@ -38,7 +38,7 @@ execute: |
 
     echo "When removed, times are not listed by systemd"
     snap remove --purge test-snapd-timer-service
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         for service in regular-timer random-timer range-timer trivial-timer; do
             systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
         done
