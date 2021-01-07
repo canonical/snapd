@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -42,12 +43,12 @@ var _ = Suite(&updateTestSuite{})
 
 func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"not-old": {},
 		},
 	}
@@ -59,13 +60,13 @@ func (u *updateTestSuite) TestResolveVolumeDifferentName(c *C) {
 
 func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old":         {},
 			"another-one": {},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {},
 		},
 	}
@@ -77,12 +78,12 @@ func (u *updateTestSuite) TestResolveVolumeTooMany(c *C) {
 
 func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {Bootloader: "u-boot"},
 		},
 	}
 	noMatchInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"old": {Bootloader: "grub"},
 		},
 	}
@@ -121,19 +122,19 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 		{
 			// size change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1*gadget.SizeMiB + 1*gadget.SizeKiB},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1*quantity.SizeMiB + 1*quantity.SizeKiB},
 			},
 			err: "cannot change structure size from [0-9]+ to [0-9]+",
 		}, {
 			// size change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			err: "",
 		},
@@ -247,22 +248,22 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
 		}, {
 			// explicitly declared start offset in new structure
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: nil},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
@@ -270,23 +271,23 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB, Offset: nil},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to unspecified",
 		}, {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB},
-				StartOffset:     1 * gadget.SizeMiB,
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * gadget.SizeMiB},
-				StartOffset:     2 * gadget.SizeMiB,
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
 		},
@@ -318,7 +319,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 		}, {
 			// implicit legacy role to proper explicit role
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
@@ -330,7 +331,7 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr"},
+				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			err: `cannot change structure type from "bare" to "mbr"`,
 		}, {
@@ -480,15 +481,6 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 			},
 			err: `cannot change filesystem label from "writable" to ""`,
 		}, {
-			// from implicit filesystem label to explicit one
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data", Label: "writable"},
-			},
-			err: ``,
-		}, {
 			// all ok
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
@@ -537,14 +529,6 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 	}{
 		{
 			from: gadget.PartiallyLaidOutVolume{
-				Volume: &gadget.Volume{Schema: ""},
-			},
-			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "mbr"},
-			},
-			err: `cannot change volume schema from "gpt" to "mbr"`,
-		}, {
-			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: "gpt"},
 			},
 			to: gadget.LaidOutVolume{
@@ -573,21 +557,6 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 				},
 			},
 			err: `cannot change the number of structures within volume from 2 to 1`,
-		}, {
-			// valid, implicit schema
-			from: gadget.PartiallyLaidOutVolume{
-				Volume: &gadget.Volume{Schema: ""},
-				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
-				},
-			},
-			to: gadget.LaidOutVolume{
-				Volume: &gadget.Volume{Schema: "gpt"},
-				LaidOutStructure: []gadget.LaidOutStructure{
-					{}, {},
-				},
-			},
-			err: ``,
 		}, {
 			// valid
 			from: gadget.PartiallyLaidOutVolume{
@@ -645,31 +614,31 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "first",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
 	}
 	fsStruct := gadget.VolumeStructure{
 		Name:       "second",
-		Size:       10 * gadget.SizeMiB,
+		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
-			{Source: "/second-content", Target: "/"},
+			{UnresolvedSource: "/second-content", Target: "/"},
 		},
 	}
 	lastStruct := gadget.VolumeStructure{
 		Name:       "third",
-		Size:       5 * gadget.SizeMiB,
+		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
-			{Source: "/third-content", Target: "/"},
+			{UnresolvedSource: "/third-content", Target: "/"},
 		},
 	}
 	// start with identical data for new and old infos, they get updated by
 	// the caller as needed
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -678,7 +647,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -688,15 +657,15 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 	}
 
 	oldRootDir := c.MkDir()
-	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(oldRootDir, "/second-content/foo"), 0, nil)
 	makeSizedFile(c, filepath.Join(oldRootDir, "/third-content/bar"), 0, nil)
 	oldData = gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
 
 	newRootDir := c.MkDir()
-	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
-	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), gadget.SizeKiB, nil)
-	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), gadget.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "/second-content/foo"), quantity.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "/third-content/bar"), quantity.SizeKiB, nil)
 	newData = gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
 
 	rollbackDir = c.MkDir()
@@ -745,24 +714,24 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 		case 0:
 			c.Check(ps.Name, Equals, "first")
 			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, 5*gadget.SizeMiB)
+			c.Check(ps.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
-			c.Check(ps.StartOffset, Equals, 1*gadget.SizeMiB)
+			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
-			c.Check(ps.LaidOutContent[0].Size, Equals, 900*gadget.SizeKiB)
+			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
 		case 1:
 			c.Check(ps.Name, Equals, "second")
 			c.Check(ps.HasFilesystem(), Equals, true)
 			c.Check(ps.Filesystem, Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 10*gadget.SizeMiB)
+			c.Check(ps.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
-			c.Check(ps.StartOffset, Equals, (1+5)*gadget.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+5)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].Source, Equals, "/second-content")
+			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
 			c.Check(ps.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
@@ -850,14 +819,14 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
 	}
 	bareStructUpdate := bareStruct
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -866,7 +835,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -889,7 +858,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	err := gadget.Update(oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
-	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	// Update does not error out when when the bare struct data of the old volume is missing
 	err = gadget.Update(oldData, newData, rollbackDir, nil, nil)
@@ -900,7 +869,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -909,7 +878,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	bareStructUpdate.Name = "foo update"
 	bareStructUpdate.Update.Edition = 1
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -918,7 +887,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -936,8 +905,8 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
-	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
 
 	err := gadget.Update(oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot apply update to volume: cannot change the number of structures within volume from 1 to 2`)
@@ -947,7 +916,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -955,14 +924,14 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
 		Filesystem: "ext4",
-		Size:       5 * gadget.SizeMiB,
+		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
-			{Source: "/", Target: "/"},
+			{UnresolvedSource: "/", Target: "/"},
 		},
 		Update: gadget.VolumeUpdate{Edition: 5},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -971,7 +940,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -988,7 +957,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	err := gadget.Update(oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
@@ -998,13 +967,13 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -1013,7 +982,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 		},
 	}
 	newInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			// same volume info but using a different name
 			"foo-new": oldInfo.Volumes["foo"],
 		},
@@ -1037,7 +1006,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
 		Name: "foo",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -1046,7 +1015,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 		},
 	}
 	oldInfo := &gadget.Info{
-		Volumes: map[string]gadget.Volume{
+		Volumes: map[string]*gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
 				Schema:     "gpt",
@@ -1057,13 +1026,13 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 
 	oldRootDir := c.MkDir()
 	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
-	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	newRootDir := c.MkDir()
 	// same volume description
 	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir}
 	// different content, but updates are opt in
-	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*gadget.SizeKiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
 
 	rollbackDir := c.MkDir()
 
@@ -1087,7 +1056,7 @@ func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 	noPartitionStruct := gadget.VolumeStructure{
 		Name: "no-partition",
 		Type: "bare",
-		Size: 5 * gadget.SizeMiB,
+		Size: 5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -1096,7 +1065,7 @@ func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Name:   "mbr",
 		Role:   "mbr",
 		Size:   446,
-		Offset: asSizePtr(0),
+		Offset: asOffsetPtr(0),
 	}
 
 	oldVol := oldData.Info.Volumes["foo"]
@@ -1416,9 +1385,9 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	psBare := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
-			Size:       10 * gadget.SizeMiB,
+			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * gadget.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err := gadget.UpdaterForStructure(psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -1427,10 +1396,10 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	psFs := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
-			Size:       10 * gadget.SizeMiB,
+			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * gadget.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err = gadget.UpdaterForStructure(psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -1452,7 +1421,7 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 
 	multiVolume := gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"1": {},
 				"2": {},
 			},
@@ -1460,7 +1429,7 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	}
 	singleVolume := gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"1": {},
 			},
 		},

@@ -33,10 +33,13 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (snapshotSuite) TestManager(c *check.C) {
@@ -156,7 +159,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	// pretend we haven't run for a while
 	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
 	c.Assert(err, check.IsNil)
-	mgr.SetLastForgetExpiredSnapshotTime(t)
+	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 	c.Assert(mgr.Ensure(), check.IsNil)
 	c.Check(backendIterCalls, check.Equals, 2)
 
@@ -210,7 +213,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	// pretend we haven't run for a while
 	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
 	c.Assert(err, check.IsNil)
-	mgr.SetLastForgetExpiredSnapshotTime(t)
+	snapshotstate.SetLastForgetExpiredSnapshotTime(mgr, t)
 
 	st.Unlock()
 	c.Assert(mgr.Ensure(), check.IsNil)
@@ -260,12 +263,11 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
-		c.Check(flags.Auto, check.Equals, false)
 		return nil, nil
 	})()
 
@@ -287,7 +289,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		return nil, errors.New("bzzt")
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -314,7 +316,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -338,7 +340,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -367,7 +369,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
 		return nil, errors.New("bzzt")
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -398,7 +400,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		buf := json.RawMessage(`"hello-there"`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -431,7 +433,7 @@ func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
 		return nil, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		var expirations map[uint64]interface{}
 		st.Lock()
 		defer st.Unlock()
@@ -743,4 +745,46 @@ func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
 		2: map[string]interface{}{
 			"expiry-time": "2037-02-12T12:50:00Z",
 		}})
+}
+
+func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartup(c *check.C) {
+	n := 0
+	restore := snapshotstate.MockBackenCleanupAbandondedImports(func() (int, error) {
+		n++
+		return 0, nil
+	})
+	defer restore()
+
+	o := overlord.Mock()
+	st := o.State()
+	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	c.Assert(mgr, check.NotNil)
+	o.AddManager(mgr)
+	err := o.Settle(100 * time.Millisecond)
+	c.Assert(err, check.IsNil)
+
+	c.Check(n, check.Equals, 1)
+}
+
+func (snapshotSuite) TestManagerRunCleanupAbandondedImportsAtStartupErrorLogged(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	n := 0
+	restore = snapshotstate.MockBackenCleanupAbandondedImports(func() (int, error) {
+		n++
+		return 0, errors.New("some error")
+	})
+	defer restore()
+
+	o := overlord.Mock()
+	st := o.State()
+	mgr := snapshotstate.Manager(st, state.NewTaskRunner(st))
+	c.Assert(mgr, check.NotNil)
+	o.AddManager(mgr)
+	err := o.Settle(100 * time.Millisecond)
+	c.Assert(err, check.IsNil)
+
+	c.Check(n, check.Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, "cannot cleanup incomplete imports: some error\n")
 }

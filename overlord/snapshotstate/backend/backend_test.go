@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type snapshotSuite struct {
@@ -447,7 +448,7 @@ func (s *snapshotSuite) TestIterSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -603,11 +604,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
-	s.testHappyRoundtrip(c, "marker", false)
-}
-
-func (s *snapshotSuite) TestHappyRoundtripAutomaticSnapshot(c *check.C) {
-	s.testHappyRoundtrip(c, "marker", true)
+	s.testHappyRoundtrip(c, "marker")
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
@@ -616,7 +613,7 @@ func (s *snapshotSuite) TestHappyRoundtripNoCommon(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "marker", false)
+	s.testHappyRoundtrip(c, "marker")
 }
 
 func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
@@ -625,10 +622,10 @@ func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
 			c.Assert(os.RemoveAll(t.dir), check.IsNil)
 		}
 	}
-	s.testHappyRoundtrip(c, "../common/marker", false)
+	s.testHappyRoundtrip(c, "../common/marker")
 }
 
-func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool) {
+func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -639,7 +636,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, &backend.Flags{Auto: auto})
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.InstanceName())
@@ -648,7 +645,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 	c.Check(shw.Epoch, check.DeepEquals, epoch)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
-	c.Check(shw.Auto, check.Equals, auto)
+	c.Check(shw.Auto, check.Equals, false)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
@@ -671,7 +668,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string, auto bool)
 		c.Check(sh.Revision, check.Equals, info.Revision, comm)
 		c.Check(sh.Conf, check.DeepEquals, cfg, comm)
 		c.Check(sh.SHA3_384, check.DeepEquals, shw.SHA3_384, comm)
-		c.Check(sh.Auto, check.Equals, auto)
+		c.Check(sh.Auto, check.Equals, false)
 	}
 	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
@@ -713,7 +710,7 @@ func (s *snapshotSuite) TestOpenSetIDoverride(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	cfg := map[string]interface{}{"some-setting": false}
 
-	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(context.TODO(), 12, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, uint64(12))
 
@@ -737,7 +734,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil)
+	shw, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 
@@ -945,7 +942,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
 			err = ioutil.WriteFile(importingFile, nil, 0644)
-			c.Assert(err, check.IsNil, comm)
+			c.Assert(err, check.IsNil)
 		} else {
 			err = os.RemoveAll(importingFile)
 			c.Assert(err, check.IsNil, comm)
@@ -1003,7 +1000,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"}, &backend.Flags{})
+	shw, err := backend.Save(ctx, shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 
@@ -1149,7 +1146,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	}
 	// create a snapshot
 	shID := uint64(12)
-	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"})
 	c.Check(err, check.IsNil)
 
 	// num_files + export.json + footer
@@ -1351,4 +1348,121 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	err = backend.Iter(context.Background(), f)
 	c.Check(err, check.IsNil)
 	c.Check(callbackCalled, check.Equals, 0)
+}
+
+func (s *snapshotSuite) TestCleanupAbandondedImports(c *check.C) {
+	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	// create 2 snapshot IDs 1,2
+	snapshotFiles := map[int][]string{}
+	for i := 1; i < 3; i++ {
+		fn := fmt.Sprintf("%d_hello_%d.0_x1.zip", i, i)
+		p := filepath.Join(dirs.SnapshotsDir, fn)
+		snapshotFiles[i] = append(snapshotFiles[i], p)
+		err = ioutil.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		c.Assert(err, check.IsNil)
+
+		fn = fmt.Sprintf("%d_olleh_%d.0_x1.zip", i, i)
+		p = filepath.Join(dirs.SnapshotsDir, fn)
+		snapshotFiles[i] = append(snapshotFiles[i], p)
+		err = ioutil.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		c.Assert(err, check.IsNil)
+	}
+
+	// pretend setID 2 has a import file which means which means that
+	// an import was started in the past but did not complete
+	fn := "2_importing"
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	c.Assert(err, check.IsNil)
+
+	// run cleanup
+	cleaned, err := backend.CleanupAbandondedImports()
+	c.Check(cleaned, check.Equals, 1)
+	c.Check(err, check.IsNil)
+
+	// id1 untouched
+	c.Check(snapshotFiles[1][0], testutil.FilePresent)
+	c.Check(snapshotFiles[1][1], testutil.FilePresent)
+	// id2 cleaned
+	c.Check(snapshotFiles[2][0], testutil.FileAbsent)
+	c.Check(snapshotFiles[2][1], testutil.FileAbsent)
+}
+
+func (s *snapshotSuite) TestCleanupAbandondedImportsFailMany(c *check.C) {
+	restore := backend.MockFilepathGlob(func(string) ([]string, error) {
+		return []string{
+			"/var/lib/snapd/snapshots/NaN_importing",
+			"/var/lib/snapd/snapshots/11_importing",
+			"/var/lib/snapd/snapshots/22_importing",
+		}, nil
+	})
+	defer restore()
+
+	_, err := backend.CleanupAbandondedImports()
+	c.Assert(err, check.ErrorMatches, `cannot cleanup imports:
+- cannot determine snapshot id from "/var/lib/snapd/snapshots/NaN_importing"
+- cannot cancel import for set id 11:
+ - remove /.*/var/lib/snapd/snapshots/11_importing: no such file or directory
+- cannot cancel import for set id 22:
+ - remove /.*/var/lib/snapd/snapshots/22_importing: no such file or directory`)
+}
+
+func (s *snapshotSuite) TestMultiError(c *check.C) {
+	me2 := backend.NewMultiError("deeper nested wrongness", []error{
+		fmt.Errorf("some error in level 2"),
+	})
+	me1 := backend.NewMultiError("nested wrongness", []error{
+		fmt.Errorf("some error in level 1"),
+		me2,
+		fmt.Errorf("other error in level 1"),
+	})
+	me := backend.NewMultiError("many things went wrong", []error{
+		fmt.Errorf("some normal error"),
+		me1,
+	})
+
+	c.Check(me, check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+
+	// do it again
+	c.Check(me, check.ErrorMatches, `many things went wrong:
+- some normal error
+- nested wrongness:
+ - some error in level 1
+ - deeper nested wrongness:
+  - some error in level 2
+ - other error in level 1`)
+}
+
+func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
+	errs := []error{nil, fmt.Errorf("e5")}
+	me5 := backend.NewMultiError("he5", errs)
+	// very hard to happen in practice
+	errs[0] = me5
+	me4 := backend.NewMultiError("he4", []error{me5})
+	me3 := backend.NewMultiError("he3", []error{me4})
+	me2 := backend.NewMultiError("he3", []error{me3})
+	me1 := backend.NewMultiError("he1", []error{me2})
+	me := backend.NewMultiError("he", []error{me1})
+
+	c.Check(me, check.ErrorMatches, `he:
+- he1:
+ - he3:
+  - he3:
+   - he4:
+    - he5:
+     - he5:
+      - he5:
+       - he5:
+        - circular or too deep error nesting \(max 8\)\?!
+        - e5
+       - e5
+      - e5
+     - e5`)
 }

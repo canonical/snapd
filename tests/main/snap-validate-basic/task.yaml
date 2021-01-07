@@ -1,0 +1,51 @@
+summary: Ensure `snap validate` commands work.
+
+# XXX: this functionality doesn't rely on store yet and as such this test
+# doesn't do much. Extend once all the functionality is available.
+
+systems:
+  # go-flags panics when showing --help for a hidden command on Fedora 32/33
+  - -fedora-*
+
+execute: |
+  snap validate --help | MATCH "The validate command lists or applies validations sets"
+  snap validate > list.txt
+  [[ $(wc -l < list.txt) == "0" ]]
+
+  snap validate --monitor 2>&1 | MATCH "missing validation set argument"
+  snap validate --monitor --enforce foo/bar 2>&1 | MATCH "cannot use --monitor and --enforce together"
+  snap validate foo 2>&1 | MATCH "cannot parse validation set \"foo\""
+
+  snap validate --monitor foo/bar
+  snap validate --enforce foo/baz=12
+  snap validate --enforce foo/other
+  snap validate --enforce foo/other=3
+
+  snap validate foo/bar | MATCH "invalid"
+  snap validate foo/other=3 | MATCH "invalid"
+
+  snap validate > list.txt
+  MATCH "Validation.*Mode.*Seq.*Current.*Notes" < list.txt
+  MATCH "foo/bar .+0 " < list.txt
+  MATCH "foo/baz=12 .+0 " < list.txt
+  MATCH "foo/other=3 .+0 " < list.txt
+  # expect 4 lines (header, 3 entries)
+  [[ $(wc -l < list.txt) == "4" ]]
+
+  echo "Check that validation sets can be forgotten"
+  snap validate --forget foo/other=3
+  snap validate --forget foo/bar
+  snap validate > list.txt
+
+  MATCH "foo/baz=12 .+0 " < list.txt
+  if MATCH "foo/bar" < list.txt; then
+    echo "didn't expect foo/bar"
+    exit 1
+  fi
+  if MATCH "foo/other" < list.txt; then
+    echo "didn't expect foo/other"
+    exit 1
+  fi
+  # expect 2 lines (header, 1 entry)
+  [[ $(wc -l < list.txt) == "2" ]]
+

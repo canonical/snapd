@@ -457,19 +457,42 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-// WaitRestart will return a Retry error if there is a pending restart
+var generateSnapdWrappers = backend.GenerateSnapdWrappers
+
+// FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
-// restarts)
-func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+// restarts).
+// For snapd snap updates this will also rerun wrappers generation to fully
+// catch up with any change.
+func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
 	}
 
-	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
-		return fmt.Errorf("there was a snapd rollback across the restart")
+	if snapsup.Type == snap.TypeSnapd {
+		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+			return fmt.Errorf("there was a snapd rollback across the restart")
+		}
+
+		// if we have restarted and snapd was refreshed, then we need to generate
+		// snapd wrappers again with current snapd, as the logic of generating
+		// wrappers may have changed between previous and new snapd code.
+		if !release.OnClassic {
+			snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
+			if err != nil {
+				return fmt.Errorf("cannot get current snapd snap info: %v", err)
+			}
+			// TODO: if future changes to wrappers need one more snapd restart,
+			// then it should be handled here as well.
+			if err := generateSnapdWrappers(snapdInfo); err != nil {
+				return err
+			}
+		}
 	}
+
+	// consider kernel and base
 
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)
 	if err != nil {
@@ -635,6 +658,15 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 }
 
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+	// if snap is allowed to be devmode via the dangerous model and it's
+	// confinement is indeed devmode, promote the flags.DevMode to true
+	if flags.ApplySnapDevMode && info.NeedsDevMode() {
+		// TODO: what about jail-mode? will we also allow putting devmode
+		// snaps (i.e. snaps with snap.yaml with confinement: devmode) into
+		// strict confinement via the model assertion?
+		flags.DevMode = true
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
