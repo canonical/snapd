@@ -69,6 +69,8 @@ type commonInterface struct {
 	suppressPtraceTrace  bool
 	suppressHomeIx       bool
 	controlsDeviceCgroup bool
+
+	serviceSnippets []string
 }
 
 // Name returns the interface name.
@@ -86,6 +88,10 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
 	}
+}
+
+func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	return iface.serviceSnippets
 }
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
