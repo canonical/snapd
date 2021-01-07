@@ -8,19 +8,13 @@ details: |
     and enumerate upower devices.
 
 prepare: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    if is_core_system; then
+    if os.query is-core; then
         snap install test-snapd-upower --edge
     fi
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snap
+    "$TESTSTOOLS"/snaps-state install-local test-snap
 
 execute: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    if ! is_core_system; then
+    if ! os.query is-core; then
       # trigger upowerd to have the service started as AppArmor would deny to
       # start it in response to a dbus call from inside a snap (because the
       # service is not started yet and AppArmor doesn't know what confinement

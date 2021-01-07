@@ -57,7 +57,7 @@ func TestCommand(t *testing.T) { TestingT(t) }
 var mockKernelYaml = []byte(`
 assets:
   dtbs:
-    edition: 1
+    update: true
     content:
       - dtbs/bcm2711-rpi-4-b.dtb
       - dtbs/bcm2836-rpi-2-b.dtb
@@ -65,7 +65,7 @@ assets:
 
 var mockInvalidKernelYaml = []byte(`
 assets:
-  non-alphanumeric:
+  non-#alphanumeric:
 `)
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
@@ -76,7 +76,7 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
 
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlBadName(c *C) {
 	ki, err := kernel.InfoFromKernelYaml(mockInvalidKernelYaml)
-	c.Check(err, ErrorMatches, `invalid asset name "non-alphanumeric", please use only alphanumeric characters`)
+	c.Check(err, ErrorMatches, `invalid asset name "non-#alphanumeric", please use only alphanumeric characters and dashes`)
 	c.Check(ki, IsNil)
 }
 
@@ -86,7 +86,7 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
 			"dtbs": {
-				Edition: 1,
+				Update: true,
 				Content: []string{
 					"dtbs/bcm2711-rpi-4-b.dtb",
 					"dtbs/bcm2836-rpi-2-b.dtb",
@@ -128,7 +128,7 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
 			"dtbs": {
-				Edition: 1,
+				Update: true,
 				Content: []string{
 					"dtbs/bcm2711-rpi-4-b.dtb",
 					"dtbs/bcm2836-rpi-2-b.dtb",

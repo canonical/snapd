@@ -34,6 +34,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// SnapshotExportMediaType is the media type used to identify snapshot exports in the API.
+const SnapshotExportMediaType = "application/x.snapd.snapshot"
+
 var (
 	ErrSnapshotSetNotFound   = errors.New("no snapshot set with the given ID")
 	ErrSnapshotSnapsNotFound = errors.New("no snapshot for the requested snaps found in the set with the given ID")
@@ -75,7 +78,10 @@ type Snapshot struct {
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
 
-	// set if the snapshot was created automatically on snap removal
+	// set if the snapshot was created automatically on snap removal;
+	// note, this is only set inside actual snapshot file for old snapshots;
+	// newer snapd just updates this flag on the fly for snapshots
+	// returned by List().
 	Auto bool `json:"auto,omitempty"`
 }
 
@@ -197,6 +203,31 @@ func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, conten
 		}
 		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
+	contentType := rsp.Header.Get("Content-Type")
+	if contentType != SnapshotExportMediaType {
+		return nil, 0, fmt.Errorf("unexpected snapshot export content type %q", contentType)
+	}
 
 	return rsp.Body, rsp.ContentLength, nil
+}
+
+// SnapshotImportSet is a snapshot import created by a "snap import-snapshot".
+type SnapshotImportSet struct {
+	ID    uint64   `json:"set-id"`
+	Snaps []string `json:"snaps"`
+}
+
+// SnapshotImport imports an exported snapshot set.
+func (client *Client) SnapshotImport(exportStream io.Reader, size int64) (SnapshotImportSet, error) {
+	headers := map[string]string{
+		"Content-Type":   SnapshotExportMediaType,
+		"Content-Length": strconv.FormatInt(size, 10),
+	}
+
+	var importSet SnapshotImportSet
+	if _, err := client.doSync("POST", "/v2/snapshots", nil, headers, exportStream, &importSet); err != nil {
+		return importSet, err
+	}
+
+	return importSet, nil
 }

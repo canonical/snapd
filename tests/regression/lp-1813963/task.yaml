@@ -5,12 +5,10 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 backends: [-external]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     # Install the versatile test snap.
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # Discard the mount namespace in case the snap has any hooks. We rely on
     # the mount namespace to be absent and about to be constructed in the test
     # below.
@@ -21,7 +19,7 @@ prepare: |
     # without anything special about it.
     #
     # For the purpose of the test we want the service to be off.
-    install_local test-snapd-simple-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
     systemctl stop snap.test-snapd-simple-service.test-snapd-simple-service.service
     snapd.tool exec snap-discard-ns test-snapd-simple-service
 

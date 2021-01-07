@@ -4,17 +4,14 @@ summary: Check that snap connect with parallel installs works
 backends: [-autopkgtest]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     snap set system experimental.parallel-instances=true
 
     echo "Install test snaps"
-    install_local home-consumer
-    install_local_as home-consumer home-consumer_foo
+    "$TESTSTOOLS"/snaps-state install-local home-consumer
+    "$TESTSTOOLS"/snaps-state install-local-as home-consumer home-consumer_foo
 
     # the home interface is not autoconnected on all-snap systems
-    if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+    if os.query is-classic; then
         snap disconnect home-consumer:home
         snap disconnect home-consumer_foo:home
     fi

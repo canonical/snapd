@@ -57,6 +57,7 @@ func (s *groupingsSuite) TestNewGroupings(c *C) {
 		if t.err == "" {
 			c.Check(err, IsNil, comm)
 			c.Check(gr, NotNil, comm)
+			c.Check(gr.N(), Equals, t.n)
 		} else {
 			c.Check(gr, IsNil, comm)
 			c.Check(err, ErrorMatches, t.err, comm)

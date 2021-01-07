@@ -22,9 +22,12 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
@@ -47,7 +50,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 		candidates = append(candidates, byPartlabel)
 	}
 	if ps.HasFilesystem() {
-		fsLabel := ps.EffectiveFilesystemLabel()
+		fsLabel := ps.Label
 		if fsLabel == "" && ps.Name != "" {
 			// when image is built and the structure has no
 			// filesystem label, the structure name will be used by
@@ -109,7 +112,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 //
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
+func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs quantity.Offset, err error) {
 	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
@@ -202,17 +205,47 @@ func findParentDeviceWithWritableFallback() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return ParentDiskFromPartition(partitionWritable)
+	return ParentDiskFromMountSource(partitionWritable)
 }
 
-// ParentDiskFromPartition will find the parent disk device for the
-// given partition. E.g. /dev/nvmen0n1p5 -> /dev/nvme0n1
+// ParentDiskFromMountSource will find the parent disk device for the given
+// partition. E.g. /dev/nvmen0n1p5 -> /dev/nvme0n1.
 //
-// Note that this does not work for anything using device mapper (like
-// LUKS/LVM) yet.
-func ParentDiskFromPartition(partition string) (string, error) {
+// When the mount source is a symlink, it is resolved to the actual device that
+// is mounted. Should the device be one created by device mapper, it is followed
+// up to the actual underlying block device. As an example, this is how devices
+// are followed with a /writable mounted from an encrypted volume:
+//
+// /dev/mapper/ubuntu-data-<uuid> (a symlink)
+//   ⤷ /dev/dm-0 (set up by device mapper)
+//       ⤷ /dev/hda4 (actual partition with the content)
+//          ⤷ /dev/hda (returned by this function)
+//
+func ParentDiskFromMountSource(mountSource string) (string, error) {
+	// mount source can be a symlink
+	st, err := os.Lstat(mountSource)
+	if err != nil {
+		return "", err
+	}
+	if mode := st.Mode(); mode&os.ModeSymlink != 0 {
+		// resolve to actual device
+		target, err := filepath.EvalSymlinks(mountSource)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve mount source symlink %v: %v", mountSource, err)
+		}
+		mountSource = target
+	}
 	// /dev/sda3 -> sda3
-	devname := filepath.Base(partition)
+	devname := filepath.Base(mountSource)
+
+	if strings.HasPrefix(devname, "dm-") {
+		// looks like a device set up by device mapper
+		resolved, err := resolveParentOfDeviceMapperDevice(devname)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve device mapper device %v: %v", devname, err)
+		}
+		devname = resolved
+	}
 
 	// do not bother with investigating major/minor devices (inconsistent
 	// across block device types) or mangling strings, but look at sys
@@ -238,4 +271,32 @@ func ParentDiskFromPartition(partition string) (string, error) {
 		return "", fmt.Errorf("device %v does not exist", mainDev)
 	}
 	return mainDev, nil
+}
+
+func resolveParentOfDeviceMapperDevice(devname string) (string, error) {
+	// devices set up by device mapper have /dev/block/dm-*/slaves directory
+	// which lists the devices that are upper in the chain, follow that to
+	// find the first device that is non-dm one
+	dmSlavesLevel := 0
+	const maxDmSlavesLevel = 5
+	for strings.HasPrefix(devname, "dm-") {
+		// /sys/block/dm-*/slaves/ lists a device that this dm device is part of
+		slavesGlob := filepath.Join(dirs.GlobalRootDir, "/sys/block", devname, "slaves/*")
+		slaves, err := filepath.Glob(slavesGlob)
+		if err != nil {
+			return "", fmt.Errorf("cannot glob slaves of dm device %v: %v", devname, err)
+		}
+		if len(slaves) != 1 {
+			return "", fmt.Errorf("unexpected number of dm device %v slaves: %v", devname, len(slaves))
+		}
+		devname = filepath.Base(slaves[0])
+
+		// if we're this deep in resolving dm devices, things are clearly getting out of hand
+		dmSlavesLevel++
+		if dmSlavesLevel >= maxDmSlavesLevel {
+			return "", fmt.Errorf("too many levels")
+		}
+
+	}
+	return devname, nil
 }

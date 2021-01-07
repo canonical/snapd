@@ -5,9 +5,7 @@ environment:
     VARIANT/shared: shared
     VARIANT/private: private
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # Ensure that every snap namespace is discarded.
     for name in $(snap list | awk '!/Name/ {print $1}'); do
         snapd.tool exec snap-discard-ns "$name"

@@ -2,19 +2,15 @@ summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
 environment:
     NAME/regular: test-snapd-tools
-    INSTANCE_KEY/regular:
+    INSTANCE_KEY/regular: ""
     NAME/parallel: test-snapd-tools_foo
     INSTANCE_KEY/parallel: foo
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=true
     fi
-    # shellcheck disable=SC2153
-    install_local_as test-snapd-tools "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools "$NAME"
 
 restore: |
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then

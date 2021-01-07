@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -54,7 +55,9 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 			snap.LongSnapDescription,
 			"",
 			regexp.QuoteMeta(snap.SnapUsage),
-			"", ".*", "",
+			"",
+			snap.SnapHelpCategoriesIntro,
+			".*", "",
 			snap.SnapHelpAllFooter,
 			snap.SnapHelpFooter,
 		}, "\n")+`\s*`, comment)
@@ -75,7 +78,7 @@ func (s *SnapSuite) TestHelpAllPrintsLongHelp(c *check.C) {
 		"",
 		regexp.QuoteMeta(snap.SnapUsage),
 		"",
-		snap.SnapHelpCategoriesIntro,
+		snap.SnapHelpAllIntro,
 		"", ".*", "",
 		snap.SnapHelpAllFooter,
 	}, "\n")+`\s*`)
@@ -95,7 +98,26 @@ func nonHiddenCommands() map[string]bool {
 	return names
 }
 
+// Helper that checks if goflags is old. The check for EnvNamespace is
+// arbitrary, it just happened that support for this got added right after
+// the v1.4.0 release with commit 1c38ed7.
+func goFlagsFromBefore20200331() bool {
+	v := reflect.ValueOf(flags.Group{})
+	f := v.FieldByName("EnvNamespace")
+	return !f.IsValid()
+}
+
 func (s *SnapSuite) testSubCommandHelp(c *check.C, sub, expected string) {
+	// Skip --help output tests for older versions of
+	// go-flags. Notably v1.4.0 from debian-sid will fail because
+	// the formating is slightly different. Note that the check here
+	// is not precise i.e. this is not the commit that added the change
+	// that changed the help output but this change is easy to test for
+	// with reflect and in practice this is fine.
+	if goFlagsFromBefore20200331() {
+		c.Skip("go flags too old")
+	}
+
 	parser := snap.Parser(snap.Client())
 	rest, err := parser.ParseArgs([]string{sub, "--help"})
 	c.Assert(err, check.DeepEquals, &flags.Error{Type: flags.ErrHelp})
@@ -135,14 +157,18 @@ func (s *SnapSuite) TestHelpCategories(c *check.C) {
 		categorised[cmd] = true
 	}
 	seen := make(map[string]string, len(all))
-	for _, categ := range snap.HelpCategories {
-		for _, cmd := range categ.Commands {
+	seenCmds := func(cmds []string, label string) {
+		for _, cmd := range cmds {
 			categorised[cmd] = true
 			if seen[cmd] != "" {
-				c.Errorf("duplicated: %q in %q and %q", cmd, seen[cmd], categ.Label)
+				c.Errorf("duplicated: %q in %q and %q", cmd, seen[cmd], label)
 			}
-			seen[cmd] = categ.Label
+			seen[cmd] = label
 		}
+	}
+	for _, categ := range snap.HelpCategories {
+		seenCmds(categ.Commands, categ.Label)
+		seenCmds(categ.AllOnlyCommands, categ.Label)
 	}
 	for cmd := range all {
 		if !categorised[cmd] {

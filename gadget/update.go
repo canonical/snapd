@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -33,7 +34,7 @@ var (
 var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 )
@@ -61,19 +62,21 @@ type ContentChange struct {
 }
 
 type ContentOperation int
+type ContentChangeAction int
 
 const (
 	ContentWrite ContentOperation = iota
 	ContentUpdate
 	ContentRollback
+
+	ChangeAbort ContentChangeAction = iota
+	ChangeApply
+	ChangeIgnore
 )
 
 // ContentObserver allows for observing operations on the content of the gadget
 // structures.
 type ContentObserver interface {
-	// TODO:UC20: add Observe() result value indicating that a file should
-	// be preserved
-
 	// Observe is called to observe an pending or completed action, related
 	// to content being written, updated or being rolled back. In each of
 	// the scenarios, the target path is relative under the root.
@@ -82,8 +85,14 @@ type ContentObserver interface {
 	// that will be written. When called during rollback, observe call
 	// happens after the original file has been restored (or removed if the
 	// file was added during the update), the source path is empty.
+	//
+	// Returning ChangeApply indicates that the observer agrees for a given
+	// change to be applied. When called with a ContentUpdate or
+	// ContentWrite operation, returning ChangeIgnore indicates that the
+	// change shall be ignored. ChangeAbort is expected to be returned along
+	// with a non-nil error.
 	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
-		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (bool, error)
+		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
 }
 
 // ContentUpdateObserver allows for observing update (and potentially a
@@ -127,6 +136,10 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		return err
 	}
 
+	if oldVol.Schema == "" || newVol.Schema == "" {
+		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
+	}
+
 	// layout old partially, without going deep into the layout of structure
 	// content
 	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
@@ -159,7 +172,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// can update old layout to new layout
 	for _, update := range updates {
-		if err := canUpdateStructure(update.from, update.to, pNew.EffectiveSchema()); err != nil {
+		if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
 			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
 		}
 	}
@@ -185,10 +198,10 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 		return nil, nil, fmt.Errorf("cannot find entry for volume %q in updated gadget info", name)
 	}
 
-	return &oldV, &newV, nil
+	return oldV, newV, nil
 }
 
-func isSameOffset(one *Size, two *Size) bool {
+func isSameOffset(one *quantity.Offset, two *quantity.Offset) bool {
 	if one == nil && two == nil {
 		return true
 	}
@@ -211,7 +224,7 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.EffectiveRole() == schemaMBR
+	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
@@ -232,8 +245,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
 		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
 	}
-	if from.EffectiveRole() != to.EffectiveRole() {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.EffectiveRole(), to.EffectiveRole())
+	if from.Role != to.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.Role, to.Role)
 	}
 	if from.Type != to.Type {
 		if !isLegacyMBRTransition(from, to) {
@@ -251,7 +264,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 			return fmt.Errorf("cannot change filesystem from %q to %q",
 				from.Filesystem, to.Filesystem)
 		}
-		if from.EffectiveFilesystemLabel() != to.EffectiveFilesystemLabel() {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
 				from.Label, to.Label)
 		}
@@ -268,8 +281,8 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
-	if from.EffectiveSchema() != to.EffectiveSchema() {
-		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
+	if from.Schema != to.Schema {
+		return fmt.Errorf("cannot change volume schema from %q to %q", from.Schema, to.Schema)
 	}
 	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
@@ -289,7 +302,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
-	if from.EffectiveRole() == schemaMBR {
+	if from.Role == schemaMBR {
 		return false
 	}
 	return true

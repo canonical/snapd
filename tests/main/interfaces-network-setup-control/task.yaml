@@ -7,9 +7,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
     rm -f /etc/network/test001 /etc/network/test002

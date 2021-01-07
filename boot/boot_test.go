@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -48,8 +49,9 @@ func TestBoot(t *testing.T) { TestingT(t) }
 type baseBootenvSuite struct {
 	testutil.BaseTest
 
-	rootdir string
-	bootdir string
+	rootdir     string
+	bootdir     string
+	cmdlineFile string
 }
 
 func (s *baseBootenvSuite) SetUpTest(c *C) {
@@ -62,6 +64,10 @@ func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")
+
+	s.cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
+	restore = osutil.MockProcCmdline(s.cmdlineFile)
+	s.AddCleanup(restore)
 }
 
 func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
@@ -74,6 +80,10 @@ func (s *baseBootenvSuite) stampSealedKeys(c *C, rootdir string) {
 	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
 	err := ioutil.WriteFile(stamp, nil, 0644)
 	c.Assert(err, IsNil)
+}
+
+func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
+	c.Assert(ioutil.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
 }
 
 type bootenvSuite struct {
@@ -169,6 +179,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 		// kernel status is trying
 		kernStatus: boot.TryingStatus,
 	}
+
+	s.mockCmdline(c, "snapd_recovery_mode=run")
 }
 
 type bootenv20Suite struct {
@@ -879,7 +891,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -991,7 +1003,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -1099,9 +1111,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
-		return nil
+		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -1111,8 +1123,25 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":[""]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -1197,9 +1226,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	defer r()
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
-		return nil
+		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
@@ -1209,8 +1238,25 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"run-mode","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":[""]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
@@ -1506,7 +1552,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
@@ -1850,7 +1896,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore := boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2081,7 +2127,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 
 		c.Assert(params.ModelParams, HasLen, 1)
@@ -2090,14 +2136,25 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
-		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(runKernelBf))),
-			secboot.NewLoadChain(shimBf,
-				secboot.NewLoadChain(assetBf,
-					secboot.NewLoadChain(recoveryKernelBf))),
-		})
+		switch resealCalls {
+		case 1:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(runKernelBf))),
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		case 2:
+			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shimBf,
+					secboot.NewLoadChain(assetBf,
+						secboot.NewLoadChain(recoveryKernelBf))),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
+		}
 		return nil
 	})
 	defer restore()
@@ -2122,7 +2179,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-"+dataHash),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
-	c.Check(resealCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 2)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
@@ -2172,10 +2229,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 1},
-				RealName: "pc-linux",
+				RealName: "pc-kernel-recovery",
 			},
 		}
 		return uc20Model, []*seed.Snap{kernelSnap}, nil
@@ -2211,15 +2268,57 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"1","kernel-cmdlines":[""]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-linux","kernel-revision":"1","kernel-cmdlines":[""]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}, {
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel-recovery",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+	}}
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2292,10 +2391,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
 			SideInfo: &snap.SideInfo{
 				Revision: snap.Revision{N: 1},
-				RealName: "pc-linux",
+				RealName: "pc-kernel-recovery",
 			},
 		}
 		return uc20Model, []*seed.Snap{kernelSnap}, nil
@@ -2314,7 +2413,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 			"asset": {dataHash},
 			"shim":  {shimHash},
 		},
-		CurrentRecoverySystems: []string{"system"},
+		CurrentRecoverySystems:    []string{"system"},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -2331,15 +2431,58 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	resealCalls := 0
-	restore = boot.MockSecbootResealKey(func(params *secboot.ResealKeyParams) error {
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
 		return nil
 	})
 	defer restore()
 
 	// write boot-chains for current state that will stay unchanged
-	bootChainsData := `{"boot-chains":[{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-kernel","kernel-revision":"","kernel-cmdlines":[""]},{"brand-id":"my-brand","model":"my-model-uc20","grade":"dangerous","model-sign-key-id":"Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij","asset-chain":[{"role":"recovery","name":"shim","hashes":["dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"]},{"role":"recovery","name":"asset","hashes":["0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"]}],"kernel":"pc-linux","kernel-revision":"1","kernel-cmdlines":[""]}]}`
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "boot-chains"), []byte(bootChainsData), 0600)
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel: "pc-kernel",
+		// unasserted kernel snap
+		KernelRevision: "",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}, {
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRecovery, Name: "shim",
+			Hashes: []string{
+				"dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b",
+			},
+		}, {
+			Role: bootloader.RoleRecovery, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel-recovery",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+	}}
+
+	recoveryBootChains := []boot.BootChain{bootChains[1]}
+
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	err = boot.WriteBootChains(boot.ToPredictableBootChains(recoveryBootChains), filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"), 0)
 	c.Assert(err, IsNil)
 
 	// mark successful
@@ -2423,6 +2566,209 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-one"),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-two"),
+	})
+}
+
+func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, mode string, cmdlines boot.BootCommandLines) *boot.Modeenv {
+	// mock some state in the cache
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-one"), nil, 0644), IsNil)
+	// a pending kernel command line change
+	m := &boot.Modeenv{
+		Mode:           mode,
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.kern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"one"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"one"},
+		},
+		CurrentKernelCommandLines: cmdlines,
+	}
+	return m
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run candidate panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+	})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run different")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
+		"snapd_recovery_mode=run",
+		"snapd_recovery_mode=run candidate",
+	})
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: current command line content "snapd_recovery_mode=run different" not matching any expected entry`)
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBootSuccessful(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab.StaticCommandLine = "panic=-1"
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", nil)
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+	})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBootMismatch(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1 unexpected")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab.StaticCommandLine = "panic=-1"
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", nil)
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: unexpected current command line: "snapd_recovery_mode=run panic=-1 unexpected"`)
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
+	// recover mode
+	s.mockCmdline(c, "snapd_recovery_mode=recover snapd_recovery_system=1234 panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab.StaticCommandLine = "panic=-1"
+	// current command line does not match any of the run mode command lines
+	m := s.setupMarkBootSuccessful20CommandLine(c, "recover", boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
 	})
 }
 

@@ -74,10 +74,11 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/runc/**     mrwklix,
 
 # Allow sockets/etc for containerd
-/{,var/}run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
+/{,var/}run/containerd/{,s/,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
 /{,var/}run/containerd/runc/k8s.io/*/** rwk,
 /{,var/}run/containerd/{io.containerd*/,io.containerd*/k8s.io/,io.containerd*/k8s.io/*/} rw,
 /{,var/}run/containerd/io.containerd*/*/** rwk,
+/{,var/}run/containerd/s/** rwk,
 
 # Limit ipam-state to k8s
 /run/ipam-state/k8s-** rw,
@@ -91,7 +92,7 @@ unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 # Wide read access to /proc, but somewhat limited writes for now
 @{PROC}/ r,
 @{PROC}/** r,
-@{PROC}/[0-9]*/attr/exec w,
+@{PROC}/[0-9]*/attr/{,apparmor/}exec w,
 @{PROC}/[0-9]*/oom_score_adj w,
 
 # Limited read access to specific bits of /sys

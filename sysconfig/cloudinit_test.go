@@ -99,7 +99,7 @@ func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  false,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -133,7 +133,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit: true,
 		TargetRootDir:  boot.InstallHostWritableDir,
 	})
@@ -150,7 +150,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
@@ -165,7 +165,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
 	gadgetDir := s.makeGadgetCloudConfFile(c)
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit: true,
 		GadgetDir:      gadgetDir,
 		TargetRootDir:  boot.InstallHostWritableDir,
@@ -181,7 +181,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -370,7 +370,9 @@ var lxdNoCloudCloudInitStatusJSON = `{
 var restrictNoCloudYaml = `datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`
+    fs_label: null
+manual_cache_clean: true
+`
 
 func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	tt := []struct {
@@ -435,12 +437,13 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDisableFile: true,
 		},
 		{
-			comment:                "gce done",
-			state:                  sysconfig.CloudInitDone,
-			cloudInitStatusJSON:    gceCloudInitStatusJSON,
-			expDatasource:          "GCE",
-			expAction:              "restrict",
-			expRestrictYamlWritten: "datasource_list: [GCE]",
+			comment:             "gce done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: gceCloudInitStatusJSON,
+			expDatasource:       "GCE",
+			expAction:           "restrict",
+			expRestrictYamlWritten: `datasource_list: [GCE]
+`,
 		},
 		{
 			comment:                "nocloud done",
