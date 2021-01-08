@@ -1,6 +1,7 @@
 #include "config.h"
 #include "classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/string-utils.h"
 
 #include <stdbool.h>
@@ -61,19 +62,13 @@ bool sc_is_debian_like(void)
 {
 	FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
 	if (f == NULL) {
-           return false;
+		return false;
 	}
-
-	char buf[255] = { 0 };
-	while (fgets(buf, sizeof buf, f) != NULL) {
-		size_t len = strlen(buf);
-		if (len > 0 && buf[len - 1] == '\n') {
-			buf[len - 1] = '\0';
-		}
-		if (sc_streq(buf, "ID_LIKE=\"debian\"") || sc_streq(buf, "ID_LIKE=debian")) {
-                   return true;
-		}
+	char *id_like;
+	int rc = sc_infofile_get_key(f, "ID_LIKE", &id_like, NULL);
+	if (rc != 0) {
+		return false;
 	}
-
-        return false;
+	return (sc_streq(id_like, "\"debian\"") || sc_streq(id_like, "debian"));
 }
+
