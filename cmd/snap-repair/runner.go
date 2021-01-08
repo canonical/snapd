@@ -170,6 +170,8 @@ func (r *Repair) Run() error {
 		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
 	}
 
+	// TODO:UC20: add SNAPD_RECOVER_MODE if the repair assertion is for uc20
+
 	workdir := filepath.Join(rundir, "work")
 	if err := os.MkdirAll(workdir, 0700); err != nil {
 		return err
@@ -866,6 +868,10 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 			return false
 		}
 	}
+
+	// TODO:UC20: need to consider filtering by bases and modes in the assertion
+	// here
+
 	return true
 }
 
@@ -986,7 +992,8 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 	return repair, nil
 }
 
-// Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
+// Next returns the next repair for the brand id sequence to run/retry or
+// ErrRepairNotFound if there is none atm. It updates the state as required.
 func (run *Runner) Next(brandID string) (*Repair, error) {
 	sequenceNext := run.sequenceNext[brandID]
 	if sequenceNext == 0 {
