@@ -38,6 +38,6 @@ execute: |
   lxd.lxc exec ubuntu -- snap list | MATCH '^test-snapd-tools .* try'
 
 restore: |
-    lxd.lxc stop ubuntu --force || true
-    lxd.lxc delete ubuntu || true
-    snap remove --purge lxd
+  lxd.lxc stop ubuntu --force || true
+  lxd.lxc delete ubuntu || true
+  snap remove --purge lxd
