@@ -1177,6 +1177,10 @@ var gadgetYamlWithKernelRef = `
             target: /
           - source: $kernel:dtbs/some-file
             target: /
+          - source: file-from-gadget
+            target: /
+          - source: dir-from-gadget/
+            target: /
 `
 
 func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
@@ -1262,6 +1266,14 @@ assets:
 			UnresolvedSource: "$kernel:dtbs/some-file",
 			Target:           "/",
 		},
+		{
+			UnresolvedSource: "file-from-gadget",
+			Target:           "/",
+		},
+		{
+			UnresolvedSource: "dir-from-gadget/",
+			Target:           "/",
+		},
 	})
 
 	// now resolve the kernel references
@@ -1269,9 +1281,13 @@ assets:
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Structure, HasLen, 1)
-	c.Check(content, HasLen, 2)
+	c.Check(content, HasLen, 4)
 	// note the trailing "/" here
 	c.Check(content[0].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "boot-assets/")+"/")
 	// no trailing "/" here
 	c.Check(content[1].ResolvedSource(), Equals, filepath.Join(kernelSnapDir, "some-file"))
+	// from gadget, no trailing "/" here
+	c.Check(content[2].ResolvedSource(), Equals, filepath.Join(p.dir, "file-from-gadget"))
+	// note the trailing "/" here
+	c.Check(content[3].ResolvedSource(), Equals, filepath.Join(p.dir, "dir-from-gadget")+"/")
 }
