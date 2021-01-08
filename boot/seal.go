@@ -120,7 +120,7 @@ func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
-			KeyName: "ubuntu-data-key",
+			KeyName: "ubuntu-data",
 			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		},
 	}
@@ -130,12 +130,12 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
-			KeyName: "ubuntu-data-key",
+			KeyName: "ubuntu-data",
 			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		},
 		{
 			Key:     saveKey,
-			KeyName: "ubuntu-save-key",
+			KeyName: "ubuntu-save",
 			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		},
 	}
