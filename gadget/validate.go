@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -270,6 +271,37 @@ func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) 
 
 // content validation
 
+func splitKernelRef(kernelRef string) (asset, content string, err error) {
+	// kernel ref has format: $kernel:<asset-name>/<content-path> where
+	// asset name and content is listed in kernel.yaml, content looks like a
+	// sane path
+	if !strings.HasPrefix(kernelRef, "$kernel:") {
+		return "", "", fmt.Errorf("internal error: splitKernelRef called for non kernel ref %q", kernelRef)
+	}
+	assetAndContent := kernelRef[len("$kernel:"):]
+	l := strings.SplitN(assetAndContent, "/", 2)
+	if len(l) < 2 {
+		return "", "", fmt.Errorf("invalid asset and content in kernel ref %q", kernelRef)
+	}
+	asset = l[0]
+	content = l[1]
+	nonDirContent := content
+	if strings.HasSuffix(nonDirContent, "/") {
+		// a single trailing / is allowed to indicate all content under directory
+		nonDirContent = strings.TrimSuffix(nonDirContent, "/")
+	}
+	if len(asset) == 0 || len(content) == 0 {
+		return "", "", fmt.Errorf("missing asset name or content in kernel ref %q", kernelRef)
+	}
+	if filepath.Clean(nonDirContent) != nonDirContent || strings.Contains(content, "..") || nonDirContent == "/" {
+		return "", "", fmt.Errorf("invalid content in kernel ref %q", kernelRef)
+	}
+	if !kernel.ValidAssetName.MatchString(asset) {
+		return "", "", fmt.Errorf("invalid asset name in kernel ref %q", kernelRef)
+	}
+	return asset, content, nil
+}
+
 func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
@@ -278,7 +310,17 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			continue
 		}
 		for _, c := range s.Content {
-			// TODO: detect and skip Content with "$kernel:" style refs if there is no kernelSnapRootDir passed in as well
+			// TODO: detect and skip Content with "$kernel:" style
+			// refs if there is no kernelSnapRootDir passed in as
+			// well
+			if strings.HasPrefix(c.UnresolvedSource, "$kernel:") {
+				// This only validates that the ref is valid.
+				// Resolving happens with ResolveContentPaths()
+				if _, _, err := splitKernelRef(c.UnresolvedSource); err != nil {
+					return fmt.Errorf("cannot use kernel reference %q: %v", c.UnresolvedSource, err)
+				}
+				continue
+			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)

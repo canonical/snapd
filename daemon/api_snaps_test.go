@@ -420,7 +420,7 @@ func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -435,7 +435,7 @@ func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	buf := strings.NewReader(`{"action": "switch","snaps":["foo"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -450,7 +450,7 @@ func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
@@ -493,7 +493,7 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
