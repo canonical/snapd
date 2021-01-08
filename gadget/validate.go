@@ -232,7 +232,7 @@ func ensureRolesConsistency(roles map[string]*roleInstance, expectedSeed bool) e
 		for _, otherRole := range []string{SystemBoot, SystemData, SystemSave} {
 			ri := roles[otherRole]
 			if ri != nil && ri.volName != seedVolName {
-				return fmt.Errorf("system-boot|data|save are expected to share the same volume as system-seed")
+				return fmt.Errorf("system-boot, system-data, and system-save are expected to share the same volume as system-seed")
 			}
 		}
 	}

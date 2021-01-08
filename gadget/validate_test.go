@@ -132,12 +132,12 @@ func rolesYaml(c *C, data, seed, save string) *gadget.Info {
 }
 
 func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
-	ginfo := func(hasSeed bool, label string) *gadget.Info {
+	ginfo := func(hasSeed bool, dataLabel string) *gadget.Info {
 		seed := "-"
 		if hasSeed {
 			seed = ""
 		}
-		return rolesYaml(c, label, seed, "-")
+		return rolesYaml(c, dataLabel, seed, "-")
 	}
 
 	for i, tc := range []struct {
@@ -434,7 +434,7 @@ volumes:
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, nil, nil)
-	c.Assert(err, ErrorMatches, `system-boot\|data\|save are expected to share the same volume as system-seed`)
+	c.Assert(err, ErrorMatches, `system-boot, system-data, and system-save are expected to share the same volume as system-seed`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
