@@ -769,22 +769,31 @@ func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (s
 		return s, nil
 	}
 
-	// try runes next, this is the case if journald thinks the output is not
-	// safe ascii
-	r := []rune{}
-	err = json.Unmarshal(*valObject, &r)
+	// next up, try a list of bytes that is utf-8 next, this is the case if
+	// journald thinks the output is not valid utf-8 or is not printable ascii
+	b := []byte{}
+	err = json.Unmarshal(*valObject, &b)
 	if err == nil {
-		return string(r), nil
+		// we have an array of bytes here, and there is a chance that it is
+		// not valid utf-8, but since this feature is used in snapd to present
+		// user-facing messages, we simply let Go do its best to turn the bytes
+		// into a string, with the chance that some byte sequences that are
+		// invalid end up getting replaced with Go's hex encoding of the byte
+		// sequence.
+		// Programs that are concerned with reading the exact sequence of
+		// characters or binary data, etc. should probably talk to journald
+		// directly instead of going through snapd using this API.
+		return string(b), nil
 	}
 
-	// penultimately, try slice of slices of runes
-	rr := [][]rune{}
-	err = json.Unmarshal(*valObject, &rr)
+	// next, try slice of slices of bytes
+	bb := [][]byte{}
+	err = json.Unmarshal(*valObject, &bb)
 	if err == nil {
-		// turn the slice of slices of runes into a slice of strings to call the
-		// handler on it
-		l := make([]string, 0, len(rr))
-		for _, r := range rr {
+		// turn the slice of slices of bytes into a slice of strings to call the
+		// handler on it, see above about how invalid utf8 bytes are handled
+		l := make([]string, 0, len(bb))
+		for _, r := range bb {
 			l = append(l, string(r))
 		}
 		return sliceHandler(l)
@@ -802,7 +811,9 @@ func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (s
 		return sliceHandler(stringSlice)
 	}
 
-	return "", fmt.Errorf("failed to decode")
+	// some examples of input data that would get here would be a raw scalar
+	// number, or a JSON map object, etc.
+	return "", fmt.Errorf("unsupported JSON encoding format")
 }
 
 // Time returns the time the Log was received by the journal.
@@ -834,7 +845,11 @@ func (l Log) Message() string {
 		return strings.Join(stringSlice, "\n"), nil
 	})
 	if err != nil {
-		return "-"
+		if _, ok := l["MESSAGE"]; !ok {
+			// if the MESSAGE key is just missing, then return "-"
+			return "-"
+		}
+		return fmt.Sprintf("- (error decoding original message: %v)", err)
 	}
 	return msg
 }

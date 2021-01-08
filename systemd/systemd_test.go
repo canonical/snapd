@@ -592,6 +592,21 @@ func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
 			"simple string",
 		},
 		{
+			mustJSONMarshal("Я"),
+			"Я",
+			"simple utf-8 string",
+		},
+		{
+			mustJSONMarshal([]rune{65, 66, 67, 192, 69}),
+			"ABC\xc0E",
+			"invalid utf-8 bytes",
+		},
+		{
+			mustJSONMarshal(""),
+			"",
+			"empty string",
+		},
+		{
 			mustJSONMarshal([]string{"m1", "m2", "m3"}),
 			"m1\nm2\nm3",
 			"slice of strings",
@@ -619,13 +634,25 @@ func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
 		},
 		{
 			mustJSONMarshal(5),
-			"-",
-			"non-strings are empty",
+			"- (error decoding original message: unsupported JSON encoding format)",
+			"invalid message format of raw scalar number",
+		},
+		{
+			mustJSONMarshal(map[string]int{"hello": 1}),
+			"- (error decoding original message: unsupported JSON encoding format)",
+			"invalid message format of map object",
 		},
 	}
 
 	// trivial case
 	c.Check(Log{}.Message(), Equals, "-")
+
+	// case where the JSON has a "null" JSON value for the key, which happens if
+	// the actual message is too large for journald to send
+	// we can't use the mustJSONMarshal helper for this in the test table
+	// because that gets decoded by Go differently than a verbatim nil here, it
+	// gets interpreted as the empty string rather than nil directly
+	c.Check(Log{"MESSAGE": nil}.Message(), Equals, "- (error decoding original message: message key \"MESSAGE\" truncated)")
 
 	for _, t := range tt {
 		if t.msg == nil {
@@ -633,7 +660,7 @@ func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
 		}
 		c.Check(Log{
 			"MESSAGE": t.msg,
-		}.Message(), Equals, t.exp)
+		}.Message(), Equals, t.exp, Commentf(t.comment))
 	}
 }
 
