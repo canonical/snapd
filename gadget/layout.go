@@ -269,7 +269,7 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 	for i := range ps.Content {
 		source := ps.Content[i].UnresolvedSource
 		if source != "" {
-			newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
+			newSource, err := resolveContentOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
 			if err != nil {
 				return err
 			}
@@ -284,7 +284,7 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 	return nil
 }
 
-func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+func resolveContentOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
 		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
