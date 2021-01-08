@@ -341,7 +341,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			// classic distros that use the core* snap:
 			// here we use the host /etc/ssl
 			// to support custom ca-cert setups
-                        if (strcmp(dir, "/etc/ssl") == 0 &&
+                        if (sc_streq(dir, "/etc/ssl") &&
                               config->distro == SC_DISTRO_CLASSIC &&
                               sc_is_debian_like() &&
                               sc_startswith(config->base_snap_name, "core")) {
