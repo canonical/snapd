@@ -314,7 +314,7 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
 		return map[string]string{"id": "1"}
 	})()
-	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		c.Check(setID, check.Equals, uint64(1))
 		return &snapshotstate.SnapshotExport{}, nil
@@ -350,7 +350,7 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
 		return map[string]string{"id": "1"}
 	})()
-	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		return nil, fmt.Errorf("boom")
 	})()

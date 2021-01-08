@@ -267,6 +267,7 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 // A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
 type snapshotExportResponse struct {
 	*snapshotstate.SnapshotExport
+	st *state.State
 }
 
 // ServeHTTP from the Response interface
@@ -276,6 +277,8 @@ func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request
 	if err := s.StreamTo(w); err != nil {
 		logger.Debugf("cannot export snapshot: %v", err)
 	}
+	s.st.Lock()
+	defer s.st.Unlock()
 	s.Close()
 }
 

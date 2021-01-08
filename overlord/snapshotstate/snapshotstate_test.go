@@ -297,28 +297,28 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	chg.AddTask(tsk)
 
 	// no snapshot state
-	err := snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err := snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "internal error: task 1 .some-task. is missing snapshot information")
 
 	// wrong snapshot state
 	tsk.Set("snapshot-setup", "hello")
-	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "internal error.* could not unmarshal.*")
 
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 
-	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "cannot operate on snapshot set #42 while change \"1\" is in progress")
 
 	// no change with that label
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-other-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 42, "some-other-task"), check.IsNil)
 
 	// no change with that snapshot id
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 43, "some-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 43, "some-task"), check.IsNil)
 
 	// no non-ready change
 	tsk.SetStatus(state.DoneStatus)
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"), check.IsNil)
 }
 
 func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
@@ -1636,36 +1636,6 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	c.Assert(err.Error(), check.Equals, "some-error")
 	c.Check(sid, check.Equals, uint64(0))
 }
-
-func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
-	st := state.New(nil)
-
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
-		return nil, backend.DuplicatedSnapshotImportError{SetID: 3}
-	})
-	defer restore()
-
-	st.Lock()
-	st.Set("snapshots", map[uint64]interface{}{
-		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
-		3: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
-	})
-	st.Unlock()
-
-	sid, _, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
-	c.Assert(err, check.IsNil)
-	c.Check(sid, check.Equals, uint64(3))
-
-	st.Lock()
-	defer st.Unlock()
-	// expiry-time has been removed for snapshot set 3
-	var snapshots map[uint64]interface{}
-	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
-	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
-		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
-	})
-}
-
 func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
@@ -1756,4 +1726,109 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"})
 	c.Assert(err, check.IsNil)
 	c.Check(gotUsers, check.DeepEquals, []string{"user1", "user2"})
+}
+
+func (snapshotSuite) TestExportSnapshotConflictsWithForget(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("forget-snapshot-change", "...")
+	tsk := st.NewTask("forget-snapshot", "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
+	chg.AddTask(tsk)
+
+	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, `cannot operate on snapshot set #42 while change "1" is in progress`)
+}
+
+func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
+	buf := &bytes.Buffer{}
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		// DuplicatedSnapshotImportError is the only case where we can encounter
+		// conflict on import (trying to reuse existing snapshot).
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42}
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("forget-snapshot-change", "...")
+	tsk := st.NewTask("forget-snapshot", "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
+	chg.AddTask(tsk)
+
+	st.Unlock()
+	_, _, err := snapshotstate.Import(context.TODO(), st, buf)
+	st.Lock()
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change "1" is in progress`)
+}
+
+func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
+	restore := snapshotstate.MockBackendNewSnapshotExport(func(ctx context.Context, setID uint64, cleanup func()) (se *backend.SnapshotExport, err error) {
+		return nil, nil
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	c.Assert(err, check.IsNil)
+
+	ops := st.Cached("snapshot-ops")
+	c.Assert(ops, check.DeepEquals, map[uint64]string{
+		uint64(42):"export-snapshot",
+	})
+}
+
+func (snapshotSuite) TestSetSnapshotOpInProgressConflicts(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_ = snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	_ = snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
+
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 1, "foo-op"), check.ErrorMatches, `cannot operate on snapshot set #1 while operation foo-op is in progress`)
+	// unrelated set-id doesn't conflict
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 3, "foo-op"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 3, "bar-op"), check.IsNil)
+	// non-conflicting op
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 1, "safe-op"), check.IsNil)
+}
+
+func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	done1 := snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	c.Assert(done1, check.NotNil)
+	done2 := snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
+	c.Assert(done2, check.NotNil)
+
+	val := st.Cached("snapshot-ops")
+	c.Check(val, check.DeepEquals, map[uint64]string{
+		uint64(1): "foo-op",
+		uint64(2): "bar-op",
+	})
+
+	done1()
+
+	val = st.Cached("snapshot-ops")
+	c.Check(val, check.DeepEquals, map[uint64]string{
+		uint64(2): "bar-op",
+	})
+
+	done2()
+
+	val = st.Cached("snapshot-ops")
+	c.Check(val, check.HasLen, 0)
 }

@@ -112,7 +112,8 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		// forget needs to conflict with check and restore
-		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
+		if err := checkSnapshotConflict(mgr.state, r.SetID, "import-snapshot",
+			"export-snapshot","check-snapshot", "restore-snapshot"); err != nil {
 			// there is a conflict, do nothing and we will retry this set on next Ensure().
 			return nil
 		}
@@ -396,6 +397,12 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 
 	if snapshot.Filename == "" {
 		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
+	}
+
+	if err := checkSnapshotConflict(st, snapshot.SetID, "import-snapshot",
+		"export-snapshot","check-snapshot", "restore-snapshot"); err != nil {
+		// XXX: retry error?
+		return err
 	}
 
 	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).

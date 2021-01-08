@@ -825,11 +825,13 @@ type SnapshotExport struct {
 
 	// cached size, needs to be calculated with CalculateSize
 	size int64
+
+	cleanup func()
 }
 
 // NewSnapshotExport will return a SnapshotExport structure. It must be
 // Close()ed after use to avoid leaking file descriptors.
-func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, err error) {
+func NewSnapshotExport(ctx context.Context, setID uint64, cleanup func()) (se *SnapshotExport, err error) {
 	var snapshotFiles []*os.File
 	var snapshotSet client.SnapshotSet
 
@@ -878,7 +880,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	if err != nil {
 		return nil, fmt.Errorf("cannot calculate content hash for snapshot export %v: %v", setID, err)
 	}
-	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h}
+	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h, cleanup: cleanup}
 
 	// ensure we never leak FDs even if the user does not call close
 	runtime.SetFinalizer(se, (*SnapshotExport).Close)
@@ -915,6 +917,10 @@ func (se *SnapshotExport) Close() {
 		f.Close()
 	}
 	se.snapshotFiles = nil
+
+	if se.cleanup != nil {
+		se.cleanup()
+	}
 }
 
 type contentJSON struct {

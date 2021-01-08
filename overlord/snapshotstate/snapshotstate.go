@@ -44,6 +44,7 @@ var (
 	backendIter                      = backend.Iter
 	backendEstimateSnapshotSize      = backend.EstimateSnapshotSize
 	backendList                      = backend.List
+	backendNewSnapshotExport         = backend.NewSnapshotExport
 
 	// Default expiration time for automatic snapshots, if not set by the user
 	defaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
@@ -266,8 +267,18 @@ func taskGetErrMsg(task *state.Task, err error, what string) error {
 	return fmt.Errorf("internal error: retrieving %s information from task %s (%s): %v", what, task.ID(), task.Kind(), err)
 }
 
-// checkSnapshotTaskConflict checks whether there's an in-progress task for snapshots with the given set id.
-func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds ...string) error {
+// checkSnapshotConflict checks whether there's an in-progress task for snapshots with the given set id.
+func checkSnapshotConflict(st *state.State, setID uint64, conflictingKinds ...string) error {
+	if val := st.Cached("snapshot-ops"); val != nil {
+		snapshotOps, _ := val.(map[uint64]string)
+		if op, ok := snapshotOps[setID]; ok {
+			for _, conflicting := range conflictingKinds {
+				if op == conflicting {
+					return fmt.Errorf("cannot operate on snapshot set #%d while operation %s is in progress", setID, op)
+				}
+			}
+		}
+	}
 	for _, task := range st.Tasks() {
 		if task.Change().Status().Ready() {
 			continue
@@ -321,6 +332,8 @@ func List(ctx context.Context, st *state.State, setID uint64, snapNames []string
 func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
 	st.Lock()
 	setID, err = newSnapshotSetID(st)
+	// note, this is a new set id which is not exposed yet, no need to mark it
+	// for conflicts via snapshotOp.
 	st.Unlock()
 	if err != nil {
 		return 0, nil, err
@@ -330,6 +343,13 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 		if dupErr, ok := err.(backend.DuplicatedSnapshotImportError); ok {
 			st.Lock()
 			defer st.Unlock()
+			// XXX: ideally, we should retry import.
+			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
+				return 0, nil, err
+			}
+			opDone := setSnapshotOpInProgress(st, dupErr.SetID, "import-snapshot")
+			defer opDone()
+
 			// trying to import identical snapshot; instead return set ID of
 			// the existing one and reset its expiry time.
 			// XXX: at the moment expiry-time is the only attribute so we can
@@ -439,7 +459,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	}
 
 	// restore needs to conflict with forget of itself
-	if err := checkSnapshotTaskConflict(st, setID, "forget-snapshot"); err != nil {
+	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -485,7 +505,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 // Note that the state must be locked by the caller.
 func Check(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
 	// check needs to conflict with forget of itself
-	if err := checkSnapshotTaskConflict(st, setID, "forget-snapshot"); err != nil {
+	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -515,8 +535,11 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 // Forget creates a taskset for deletinig a snapshot.
 // Note that the state must be locked by the caller.
 func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []string, ts *state.TaskSet, err error) {
-	// forget needs to conflict with check and restore
-	if err := checkSnapshotTaskConflict(st, setID, "check-snapshot", "restore-snapshot"); err != nil {
+	// forget needs to conflict with check, restore, import and export.
+	// XXX: we could probably drop this since conflict check is now done inside
+	// doForget task handler.
+	if err := checkSnapshotConflict(st, setID, "import-snapshot",
+		"export-snapshot","check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -541,9 +564,40 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 	return summaries.snapNames(), ts, nil
 }
 
+// snapshotOp marks the given set ID as being a subject of snapshot op inside
+// state cache.
+// The returned done function should be used to mark the end of the op, which
+// removes it from the cache; it must be called with state lock.
+func setSnapshotOpInProgress(st *state.State, setID uint64, op string) (done func()) {
+	var snapshotOps map[uint64]string
+	if val := st.Cached("snapshot-ops"); val != nil {
+		snapshotOps, _ = val.(map[uint64]string)
+	} else {
+		snapshotOps = make(map[uint64]string)
+	}
+	snapshotOps[setID] = op
+	st.Cache("snapshot-ops", snapshotOps)
+
+	return func() {
+		var snapshotOps map[uint64]string
+		if val := st.Cached("snapshot-ops"); val != nil {
+			snapshotOps, _ = val.(map[uint64]string)
+		}
+		delete(snapshotOps, setID)
+		st.Cache("snapshot-ops", snapshotOps)
+	}
+}
+
 // Export exports a given snapshot ID
 // Note that the state much be locked by the caller.
-var Export = backend.NewSnapshotExport
+func Export(ctx context.Context, st *state.State, setID uint64) (se *backend.SnapshotExport, err error) {
+	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
+		return nil, err
+	}
+
+	opDone := setSnapshotOpInProgress(st, setID, "export-snapshot")
+	return backendNewSnapshotExport(ctx, setID, opDone)
+}
 
 // SnapshotExport provides a snapshot export that can be streamed out
 type SnapshotExport = backend.SnapshotExport

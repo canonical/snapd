@@ -47,7 +47,7 @@ func MockSnapshotList(newList func(context.Context, *state.State, uint64, []stri
 	}
 }
 
-func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+func MockSnapshotExport(newExport func(context.Context, *state.State, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
 	oldExport := snapshotExport
 	snapshotExport = newExport
 	return func() {
