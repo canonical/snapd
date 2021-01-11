@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
@@ -138,39 +139,18 @@ static bool is_snap_try_snap_unit(const char *units_dir, const char *mount_unit_
 		return false;
 	}
 
-	fseek(f, 0, SEEK_END);
-	long size = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	// read entire mount unit file into buffer
-	char *buffer = NULL;
-	sc_cleanup_string(&buffer);
-	buffer = malloc(size + 1);
-	size_t n = fread(buffer, size, 1, f);
-	if (ferror(f) != 0) {
-        fprintf(stderr, "cannot read mount unit %s\n", fname);
+	char *what SC_CLEANUP(sc_cleanup_string) = NULL;
+	sc_error *err = NULL;
+	if (sc_infofile_get_ini_key(f, "Mount", "What", &what, &err) < 0) {
+		fprintf(stderr, "cannot read mount unit %s: %s\n", fname,
+			sc_error_msg(err));
+		sc_cleanup_error(&err);
 		return false;
-    }
-	buffer[size] = '\0';
-
-	// find the "What=" line
-	char *what = strstr(buffer, "What=");
-	if (what == NULL) {
-		// not really expected (broken unit file?)
-		fprintf(stderr, "missing What= entry in mount unit %s\n", fname);
-		return false;
-	}
-
-	// start of the value past What=
-	char *start = what + 5;
-	char *end = strchr(what, '\n');
-	if (end != NULL) {
-		*end = '\0';
 	}
 
 	struct stat st;
 	// if What points to a directory, then it's a snap try unit.
-	return stat(start, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR;
+	return stat(what, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR;
 }
 
 int ensure_fusesquashfs_inside_container(const char *normal_dir)
