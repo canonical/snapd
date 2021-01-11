@@ -88,7 +88,10 @@ func ConfigureTargetSystem(opts *Options) error {
 	var err error
 	switch {
 	case opts.GadgetSnap != nil:
-		gadgetInfo, err = gadget.ReadInfoFromSnapFile(opts.GadgetSnap, nil)
+		// we do not perform consistency validation here because
+		// such unlikely problems are better surfaced in different
+		// and less surprising contexts like the seeding itself
+		gadgetInfo, err = gadget.ReadInfoFromSnapFileNoValidate(opts.GadgetSnap, nil)
 	case opts.GadgetDir != "":
 		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
 	}

@@ -74,6 +74,8 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
 # VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
+# VideoCore Video decoding (required for accelerated MMAL video playback)
+/dev/vcsm-cma rw,
 
 # va-api
 /dev/dri/renderD[0-9]* rw,
@@ -132,6 +134,7 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,
