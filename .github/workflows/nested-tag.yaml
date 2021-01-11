@@ -10,8 +10,6 @@ jobs:
   tag-pr:
     runs-on: ubuntu-16.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
       - name: Tag pull request
         uses: actions-ecosystem/action-add-labels@v1
         if: "!(contains(github.event.pull_request.labels.*.name, 'Run nested'))"
