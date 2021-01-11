@@ -2907,7 +2907,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyWithReseal(c *C) {
 
 	s.bootloader.TrustedAssetsList = []string{"asset"}
 	s.bootloader.BootChainList = []bootloader.BootFile{
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
 	}
 	s.bootloader.RecoveryBootChainList = []bootloader.BootFile{

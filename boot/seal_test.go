@@ -643,7 +643,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	mtbl.TrustedAssetsList = []string{"asset-1"}
 	mtbl.StaticCommandLine = "static cmdline"
 	mtbl.BootChainList = []bootloader.BootFile{
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
 	}
 	mtbl.RecoveryBootChainList = []bootloader.BootFile{
@@ -726,7 +726,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 			AssetChain: []boot.BootAsset{
 				{
-					Role:   "recovery",
+					Role:   "run-mode",
 					Name:   "asset",
 					Hashes: []string{"asset-hash-1"},
 				},
