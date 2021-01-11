@@ -539,7 +539,7 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 	// XXX: we could probably drop this since conflict check is now done inside
 	// doForget task handler.
 	if err := checkSnapshotConflict(st, setID, "import-snapshot",
-		"export-snapshot","check-snapshot", "restore-snapshot"); err != nil {
+		"export-snapshot", "check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -589,14 +589,20 @@ func setSnapshotOpInProgress(st *state.State, setID uint64, op string) (done fun
 }
 
 // Export exports a given snapshot ID
-// Note that the state much be locked by the caller.
+// Note that the state must be locked by the caller.
 func Export(ctx context.Context, st *state.State, setID uint64) (se *backend.SnapshotExport, err error) {
 	if err := checkSnapshotConflict(st, setID, "forget-snapshot"); err != nil {
 		return nil, err
 	}
 
 	opDone := setSnapshotOpInProgress(st, setID, "export-snapshot")
-	return backendNewSnapshotExport(ctx, setID, opDone)
+	se, err = backendNewSnapshotExport(ctx, setID, opDone)
+	if err != nil {
+		// if export cannot be created, then we need to call opDone()
+		// manually.
+		opDone()
+	}
+	return se, err
 }
 
 // SnapshotExport provides a snapshot export that can be streamed out

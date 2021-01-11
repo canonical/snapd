@@ -1784,7 +1784,7 @@ func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
 
 	ops := st.Cached("snapshot-ops")
 	c.Assert(ops, check.DeepEquals, map[uint64]string{
-		uint64(42):"export-snapshot",
+		uint64(42): "export-snapshot",
 	})
 }
 
