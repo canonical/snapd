@@ -633,6 +633,15 @@ func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
 			"arrays of rune arrays are converted to arrays of strings",
 		},
 		{
+			// this is invalid utf-8 string followed by a valid one
+			mustJSONMarshal([][]byte{
+				{65, 66, 67, 192, 69},
+				{104, 101, 108, 108, 111},
+			}),
+			"ABC\xc0E\nhello",
+			"arrays of bytes, some are invalid utf-8 strings",
+		},
+		{
 			mustJSONMarshal(5),
 			"- (error decoding original message: unsupported JSON encoding format)",
 			"invalid message format of raw scalar number",
