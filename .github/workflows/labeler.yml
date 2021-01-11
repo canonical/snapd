@@ -1,0 +1,12 @@
+name: "Pull Request Labeler"
+on:
+  pull_request:
+    branches: [ "master", "release/**" ]
+
+jobs:
+  triage:
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/labeler@main
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"
