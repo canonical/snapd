@@ -5,7 +5,8 @@ summary: |
 
 # fedora-32: uses cgroupv2, which we don't support
 # fedora-33: uses cgroupv2, which we don't support
-systems: [-fedora-32-*, -fedora-33-*]
+# debian-sid: uses cgroupv2, which we don't support
+systems: [-fedora-32-*, -fedora-33-*, -debian-sid-*]
 
 execute: |
   # make a fake snap devices cgroup
