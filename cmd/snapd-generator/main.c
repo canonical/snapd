@@ -148,7 +148,8 @@ static bool is_snap_try_snap_unit(const char *units_dir,
 
 	char *what SC_CLEANUP(sc_cleanup_string) = NULL;
 	sc_error *err = NULL;
-	if (sc_infofile_get_ini_key(f, "Mount", "What", &what, &err) < 0) {
+	if (sc_infofile_get_ini_section_key(f, "Mount", "What", &what, &err) <
+	    0) {
 		fprintf(stderr, "cannot read mount unit %s: %s\n", fname,
 			sc_error_msg(err));
 		sc_cleanup_error(&err);
@@ -196,9 +197,8 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		if (!sc_endswith(ent->d_name, ".mount")) {
 			continue;
 		}
-		if (!
-		    (sc_startswith(ent->d_name, "snap-")
-		     || sc_startswith(ent->d_name, "var-lib-snapd-snap-"))) {
+		if (!(sc_startswith(ent->d_name, "snap-")
+		      || sc_startswith(ent->d_name, "var-lib-snapd-snap-"))) {
 			continue;
 		}
 		if (is_snap_try_snap_unit("/etc/systemd/system", ent->d_name)) {

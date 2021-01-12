@@ -28,10 +28,11 @@
 #include "../libsnap-confine-private/utils.h"
 
 int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **err_out) {
-    return sc_infofile_get_ini_key(stream, NULL, key, value, err_out);
+    return sc_infofile_get_ini_section_key(stream, NULL, key, value, err_out);
 }
 
-int sc_infofile_get_ini_key(FILE *stream, const char *section, const char *key, char **value, sc_error **err_out) {
+int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const char *key, char **value,
+                                    sc_error **err_out) {
     sc_error *err = NULL;
     size_t line_size = 0;
     char *line_buf SC_CLEANUP(sc_cleanup_string) = NULL;
@@ -46,6 +47,10 @@ int sc_infofile_get_ini_key(FILE *stream, const char *section, const char *key, 
     }
     if (value == NULL) {
         err = sc_error_init_api_misuse("value cannot be NULL");
+        goto out;
+    }
+    if (section != NULL && strlen(section) == 0) {
+        err = sc_error_init_api_misuse("section name cannot be empty");
         goto out;
     }
 
@@ -84,10 +89,14 @@ int sc_infofile_get_ini_key(FILE *stream, const char *section, const char *key, 
         line_buf[nread - 1] = '\0';
 
         /* Handle ini sections (if requested via non-null section name) */
+        if (line_buf[0] == '[' && section == NULL) {
+            err = sc_error_init_simple("line %d contains unexpected section", lineno);
+            goto out;
+        }
         if (section != NULL) {
             if (line_buf[0] == '[') {
                 section_matched = false;
-                char *sec_endptr = memchr(line_buf, ']', nread);
+                char *sec_endptr = memchr(line_buf, ']', nread - 1);
                 if (sec_endptr == NULL) {
                     err = sc_error_init_simple("line %d is not a valid ini section", lineno);
                     goto out;
