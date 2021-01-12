@@ -19,7 +19,11 @@
 #include "cleanup-funcs.c"
 
 #include <glib.h>
+#include <glib/gstdio.h>
 
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/timerfd.h>
 
 static int called = 0;
@@ -82,10 +86,26 @@ static void test_cleanup_endmntent(void)
 	sc_cleanup_endmntent(&f);
 
 	/* It is safe to use with a non-NULL FILE. */
-	f = setmntent("/etc/fstab", "rt");
+	GError *err = NULL;
+	char *mock_fstab = NULL;
+	gint mock_fstab_fd =
+	    g_file_open_tmp("s-c-test-fstab-mock.XXXXXX", &mock_fstab, &err);
+	g_assert_no_error(err);
+	g_close(mock_fstab_fd, &err);
+	g_assert_no_error(err);
+	/* XXX: not strictly needed as the test only calls setmntent */
+	const char *mock_fstab_data = "/dev/foo / ext4 defaults 0 1";
+	g_file_set_contents(mock_fstab, mock_fstab_data, -1, &err);
+	g_assert_no_error(err);
+
+	f = setmntent(mock_fstab, "rt");
 	g_assert_nonnull(f);
 	sc_cleanup_endmntent(&f);
 	g_assert_null(f);
+
+	g_remove(mock_fstab);
+
+	g_free(mock_fstab);
 }
 
 static void test_cleanup_closedir(void)
