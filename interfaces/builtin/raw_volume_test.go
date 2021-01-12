@@ -20,8 +20,9 @@
 package builtin_test
 
 import (
-	. "gopkg.in/check.v1"
 	"strings"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
