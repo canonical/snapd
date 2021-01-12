@@ -31,7 +31,6 @@ short=
 
 STATIC=
 UNIT=
-SPREAD=
 
 case "${1:-all}" in
     all)
