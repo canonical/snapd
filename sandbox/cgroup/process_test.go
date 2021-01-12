@@ -36,21 +36,27 @@ func (s *cgroupSuite) mockPidCgroup(c *C, text string) int {
 	return 333
 }
 
-func (s *cgroupSuite) TestSnapNameFromPidHappy(c *C) {
+func (s *cgroupSuite) TestV1SnapNameFromPidHappy(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	pid := s.mockPidCgroup(c, string(mockCgroup)) // defined in cgroup_test.go
 	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "hello-world")
 }
 
-func (s *cgroupSuite) TestSnapNameFromPidUnhappy(c *C) {
+func (s *cgroupSuite) TestV1SnapNameFromPidUnhappy(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	pid := s.mockPidCgroup(c, "1:freezer:/\n")
 	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, ErrorMatches, "cannot find a snap for pid .*")
 	c.Check(name, Equals, "")
 }
 
-func (s *cgroupSuite) TestSnapNameFromPidEmptyName(c *C) {
+func (s *cgroupSuite) TestV1SnapNameFromPidEmptyName(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	pid := s.mockPidCgroup(c, "1:freezer:/snap./\n")
 	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, ErrorMatches, "snap name in cgroup path is empty")
