@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"compress/gzip"
 	"fmt"
 	"os"
 	"os/exec"
@@ -97,7 +98,7 @@ func writeLogs(rootdir string) error {
 	//      is no systemd-journal-remote on core{,18,20}
 	//
 	// XXX: or only log if persistent journal is enabled?
-	logPath := filepath.Join(rootdir, "var/log/install-mode.log")
+	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
 	}
@@ -108,9 +109,18 @@ func writeLogs(rootdir string) error {
 	}
 	defer f.Close()
 
-	cmd := exec.Command("journalctl")
-	cmd.Stdout = f
-	return cmd.Run()
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	cmd := exec.Command("journalctl", "-b", "0")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect journal output: %v", err)
+	}
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush compressed log output: %v", err)
+	}
+	return nil
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -261,7 +271,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// store install-mode log into ubuntu-data partition
 	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write logs: %v", err)
+		logger.Noticef("cannot write installation log: %v", err)
 	}
 
 	// request a restart as the last action after a successful install
