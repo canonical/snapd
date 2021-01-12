@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
-	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -654,10 +653,6 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
 	}
 }
-
-var (
-	parserFeatures = apparmor_sandbox.ParserFeatures
-)
 
 func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.SetControlsDeviceCgroup()
