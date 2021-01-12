@@ -89,33 +89,32 @@ int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const cha
         line_buf[nread - 1] = '\0';
 
         /* Handle ini sections (if requested via non-null section name) */
-        if (line_buf[0] == '[' && section == NULL) {
-            err = sc_error_init_simple("line %d contains unexpected section", lineno);
-            goto out;
-        }
-        if (section != NULL) {
-            if (line_buf[0] == '[') {
-                section_matched = false;
-                char *sec_endptr = memchr(line_buf, ']', nread - 1);
-                if (sec_endptr == NULL) {
-                    err = sc_error_init_simple("line %d is not a valid ini section", lineno);
-                    goto out;
-                }
-                /* Replace closing ']' with string terminator byte */
-                *sec_endptr = '\0';
-                const char *scanned_section = line_buf + 1;
-                if (sc_streq(scanned_section, section)) {
-                    section_matched = true;
-                }
-                /* Advance to next line */
-                continue;
+        if (line_buf[0] == '[') {
+            if (section == NULL) {
+                err = sc_error_init_simple("line %d contains unexpected section", lineno);
+                goto out;
             }
+            section_matched = false;
+            char *start_section_name = line_buf + 1;
+            char *end_section_name = memchr(start_section_name, ']', nread - 2);
+            if (end_section_name == NULL) {
+                err = sc_error_init_simple("line %d is not a valid ini section", lineno);
+                goto out;
+            }
+            /* Replace closing ']' with string terminator byte */
+            *end_section_name = '\0';
+            if (sc_streq(start_section_name, section)) {
+                section_matched = true;
+            }
+            /* Advance to next line */
+            continue;
+        }
 
-            /* Skip this line until we are in a matching section */
-            if (!section_matched) {
-                continue;
-            }
+        /* Skip this line until we are in a matching section */
+        if (section != NULL && !section_matched) {
+            continue;
         }
+
         /* Guard against malformed input that does not contain '=' byte */
         char *eq_ptr = memchr(line_buf, '=', nread);
         if (eq_ptr == NULL) {
