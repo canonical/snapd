@@ -64,11 +64,10 @@ bool sc_is_debian_like(void)
 	if (f == NULL) {
 		return false;
 	}
-	char *id_like;
+	char *id_like SC_CLEANUP(sc_cleanup_string) = NULL;
 	int rc = sc_infofile_get_key(f, "ID_LIKE", &id_like, NULL);
 	if (rc != 0) {
 		return false;
 	}
 	return (sc_streq(id_like, "\"debian\"") || sc_streq(id_like, "debian"));
 }
-
