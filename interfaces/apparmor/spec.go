@@ -559,7 +559,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// AddConnectedSlot records mount-specific side-effects of having a connected slot.
+// AddConnectedSlot records apparmor-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
@@ -572,7 +572,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	return nil
 }
 
-// AddPermanentPlug records mount-specific side-effects of having a plug.
+// AddPermanentPlug records apparmor-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	type definer interface {
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
@@ -585,7 +585,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	return nil
 }
 
-// AddPermanentSlot records mount-specific side-effects of having a slot.
+// AddPermanentSlot records apparmor-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	type definer interface {
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
