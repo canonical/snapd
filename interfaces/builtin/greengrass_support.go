@@ -22,6 +22,8 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -51,7 +53,18 @@ const greengrassSupportConnectedPlugAppArmorCore = `
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
 `
 
-const greengrassSupportConnectedPlugAppArmor = `
+const greengrassSupportProcessModeConnectedPlugAppArmor = `
+# Description: can manage greengrass 'things' and their sandboxes. This policy
+# is meant currently only to enable Greengrass to run _only_ process-mode or 
+# "no container" lambdas.
+# needed by older versions of cloneBinary.ensureSelfCloned() to avoid 
+# CVE-2019-5736
+/ ix,
+# newer versions of runC have this denial instead of "/ ix" above
+/bin/runc rix,
+`
+
+const greengrassSupportFullContainerConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # policy is intentionally not restrictive and is here to help guard against
 # programming errors and not for security confinement. The greengrassd
@@ -380,13 +393,52 @@ mknodat - - |S_IFCHR -
 `
 
 func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if release.OnClassic {
-		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor)
-	} else {
-		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
+	// check the flavor
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		// default, legacy version of the interface
+		if release.OnClassic {
+			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor)
+		} else {
+			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
+		}
+		// greengrass needs to use ptrace for controlling it's containers
+		spec.SetUsesPtraceTrace()
+	case "no-container":
+		// this is the no-container version, it does not use as much privilege
+		// as the default "legacy-container" flavor
+		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
 	}
-	// greengrass needs to use ptrace
-	spec.SetUsesPtraceTrace()
+
+	return nil
+}
+
+func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// check the flavor
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		spec.AddSnippet(greengrassSupportConnectedPlugSeccomp)
+	case "no-container":
+		// no-container has no additional seccomp available to it
+	}
+
+	return nil
+}
+
+func (iface *greengrassSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		// default containerization controls the device cgroup
+		spec.SetControlsDeviceCgroup()
+	case "no-container":
+		// no-container does not control the device cgroup
+	}
 
 	return nil
 }
@@ -396,7 +448,6 @@ type greengrassSupportInterface struct {
 }
 
 func init() {
-	// declare the greengrass-support interface as needing ptrace(trace)
 	registerIface(&greengrassSupportInterface{commonInterface{
 		name:                 "greengrass-support",
 		summary:              greengrassSupportSummary,
@@ -404,7 +455,5 @@ func init() {
 		implicitOnClassic:    true,
 		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
-		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
-		controlsDeviceCgroup: true,
 	}})
 }

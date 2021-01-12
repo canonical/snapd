@@ -100,11 +100,22 @@ func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrub(c *C) {
-	s.makeFakeGrubEnv(c)
-
+	// no files means bl is not present, but we can still create the bl object
+	c.Assert(os.RemoveAll(s.rootdir), IsNil)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
+
+	present, err := g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockGrubFiles(c, s.rootdir)
+	s.makeFakeGrubEnv(c)
+	present, err = g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 }
 
 func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {
@@ -471,6 +482,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernel(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	s.makeFakeGrubEnv(c)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
@@ -597,42 +612,6 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	c.Check(exists, Equals, false)
 }
 
-func (s *grubTestSuite) TestIsCurrentlyManaged(c *C) {
-	// native EFI/ubuntu setup, as we're using NoSlashBoot
-	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
-some random boot config`))
-
-	opts := &bootloader.Options{NoSlashBoot: true}
-	g := bootloader.NewGrub(s.rootdir, opts)
-	c.Assert(g, NotNil)
-	tg, ok := g.(bootloader.TrustedAssetsBootloader)
-	c.Assert(ok, Equals, true)
-
-	// native EFI/ubuntu setup, as we're using NoSlashBoot
-	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
-some random boot config`))
-
-	is, err := tg.IsCurrentlyManaged()
-	c.Assert(err, IsNil)
-	c.Assert(is, Equals, false)
-
-	// try with real snap managed config
-	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 5
-managed by snapd`))
-
-	is, err = tg.IsCurrentlyManaged()
-	c.Assert(err, IsNil)
-	c.Assert(is, Equals, true)
-
-	// break boot config
-	err = os.Chmod(s.grubEFINativeDir(), 0000)
-	defer os.Chmod(s.grubEFINativeDir(), 0755)
-	c.Assert(err, IsNil)
-	is, err = tg.IsCurrentlyManaged()
-	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
-	c.Assert(is, Equals, false)
-}
-
 func (s *grubTestSuite) TestListManagedAssets(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
 some random boot config`))
@@ -678,9 +657,9 @@ this is mocked grub-recovery.conf
 	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := tg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
-
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
 }
 
@@ -704,8 +683,9 @@ this is mocked grub.conf
 	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := tg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, true)
 	// the recovery boot asset was picked
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
 this is mocked grub-recovery.conf
@@ -725,8 +705,9 @@ func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConf
 
 	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
-	err := tg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, update)
 	if update {
 		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newConfig)
 	} else {
@@ -781,6 +762,10 @@ this is updated grub.cfg
 }
 
 func (s *grubTestSuite) TestBootUpdateBootConfigTrivialErr(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	oldConfig := `# Snapd-Boot-Config-Edition: 2
 boot script
 `
@@ -803,8 +788,9 @@ this is updated grub.cfg
 	c.Assert(err, IsNil)
 	defer os.Chmod(s.grubEFINativeDir(), 0755)
 
-	err = tg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
+	c.Assert(updated, Equals, false)
 	err = os.Chmod(s.grubEFINativeDir(), 0555)
 	c.Assert(err, IsNil)
 
@@ -813,8 +799,9 @@ this is updated grub.cfg
 	// writing out new config fails
 	err = os.Chmod(s.grubEFINativeDir(), 0111)
 	c.Assert(err, IsNil)
-	err = tg.UpdateBootConfig(opts)
+	updated, err = tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
 

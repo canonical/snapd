@@ -2,10 +2,8 @@ summary: Ensure that lxd works
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO:UC20: enable for UC20
 # TODO: enable for ubuntu-16-32 again
-# TODO: enable ubuntu-20.10-64 once the image is available
-systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-20.04*, ubuntu-core-1*]
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro

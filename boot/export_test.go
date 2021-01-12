@@ -68,6 +68,7 @@ var (
 )
 
 type BootAssetsMap = bootAssetsMap
+type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {
@@ -88,19 +89,27 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() Boo
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func MockSecbootSealKey(f func(key secboot.EncryptionKey, params *secboot.SealKeyParams) error) (restore func()) {
-	old := secbootSealKey
-	secbootSealKey = f
+func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() secboot.EncryptionKey {
+	return o.dataEncryptionKey
+}
+
+func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() secboot.EncryptionKey {
+	return o.saveEncryptionKey
+}
+
+func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
+	old := secbootSealKeys
+	secbootSealKeys = f
 	return func() {
-		secbootSealKey = old
+		secbootSealKeys = old
 	}
 }
 
-func MockSecbootResealKey(f func(params *secboot.ResealKeyParams) error) (restore func()) {
-	old := secbootResealKey
-	secbootResealKey = f
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+	old := secbootResealKeys
+	secbootResealKeys = f
 	return func() {
-		secbootResealKey = old
+		secbootResealKeys = old
 	}
 }
 
@@ -157,4 +166,26 @@ func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 
 func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
+}
+
+func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+	oldHasFDESetupHook := HasFDESetupHook
+	HasFDESetupHook = f
+	return func() {
+		HasFDESetupHook = oldHasFDESetupHook
+	}
+}
+
+func MockRunFDESetupHook(f func(string, *FDESetupHookParams) ([]byte, error)) (restore func()) {
+	oldRunFDESetupHook := RunFDESetupHook
+	RunFDESetupHook = f
+	return func() { RunFDESetupHook = oldRunFDESetupHook }
+}
+
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Modeenv, bool) error) (restore func()) {
+	old := resealKeyToModeenvUsingFDESetupHook
+	resealKeyToModeenvUsingFDESetupHook = f
+	return func() {
+		resealKeyToModeenvUsingFDESetupHook = old
+	}
 }

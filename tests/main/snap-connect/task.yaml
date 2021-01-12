@@ -4,7 +4,7 @@ prepare: |
     echo "Install a test snap"
     "$TESTSTOOLS"/snaps-state install-local home-consumer
     # the home interface is not autoconnected on all-snap systems
-    if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if not os.query is-core16; then
         snap disconnect home-consumer:home
     fi
 

@@ -20,6 +20,7 @@
 package kernel_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -89,4 +90,25 @@ func (s *validateKernelSuite) TestValidateHappyNoKernelYaml(c *C) {
 	emptyDir := c.MkDir()
 	err := kernel.Validate(emptyDir)
 	c.Assert(err, IsNil)
+}
+
+func (s *validateKernelSuite) TestValidateBadContent(c *C) {
+	var kernelYamlFmt = `
+assets:
+  dtbs:
+    edition: 1
+    content:
+      - %s
+`
+	for _, tc := range []string{
+		"../",
+		"/foo/../bar/..",
+		"..",
+		"//",
+	} {
+		mockKernelRoot := makeMockKernel(c, fmt.Sprintf(kernelYamlFmt, tc), nil)
+
+		err := kernel.Validate(mockKernelRoot)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`asset "dtbs": invalid content %q`, tc))
+	}
 }

@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -46,6 +46,10 @@ func (s *servicesSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	// mock an empty cmdline since we check the cmdline to check whether we are
+	// in install mode or not and we don't want to use the host's proc/cmdline
+	s.AddCleanup(osutil.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
@@ -237,7 +241,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
 	c.Assert(err, IsNil)
-	restore = boot.MockProcCmdline(mockProcCmdline)
+	restore = osutil.MockProcCmdline(mockProcCmdline)
 	defer restore()
 
 	err = configcore.Run(&mockConf{

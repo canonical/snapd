@@ -29,8 +29,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -91,18 +89,6 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	st.Set("seed-restart-system-key", systemKey)
 	if err := m.setTimeOnce("seed-restart-time", startTime); err != nil {
 		return err
-	}
-
-	// enable all services generated as part of preseeding, but not enabled
-	// XXX: this should go away once the problem of install & services is fixed.
-	for _, snapSt := range snaps {
-		info, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
-		if err := wrappers.EnableSnapServices(info, progress.Null); err != nil {
-			return err
-		}
 	}
 
 	return nil

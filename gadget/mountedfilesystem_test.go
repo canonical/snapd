@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -319,28 +318,28 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				}, {
 					// single file under different name
-					Source: "bar",
-					Target: "/bar-name",
+					UnresolvedSource: "bar",
+					Target:           "/bar-name",
 				}, {
 					// whole directory contents
-					Source: "boot-assets/",
-					Target: "/",
+					UnresolvedSource: "boot-assets/",
+					Target:           "/",
 				}, {
 					// single file from nested directory
-					Source: "boot-assets/some-dir/data",
-					Target: "/data-copy",
+					UnresolvedSource: "boot-assets/some-dir/data",
+					Target:           "/data-copy",
 				}, {
 					// contents of nested directory under new target directory
-					Source: "boot-assets/nested-dir/",
-					Target: "/nested-copy/",
+					UnresolvedSource: "boot-assets/nested-dir/",
+					Target:           "/nested-copy/",
 				}, {
 					// contents of nested directory under new target directory
-					Source: "baz",
-					Target: "baz",
+					UnresolvedSource: "baz",
+					Target:           "baz",
 				},
 			},
 		},
@@ -413,8 +412,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// contents of nested directory under new target directory
-					Source: "foo/",
-					Target: "/nested-copy/",
+					UnresolvedSource: "foo/",
+					Target:           "/nested-copy/",
 				},
 			},
 		},
@@ -438,8 +437,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				},
 			},
 		},
@@ -456,6 +455,10 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	makeSizedFile(c, filepath.Join(s.dir, "foo"), 0, []byte("foo foo foo"))
 
 	ps := &gadget.LaidOutStructure{
@@ -465,8 +468,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				},
 			},
 		},
@@ -498,12 +501,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				}, {
 					// conflicts with /foo-dir directory
-					Source: "foo-dir",
-					Target: "/",
+					UnresolvedSource: "foo-dir",
+					Target:           "/",
 				},
 			},
 		},
@@ -532,12 +535,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/",
+					UnresolvedSource: "bar",
+					Target:           "/",
 				}, {
 					// overwrites data from preceding entry
-					Source: "foo",
-					Target: "/bar",
+					UnresolvedSource: "foo",
+					Target:           "/bar",
 				},
 			},
 		},
@@ -570,8 +573,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "/",
-					Target: "/foo-dir/",
+					UnresolvedSource: "/",
+					Target:           "/foo-dir/",
 				},
 			},
 		},
@@ -633,30 +636,30 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				}, {
 					// would overwrite /foo
-					Source: "foo",
-					Target: "/",
+					UnresolvedSource: "foo",
+					Target:           "/",
 				}, {
 					// preserved, but not present, will be
 					// written
-					Source: "bar",
-					Target: "/bar-name",
+					UnresolvedSource: "bar",
+					Target:           "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
 					// preset, hence will be written
-					Source: "boot-assets/",
-					Target: "/",
+					UnresolvedSource: "boot-assets/",
+					Target:           "/",
 				}, {
 					// would overwrite /data-copy
-					Source: "boot-assets/some-dir/data",
-					Target: "/data-copy",
+					UnresolvedSource: "boot-assets/some-dir/data",
+					Target:           "/data-copy",
 				}, {
 					// would overwrite /nested-copy/nested
-					Source: "boot-assets/nested-dir/",
-					Target: "/nested-copy/",
+					UnresolvedSource: "boot-assets/nested-dir/",
+					Target:           "/nested-copy/",
 				},
 			},
 		},
@@ -694,11 +697,11 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C)
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "foo",
+					UnresolvedSource: "foo",
 					// would overwrite existing foo
 					Target: "foo",
 				}, {
-					Source: "foo",
+					UnresolvedSource: "foo",
 					// does not exist
 					Target: "foo-new",
 				},
@@ -746,8 +749,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "/",
-					Target: "/",
+					UnresolvedSource: "/",
+					Target:           "/",
 				},
 			},
 		},
@@ -775,8 +778,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// contents of nested directory under new target directory
-					Source: "boot-assets/nested-dir",
-					Target: "/nested-copy/",
+					UnresolvedSource: "boot-assets/nested-dir",
+					Target:           "/nested-copy/",
 				},
 			},
 		},
@@ -802,8 +805,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// single file in target directory
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				},
 			},
 		},
@@ -826,8 +829,8 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 			// no filesystem
 			Content: []gadget.VolumeContent{
 				{
-					Source: "",
-					Target: "",
+					UnresolvedSource: "",
+					Target:           "",
 				},
 			},
 		},
@@ -847,7 +850,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	err = rw.Write(d, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* source cannot be unset")
 
-	ps.Content[0].Source = "/"
+	ps.Content[0].UnresolvedSource = "/"
 	err = rw.Write(d, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* target cannot be unset")
 }
@@ -869,7 +872,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -983,20 +986,20 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/bar-name",
+					UnresolvedSource: "bar",
+					Target:           "/bar-name",
 				}, {
-					Source: "foo",
-					Target: "/",
+					UnresolvedSource: "foo",
+					Target:           "/",
 				}, {
-					Source: "foo",
-					Target: "/nested/",
+					UnresolvedSource: "foo",
+					Target:           "/nested/",
 				}, {
-					Source: "zed",
-					Target: "/",
+					UnresolvedSource: "zed",
+					Target:           "/",
 				}, {
-					Source: "same-data",
-					Target: "/same",
+					UnresolvedSource: "same-data",
+					Target:           "/same",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1097,7 +1100,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -1145,17 +1148,17 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/this/is/some/nested/",
+					UnresolvedSource: "bar",
+					Target:           "/this/is/some/nested/",
 				}, {
-					Source: "some-dir/",
-					Target: "/nested/",
+					UnresolvedSource: "some-dir/",
+					Target:           "/nested/",
 				}, {
-					Source: "empty-dir/",
-					Target: "/lone-dir/",
+					UnresolvedSource: "empty-dir/",
+					Target:           "/lone-dir/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1205,11 +1208,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1235,6 +1238,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
@@ -1243,8 +1250,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1269,6 +1276,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationErrors(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	// some data for the gadget
 	gd := []gadgetData{
 		{name: "bar", content: "data"},
@@ -1289,8 +1300,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1311,6 +1322,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcComparison(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	// some data for the gadget
 	gd := []gadgetData{
 		{name: "bar", content: "data"},
@@ -1330,8 +1345,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1384,7 +1399,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictB
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 			Update: gadget.VolumeUpdate{
 				Edition: 1,
@@ -1443,7 +1458,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 			Update: gadget.VolumeUpdate{
 				Edition: 1,
@@ -1495,7 +1510,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -1532,7 +1547,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPre
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -1605,33 +1620,33 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				}, {
 					// would overwrite /foo
-					Source: "foo",
-					Target: "/",
+					UnresolvedSource: "foo",
+					Target:           "/",
 				}, {
 					// preserved, but not present, will be
 					// written
-					Source: "bar",
-					Target: "/bar-name",
+					UnresolvedSource: "bar",
+					Target:           "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
 					// present, hence will be written
-					Source: "boot-assets/",
-					Target: "/",
+					UnresolvedSource: "boot-assets/",
+					Target:           "/",
 				}, {
 					// would overwrite /data-copy
-					Source: "boot-assets/some-dir/data",
-					Target: "/data-copy",
+					UnresolvedSource: "boot-assets/some-dir/data",
+					Target:           "/data-copy",
 				}, {
 					// would overwrite /nested-copy/nested
-					Source: "boot-assets/nested-dir/",
-					Target: "/nested-copy/",
+					UnresolvedSource: "boot-assets/nested-dir/",
+					Target:           "/nested-copy/",
 				}, {
-					Source: "boot-assets",
-					Target: "/boot-assets-copy/",
+					UnresolvedSource: "boot-assets",
+					Target:           "/boot-assets-copy/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1758,16 +1773,16 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 			Content: []gadget.VolumeContent{
 				{
 					// contents of bar under /bar-name/
-					Source: "bar/",
-					Target: "/bar-name",
+					UnresolvedSource: "bar/",
+					Target:           "/bar-name",
 				}, {
 					// whole bar under /bar-copy/
-					Source: "bar",
-					Target: "/bar-copy/",
+					UnresolvedSource: "bar",
+					Target:           "/bar-copy/",
 				}, {
 					// deep prefix
-					Source: "deep-nested",
-					Target: "/this/is/some/deep/nesting/",
+					UnresolvedSource: "deep-nested",
+					Target:           "/this/is/some/deep/nesting/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1813,14 +1828,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				}, {
-					Source: "bar",
-					Target: "/preserved",
+					UnresolvedSource: "bar",
+					Target:           "/preserved",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1873,14 +1888,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "/",
-					Target: "/",
+					UnresolvedSource: "/",
+					Target:           "/",
 				}, {
-					Source: "/",
-					Target: "/foo",
+					UnresolvedSource: "/",
+					Target:           "/foo",
 				}, {
-					Source: "/non-empty/empty-dir/",
-					Target: "/contents-of-empty/",
+					UnresolvedSource: "/non-empty/empty-dir/",
+					Target:           "/contents-of-empty/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1933,11 +1948,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -1983,14 +1998,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/1/nested/",
+					UnresolvedSource: "bar",
+					Target:           "/1/nested/",
 				}, {
-					Source: "bar",
-					Target: "/2/nested/foo",
+					UnresolvedSource: "bar",
+					Target:           "/2/nested/foo",
 				}, {
-					Source: "/",
-					Target: "/3/nested/",
+					UnresolvedSource: "/",
+					Target:           "/3/nested/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2030,7 +2045,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -2068,7 +2083,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 		},
 	}
@@ -2108,11 +2123,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2178,8 +2193,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2230,8 +2245,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2283,14 +2298,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "some-dir/",
+					UnresolvedSource: "bar",
+					Target:           "some-dir/",
 				}, {
-					Source: "bar",
-					Target: "/this/is/some/deep/nesting/",
+					UnresolvedSource: "bar",
+					Target:           "/this/is/some/deep/nesting/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2336,6 +2351,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	makeGadgetData(c, s.dir, []gadgetData{
 		{name: "bar", content: "data"},
 	})
@@ -2356,11 +2375,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2415,11 +2434,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "bar",
-					Target: "/foo",
+					UnresolvedSource: "bar",
+					Target:           "/foo",
 				}, {
-					Source: "bar",
-					Target: "/some-dir/foo",
+					UnresolvedSource: "bar",
+					Target:           "/some-dir/foo",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2489,20 +2508,20 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "some-dir/",
-					Target: "/",
+					UnresolvedSource: "some-dir/",
+					Target:           "/",
 				}, {
-					Source: "some-dir/",
-					Target: "/other-dir/",
+					UnresolvedSource: "some-dir/",
+					Target:           "/other-dir/",
 				}, {
-					Source: "some-dir/nested",
-					Target: "/other-dir/nested/",
+					UnresolvedSource: "some-dir/nested",
+					Target:           "/other-dir/nested/",
 				}, {
-					Source: "bar",
-					Target: "/this/is/some/deep/nesting/",
+					UnresolvedSource: "bar",
+					Target:           "/this/is/some/deep/nesting/",
 				}, {
-					Source: "empty-dir/",
-					Target: "/lone-dir/",
+					UnresolvedSource: "empty-dir/",
+					Target:           "/lone-dir/",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2637,49 +2656,49 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "foo",
-					Target: "/foo-dir/",
+					UnresolvedSource: "foo",
+					Target:           "/foo-dir/",
 				}, {
 					// would overwrite /foo
-					Source: "foo",
-					Target: "/",
+					UnresolvedSource: "foo",
+					Target:           "/",
 				}, {
 					// nothing written, content is unchanged
-					Source: "foo",
-					Target: "/foo-same",
+					UnresolvedSource: "foo",
+					Target:           "/foo-same",
 				}, {
 					// preserved, but not present, will be
 					// written
-					Source: "bar",
-					Target: "/bar-name",
+					UnresolvedSource: "bar",
+					Target:           "/bar-name",
 				}, {
 					// some-dir/data is preserved, but not
 					// present, hence will be written
-					Source: "boot-assets/",
-					Target: "/",
+					UnresolvedSource: "boot-assets/",
+					Target:           "/",
 				}, {
 					// would overwrite /data-copy
-					Source: "boot-assets/some-dir/data",
-					Target: "/data-copy-preserved",
+					UnresolvedSource: "boot-assets/some-dir/data",
+					Target:           "/data-copy-preserved",
 				}, {
-					Source: "boot-assets/some-dir/data",
-					Target: "/data-copy",
+					UnresolvedSource: "boot-assets/some-dir/data",
+					Target:           "/data-copy",
 				}, {
 					// would overwrite /nested-copy/nested
-					Source: "boot-assets/nested-dir/",
-					Target: "/nested-copy/",
+					UnresolvedSource: "boot-assets/nested-dir/",
+					Target:           "/nested-copy/",
 				}, {
-					Source: "boot-assets",
-					Target: "/boot-assets-copy/",
+					UnresolvedSource: "boot-assets",
+					Target:           "/boot-assets-copy/",
 				}, {
-					Source: "/boot-assets/empty-dir/",
-					Target: "/lone-dir/nested/",
+					UnresolvedSource: "/boot-assets/empty-dir/",
+					Target:           "/lone-dir/nested/",
 				}, {
-					Source: "preserved/same-content",
-					Target: "preserved/same-content-for-list",
+					UnresolvedSource: "preserved/same-content",
+					Target:           "preserved/same-content-for-list",
 				}, {
-					Source: "preserved/same-content",
-					Target: "preserved/same-content-for-observer",
+					UnresolvedSource: "preserved/same-content",
+					Target:           "preserved/same-content-for-observer",
 				},
 			},
 			Update: gadget.VolumeUpdate{
@@ -2926,8 +2945,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		content gadget.VolumeContent
 		match   string
 	}{
-		{content: gadget.VolumeContent{Source: "", Target: "/"}, match: "internal error: source cannot be unset"},
-		{content: gadget.VolumeContent{Source: "/", Target: ""}, match: "internal error: target cannot be unset"},
+		{content: gadget.VolumeContent{UnresolvedSource: "", Target: "/"}, match: "internal error: source cannot be unset"},
+		{content: gadget.VolumeContent{UnresolvedSource: "/", Target: ""}, match: "internal error: target cannot be unset"},
 	} {
 		testPs := &gadget.LaidOutStructure{
 			VolumeStructure: &gadget.VolumeStructure{
@@ -2958,7 +2977,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterMountLookupFail(c *C) {
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 			Update: gadget.VolumeUpdate{
 				Edition: 1,
@@ -2993,7 +3012,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "/", Target: "/"},
+				{UnresolvedSource: "/", Target: "/"},
 			},
 			Update: gadget.VolumeUpdate{
 				Preserve: []string{"foo"},
@@ -3017,160 +3036,6 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 }
 
-// TODO:UC20: remove this when we have support in the observer
-func (s *mountedfilesystemTestSuite) testMountedUpdaterGrubBootAssets(c *C, managed bool, role string, preserved bool) {
-	// observe boot config files being preserved by the means of finding the
-	// bootloader and querying it directly
-
-	// mirror pc-amd64-gadget
-	gd := []gadgetData{
-		{name: "grub.conf", content: "grub.conf from gadget"},
-		{name: "grubx64.efi", content: "grubx64.efi from gadget"},
-		{name: "foo", content: "foo from gadget"},
-	}
-	makeGadgetData(c, s.dir, gd)
-
-	outDir := filepath.Join(c.MkDir(), "out-dir")
-
-	existingGrubCfg := `# Snapd-Boot-Config-Edition: 1
-managed grub.cfg from disk`
-	if !managed {
-		existingGrubCfg = `existing grub.cfg from disk`
-	}
-	makeExistingData(c, outDir, []gadgetData{
-		{target: "EFI/boot/grubx64.efi", content: "grubx64.efi from disk"},
-		{target: "EFI/ubuntu/grub.cfg", content: existingGrubCfg},
-		{target: "foo", content: "foo from disk"},
-	})
-	// based on pc gadget
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size:       2048,
-			Role:       role,
-			Filesystem: "ext4",
-			Content: []gadget.VolumeContent{
-				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
-				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
-				{Source: "foo", Target: "foo"},
-			},
-			Update: gadget.VolumeUpdate{
-				Preserve: []string{"foo"},
-				Edition:  1,
-			},
-		},
-	}
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
-		func(to *gadget.LaidOutStructure) (string, error) {
-			c.Check(to, DeepEquals, ps)
-			return outDir, nil
-		},
-		nil)
-	c.Assert(err, IsNil)
-	c.Assert(rw, NotNil)
-	expectedFileStamps := map[string]contentType{
-		"EFI.backup":                  typeFile,
-		"EFI/boot/grubx64.efi.backup": typeFile,
-		"EFI/boot.backup":             typeFile,
-		"EFI/ubuntu.backup":           typeFile,
-
-		// listed explicitly in the structure
-		"foo.preserve": typeFile,
-	}
-	if preserved {
-		expectedFileStamps["EFI/ubuntu/grub.cfg.preserve"] = typeFile
-	} else {
-		expectedFileStamps["EFI/ubuntu/grub.cfg.backup"] = typeFile
-	}
-
-	for _, step := range []struct {
-		name string
-		call func() error
-	}{
-		{name: "backup", call: rw.Backup},
-		{name: "update", call: rw.Update},
-		{name: "rollback", call: rw.Rollback},
-	} {
-		c.Logf("step: %v", step.name)
-		err := step.call()
-		c.Assert(err, IsNil)
-
-		switch step.name {
-		case "backup":
-			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
-			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-		case "update":
-			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
-			if preserved {
-				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
-					`# Snapd-Boot-Config-Edition: 1
-managed grub.cfg from disk`)
-			} else {
-				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
-					`grub.conf from gadget`)
-			}
-			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-		case "rollback":
-			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
-			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
-		default:
-			c.Fatalf("unexpected step: %q", step.name)
-		}
-		verifyDirContents(c, filepath.Join(s.backup, "struct-0"), expectedFileStamps)
-	}
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManaged(c *C) {
-	managed := true
-	preserved := true
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemBoot, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubSeedAssetsManaged(c *C) {
-	managed := true
-	preserved := true
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsNotManaged(c *C) {
-	managed := false
-	preserved := false
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManagedOtherRole(c *C) {
-	managed := true
-	preserved := false
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemData, preserved)
-}
-
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterBootAssetsErr(c *C) {
-	outDir := filepath.Join(c.MkDir(), "out-dir")
-
-	bootloader.ForceError(errors.New("foo"))
-	defer bootloader.ForceError(nil)
-	// based on pc gadget
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size:       2048,
-			Role:       gadget.SystemBoot,
-			Filesystem: "ext4",
-			Content: []gadget.VolumeContent{
-				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
-				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
-			},
-		},
-	}
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
-		func(to *gadget.LaidOutStructure) (string, error) {
-			return outDir, nil
-		},
-		nil)
-	c.Assert(err, ErrorMatches, "cannot preserve managed boot assets: foo")
-	c.Assert(rw, IsNil)
-}
-
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreservesBootAssets(c *C) {
 	// mirror pc-amd64-gadget
 	gd := []gadgetData{
@@ -3186,8 +3051,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreservesBootAsse
 managed grub.cfg from disk`
 	makeExistingData(c, outDir, []gadgetData{
 		{target: "EFI/boot/grubx64.efi", content: "grubx64.efi from disk"},
-		// TODO:UC20: rename to grub.cfg once updater no longer looks for the bootloader
-		{target: "EFI/ubuntu/grub.cfg-observer", content: existingGrubCfg},
+		{target: "EFI/ubuntu/grub.cfg", content: existingGrubCfg},
 		{target: "foo", content: "foo from disk"},
 	})
 	// based on pc gadget
@@ -3197,9 +3061,9 @@ managed grub.cfg from disk`
 			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
-				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg-observer"},
-				{Source: "foo", Target: "foo"},
+				{UnresolvedSource: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
+				{UnresolvedSource: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
+				{UnresolvedSource: "foo", Target: "foo"},
 			},
 			Update: gadget.VolumeUpdate{
 				Preserve: []string{"foo"},
@@ -3210,7 +3074,7 @@ managed grub.cfg from disk`
 	obs := &mockContentUpdateObserver{
 		c:               c,
 		expectedStruct:  ps,
-		preserveTargets: []string{"EFI/ubuntu/grub.cfg-observer"},
+		preserveTargets: []string{"EFI/ubuntu/grub.cfg"},
 	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
@@ -3230,7 +3094,7 @@ managed grub.cfg from disk`
 		// listed explicitly in the structure
 		"foo.preserve": typeFile,
 		// requested by observer
-		"EFI/ubuntu/grub.cfg-observer.ignore": typeFile,
+		"EFI/ubuntu/grub.cfg.ignore": typeFile,
 	}
 
 	for _, step := range []struct {
@@ -3248,17 +3112,17 @@ managed grub.cfg from disk`
 		switch step.name {
 		case "backup":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "update":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals,
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
 				`# Snapd-Boot-Config-Edition: 1
 managed grub.cfg from disk`)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		case "rollback":
 			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
-			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg-observer"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
 			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
 		default:
 			c.Fatalf("unexpected step: %q", step.name)
@@ -3275,7 +3139,7 @@ var (
 			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
-				{Source: "foo", Target: "foo"},
+				{UnresolvedSource: "foo", Target: "foo"},
 			},
 			Update: gadget.VolumeUpdate{
 				Edition: 1,

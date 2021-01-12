@@ -57,12 +57,15 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"mode":                     true,
 		"recovery_system":          true,
 		"current_recovery_systems": true,
+		// keep this comment to make old go fmt happy
 		"base":            true,
 		"try_base":        true,
 		"base_status":     true,
 		"current_kernels": true,
 		"model":           true,
 		"grade":           true,
+		// keep this comment to make old go fmt happy
+		"current_kernel_command_lines":         true,
 		"current_trusted_boot_assets":          true,
 		"current_trusted_recovery_boot_assets": true,
 	})
@@ -132,6 +135,7 @@ base=core20_123.snap
 try_base=core20_124.snap
 base_status=try
 current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
+current_kernel_command_lines=["foo", "bar"]
 `)
 
 	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -145,6 +149,9 @@ current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
+		},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo", "bar",
 		},
 	}
 
@@ -231,6 +238,11 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo",
+			"foo bar",
+		},
 	}
 
 	modeenv2 := &boot.Modeenv{
@@ -250,6 +262,11 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
+		},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo",
+			"foo bar",
 		},
 	}
 
@@ -274,6 +291,20 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 	modeenv2.CurrentKernels = nil
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make it identical again
+	modeenv2.CurrentKernels = []string{"k1", "k2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+	// change kernel command lines
+	modeenv2.CurrentKernelCommandLines = boot.BootCommandLines{
+		// reversed order
+		"foo bar",
+		"foo",
+	}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// clear kernel command lines list
+	modeenv2.CurrentKernelCommandLines = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
@@ -663,5 +694,32 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"g
 	c.Assert(modeenvRead.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{"recovery-hash1"},
 		"bootx64.efi": []string{"shimhash1", "shimhash2"},
+	})
+}
+
+func (s *modeenvSuite) TestMarshalKernelCommandLines(c *C) {
+	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
+
+	modeenv := &boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191128",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
+			`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
+		},
+	}
+	err := modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
+recovery_system=20191128
+current_kernel_command_lines=["snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8","snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8"]
+`)
+
+	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Assert(modeenvRead.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
+		`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
 	})
 }

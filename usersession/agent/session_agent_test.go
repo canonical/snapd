@@ -41,6 +41,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type sessionAgentSuite struct {
+	testutil.DBusTest
 	socketPath string
 	client     *http.Client
 }
@@ -48,6 +49,7 @@ type sessionAgentSuite struct {
 var _ = Suite(&sessionAgentSuite{})
 
 func (s *sessionAgentSuite) SetUpTest(c *C) {
+	s.DBusTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -65,6 +67,7 @@ func (s *sessionAgentSuite) SetUpTest(c *C) {
 func (s *sessionAgentSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	logger.SetLogger(logger.NullLogger)
+	s.DBusTest.TearDownTest(c)
 }
 
 func (s *sessionAgentSuite) TestStartStop(c *C) {
@@ -74,6 +77,12 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 	agent.Start()
 	defer func() { c.Check(agent.Stop(), IsNil) }()
 
+	// The agent has connected to the session bus
+	var hasOwner bool
+	c.Check(s.DBusTest.SessionBus.BusObject().Call("org.freedesktop.DBus.NameHasOwner", 0, "io.snapcraft.SessionAgent").Store(&hasOwner), IsNil)
+	c.Check(hasOwner, Equals, true)
+
+	// The agent is listening for REST API requests
 	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
