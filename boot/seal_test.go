@@ -981,7 +981,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	c.Check(marker, testutil.FileAbsent)
 }
 
-func (s *sealSuite) TestResealKeyToModeenvWithFdeHookSad(c *C) {
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
@@ -990,6 +990,14 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookSad(c *C) {
 	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
 		resealKeyToModeenvUsingFDESetupHookCalled++
 		return nil
+	})
+	defer restore()
+
+	// TODO: this simulates that the hook is not available yet
+	//       because of e.g. seeding. Longer term there will be
+	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
+	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+		return false, fmt.Errorf("hook not available yet because e.g. seeding")
 	})
 	defer restore()
 
@@ -1007,5 +1015,34 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookSad(c *C) {
 	expectReseal := false
 	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
 	c.Assert(err, IsNil)
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return fmt.Errorf("fde setup hook failed")
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }

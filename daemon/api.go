@@ -24,25 +24,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"mime"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -53,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -94,20 +82,14 @@ var api = []*Command{
 	serialModelCmd,
 	systemsCmd,
 	systemsActionCmd,
+	validationSetsListCmd,
+	validationSetsCmd,
 	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
 }
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
-	snapsCmd = &Command{
-		Path:     "/v2/snaps",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getSnapsInfo,
-		POST:     postSnaps,
-	}
-
 	snapCmd = &Command{
 		Path:     "/v2/snaps/{name}",
 		UserOK:   true,
@@ -205,90 +187,6 @@ func getStore(c *Command) snapstate.StoreService {
 	defer st.Unlock()
 
 	return snapstate.Store(st, nil)
-}
-
-// plural!
-func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-
-	if shouldSearchStore(r) {
-		logger.Noticef("Jumping to \"find\" to better support legacy request %q", r.URL)
-		return searchStore(c, r, user)
-	}
-
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
-	query := r.URL.Query()
-	var all bool
-	sel := query.Get("select")
-	switch sel {
-	case "all":
-		all = true
-	case "enabled", "":
-		all = false
-	default:
-		return BadRequest("invalid select parameter: %q", sel)
-	}
-	var wanted map[string]bool
-	if ns := query.Get("snaps"); len(ns) > 0 {
-		nsl := strutil.CommaSeparatedList(ns)
-		wanted = make(map[string]bool, len(nsl))
-		for _, name := range nsl {
-			wanted[name] = true
-		}
-	}
-
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
-	if err != nil {
-		return InternalError("cannot list local snaps! %v", err)
-	}
-
-	results := make([]*json.RawMessage, len(found))
-
-	sd := servicestate.NewStatusDecorator(progress.Null)
-	for i, x := range found {
-		name := x.info.InstanceName()
-		rev := x.info.Revision
-
-		url, err := route.URL("name", name)
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapLocal(x, sd), url.String()))
-		if err != nil {
-			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
-		}
-		raw := json.RawMessage(data)
-		results[i] = &raw
-	}
-
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
-}
-
-func shouldSearchStore(r *http.Request) bool {
-	// we should jump to the old behaviour iff q is given, or if
-	// sources is given and either empty or contains the word
-	// 'store'.  Otherwise, local results only.
-
-	query := r.URL.Query()
-
-	if _, ok := query["q"]; ok {
-		logger.Debugf("use of obsolete \"q\" parameter: %q", r.URL)
-		return true
-	}
-
-	if src, ok := query["sources"]; ok {
-		logger.Debugf("use of obsolete \"sources\" parameter: %q", r.URL)
-		if len(src) == 0 || strings.Contains(src[0], "store") {
-			return true
-		}
-	}
-
-	return false
 }
 
 // licenseData holds details about the snap license, and may be
@@ -470,72 +368,6 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	return flags, nil
 }
 
-func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
-		return nil, err
-	}
-
-	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var msg string
-	switch len(updated) {
-	case 0:
-		if len(inst.Snaps) != 0 {
-			// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-			msg = fmt.Sprintf(i18n.G("Refresh snaps %s: no updates"), strutil.Quoted(inst.Snaps))
-		} else {
-			msg = i18n.G("Refresh all snaps: no updates")
-		}
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), updated[0])
-	default:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
-	}
-
-	return &snapInstructionResult{
-		Summary:  msg,
-		Affected: updated,
-		Tasksets: tasksets,
-	}, nil
-}
-
-func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	for _, name := range inst.Snaps {
-		if len(name) == 0 {
-			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
-		}
-	}
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
-	if err != nil {
-		return nil, err
-	}
-
-	var msg string
-	switch len(inst.Snaps) {
-	case 0:
-		return nil, fmt.Errorf("cannot install zero snaps")
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
-	default:
-		quoted := strutil.Quoted(inst.Snaps)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
-	}
-
-	return &snapInstructionResult{
-		Summary:  msg,
-		Affected: installed,
-		Tasksets: tasksets,
-	}, nil
-}
-
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	if len(inst.Snaps[0]) == 0 {
 		return "", nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
@@ -600,31 +432,6 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
-}
-
-func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps)
-	if err != nil {
-		return nil, err
-	}
-
-	var msg string
-	switch len(inst.Snaps) {
-	case 0:
-		return nil, fmt.Errorf("cannot remove zero snaps")
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
-	default:
-		quoted := strutil.Quoted(inst.Snaps)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), quoted)
-	}
-
-	return &snapInstructionResult{
-		Summary:  msg,
-		Affected: removed,
-		Tasksets: tasksets,
-	}, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -709,30 +516,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
-	if err != nil {
-		return nil, err
-	}
-
-	var msg string
-	if len(inst.Snaps) == 0 {
-		msg = i18n.G("Snapshot all snaps")
-	} else {
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
-	}
-
-	return &snapInstructionResult{
-		Summary:  msg,
-		Affected: snapshotted,
-		Tasksets: []*state.TaskSet{ts},
-		Result:   map[string]interface{}{"set-id": setID},
-	}, nil
-}
-
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
-type snapsActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
 	"install": snapInstall,
@@ -749,20 +533,6 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 		logger.Panicf("dispatch only handles single-snap ops; got %d", len(inst.Snaps))
 	}
 	return snapInstructionDispTable[inst.Action]
-}
-
-func (inst *snapInstruction) dispatchForMany() (op snapsActionFunc) {
-	switch inst.Action {
-	case "refresh":
-		op = snapUpdateMany
-	case "install":
-		op = snapInstallMany
-	case "remove":
-		op = snapRemoveMany
-	case "snapshot":
-		op = snapshotMany
-	}
-	return op
 }
 
 func (inst *snapInstruction) errToResponse(err error) Response {
@@ -828,300 +598,3 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 	}
 	return chg
 }
-
-const maxReadBuflen = 1024 * 1024
-
-func trySnap(st *state.State, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
-	st.Lock()
-	defer st.Unlock()
-
-	if !filepath.IsAbs(trydir) {
-		return BadRequest("cannot try %q: need an absolute path", trydir)
-	}
-	if !osutil.IsDirectory(trydir) {
-		return BadRequest("cannot try %q: not a snap directory", trydir)
-	}
-
-	// the developer asked us to do this with a trusted snap dir
-	info, err := unsafeReadSnapInfo(trydir)
-	if _, ok := err.(snap.NotSnapError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindNotSnap,
-			},
-			Status: 400,
-		}, nil)
-	}
-	if err != nil {
-		return BadRequest("cannot read snap info for %s: %s", trydir, err)
-	}
-
-	tset, err := snapstateTryPath(st, info.InstanceName(), trydir, flags)
-	if err != nil {
-		return errToResponse(err, []string{info.InstanceName()}, BadRequest, "cannot try %s: %s", trydir)
-	}
-
-	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
-	chg.Set("api-data", map[string]string{"snap-name": info.InstanceName()})
-
-	ensureStateSoon(st)
-
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func isTrue(form *multipart.Form, key string) bool {
-	value := form.Value[key]
-	if len(value) == 0 {
-		return false
-	}
-	b, err := strconv.ParseBool(value[0])
-	if err != nil {
-		return false
-	}
-
-	return b
-}
-
-func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	var inst snapInstruction
-	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("cannot decode request body into snap instruction: %v", err)
-	}
-
-	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
-		return BadRequest("unsupported option provided for multi-snap operation")
-	}
-	if err := inst.validate(); err != nil {
-		return BadRequest("%v", err)
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	if user != nil {
-		inst.userID = user.ID
-	}
-
-	op := inst.dispatchForMany()
-	if op == nil {
-		return BadRequest("unsupported multi-snap operation %q", inst.Action)
-	}
-	res, err := op(&inst, st)
-	if err != nil {
-		return inst.errToResponse(err)
-	}
-
-	var chg *state.Change
-	if len(res.Tasksets) == 0 {
-		chg = st.NewChange(inst.Action+"-snap", res.Summary)
-		chg.SetStatus(state.DoneStatus)
-	} else {
-		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
-		ensureStateSoon(st)
-	}
-
-	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
-
-	return AsyncResponse(res.Result, &Meta{Change: chg.ID()})
-}
-
-func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
-	contentType := r.Header.Get("Content-Type")
-
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
-	}
-
-	if mediaType == "application/json" {
-		charset := strings.ToUpper(params["charset"])
-		if charset != "" && charset != "UTF-8" {
-			return BadRequest("unknown charset in content type: %s", contentType)
-		}
-		return snapsOp(c, r, user)
-	}
-
-	if !strings.HasPrefix(contentType, "multipart/") {
-		return BadRequest("unknown content type: %s", contentType)
-	}
-
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
-	// POSTs to sideload snaps must be a multipart/form-data file upload.
-	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
-	if err != nil {
-		return BadRequest("cannot read POST form: %v", err)
-	}
-
-	dangerousOK := isTrue(form, "dangerous")
-	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
-	if err != nil {
-		return BadRequest(err.Error())
-	}
-
-	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
-		if len(form.Value["snap-path"]) == 0 {
-			return BadRequest("need 'snap-path' value in form")
-		}
-		return trySnap(c.d.overlord.State(), r, user, form.Value["snap-path"][0], flags)
-	}
-	flags.RemoveSnapPath = true
-
-	flags.Unaliased = isTrue(form, "unaliased")
-	flags.IgnoreRunning = isTrue(form, "ignore-running")
-
-	// find the file for the "snap" form field
-	var snapBody multipart.File
-	var origPath string
-out:
-	for name, fheaders := range form.File {
-		if name != "snap" {
-			continue
-		}
-		for _, fheader := range fheaders {
-			snapBody, err = fheader.Open()
-			origPath = fheader.Filename
-			if err != nil {
-				return BadRequest(`cannot open uploaded "snap" file: %v`, err)
-			}
-			defer snapBody.Close()
-
-			break out
-		}
-	}
-	defer form.RemoveAll()
-
-	if snapBody == nil {
-		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
-	}
-
-	// we are in charge of the tempfile life cycle until we hand it off to the change
-	changeTriggered := false
-	// if you change this prefix, look for it in the tests
-	// also see localInstallCleanup in snapstate/snapmgr.go
-	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
-	if err != nil {
-		return InternalError("cannot create temporary file: %v", err)
-	}
-
-	tempPath := tmpf.Name()
-
-	defer func() {
-		if !changeTriggered {
-			os.Remove(tempPath)
-		}
-	}()
-
-	if _, err := io.Copy(tmpf, snapBody); err != nil {
-		return InternalError("cannot copy request into temporary file: %v", err)
-	}
-	tmpf.Sync()
-
-	if len(form.Value["snap-path"]) > 0 {
-		origPath = form.Value["snap-path"][0]
-	}
-
-	var instanceName string
-
-	if len(form.Value["name"]) > 0 {
-		// caller has specified desired instance name
-		instanceName = form.Value["name"][0]
-		if err := snap.ValidateInstanceName(instanceName); err != nil {
-			return BadRequest(err.Error())
-		}
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	var snapName string
-	var sideInfo *snap.SideInfo
-
-	if !dangerousOK {
-		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		switch {
-		case err == nil:
-			snapName = si.RealName
-			sideInfo = si
-		case asserts.IsNotFound(err):
-			// with devmode we try to find assertions but it's ok
-			// if they are not there (implies --dangerous)
-			if !isTrue(form, "devmode") {
-				msg := "cannot find signatures with metadata for snap"
-				if origPath != "" {
-					msg = fmt.Sprintf("%s %q", msg, origPath)
-				}
-				return BadRequest(msg)
-			}
-			// TODO: set a warning if devmode
-		default:
-			return BadRequest(err.Error())
-		}
-	}
-
-	if snapName == "" {
-		// potentially dangerous but dangerous or devmode params were set
-		info, err := unsafeReadSnapInfo(tempPath)
-		if err != nil {
-			return BadRequest("cannot read snap file: %v", err)
-		}
-		snapName = info.SnapName()
-		sideInfo = &snap.SideInfo{RealName: snapName}
-	}
-
-	if instanceName != "" {
-		requestedSnapName := snap.InstanceSnap(instanceName)
-		if requestedSnapName != snapName {
-			return BadRequest(fmt.Sprintf("instance name %q does not match snap name %q", instanceName, snapName))
-		}
-	} else {
-		instanceName = snapName
-	}
-
-	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), instanceName)
-	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, origPath)
-	}
-
-	tset, _, err := snapstateInstallPath(st, sideInfo, tempPath, instanceName, "", flags)
-	if err != nil {
-		return errToResponse(err, []string{snapName}, InternalError, "cannot install snap file: %v")
-	}
-
-	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
-	chg.Set("api-data", map[string]string{"snap-name": instanceName})
-
-	ensureStateSoon(st)
-
-	// only when the unlock succeeds (as opposed to panicing) is the handoff done
-	// but this is good enough
-	changeTriggered = true
-
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
-	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snapfile.Open(snapPath)
-	if err != nil {
-		return nil, err
-	}
-	return snap.ReadInfoFromSnapFile(snapf, nil)
-}
-
-var unsafeReadSnapInfo = unsafeReadSnapInfoImpl

@@ -297,7 +297,7 @@ func stampSealedKeys(rootdir string, content sealingMethod) error {
 	return nil
 }
 
-var errSealingNoKeys = errors.New("no-sealed-keys")
+var errNoSealedKeys = errors.New("no sealed keys")
 
 // sealedKeysMethod return whether any keys were sealed at all
 func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
@@ -306,7 +306,7 @@ func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	content, err := ioutil.ReadFile(stamp)
 	if os.IsNotExist(err) {
-		return sm, errSealingNoKeys
+		return sm, errNoSealedKeys
 	}
 	return sealingMethod(content), err
 }
@@ -315,7 +315,7 @@ func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	method, err := sealedKeysMethod(rootdir)
-	if err == errSealingNoKeys {
+	if err == errNoSealedKeys {
 		// nothing to do
 		return nil
 	}

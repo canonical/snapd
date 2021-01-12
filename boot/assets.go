@@ -360,9 +360,10 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	switch {
 	case err == nil:
 		trackTrustedAssets = true
-	case err == errSealingNoKeys:
-		// nothing
-	case err != nil && err != errSealingNoKeys:
+	case err == errNoSealedKeys:
+		// nothing to do
+	case err != nil:
+		// all other errors
 		return nil, err
 	}
 

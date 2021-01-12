@@ -36,10 +36,14 @@ type ValidateApplyOptions struct {
 
 // ValidationSetResult holds information about a single validation set.
 type ValidationSetResult struct {
-	ValidationSet string `json:"validation-set,omitempty"`
-	Mode          string `json:"mode"`
-	Sequence      int    `json:"sequence,omitempty"`
-	Valid         bool   `json:"valid"`
+	AccountID string `json:"account-id"`
+	Name      string `json:"name"`
+	// set sequence key and optional pinned-at (=)
+	Sequence int `json:"sequence,omitempty"`
+	PinnedAt int `json:"pinned-at,omitempty"`
+	// set current state
+	Mode  string `json:"mode"`
+	Valid bool   `json:"valid"`
 	// TODO: flags/states for notes column
 }
 
