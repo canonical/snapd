@@ -50,4 +50,6 @@ execute: |
     cmp serial serial.saved
 
     # check that we go the install log after the transition to run mode
-    nested_exec "test -e /var/log/install-mode.log"
+    nested_exec "test -e /var/log/install-mode.log.gz"
+    # transparently verify that the format is gzip
+    nested_exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
