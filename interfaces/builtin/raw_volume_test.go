@@ -20,8 +20,9 @@
 package builtin_test
 
 import (
-	. "gopkg.in/check.v1"
 	"strings"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -64,20 +65,6 @@ type rawVolumeInterfaceSuite struct {
 var _ = Suite(&rawVolumeInterfaceSuite{
 	iface: builtin.MustInterface("raw-volume"),
 })
-
-const rawVolumeConsumerYaml = `name: consumer
-version: 0
-apps:
- app:
-  plugs: [raw-volume]
-`
-
-const rawVolumeCoreYaml = `name: core
-version: 0
-type: os
-slots:
-  raw-volume:
-`
 
 func (s *rawVolumeInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS snap
