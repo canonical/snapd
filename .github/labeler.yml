@@ -1,4 +1,2 @@
-# Add 'Run-nested' label
-Run nested:
-  - 'tests/lib/nested.sh'
-  - 'tests/nested/**'
+# Add 'Run nested' label
+Run nested: [ 'tests/lib/nested.sh', 'tests/nested/**' ]
