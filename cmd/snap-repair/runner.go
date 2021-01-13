@@ -900,8 +900,50 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 		}
 	}
 
-	// TODO:UC20: need to consider filtering by bases and modes in the assertion
-	// here
+	// also filter by base snaps and modes
+	bases, err := stringList(headers, "bases")
+	if err != nil {
+		return false
+	}
+
+	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
+		return false
+	}
+
+	modes, err := stringList(headers, "modes")
+	if err != nil {
+		return false
+	}
+
+	// modes is slightly more nuanced, if the modes setting in the assertion
+	// header is unset, that means that the assertion should only be run in
+	// "run" mode on uc20
+
+	if run.state.Device.Mode == "" {
+		// uc16 / uc18 device, the assertion is only applicable to us if modes
+		// has "run" in it or if it is unset
+		if len(modes) != 0 && !strutil.ListContains(modes, "run") {
+			// modes does not contain "run", not applicable to us
+			return false
+		}
+		// else still applicable to us, either modes has "run" in it or it is
+		// empty
+	} else {
+		// uc20 device
+		switch {
+		case len(modes) == 0 && run.state.Device.Mode != "run":
+			// if modes is unset, then it is only applicable if we are
+			// in run mode
+			return false
+		case len(modes) != 0 && !strutil.ListContains(modes, run.state.Device.Mode):
+			// modes was specified and our current mode is not in the header, so
+			// not applicable to us
+			return false
+		}
+		// other cases are either that we are in run mode and modes is unset (in
+		// which case it is applicable) or modes is set to something with our
+		// current mode in the list (also in which case it is applicable)
+	}
 
 	return true
 }
