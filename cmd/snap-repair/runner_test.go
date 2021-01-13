@@ -866,22 +866,6 @@ func (s *runnerSuite) TestVerify(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
-	var seq []string
-	for _, rpr := range repairs {
-		decoded, err := asserts.Decode([]byte(rpr))
-		c.Assert(err, IsNil)
-		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
-		c.Assert(err, IsNil)
-		buf := &bytes.Buffer{}
-		enc := asserts.NewEncoder(buf)
-		enc.Encode(signed)
-		enc.Encode(s.repairsAcctKey)
-		seq = append(seq, buf.String())
-	}
-	return seq
-}
-
 func (s *runnerSuite) loadSequences(c *C) map[string][]*repair.RepairState {
 	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
