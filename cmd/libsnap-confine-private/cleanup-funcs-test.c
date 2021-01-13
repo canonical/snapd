@@ -87,7 +87,7 @@ static void test_cleanup_endmntent(void)
 
 	/* It is safe to use with a non-NULL FILE. */
 	GError *err = NULL;
-	g_autofree char *mock_fstab = NULL;
+	char *mock_fstab = NULL;
 	gint mock_fstab_fd =
 	    g_file_open_tmp("s-c-test-fstab-mock.XXXXXX", &mock_fstab, &err);
 	g_assert_no_error(err);
@@ -104,6 +104,8 @@ static void test_cleanup_endmntent(void)
 	g_assert_null(f);
 
 	g_remove(mock_fstab);
+
+	g_free(mock_fstab);
 }
 
 static void test_cleanup_closedir(void)
