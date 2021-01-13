@@ -115,18 +115,6 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/run/mir_socket rw,")
 }
 
-const mirMockSlotSnapInfoYaml = `name: mir-server
-version: 1.0
-slots:
- mir-server:
-  interface: mir
-apps:
- mir:
-  command: foo
-  slots:
-   - mir-server
-`
-
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)

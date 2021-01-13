@@ -448,7 +448,6 @@ type greengrassSupportInterface struct {
 }
 
 func init() {
-	// declare the greengrass-support interface as needing ptrace(trace)
 	registerIface(&greengrassSupportInterface{commonInterface{
 		name:                 "greengrass-support",
 		summary:              greengrassSupportSummary,
