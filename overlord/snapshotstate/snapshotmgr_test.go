@@ -725,22 +725,6 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 	c.Check(rs.calls, check.DeepEquals, []string{"remove"})
 }
 
-func (rs *readerSuite) TestDoForgetConflict(c *check.C) {
-	st := state.New(nil)
-	st.Lock()
-	snapshotstate.SetSnapshotOpInProgress(st, 1, "import-snapshot")
-
-	task := st.NewTask("forget-snapshot", "...")
-	task.Set("snapshot-setup", map[string]interface{}{
-		"set-id":   1,
-		"filename": "a-file",
-		"snap":     "a-snap",
-	})
-	st.Unlock()
-	err := snapshotstate.DoForget(task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #1 while operation import-snapshot is in progress`)
-}
-
 func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
 	defer snapshotstate.MockOsRemove(func(filename string) error {
 		return nil

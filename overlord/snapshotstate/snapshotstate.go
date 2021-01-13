@@ -536,8 +536,6 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 // Note that the state must be locked by the caller.
 func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []string, ts *state.TaskSet, err error) {
 	// forget needs to conflict with check, restore, import and export.
-	// XXX: we could probably drop this since conflict check is now done inside
-	// doForget task handler.
 	if err := checkSnapshotConflict(st, setID, "import-snapshot",
 		"export-snapshot", "check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err

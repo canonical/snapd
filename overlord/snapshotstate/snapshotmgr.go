@@ -399,12 +399,6 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: task %s (%s) snapshot info is missing the filename", task.ID(), task.Kind())
 	}
 
-	if err := checkSnapshotConflict(st, snapshot.SetID, "import-snapshot",
-		"export-snapshot", "check-snapshot", "restore-snapshot"); err != nil {
-		// XXX: retry error?
-		return err
-	}
-
 	// in case it's an automatic snapshot, remove the set also from the state (automatic snapshots have just one snap per set).
 	if err := removeSnapshotState(st, snapshot.SetID); err != nil {
 		return fmt.Errorf("internal error: cannot remove state of snapshot set %d: %v", snapshot.SetID, err)
