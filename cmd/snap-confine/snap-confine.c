@@ -501,9 +501,9 @@ int main(int argc, char **argv)
 			die("setuid failed");
 
 		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-			die("permanently dropping privs did not work");
+			die("permanently dropping privs did not work. you must use sudo but you must NOT be logged in as root.");
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
-			die("permanently dropping privs did not work");
+			die("permanently dropping privs did not work. you must use sudo but you must NOT be logged in as root.");
 	}
 	// Now that we've permanently dropped, regain SYS_ADMIN
 	if (keep_sys_admin) {
