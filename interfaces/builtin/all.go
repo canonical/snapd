@@ -29,6 +29,11 @@ import (
 
 func init() {
 	snap.SanitizePlugsSlots = SanitizePlugsSlots
+
+	// setup the interfaces getter callback
+	interfaces.GetAllInterfaces = func() map[string]interfaces.Interface {
+		return allInterfaces
+	}
 }
 
 var (
