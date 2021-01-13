@@ -268,7 +268,7 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 type snapshotExportResponse struct {
 	*snapshotstate.SnapshotExport
 	setID uint64
-	st *state.State
+	st    *state.State
 }
 
 // ServeHTTP from the Response interface
