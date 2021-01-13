@@ -250,6 +250,14 @@ func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
 	h3, err := sh3.ContentHash()
 	c.Assert(err, check.IsNil)
 	c.Check(h1, check.Not(check.DeepEquals), h3)
+
+	// identical to sh1 except for sha3_384 sums
+	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
+	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
+	// same except sha3_384 means different hash
+	h4, err := sh4.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h4, check.Not(check.DeepEquals), h1)
 }
 
 func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
