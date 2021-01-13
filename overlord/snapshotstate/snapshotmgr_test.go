@@ -193,7 +193,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	var tsk *state.Task
 
 	switch snapshotOp {
-	case "export-snapshot":
+	case "export-snapshot", "import-snapshot":
 		snapshotstate.SetSnapshotOpInProgress(st, 1, snapshotOp)
 	default:
 		chg := st.NewChange("snapshot-change", "...")
@@ -246,6 +246,10 @@ func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithRestoreSnapshot(c *
 
 func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithExportSnapshot(c *check.C) {
 	s.testEnsureForgetSnapshotsConflict(c, "export-snapshot")
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithImportSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "import-snapshot")
 }
 
 func (snapshotSuite) TestFilename(c *check.C) {
