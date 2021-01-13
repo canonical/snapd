@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
@@ -143,6 +144,35 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 	_, err = ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+}
+
+type simpleIface struct {
+	name string
+}
+
+func (si simpleIface) Name() string                                              { return si.name }
+func (si simpleIface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool { return false }
+
+func (s *CoreSuite) TestByName(c *C) {
+	// first mock the GetAllInterfaces function
+
+	old := interfaces.GetAllInterfaces
+	interfaces.GetAllInterfaces = func() map[string]interfaces.Interface {
+
+		return map[string]interfaces.Interface{
+			"network": simpleIface{name: "network"},
+		}
+	}
+	defer func() {
+		interfaces.GetAllInterfaces = old
+	}()
+
+	_, err := interfaces.ByName("no-such-interface")
+	c.Assert(err, ErrorMatches, "interface \"no-such-interface\" not found")
+
+	iface, err := interfaces.ByName("network")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "network")
 }
 
 func (s *CoreSuite) TestSanitizePlug(c *C) {

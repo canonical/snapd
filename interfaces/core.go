@@ -40,6 +40,23 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	return err
 }
 
+// GetAllInterfaces returns all current interfaces.
+var GetAllInterfaces = func() map[string]Interface {
+	panic("GetAllInterfaces unset, import interfaces/builtin to initialize this")
+}
+
+// ByName returns an Interface for the given interface name. Note that in order for
+// this to work properly, the package "interfaces/builtin" must also eventually be
+// imported to populate the full list of interfaces.
+func ByName(name string) (iface Interface, err error) {
+	allIfaces := GetAllInterfaces()
+	iface, ok := allIfaces[name]
+	if !ok {
+		return nil, fmt.Errorf("interface %q not found", name)
+	}
+	return iface, nil
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
