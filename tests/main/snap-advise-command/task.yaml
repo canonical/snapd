@@ -29,7 +29,7 @@ execute: |
     done
     if ! stat /var/cache/snapd/commands.db; then
         # workaround for misbehaving store
-        if journalctl -u snapd | MATCH "429 Too Many Requests"; then
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then
             echo "Store is reporting 429 (too many requests), skipping the test"
             exit 0
         fi
