@@ -32,7 +32,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/builtin"
+	// in order to trigger the assignment of all interfaces
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -683,18 +684,17 @@ func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte
 	// list.
 	ifaceServiceSnippets := &strutil.OrderedSet{}
 
-	allIfaces := builtin.Interfaces()
 	for _, plug := range appInfo.Plugs {
-		for _, iface := range allIfaces {
-			if iface.Name() == plug.Interface {
-				snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
-				if err != nil {
-					return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
-				}
-				for _, snip := range snips {
-					ifaceServiceSnippets.Put(snip)
-				}
-			}
+		iface, err := interfaces.ByName(plug.Interface)
+		if err != nil {
+			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
+		}
+		snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
+		if err != nil {
+			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
+		}
+		for _, snip := range snips {
+			ifaceServiceSnippets.Put(snip)
 		}
 	}
 
