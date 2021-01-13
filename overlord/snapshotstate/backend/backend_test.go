@@ -1003,7 +1003,7 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	shw, err := backend.Save(ctx, shID, info, nil, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID, nil)
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
 	err = export.Init()
 	c.Assert(err, check.IsNil)
@@ -1037,7 +1037,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID, nil)
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
 	err = export.Init()
 	c.Assert(err, check.IsNil)
@@ -1188,7 +1188,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// export once
 	buf := bytes.NewBuffer(nil)
 	ctx := context.Background()
-	se, err := backend.NewSnapshotExport(ctx, shID, nil)
+	se, err := backend.NewSnapshotExport(ctx, shID)
 	c.Check(err, check.IsNil)
 	err = se.Init()
 	c.Assert(err, check.IsNil)
@@ -1205,7 +1205,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// change.
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
-	se2, err := backend.NewSnapshotExport(ctx, shID, nil)
+	se2, err := backend.NewSnapshotExport(ctx, shID)
 	c.Check(err, check.IsNil)
 	err = se2.Init()
 	c.Assert(err, check.IsNil)
@@ -1218,7 +1218,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	se, err := backend.NewSnapshotExport(context.Background(), 5, nil)
+	se, err := backend.NewSnapshotExport(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
 	c.Assert(se, check.IsNil)
 }
@@ -1513,12 +1513,12 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	// now export it
-	export, err := backend.NewSnapshotExport(ctx, shw.SetID, nil)
+	export, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.HasLen, sha256.Size)
 
 	// and check that exporting it again leads to the same content hash
-	export2, err := backend.NewSnapshotExport(ctx, shw.SetID, nil)
+	export2, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.DeepEquals, export2.ContentHash())
 
@@ -1534,7 +1534,7 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 	shw, err = backend.Save(ctx, shID, info, nil, []string{"snapuser"})
 	c.Check(err, check.IsNil)
 
-	export3, err := backend.NewSnapshotExport(ctx, shw.SetID, nil)
+	export3, err := backend.NewSnapshotExport(ctx, shw.SetID)
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.Not(check.DeepEquals), export3.ContentHash())
 }

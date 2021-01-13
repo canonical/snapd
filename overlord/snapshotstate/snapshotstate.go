@@ -347,8 +347,8 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
 				return 0, nil, err
 			}
-			opDone := setSnapshotOpInProgress(st, dupErr.SetID, "import-snapshot")
-			defer opDone()
+			setSnapshotOpInProgress(st, dupErr.SetID, "import-snapshot")
+			defer UnsetSnapshotOpInProgress(st, dupErr.SetID)
 
 			// trying to import identical snapshot; instead return set ID of
 			// the existing one and reset its expiry time.
@@ -564,11 +564,9 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 	return summaries.snapNames(), ts, nil
 }
 
-// snapshotOp marks the given set ID as being a subject of snapshot op inside
-// state cache.
-// The returned done function should be used to mark the end of the op, which
-// removes it from the cache; it must be called with state lock.
-func setSnapshotOpInProgress(st *state.State, setID uint64, op string) (done func()) {
+// setSnapshotOpInProgress marks the given set ID as being a subject of
+// snapshot op inside state cache. State must be locked by the caller.
+func setSnapshotOpInProgress(st *state.State, setID uint64, op string) {
 	var snapshotOps map[uint64]string
 	if val := st.Cached("snapshot-ops"); val != nil {
 		snapshotOps, _ = val.(map[uint64]string)
@@ -577,12 +575,12 @@ func setSnapshotOpInProgress(st *state.State, setID uint64, op string) (done fun
 	}
 	snapshotOps[setID] = op
 	st.Cache("snapshot-ops", snapshotOps)
+}
 
-	return func() {
+func UnsetSnapshotOpInProgress(st *state.State, setID uint64) {
+	if val := st.Cached("snapshot-ops"); val != nil {
 		var snapshotOps map[uint64]string
-		if val := st.Cached("snapshot-ops"); val != nil {
-			snapshotOps, _ = val.(map[uint64]string)
-		}
+		snapshotOps, _ = val.(map[uint64]string)
 		delete(snapshotOps, setID)
 		st.Cache("snapshot-ops", snapshotOps)
 	}
@@ -595,12 +593,10 @@ func Export(ctx context.Context, st *state.State, setID uint64) (se *backend.Sna
 		return nil, err
 	}
 
-	opDone := setSnapshotOpInProgress(st, setID, "export-snapshot")
-	se, err = backendNewSnapshotExport(ctx, setID, opDone)
+	setSnapshotOpInProgress(st, setID, "export-snapshot")
+	se, err = backendNewSnapshotExport(ctx, setID)
 	if err != nil {
-		// if export cannot be created, then we need to call opDone()
-		// manually.
-		opDone()
+		UnsetSnapshotOpInProgress(st, setID)
 	}
 	return se, err
 }

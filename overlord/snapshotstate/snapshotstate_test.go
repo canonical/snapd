@@ -1770,7 +1770,7 @@ func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 }
 
 func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
-	restore := snapshotstate.MockBackendNewSnapshotExport(func(ctx context.Context, setID uint64, cleanup func()) (se *backend.SnapshotExport, err error) {
+	restore := snapshotstate.MockBackendNewSnapshotExport(func(ctx context.Context, setID uint64) (se *backend.SnapshotExport, err error) {
 		return nil, nil
 	})
 	defer restore()
@@ -1793,8 +1793,8 @@ func (snapshotSuite) TestSetSnapshotOpInProgressConflicts(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_ = snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
-	_ = snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
+	snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
 
 	c.Assert(snapshotstate.CheckSnapshotConflict(st, 1, "foo-op"), check.ErrorMatches, `cannot operate on snapshot set #1 while operation foo-op is in progress`)
 	// unrelated set-id doesn't conflict
@@ -1809,10 +1809,8 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	done1 := snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
-	c.Assert(done1, check.NotNil)
-	done2 := snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
-	c.Assert(done2, check.NotNil)
+	snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
 
 	val := st.Cached("snapshot-ops")
 	c.Check(val, check.DeepEquals, map[uint64]string{
@@ -1820,14 +1818,14 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 		uint64(2): "bar-op",
 	})
 
-	done1()
+	snapshotstate.UnsetSnapshotOpInProgress(st, 1)
 
 	val = st.Cached("snapshot-ops")
 	c.Check(val, check.DeepEquals, map[uint64]string{
 		uint64(2): "bar-op",
 	})
 
-	done2()
+	snapshotstate.UnsetSnapshotOpInProgress(st, 2)
 
 	val = st.Cached("snapshot-ops")
 	c.Check(val, check.HasLen, 0)

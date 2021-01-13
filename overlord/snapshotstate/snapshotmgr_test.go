@@ -192,11 +192,9 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 
 	var tsk *state.Task
 
-	var otherOpDone func()
-
 	switch snapshotOp {
 	case "export-snapshot":
-		otherOpDone = snapshotstate.SetSnapshotOpInProgress(st, 1, snapshotOp)
+		snapshotstate.SetSnapshotOpInProgress(st, 1, snapshotOp)
 	default:
 		chg := st.NewChange("snapshot-change", "...")
 		tsk = st.NewTask(snapshotOp, "...")
@@ -219,9 +217,8 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	if tsk != nil {
 		// sanity check of the test setup: snapshot gets removed once conflict goes away
 		tsk.SetStatus(state.DoneStatus)
-	}
-	if otherOpDone != nil {
-		otherOpDone()
+	} else {
+		snapshotstate.UnsetSnapshotOpInProgress(st, 1)
 	}
 
 	// pretend we haven't run for a while
@@ -731,7 +728,7 @@ func (rs *readerSuite) TestDoRemove(c *check.C) {
 func (rs *readerSuite) TestDoForgetConflict(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
-	_ = snapshotstate.SetSnapshotOpInProgress(st, 1, "import-snapshot")
+	snapshotstate.SetSnapshotOpInProgress(st, 1, "import-snapshot")
 
 	task := st.NewTask("forget-snapshot", "...")
 	task.Set("snapshot-setup", map[string]interface{}{

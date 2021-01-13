@@ -178,7 +178,7 @@ func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error
 	}
 }
 
-func MockBackendNewSnapshotExport(f func(ctx context.Context, setID uint64, cleanup func()) (se *SnapshotExport, err error)) (restore func()) {
+func MockBackendNewSnapshotExport(f func(ctx context.Context, setID uint64) (se *SnapshotExport, err error)) (restore func()) {
 	old := backendNewSnapshotExport
 	backendNewSnapshotExport = f
 	return func() {
