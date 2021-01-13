@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -495,6 +496,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 type deviceInfo struct {
 	Brand string `json:"brand"`
 	Model string `json:"model"`
+	Base  string `json:"base"`
+	Mode  string `json:"mode"`
 }
 
 // RepairStatus represents the possible statuses of a repair.
@@ -688,37 +691,57 @@ func (run *Runner) findTimeLowerBound() error {
 	return nil
 }
 
-func findBrandAndModel() (string, string, error) {
+func findBrandAndModel() (*deviceInfo, error) {
 	if osutil.FileExists(dirs.SnapModeenvFile) {
-		return findBrandAndModel20()
+		return findDevInfo20()
 	}
-	return findBrandAndModel16()
+	return findDevInfo16()
 }
 
-func findBrandAndModel20() (brand, model string, err error) {
+func findDevInfo20() (*deviceInfo, error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
-		return "", "", err
+		return nil, err
 	}
 	brandAndModel, err := cfg.Get("", "model")
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	l := strings.SplitN(brandAndModel, "/", 2)
 	if len(l) != 2 {
-		return "", "", fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
+		return nil, fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
 	}
 
-	return l[0], l[1], nil
+	mode, err := cfg.Get("", "mode")
+	if err != nil {
+		return nil, err
+	}
+
+	baseName, err := cfg.Get("", "base")
+	if err != nil {
+		return nil, err
+	}
+
+	baseSn, err := snap.ParsePlaceInfoFromSnapFileName(baseName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &deviceInfo{
+		Brand: l[0],
+		Model: l[1],
+		Base:  baseSn.SnapName(),
+		Mode:  mode,
+	}, nil
 }
 
-func findBrandAndModel16() (brand, model string, err error) {
+func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	var modelAs *asserts.Model
 	for _, fi := range dc {
@@ -738,7 +761,7 @@ func findBrandAndModel16() (brand, model string, err error) {
 			switch a.Type() {
 			case asserts.ModelType:
 				if modelAs != nil {
-					return "", "", fmt.Errorf("multiple models in seed assertions")
+					return nil, fmt.Errorf("multiple models in seed assertions")
 				}
 				modelAs = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
@@ -747,11 +770,11 @@ func findBrandAndModel16() (brand, model string, err error) {
 		}
 	}
 	if modelAs == nil {
-		return "", "", fmt.Errorf("no model assertion in seed data")
+		return nil, fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
 	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
-		return "", "", err
+		return nil, err
 	}
 	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
@@ -760,22 +783,30 @@ func findBrandAndModel16() (brand, model string, err error) {
 		var err error
 		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 		if err != nil {
-			return "", "", fmt.Errorf("no brand account assertion in seed data")
+			return nil, fmt.Errorf("no brand account assertion in seed data")
 		}
 	}
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return "", "", err
+		return nil, err
 	}
-	return modelAs.BrandID(), modelAs.Model(), nil
+
+	// get the base snap as well
+
+	return &deviceInfo{
+		Brand: modelAs.BrandID(),
+		Model: modelAs.Model(),
+		Base:  modelAs.Base(),
+		// Mode is unset on uc16/uc18
+	}, nil
 }
 
 func (run *Runner) initDeviceInfo() error {
-	brandID, model, err := findBrandAndModel()
+	dev, err := findBrandAndModel()
 	if err != nil {
 		return fmt.Errorf("cannot set device information: %v", err)
 	}
-	run.state.Device.Brand = brandID
-	run.state.Device.Model = model
+	run.state.Device = *dev
+
 	return nil
 }
 
