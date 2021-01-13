@@ -347,6 +347,9 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
 				return 0, nil, err
 			}
+
+			// This is not technically needed since we're keeping state lock;
+			// it's done only for symmetry with export.
 			setSnapshotOpInProgress(st, dupErr.SetID, "import-snapshot")
 			defer UnsetSnapshotOpInProgress(st, dupErr.SetID)
 
