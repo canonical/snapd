@@ -64,10 +64,28 @@ bool sc_is_debian_like(void)
 	if (f == NULL) {
 		return false;
 	}
-	char *id_like SC_CLEANUP(sc_cleanup_string) = NULL;
-	int rc = sc_infofile_get_key(f, "ID_LIKE", &id_like, NULL);
-	if (rc != 0) {
-		return false;
+	const char *id_keys_to_try[] = {
+		"ID",		/* actual debian only sets ID */
+		"ID_LIKE",	/* distros based on debian */
+	};
+	size_t id_keys_to_try_len =
+	    sizeof id_keys_to_try / sizeof *id_keys_to_try;
+	for (size_t i = 0; i < id_keys_to_try_len; i++) {
+		if (fseek(f, 0L, SEEK_SET) == -1) {
+			return false;
+		}
+		/* check ID_LIKE=debian first */
+		char *id_val SC_CLEANUP(sc_cleanup_string) = NULL;
+		int rc =
+		    sc_infofile_get_key(f, id_keys_to_try[i], &id_val, NULL);
+		if (rc != 0) {
+			/* only if sc_infofile_get_key failed */
+			return false;
+		}
+		if (sc_streq(id_val, "\"debian\"")
+		    || sc_streq(id_val, "debian")) {
+			return true;
+		}
 	}
-	return (sc_streq(id_like, "\"debian\"") || sc_streq(id_like, "debian"));
+	return false;
 }
