@@ -238,7 +238,7 @@ var (
 	TestRootAccountKey asserts.Assertion
 	// here for convenience, does not need to be in the trusted set
 	TestStoreAccountKey asserts.Assertion
-	// Testing-only trusted assertions for injecting in the the system trusted set.
+	// Testing-only trusted assertions for injecting in the system trusted set.
 	Trusted []asserts.Assertion
 )
 

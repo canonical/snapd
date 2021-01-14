@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,3 +23,11 @@ package assertstate
 var (
 	DoFetch = doFetch
 )
+
+func MockMaxGroups(n int) (restore func()) {
+	oldMaxGroups := maxGroups
+	maxGroups = n
+	return func() {
+		maxGroups = oldMaxGroups
+	}
+}

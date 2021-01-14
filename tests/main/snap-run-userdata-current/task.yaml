@@ -3,9 +3,7 @@ summary: Check that 'current' symlink is created with 'snap run'
 systems: [-ubuntu-core-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

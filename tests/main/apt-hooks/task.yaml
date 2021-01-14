@@ -1,9 +1,7 @@
 summary: Ensure apt hooks work
 
 # apt hook only available on 18.04+ and aws-cli only for amd64
-systems: [ubuntu-18.04-64, ubuntu-19.10-64, ubuntu-2*-64]
-
-manual: true
+systems: [ubuntu-18.04-64, ubuntu-2*-64]
 
 debug: |
     ls -lh /var/cache/snapd
@@ -18,7 +16,15 @@ execute: |
         fi
         sleep 1
     done
-    test -s /var/cache/snapd/commands.db
+
+    if ! stat /var/cache/snapd/commands.db; then
+        # workaround for misbehaving store
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then
+            echo "Store is reporting 429 (too many requests), skipping the test"
+            exit 0
+        fi
+        exit 1
+    fi
 
     echo "Creating expected file"
     cat > expected <<EOF

@@ -3,4 +3,4 @@ PS1='$ '
 command="$1"
 shift
 
-"$command" "$@"
+exec "$command" "$@"

@@ -9,11 +9,8 @@ details: |
 systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x,-arch-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # Install a snap declaring a plug on time-control
-    install_local test-snapd-timedate-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
 
     date +'%m%d%H%M.%y' > now.txt
 

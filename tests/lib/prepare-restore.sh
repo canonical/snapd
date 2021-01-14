@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: boot.sh has side-effects
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
 # XXX: dirs.sh has side-effects
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -22,14 +18,8 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/journalctl.sh
-. "$TESTSLIB/journalctl.sh"
-
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 
 ###
@@ -70,6 +60,10 @@ create_test_user(){
     fi
     unset owner
 
+    # Add a new line first to prevent an error which happens when
+    # the file has not new line, and we see this:
+    # syntax error, unexpected WORD, expecting END or ':' or '\n'
+    echo >> /etc/sudoers
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
     chown test.test -R "$SPREAD_PATH"
@@ -189,7 +183,9 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
+    # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
+    # the package file name extension, keep it simple and try a glob instead
+    cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -220,10 +216,10 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+    if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        lxd-tool undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
@@ -244,7 +240,7 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
-    if [ "$(bootenv snap_mode)" = "try" ]; then
+    if [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
@@ -283,7 +279,7 @@ prepare_project() {
 
     distro_update_package_db
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
         if [[ "$SPREAD_REBOOT" == 0 ]]; then
@@ -342,7 +338,7 @@ prepare_project() {
     fi
 
     # so is ubuntu-14.04
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
             echo "broken test setup"
@@ -397,7 +393,77 @@ prepare_project() {
             ;;
     esac
 
-    install_pkg_dependencies
+    restart_logind=
+    restart_networkd=
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+        restart_logind=maybe
+        restart_networkd=maybe
+    fi
+
+
+    # Try installing package dependencies. Because we pull in some systemd
+    # development packages we can easily pull in a whole systemd upgrade. Most
+    # of the time that's okay but, well, not always.
+    if ! install_pkg_dependencies; then
+        # If this failed, maybe systemd-networkd got busted during the 245-246
+        # upgrade? If so we can just restart it and try again.
+        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
+        if [ "$restart_networkd" = maybe ]; then
+            systemctl reset-failed systemd-networkd.service
+            systemctl try-restart systemd-networkd.service
+            install_pkg_dependencies
+        fi
+    fi
+
+    if [ "$restart_logind" = maybe ]; then
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+            restart_logind=yes
+        else
+            restart_logind=
+        fi
+    fi
+
+    # Work around systemd / Debian bug interaction. We are installing
+    # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
+    # behind systemd-logind.service from the old version. This is tracked as
+    # Debian bug https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=919509 and
+    # it really affects Desktop systems where Wayland/X don't like logind from
+    # ever being restarted.
+    #
+    # As a workaround we tried to restart logind ourselves but this caused
+    # another issue.  Restarted logind, as of systemd v245, forgets about the
+    # root session and subsequent loginctl enable-linger root, loginctl
+    # disable-linger stops the running systemd --user for the root session,
+    # along with other services like session bus.
+    #
+    # In consequence all the code that restarts logind for one reason or
+    # another is coalesced below and ends with REBOOT. This ensures that after
+    # rebooting, we have an up-to-date, working logind and that the initial
+    # session used by spread is tracked.
+    if ! loginctl enable-linger test; then
+        if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+            mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+            mkdir -p /var/lib/systemd/linger
+            test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+            restart_logind=yes
+        fi
+    fi
+    loginctl disable-linger test || true
+
+    # FIXME: In an ideal world we'd just do this:
+    #   systemctl daemon-reload
+    #   systemctl restart systemd-logind.service
+    # But due to this issue, restarting systemd-logind is unsafe.
+    # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
+    if [ "$restart_logind" = yes ]; then
+        echo "logind upgraded, reboot required"
+        REBOOT
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -475,7 +541,7 @@ prepare_project() {
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         disable_journald_rate_limiting
@@ -493,7 +559,7 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if is_core_system; then
+    if os.query is-core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -515,7 +581,7 @@ prepare_suite_each() {
     local variant="$1"
 
     # back test directory to be restored during the restore
-    tar cf "${PWD}.tar" "$PWD"
+    tests.backup prepare
 
     # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
     if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
@@ -535,7 +601,7 @@ prepare_suite_each() {
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
-    start_new_journalctl_log
+    "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
         echo "Install the snaps profiler snap"
@@ -543,12 +609,12 @@ prepare_suite_each() {
 
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
-        if is_classic_system; then
+        if os.query is-classic; then
             prepare_each_classic
         fi
     fi
     # Check if journalctl is ready to run the test
-    check_journalctl_ready
+    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -560,7 +626,7 @@ prepare_suite_each() {
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
-    invariant-tool check
+    tests.invariant check
 }
 
 restore_suite_each() {
@@ -569,11 +635,7 @@ restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
     # restore test directory saved during prepare
-    if [ -f "${PWD}.tar" ]; then
-        rm -rf "$PWD"
-        tar -C/ -xf "${PWD}.tar"
-        rm -rf "${PWD}.tar"
-    fi
+    tests.backup restore
 
     if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
         echo "Save snaps profiler log"
@@ -588,7 +650,7 @@ restore_suite_each() {
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
             cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
-        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user
@@ -597,7 +659,7 @@ restore_suite_each() {
     # random failures in the mount leak detector. Give it a moment but don't
     # clean it up ourselves, this should report actual test errors, if any.
     for i in $(seq 10); do
-        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+        if not mountinfo.query /run/user/12345 .fs_type=tmpfs; then
             break
         fi
         sleep 1
@@ -613,7 +675,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if is_classic_system; then
+    if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
@@ -627,7 +689,7 @@ restore_suite() {
 restore_project_each() {
     "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
-    invariant-tool check
+    tests.invariant check
     "$TESTSTOOLS"/cleanup-state post-invariant
 
     # TODO: move this to tests.cleanup.

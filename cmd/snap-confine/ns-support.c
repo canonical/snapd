@@ -93,7 +93,7 @@ void sc_reassociate_with_pid1_mount_ns(void)
 	if (readlinkat(init_mnt_fd, "", init_buf, sizeof init_buf) < 0) {
 		if (errno == ENOENT) {
 			// According to namespaces(7) on a pre 3.8 kernel the namespace
-			// files are hardlinks, not sylinks. If that happens readlinkat
+			// files are hardlinks, not symlinks. If that happens readlinkat
 			// fails with ENOENT. As a quick workaround for this special-case
 			// functionality, just bail out and do nothing without raising an
 			// error.

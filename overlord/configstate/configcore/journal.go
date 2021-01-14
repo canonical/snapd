@@ -110,7 +110,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
 		// therefore only tell journald to reload if it's new enough.
 		if ver >= 236 {
-			sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
+			sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, nil)
 			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 				return err
 			}

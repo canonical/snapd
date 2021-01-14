@@ -20,7 +20,11 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 var (
 	// one two "three four" "five \"six\"" seven#eight # nine # ten

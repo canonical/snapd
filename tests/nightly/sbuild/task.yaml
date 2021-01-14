@@ -16,9 +16,9 @@ execute: |
     echo "Allow test user to run sbuild"
     sbuild-adduser test
 
-    BUILD_PARAM=""
+    BUILD_PARAM="--verbose --debug"
     if [ "$BUILD_MODE" == "any" ]; then
-        BUILD_PARAM="--arch-any"
+        BUILD_PARAM="$BUILD_PARAM --arch-any"
     fi
 
     echo "Build mode: $BUILD_MODE"

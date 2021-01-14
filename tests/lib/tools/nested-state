@@ -1,0 +1,148 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: prepare"
+    echo "       restore"
+    echo "       build-image IMAGE-TYPE"
+    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
+    echo "       start-vm"
+    echo "       stop-vm"
+    echo "       remove-vm"
+    echo ""
+    echo "Available options:"
+    echo "  -h --help   show this help message."
+    echo ""
+    echo "COMMANDS:"
+    echo "  prepare:     creates all the directories needed to run a nested test"
+    echo "  restore:     removes all the directories and data used by nested tests"
+    echo "  build-image: creates an image using ubuntu image tool"
+    echo "  create-vm:   creates new virtual machine and leave it running"
+    echo "  start-vm:    starts a stopped vm"
+    echo "  stop-vm:     shutdowns a running vm"
+    echo "  remove-vm:   removes a vm"
+    echo ""
+    echo "IMAGE-TYPES:"
+    echo "  core: work with a core image"
+    echo "  classic: work with a classic image"
+    echo ""
+}
+
+prepare() {
+    nested_prepare_env
+}
+
+restore() {
+    nested_cleanup_env
+}
+
+build_image() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            classic)
+                nested_create_classic_vm
+                exit
+                ;;
+            core)
+                nested_create_core_vm
+                exit
+                ;;
+            *)
+                echo "nested-state: expected either classic or core as argument" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+create_vm() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+    local action=
+    case "$1" in
+        classic)
+            shift 1
+            action=nested_start_classic_vm
+            ;;
+        core)
+            shift 1
+            action=nested_start_core_vm
+            ;;
+        *)
+            echo "nested-state: unsupported parameter $1" >&2
+            exit 1
+            ;;
+    esac
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --param-cdrom)
+                export NESTED_PARAM_CD="$2"
+                shift 2
+                ;;
+            --param-mem)
+                export NESTED_PARAM_MEM="$2"
+                shift 2
+                ;;
+            *)
+                echo "nested-state: unsupported parameter $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    "$action"
+}
+
+
+start_vm() {
+    nested_start
+}
+
+stop_vm() {
+    nested_shutdown
+}
+
+remove_vm() {
+    nested_destroy_vm
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "nested-state: no such command: $subcommand"
+        show_help
+        exit 1
+    fi
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    "$action" "$@"
+}
+
+main "$@"

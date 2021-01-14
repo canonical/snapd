@@ -40,10 +40,15 @@ import (
 )
 
 // Backend is responsible for maintaining udev rules.
-type Backend struct{}
+type Backend struct {
+	preseed bool
+}
 
 // Initialize does nothing.
-func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
+func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
+	if opts != nil && opts.Preseed {
+		b.preseed = true
+	}
 	return nil
 }
 
@@ -90,7 +95,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 			// FIXME: somehow detect the interfaces that were
 			// disconnected and set subsystemTriggers appropriately.
 			// ATM, it is always going to be empty on disconnect.
-			return ReloadRules(subsystemTriggers)
+			return b.reloadRules(subsystemTriggers)
 		}
 		return nil
 	}
@@ -127,7 +132,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// FIXME: somehow detect the interfaces that were disconnected and set
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
-	return ReloadRules(subsystemTriggers)
+	return b.reloadRules(subsystemTriggers)
 }
 
 // Remove removes udev rules specific to a given snap.
@@ -149,7 +154,7 @@ func (b *Backend) Remove(snapName string) error {
 	// FIXME: somehow detect the interfaces that were disconnected and set
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
-	return ReloadRules(nil)
+	return b.reloadRules(nil)
 }
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content []string) {

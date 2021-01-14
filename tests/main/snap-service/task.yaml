@@ -4,9 +4,7 @@ kill-timeout: 5m
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
@@ -22,7 +20,7 @@ execute: |
     echo "A snap that refuses to stop is killed eventually"
     snap stop test-snapd-service.test-snapd-service-refuses-to-stop
     # systemd in 14.04 does not provide the "Result: timeout" information
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "code=killed"
     else
         systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"

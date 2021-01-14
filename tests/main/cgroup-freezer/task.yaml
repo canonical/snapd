@@ -1,16 +1,15 @@
 summary: Each snap process is moved to appropriate freezer cgroup
-# fedora-31: uses cgroupv2, which does not support a separate freezer controller
 # fedora-32: uses cgroupv2, which does not support a separate freezer controller
-systems: [ -fedora-31-*, -fedora-32-*]
+# fedora-33: uses cgroupv2, which does not support a separate freezer controller
+# debian-sid: uses cgroupv2, which does not support a separate freezer controller
+systems: [ -fedora-32-*, -fedora-33-*, -debian-sid-*]
 
 details: |
     This test creates a snap process that suspends itself and ensures that it
     placed into the appropriate hierarchy under the freezer cgroup.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
     rmdir /sys/fs/cgroup/freezer/snap.test-snapd-sh || true

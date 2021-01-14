@@ -54,13 +54,13 @@ type BootableSet struct {
 // rootdir points to an image filesystem (UC 16/18), image recovery
 // filesystem (UC20 at prepare-image time) or ephemeral system (UC20
 // install mode).
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
-		return makeBootable20RunMode(model, rootdir, bootWith)
+		return makeBootable20RunMode(model, rootdir, bootWith, sealer)
 	}
 	return makeBootable20(model, rootdir, bootWith)
 }
@@ -159,7 +159,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -181,6 +181,8 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// ubuntu-seed
 	blVars := map[string]string{
 		"snapd_recovery_system": bootWith.RecoverySystemLabel,
+		// always set the mode as install
+		"snapd_recovery_mode": ModeInstall,
 	}
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set recovery environment: %v", err)
@@ -225,9 +227,8 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO:UC20:
-	// - create grub.cfg instead of using the gadget one
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
@@ -256,31 +257,52 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	// replicate the boot assets cache in host's writable
+	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
+	}
+
+	var currentTrustedBootAssets bootAssetsMap
+	var currentTrustedRecoveryBootAssets bootAssetsMap
+	if sealer != nil {
+		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
+		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
+	}
+	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
-		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
+		RecoverySystem: recoverySystemLabel,
+		// default to the system we were installed from
+		CurrentRecoverySystems:           []string{recoverySystemLabel},
+		CurrentTrustedBootAssets:         currentTrustedBootAssets,
+		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
+		// kernel command lines are set later once a boot config is
+		// installed
+		CurrentKernelCommandLines: nil,
+		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}
-	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot write modeenv: %v", err)
-	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
+		// Bootloader for run mode
+		Role: bootloader.RoleRunMode,
 		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
+		// run partition layout, no /boot mount.
 		NoSlashBoot: true,
-		// Bootloader that supports kernel asset extraction
-		ExtractedRunKernelImage: true,
 	}
-	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
+	// the bootloader config may have been installed when the ubuntu-boot
+	// partition was created, but for a trusted assets the bootloader config
+	// will be installed further down; for now identify the run mode
+	// bootloader by looking at the gadget
+	bl, err := bootloader.ForGadget(bootWith.UnpackedGadgetDir, InitramfsUbuntuBootDir, opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot identify run system bootloader: %v", err)
 	}
 
 	// extract the kernel first and mark kernel_status ready
@@ -312,11 +334,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 			return err
 		}
 	} else {
-		// TODO:UC20: should we make this more explicit with a new
-		//            bootloader interface that is checked for first before
-		//            ExtractedRunKernelImageBootloader the same way we do with
-		//            ExtractedRecoveryKernelImageBootloader?
-
 		// the bootloader does not support additional handling of
 		// extracted kernel images, we must name the kernel to be used
 		// explicitly in bootloader variables
@@ -330,12 +347,42 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
+	_, ok = bl.(bootloader.TrustedAssetsBootloader)
+	if ok {
+		// the bootloader can manage its boot config
+
+		// installing boot config must be performed after the boot
+		// partition has been populated with gadget data
+		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
+			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
+		}
+		// determine the expected command line
+		cmdline, err := ComposeCandidateCommandLine(model)
+		if err != nil {
+			return fmt.Errorf("cannot compose the candidate command line: %v", err)
+		}
+		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+	}
+
+	// all fields that needed to be set in the modeenv must have been set by
+	// now, write modeenv to disk
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot write modeenv: %v", err)
+	}
+
+	if sealer != nil {
+		// seal the encryption key to the parameters specified in modeenv
+		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv); err != nil {
+			return err
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
 		// let the bootloader know we will be touching the recovery
 		// partition
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {

@@ -11,26 +11,61 @@ def parse_arguments():
         description="pc gadget yaml variant generator for test"
     )
     parser.add_argument(
+        "--system-seed", action="store_true", help="also modify system-seed"
+    )
+
+    parser.add_argument(
         "gadgetyaml", type=argparse.FileType("r"), help="path to gadget.yaml input file"
     )
     parser.add_argument("variant", help="test data variant", choices=["v1", "v2"])
     return parser.parse_args()
 
 
-def must_find_struct(structs, structure_type):
-    structs = [s for s in structs if s["type"] == structure_type]
-    if len(structs) != 1:
-        raise RuntimeError("unexpected number of structures: {}".format(cans))
-    return structs[0]
+def match_name(name):
+    return lambda struct: struct.get("name", "") == name
 
 
-def make_v1(doc):
+def match_role_with_fallback(role):
+    def match(struct):
+        if "role" in struct:
+            struct_role = struct["role"]
+        elif "filesystem-label" in struct:
+            # fallback to filesystem-label
+            struct_role = struct["filesystem-label"]
+        else:
+            return False
+        return role == struct_role
+
+    return match
+
+
+def must_find_struct(structs, matcher):
+    found = [s for s in structs if matcher(s)]
+    if len(found) != 1:
+        raise RuntimeError("found {} matches among: {}".format(len(found), structs))
+    return found[0]
+
+
+def bump_update_edition(update):
+    if update is None:
+        return {"edition": 1}
+    if "edition" not in update:
+        update["edition"] = 1
+    else:
+        update["edition"] += 1
+    return update
+
+
+def make_v1(doc, system_seed):
     # add new files to 'EFI System' partition, add new image file to 'BIOS
     # Boot', bump update edition for both
     structs = doc["volumes"]["pc"]["structure"]
-    efisystem = must_find_struct(structs, "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
-    biosboot = must_find_struct(structs, "DA,21686148-6449-6E6F-744E-656564454649")
+    # "EFI System" in UC16/UC18, or just system-boot in UC20
+    efisystem = must_find_struct(structs, match_role_with_fallback("system-boot"))
+    biosboot = must_find_struct(structs, match_name("BIOS Boot"))
 
+    # from UC16/UC18 gadgets:
+    #
     # - name: EFI System
     #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     #   filesystem: vfat
@@ -51,7 +86,8 @@ def make_v1(doc):
     #  update:
     #      edition: 1
     efisystem["content"].append({"source": "foo.cfg", "target": "foo.cfg"})
-    efisystem["update"] = {"edition": 1}
+    efisystem["update"] = bump_update_edition(efisystem.get("update"))
+
     # - name: BIOS Boot
     #   (not)type: DA,21686148-6449-6E6F-744E-656564454649
     #   size: 1M
@@ -64,19 +100,44 @@ def make_v1(doc):
     #   update:
     #       edition: 1
     biosboot["content"].append({"image": "foo.img"})
-    biosboot["update"] = {"edition": 1}
+    biosboot["update"] = bump_update_edition(biosboot.get("update"))
+
+    if system_seed:
+        # from UC20 gadget:
+        #
+        # - name: ubuntu-seed
+        #   role: system-seed
+        #   filesystem: vfat
+        #   # UEFI will boot the ESP partition by default first
+        #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        #   size: 1200M
+        #   update:
+        #     edition: 2
+        #   content:
+        #     - source: grubx64.efi
+        #       target: EFI/boot/grubx64.efi
+        #     - source: shim.efi.signed
+        #       target: EFI/boot/bootx64.efi
+        #     - source: grub-recovery.conf
+        #       target: EFI/ubuntu/grub.cfg
+        systemseed = must_find_struct(structs, match_role_with_fallback("system-seed"))
+        systemseed["content"].append(
+            {"source": "foo-seed.cfg", "target": "foo-seed.cfg"}
+        )
+        systemseed["update"] = bump_update_edition(systemseed.get("update"))
+
     return doc
 
 
-def make_v2(doc):
+def make_v2(doc, system_seed):
     # appply v1, add more new files to 'EFI System' partition, preserve one of
     # the updated files, to 'BIOS Boot', bump update edition for both
 
-    doc = make_v1(doc)
+    doc = make_v1(doc, system_seed)
 
     structs = doc["volumes"]["pc"]["structure"]
-    efisystem = must_find_struct(structs, "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
-    biosboot = must_find_struct(structs, "DA,21686148-6449-6E6F-744E-656564454649")
+    efisystem = must_find_struct(structs, match_role_with_fallback("system-boot"))
+    biosboot = must_find_struct(structs, match_name("BIOS Boot"))
     # - name: EFI System
     #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     #   filesystem: vfat
@@ -100,10 +161,11 @@ def make_v2(doc):
     #      edition: 2
     #      preserve: [foo.cfg, bar.cfg]
     efisystem["content"].append({"source": "bar.cfg", "target": "bar.cfg"})
-    efisystem["update"] = {
-        "edition": 2,
-        "preserve": ["foo.cfg", "bar.cfg"],
-    }
+    efisystem["update"] = bump_update_edition(efisystem.get("update"))
+    efisystem["update"]["preserve"] = efisystem["update"].get("preserve", []) + [
+        "foo.cfg",
+        "bar.cfg",
+    ]
     # - name: BIOS Boot
     #   (not)type: DA,21686148-6449-6E6F-744E-656564454649
     #   size: 1M
@@ -115,7 +177,14 @@ def make_v2(doc):
     #     - image: foo.img
     #   update:
     #       edition: 2
-    biosboot["update"] = {"edition": 2}
+    biosboot["update"] = bump_update_edition(biosboot.get("update"))
+
+    if system_seed:
+        # only in UC20 gadgets
+        systemseed = must_find_struct(structs, match_role_with_fallback("system-seed"))
+        # we already appended foo-boot.cfg, bump the edition so that it gets
+        # updated
+        systemseed["update"] = bump_update_edition(systemseed.get("update"))
 
     return doc
 
@@ -124,9 +193,9 @@ def main(opts):
     doc = yaml.safe_load(opts.gadgetyaml)
 
     if opts.variant == "v1":
-        make_v1(doc)
+        make_v1(doc, opts.system_seed)
     elif opts.variant == "v2":
-        make_v2(doc)
+        make_v2(doc, opts.system_seed)
 
     yaml.dump(doc, sys.stdout)
 

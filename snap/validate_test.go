@@ -1210,7 +1210,7 @@ layout:
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 
-	// Layout replacing files in another snap's mount p oit
+	// Layout replacing files in another snap's mount point
 	const yaml12 = `
 name: this-snap
 layout:
@@ -1224,6 +1224,47 @@ layout:
 	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/snap/that-snap/current/stuff" defines a layout in space belonging to another snap`)
+
+	const yaml13 = `
+name: this-snap
+layout:
+  $SNAP/relative:
+    symlink: $SNAP/existent-dir
+`
+
+	// Layout using $SNAP/... as source
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml13), &SideInfo{Revision: R(42)}, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+
+	var yaml14Pattern = `
+name: this-snap
+layout:
+  %s:
+    symlink: $SNAP/existent-dir
+`
+
+	for _, testCase := range []struct {
+		str         string
+		topLevelDir string
+	}{
+		{"/nonexistent-dir", "/nonexistent-dir"},
+		{"/nonexistent-dir/subdir", "/nonexistent-dir"},
+		{"///////unclean-absolute-dir", "/unclean-absolute-dir"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
+	}
+
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
@@ -1925,4 +1966,54 @@ version: 1.0`
 	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
+}
+
+func (s *validateSuite) TestValidateDesktopPrefix(c *C) {
+	// these are extensively tested elsewhere, so just try some common ones
+	for i, tc := range []struct {
+		prefix string
+		exp    bool
+	}{
+		{"good", true},
+		{"also-good", true},
+		{"also-good+instance", true},
+		{"", false},
+		{"+", false},
+		{"@", false},
+		{"+good", false},
+		{"good+", false},
+		{"good+@", false},
+		{"old-style_instance", false},
+		{"bad+bad+bad", false},
+	} {
+		c.Logf("tc #%v", i)
+		res := ValidateDesktopPrefix(tc.prefix)
+		c.Check(res, Equals, tc.exp)
+	}
+}
+
+func (s *ValidateSuite) TestAppInstallMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		installMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"disable", true},
+		{"enable", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, InstallMode: t.installMode})
+		if t.ok {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`"install-mode" field contains invalid value %q`, t.installMode))
+		}
+	}
+
+	// non-services cannot have a install-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", InstallMode: "disable"})
+	c.Check(err, ErrorMatches, `"install-mode" cannot be used for "foo", only for services`)
 }

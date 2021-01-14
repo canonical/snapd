@@ -177,11 +177,11 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	return nil
 }
 
-func (s *seed20) Model() (*asserts.Model, error) {
+func (s *seed20) Model() *asserts.Model {
 	if s.model == nil {
-		return nil, fmt.Errorf("internal error: model assertion unset")
+		panic("internal error: model assertion unset (LoadAssertions not called)")
 	}
-	return s.model, nil
+	return s.model
 }
 
 func (s *seed20) Brand() (*asserts.Account, error) {
@@ -420,10 +420,7 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 }
 
 func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
-	model, err := s.Model()
-	if err != nil {
-		return err
-	}
+	model := s.Model()
 
 	if err := s.loadOptions(); err != nil {
 		return err
@@ -470,10 +467,7 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 }
 
 func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
-	model, err := s.Model()
-	if err != nil {
-		return err
-	}
+	model := s.Model()
 
 	const notEssential = false
 	for _, modelSnap := range model.SnapsWithoutEssential() {

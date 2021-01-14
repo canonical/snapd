@@ -31,7 +31,7 @@ import (
 var _ = check.Suite(&pprofDebugSuite{})
 
 type pprofDebugSuite struct {
-	apiBaseSuite
+	APIBaseSuite
 }
 
 func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {

@@ -14,6 +14,9 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 
+# takes an absolute path with slashes and turns it into an AppArmor profile path
+%define as_apparmor_path() %(echo "%1" | tr / . | cut -c2-)
+
 # Test keys: used for internal testing in snapd.
 %bcond_with testkeys
 
@@ -70,6 +73,9 @@
 # GOPATH so that nothing needs to be moved or copied for "go build" to work.
 %global indigo_srcdir   %{indigo_gopath}/src/%{import_path}
 
+# path to snap-confine encoded as AppArmor profile
+%define apparmor_snapconfine_profile %as_apparmor_path %{_libexecdir}/snapd/snap-confine
+
 # Set if multilib is enabled for supported arches
 %ifarch x86_64 aarch64 %{power64} s390x
 %global with_multilib 1
@@ -77,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.45.1
+Version:        2.48.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -134,6 +140,7 @@ Requires:       apparmor-profiles
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
+Requires:       system-user-daemon
 
 # Old versions of xdg-document-portal can expose data belonging to
 # other confied apps.  Older OpenSUSE releases are unlikely to change,
@@ -249,6 +256,10 @@ popd
 %make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH all
 
 %check
+for binary in snap-exec snap-update-ns snapctl; do
+    ldd $binary 2>&1 | grep 'not a dynamic executable'
+done
+
 %make_build -C %{indigo_srcdir}/cmd check
 # Use the common packaging helper for testing.
 %make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH check
@@ -310,7 +321,7 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
-%apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
+%apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
@@ -345,6 +356,8 @@ fi
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
 %dir %{_datadir}/dbus-1
 %dir %{_datadir}/dbus-1/services
+%dir %{_datadir}/dbus-1/session.d
+%dir %{_datadir}/dbus-1/system.d
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
 %dir %{_environmentdir}
@@ -357,6 +370,9 @@ fi
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cache
 %dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/dbus-1
+%dir %{_sharedstatedir}/snapd/dbus-1/services
+%dir %{_sharedstatedir}/snapd/dbus-1/system-services
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
@@ -393,11 +409,15 @@ fi
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
 %{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
+%{_datadir}/dbus-1/session.d/snapd.session-services.conf
+%{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
@@ -435,7 +455,7 @@ fi
 %config %{_sysconfdir}/apparmor.d
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
-%{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
+%{_sysconfdir}/apparmor.d/%{apparmor_snapconfine_profile}
 %{_unitdir}/snapd.apparmor.service
 %endif
 

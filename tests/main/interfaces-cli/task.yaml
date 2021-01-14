@@ -6,11 +6,8 @@ environment:
     PLUG: network
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap with the $PLUG plug is installed"
-    install_local "$SNAP_NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
 execute: |
     expected="(?s)Slot +Plug\\n\

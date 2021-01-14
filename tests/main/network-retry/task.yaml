@@ -2,7 +2,7 @@ summary: Ensure network retry works correctly
 
 prepare: |
     echo "Break DNS"
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
        resolvConf=$(realpath /etc/resolv.conf)
        mv "${resolvConf}" "${resolvConf}.save"
        echo "${resolvConf}" > resolvConf.txt
@@ -10,13 +10,21 @@ prepare: |
         mv /etc/resolv.conf /etc/resolv.conf.save
     fi
     systemctl stop snapd.service
+    if systemctl is-active systemd-resolved; then
+        systemctl stop systemd-resolved
+        touch resolved.active
+    fi
+
 restore: |
     echo "Unbreak DNS"
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
        resolvConf=$(cat resolvConf.txt)
        mv "${resolvConf}.save" "${resolvConf}"
     else
        mv /etc/resolv.conf.save /etc/resolv.conf
+    fi
+    if [ -e resolved.active ]; then
+        systemctl start systemd-resolved
     fi
     systemctl stop snapd.service
 
@@ -35,7 +43,5 @@ execute: |
         exit 1
     fi
 
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
     echo "Ensure we tried to retry this operation"
-    check_journalctl_log 'Retrying because of temporary net error'
+    "$TESTSTOOLS"/journal-state match-log 'Retrying because of temporary net error'

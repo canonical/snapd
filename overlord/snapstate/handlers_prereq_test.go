@@ -57,6 +57,14 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+		return 0, nil
+	})
+	s.AddCleanup(restoreInstallSize)
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {

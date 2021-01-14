@@ -117,6 +117,13 @@ dbus (send)
     interface=org.freedesktop.DBus.Peer
     member=GetMachineId
     peer=(label=unconfined),
+
+# Allow reading if protected hardlinks are enabled, but don't allow enabling or
+# disabling them
+@{PROC}/sys/fs/protected_hardlinks r,
+@{PROC}/sys/fs/protected_symlinks r,
+@{PROC}/sys/fs/protected_fifos r,
+@{PROC}/sys/fs/protected_regular r,
 `
 
 const systemObserveConnectedPlugSecComp = `

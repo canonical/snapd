@@ -95,10 +95,10 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 
 	// In case we need to create something, some constants.
 	const (
-		mode = 0755
-		uid  = 0
-		gid  = 0
+		uid = 0
+		gid = 0
 	)
+	mode := as.ModeForPath(path)
 
 	// If the element doesn't exist we can attempt to create it.  We will
 	// create the parent directory and then the final element relative to it.
@@ -361,6 +361,26 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
 				}
 				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+				if err == syscall.EINVAL {
+					// We attempted to unmount but got an EINVAL, one of the
+					// possibilities and the only one unless we provided wrong
+					// flags, is that the mount no longer exists.
+					//
+					// We can verify that now by scanning mountinfo:
+					entries, _ := osutil.LoadMountInfo()
+					for _, entry := range entries {
+						if entry.MountDir == c.Entry.Dir {
+							// Mount point still exists, EINVAL was unexpected.
+							return err
+						}
+					}
+					// We didn't find a mount point at the location we tried to
+					// unmount. The EINVAL we observed indicates that the mount
+					// profile no longer agrees with reality. The mount point
+					// no longer exists. As such, consume the error and carry on.
+					logger.Debugf("ignoring EINVAL from unmount, %q is not mounted", c.Entry.Dir)
+					err = nil
+				}
 				if err != nil {
 					return err
 				}
@@ -373,6 +393,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			path := c.Entry.Dir
 			var fd int
 			fd, err = OpenPath(path)
+			// If the place does not exist anymore, we are done.
+			if os.IsNotExist(err) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -625,6 +649,20 @@ func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 			// Recursive bind mounts and non-mimic tmpfs mounts need to be
 			// detached because they can contain other mount points that can
 			// otherwise propagate in a self-conflicting way.
+			if !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+		case entry.OptBool("bind") && entry.XSnapdKind() == "file":
+			// Bind mounted files are detached. If a bind mounted file open or
+			// mapped into a process as a library, then attempting to unmount
+			// it will result in EBUSY.
+			//
+			// This can happen when a snap has a service, for example one using
+			// a library mounted via a bind mount and an absent content
+			// connection. Subsequent connection of the content connection will
+			// trigger re-population of the mount namespace, which will start
+			// by tearing down the existing file bind-mount. To prevent this,
+			// detach the mount instead.
 			if !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}

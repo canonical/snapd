@@ -33,10 +33,12 @@ type Container interface {
 	Size() (int64, error)
 
 	// RandomAccessFile returns an implementation to read at any
-	// given location for a single file inside the snap.
+	// given location for a single file inside the snap plus
+	// information about the file size.
 	RandomAccessFile(relative string) (interface {
 		io.ReaderAt
 		io.Closer
+		Size() int64
 	}, error)
 
 	// ReadFile returns the content of a single file from the snap.

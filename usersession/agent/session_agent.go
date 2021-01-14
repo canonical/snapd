@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
@@ -41,6 +42,7 @@ import (
 
 type SessionAgent struct {
 	Version  string
+	bus      *dbus.Conn
 	listener net.Listener
 	serve    *http.Server
 	tomb     tomb.Tomb
@@ -48,6 +50,26 @@ type SessionAgent struct {
 
 	idle        *idleTracker
 	IdleTimeout time.Duration
+}
+
+const sessionAgentBusName = "io.snapcraft.SessionAgent"
+
+func dbusSessionBus() (*dbus.Conn, error) {
+	// use a private connection to the session bus, this way we can manage
+	// its lifetime without worrying of breaking other code
+	conn, err := dbus.SessionBusPrivate()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.Auth(nil); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := conn.Hello(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -165,6 +187,12 @@ func (l *closeOnceListener) Close() error {
 }
 
 func (s *SessionAgent) Init() error {
+	// Set up D-Bus connection
+	if err := s.tryConnectSessionBus(); err != nil {
+		return err
+	}
+
+	// Set up REST API server
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err
@@ -184,6 +212,32 @@ func (s *SessionAgent) Init() error {
 	s.serve = &http.Server{
 		Handler:   s.router,
 		ConnState: s.idle.trackConn,
+	}
+	return nil
+}
+
+func (s *SessionAgent) tryConnectSessionBus() (err error) {
+	s.bus, err = dbusSessionBus()
+	if err != nil {
+		// ssh sessions on Ubuntu 16.04 may have a user
+		// instance of systemd but no D-Bus session bus.  So
+		// don't treat this as an error.
+		logger.Noticef("Could not connect to session bus: %v", err)
+		return nil
+	}
+	defer func() {
+		if err != nil {
+			s.bus.Close()
+			s.bus = nil
+		}
+	}()
+
+	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
+	if err != nil {
+		return err
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		return fmt.Errorf("cannot obtain bus name %q: %v", sessionAgentBusName, reply)
 	}
 	return nil
 }
@@ -217,6 +271,7 @@ func (s *SessionAgent) runServer() error {
 
 func (s *SessionAgent) shutdownServerOnKill() error {
 	<-s.tomb.Dying()
+	systemd.SdNotify("STOPPING=1")
 	// closing the listener (but then it needs wrapping in
 	// closeOnceListener) before actually calling Shutdown, to
 	// workaround https://github.com/golang/go/issues/20239, we
@@ -226,7 +281,7 @@ func (s *SessionAgent) shutdownServerOnKill() error {
 	// Historically We do something similar in the main daemon
 	// logic as well.
 	s.listener.Close()
-	systemd.SdNotify("STOPPING=1")
+	s.bus.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	return s.serve.Shutdown(ctx)

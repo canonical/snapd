@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -108,6 +109,11 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	t.perfTimings = timings.New(nil)
+
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		return sysconfig.CloudInitRestrictedBySnapd, nil
+	})
+	t.AddCleanup(r)
 }
 
 // startOverlord will setup and create a new overlord, note that it will not
@@ -508,10 +514,6 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-
-	checkTasks(c, tsAll)
-
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -519,6 +521,9 @@ snaps:
 		chg.AddAll(ts)
 	}
 	c.Assert(st.Changes(), HasLen, 1)
+
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
+	checkTasks(c, tsAll)
 
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")

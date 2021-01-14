@@ -23,12 +23,12 @@ import (
 )
 
 var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-	ParsePid           = parsePid
-
+	Cgroup2SuperMagic       = cgroup2SuperMagic
+	ProbeCgroupVersion      = probeCgroupVersion
+	ParsePid                = parsePid
 	DoCreateTransientScope  = doCreateTransientScope
 	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
+
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited

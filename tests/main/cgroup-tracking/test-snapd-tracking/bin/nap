@@ -1,0 +1,3 @@
+#!/bin/sh
+cat /proc/self/cgroup > "$SNAP_COMMON/nap.cgroup"
+exec sleep infinity

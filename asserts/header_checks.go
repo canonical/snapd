@@ -116,9 +116,9 @@ func checkIntWithDefault(headers map[string]interface{}, name string, defl int) 
 	if !ok {
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
 	}
-	m, err := strconv.Atoi(s)
+	m, err := atoi(s, "%q %s", name, "header")
 	if err != nil {
-		return -1, fmt.Errorf("%q header is not an integer: %v", name, s)
+		return -1, err
 	}
 	return m, nil
 }
@@ -132,11 +132,36 @@ func checkIntWhat(headers map[string]interface{}, name, what string) (int, error
 	if err != nil {
 		return -1, err
 	}
-	value, err := strconv.Atoi(valueStr)
+	value, err := atoi(valueStr, "%q %s", name, what)
 	if err != nil {
-		return -1, fmt.Errorf("%q %s is not an integer: %v", name, what, valueStr)
+		return -1, err
 	}
 	return value, nil
+}
+
+type intSyntaxError string
+
+func (e intSyntaxError) Error() string {
+	return string(e)
+}
+
+func atoi(valueStr, whichFmt string, whichArgs ...interface{}) (int, error) {
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		which := fmt.Sprintf(whichFmt, whichArgs...)
+		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return -1, fmt.Errorf("%s is out of range: %v", which, valueStr)
+		}
+		return -1, intSyntaxError(fmt.Sprintf("%s is not an integer: %v", which, valueStr))
+	}
+	if prefixZeros(valueStr) {
+		return -1, fmt.Errorf("%s has invalid prefix zeros: %s", fmt.Sprintf(whichFmt, whichArgs...), valueStr)
+	}
+	return value, nil
+}
+
+func prefixZeros(s string) bool {
+	return strings.HasPrefix(s, "0") && s != "0"
 }
 
 func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
@@ -180,10 +205,15 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 	if err != nil {
 		return 0, err
 	}
-
 	value, err := strconv.ParseUint(valueStr, 10, bitSize)
 	if err != nil {
+		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return 0, fmt.Errorf("%q header is out of range: %v", name, valueStr)
+		}
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
+	}
+	if prefixZeros(valueStr) {
+		return 0, fmt.Errorf("%q header has invalid prefix zeros: %s", name, valueStr)
 	}
 	return value, nil
 }

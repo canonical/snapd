@@ -48,6 +48,25 @@ func ValidateName(name string) error {
 	return naming.ValidateSnap(name)
 }
 
+// ValidateDesktopPrefix checks if a string can be used as a desktop file
+// prefix. A desktop prefix should be of the form 'snapname' or
+// 'snapname+instance'.
+func ValidateDesktopPrefix(prefix string) bool {
+	tokens := strings.Split(prefix, "+")
+	if len(tokens) == 0 || len(tokens) > 2 {
+		return false
+	}
+	if err := ValidateName(tokens[0]); err != nil {
+		return false
+	}
+	if len(tokens) == 2 {
+		if err := ValidateInstanceName(tokens[1]); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidatePlugName checks if a string can be used as a slot name.
 //
 // Slot names and plug names within one snap must have unique names.
@@ -400,6 +419,38 @@ func ValidateLayoutAll(info *Info) error {
 	}
 	sort.Strings(paths)
 
+	// Validate that each source path is not a new top-level directory
+	for _, layout := range info.Layout {
+		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
+		switch len(elems) {
+		// len(1) is either relative path or empty string, will be validated
+		// elsewhere
+		case 2, 3:
+			// if the first string is the empty string, then we have a top-level
+			// directory to check
+			if elems[0] != "" {
+				// not the empty string which means this was a relative
+				// specification, i.e. usr/src/doc
+				return fmt.Errorf("layout %q is a relative filename", layout.Path)
+			}
+			if elems[1] != "" {
+				// verify that the top-level directory is a supported one
+				// we can't create new top-level directories because that would
+				// require creating a mimic on top of "/" which we don't
+				// currently support
+				switch elems[1] {
+				// this list was produced by taking all of the top level
+				// directories in the core snap and removing the explicitly
+				// denied top-level directories
+				case "bin", "etc", "lib", "lib64", "meta", "mnt", "opt", "root", "sbin", "snap", "srv", "usr", "var", "writable":
+				default:
+					return fmt.Errorf("layout %q defines a new top-level directory %q", layout.Path, "/"+elems[1])
+				}
+			}
+		}
+	}
+
 	// Validate that each source path is used consistently as a file or as a directory.
 	sourceKindMap := make(map[string]string)
 	for _, path := range paths {
@@ -732,11 +783,21 @@ func ValidateApp(app *AppInfo) error {
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
+	// validate install-mode
+	switch app.InstallMode {
+	case "", "enable", "disable":
+		// valid
+	default:
+		return fmt.Errorf(`"install-mode" field contains invalid value %q`, app.InstallMode)
+	}
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	}
+	if app.InstallMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)

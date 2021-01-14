@@ -4,9 +4,7 @@ summary: Check that `snap run --experimental-gdbserver` works
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     apt install -y gdbserver gdb
 
 restore: |
@@ -18,7 +16,7 @@ execute: |
     # run the gdbserver command as a user
     # XXX: use "systemd-run --user -p StandardOutput=file:$(pwd)/stdout"
     # shellcheck disable=SC2016
-    su -l -c 'snap run --experimental-gdbserver test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
+    su -c 'snap run --experimental-gdbserver test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
 
     # wait for the instructions that gdb is ready to get attached
     retry -n60 grep '^gdb -ex' stdout

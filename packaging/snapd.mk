@@ -65,7 +65,9 @@ snap snap-seccomp:
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
 snap-update-ns snap-exec snapctl:
-	go build -buildmode=default -ldflags '-extldflags "-static"' $(import_path)/cmd/$@
+	# Explicit request to use an external linker, otherwise extldflags may not be
+	# used
+	go build -buildmode=default -ldflags '-linkmode external -extldflags "-static"' $(import_path)/cmd/$@
 
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.
@@ -105,6 +107,8 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/assertions
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cache
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cookie
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/services
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/system-services
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs

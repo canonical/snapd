@@ -1,0 +1,56 @@
+summary: Check that a gadget refresh reseals
+
+systems: [ubuntu-20.04-64]
+
+execute: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    # Install new (unasserted) gadget without changes and wait for change without reboot
+    boot_id="$( nested_get_boot_id )"
+    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
+    # no reboot here, no gadget changes
+    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+  
+    # nothing in the gadget has changed so no reseal was needed
+    SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
+    RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
+
+    # create modified boot assets
+    KEY_NAME=$(nested_get_snakeoil_key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+    # ensure clean pc-gadget dir
+    rm -rf pc-gadget
+    GADGET_SNAP="$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)"
+    unsquashfs -d pc-gadget "$GADGET_SNAP"
+    # change a few bytes in the compat header and ensure sed worked
+    sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+    grep -q -a "This program cannot be run in XXX mode" pc-gadget/grubx64.efi
+
+    ./manip_gadget.py pc-gadget/meta/gadget.yaml > modified_gadget.yaml
+    mv modified_gadget.yaml pc-gadget/meta/gadget.yaml
+
+    # resign both assets
+    nested_secboot_sign_file pc-gadget/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    snap pack pc-gadget/
+
+    # install newly created gadget (which will trigger a reboot)
+    nested_copy ./pc_*.snap
+    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous ./pc_*.snap --no-wait)
+    nested_wait_for_reboot "${boot_id}"
+    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+
+    # sanity check that the gadget asset was changed
+    nested_exec sudo grep -q -a "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+
+    # the gadget has changed, we should see resealing
+    SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
+    RESEAL_COUNT_3="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    test "$RESEAL_COUNT_3" -gt "1"

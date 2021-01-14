@@ -15,11 +15,8 @@ prepare: |
     snap wait system seed.loaded
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install test snap"
-    install_local test-snapd-with-configure-core18
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-with-configure-core18
 
     snap list | MATCH core18
     if snap list | grep -E -q "^core "; then

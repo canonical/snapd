@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -941,7 +941,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		doneProfiles := false
 		for _, t1 := range t.WaitTasks() {
 			if t1.Kind() == "setup-profiles" && t1.Status() == state.DoneStatus {
-				snapsup1, err := snapstate.TaskSnapSetup(t)
+				snapsup1, err := snapstate.TaskSnapSetup(t1)
 				if err != nil {
 					return nil, err
 				}

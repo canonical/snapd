@@ -1,0 +1,145 @@
+summary: |
+    Test that cloud-init is no longer vulnerable on Ubuntu Core with the fix for
+    CVE-2020-11933 in place with a system that used NoCloud configuration.
+
+systems: [ubuntu-18.04-64, ubuntu-16.04-64]
+
+environment:
+    # this is for how nested.sh sets up the initial user, we will control
+    # cloud-init for the test through -cdrom with users created through
+    # system-user assertions to ensure that we are testing the right things
+    NESTED_USE_CLOUD_INIT: false
+    # this variant ensures that existing images without the fix are no longer
+    # vulnerable after refreshing to a version of snapd with the fix
+    NESTED_BUILD_FROM_CURRENT/refresh: false
+    # this variant ensures that new images with the fix are not vulnerable
+    NESTED_BUILD_FROM_CURRENT/firstboot: true
+    NESTED_IMAGE_ID: cloud-init-nocloud-$NESTED_BUILD_FROM_CURRENT
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    # first boot - legit NoCloud usage
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
+
+    # second boot - attacker drive
+    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+
+    "$TESTSTOOLS"/nested-state build-image core 
+
+    # first boot uses seed1 to create the normal-user in addition to the 
+    # system-user assertion
+    "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
+
+debug: |
+    if [ -f snapd-before-reboot.logs ]; then
+        echo "logs before reboot"
+        cat snapd-before-reboot.logs
+    fi
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    echo "logs from current nested VM boot snapd"
+    nested_exec "sudo journalctl -e --no-pager -u snapd" || true
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    # the VM here will use both system-user assertions and cloud-init to create
+    # users on the system, the system-user assertion is for the user1 user, and 
+    # the legitimate cloud-init user is the normal-user user
+
+    # wait for cloud-init to finish importing the first seed
+    nested_exec "sudo cloud-init status --wait"
+
+    echo "The initial cloud-init user was created"
+    nested_exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
+
+    # wait for snap seeding to be done
+    nested_exec "sudo snap wait system seed.loaded"
+
+    # if we are not building from current, then we need to prep the snapd snap
+    # to install with the fix, this simulates/verifies that devices in the field
+    # without the fix will actually be fixed after they refresh
+    if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
+        echo "Refreshing to a version of snapd with the fix"
+        if is_core_16_nested_system; then
+            # build the core snap for this run
+            repack_snapd_deb_into_core_snap "$PWD"
+            nested_copy "$PWD/core-from-snapd-deb.snap"
+
+            # install the core snap
+            nested_exec "sudo snap install core-from-snapd-deb.snap --dangerous"
+
+            # now we wait for the reboot for the new core snap
+            nested_wait_for_no_ssh
+            nested_wait_for_ssh        
+        else
+            # build the snapd snap for this run
+            repack_snapd_deb_into_snapd_snap "$PWD"
+            nested_copy "$PWD/snapd-from-deb.snap"
+
+            # install the snapd snap
+            nested_exec "sudo snap install snapd-from-deb.snap --dangerous"
+        fi
+    fi
+
+    # Note: there is a race here after we have installed the fix (or we have 
+    # booted a fresh image with the fix). 
+    # Namely, snapd will begin checking on cloud-init status after it has 
+    # ensured that the boot was okay in the device manager, but this will not
+    # happen immediately in zero time, and moreover, snapd will not do anything
+    # substantial or measurable until cloud-init has reached a steady state or
+    # otherwise times out. 
+    # As such, in this test, we first wait for cloud-init to settle down, and 
+    # then wait a bit longer to give snapd a chance to run again and take 
+    # action that we can test for.
+
+    echo "Waiting for cloud-init..."
+    nested_exec "cloud-init status --wait"
+
+    # TODO: is there a better thing we can wait for here instead? maybe the log
+    # message from snapd directly via journalctl ?
+    echo "Waiting for snapd to react to cloud-init"
+    sleep 60
+
+    # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
+    echo "Ensuring that snapd restricted cloud-init"
+    nested_exec "cloud-init status" | MATCH "status: done"
+    nested_exec "test ! -f /etc/cloud/cloud-init.disabled"
+    nested_exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    nested_exec "cat /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg" | MATCH "manual_cache_clean: true"
+
+    # save snapd logs before continuing as the logs are not persistent
+    nested_exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+
+    # gracefully shutdown so that we don't have file corruption
+    echo "Gracefully shutting down the nested VM to prepare a simulated attack"
+    boot_id="$(nested_get_boot_id)"
+    "$TESTSTOOLS"/nested-state stop-vm
+
+    # replace the seed.iso with the new attacker iso
+    mv seed2.iso seed.iso
+
+    echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
+    "$TESTSTOOLS"/nested-state start-vm
+    nested_wait_for_reboot "${boot_id}"
+
+    # cloud-init will actually still run because it was not disabled and we
+    # provided a cloud-init drive but importantly, it will not import the drive,
+    # so wait for cloud-init to settle down before continuing
+    echo "Waiting for cloud-init..."
+    nested_exec "cloud-init status --wait"
+
+    # the attacker-user should not have been created
+    echo "The cloud-init attacker user was not created"
+    nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+
+    echo "cloud-init is still restricted"
+    nested_exec "cloud-init status" | MATCH "status: done"
+    nested_exec "test ! -f /etc/cloud/cloud-init.disabled"
+    nested_exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

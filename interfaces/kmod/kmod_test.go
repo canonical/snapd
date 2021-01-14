@@ -20,6 +20,7 @@
 package kmod_test
 
 import (
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/testutil"
@@ -45,7 +46,9 @@ func (s *kmodSuite) TestModprobeCall(c *C) {
 	cmd := testutil.MockCommand(c, "modprobe", "")
 	defer cmd.Restore()
 
-	kmod.LoadModules([]string{
+	b, ok := s.Backend.(*kmod.Backend)
+	c.Assert(ok, Equals, true)
+	b.LoadModules([]string{
 		"module1",
 		"module2",
 	})
@@ -53,4 +56,18 @@ func (s *kmodSuite) TestModprobeCall(c *C) {
 		{"modprobe", "--syslog", "module1"},
 		{"modprobe", "--syslog", "module2"},
 	})
+}
+
+func (s *kmodSuite) TestNoModprobeCallWhenPreseeding(c *C) {
+	cmd := testutil.MockCommand(c, "modprobe", "")
+	defer cmd.Restore()
+
+	b := kmod.Backend{}
+	opts := &interfaces.SecurityBackendOptions{
+		Preseed: true,
+	}
+	c.Assert(b.Initialize(opts), IsNil)
+
+	b.LoadModules([]string{"module1"})
+	c.Assert(cmd.Calls(), HasLen, 0)
 }

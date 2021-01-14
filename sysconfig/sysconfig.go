@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
 )
 
 // See https://github.com/snapcore/core20/pull/46
@@ -40,10 +41,20 @@ type Options struct {
 	// boot.InstallHostWritableDir
 	TargetRootDir string
 
+	// AllowCloudInit is whether to allow cloud-init to run or not in the
+	// TargetRootDir.
+	AllowCloudInit bool
+
 	// GadgetDir is the path of the mounted gadget snap.
 	GadgetDir string
+
+	// GadgetSnap is a snap.Container of the gadget snap. This is used in
+	// priority over GadgetDir if set.
+	GadgetSnap snap.Container
 }
 
+// FilesystemOnlyApplyOptions is the set of options for
+// ApplyFilesystemOnlyDefaults.
 type FilesystemOnlyApplyOptions struct {
 	// Classic is true when the system in rootdir is a classic system
 	Classic bool
@@ -63,19 +74,34 @@ func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}
 	return ApplyFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
 }
 
-// ConfigureRunSystem configures the ubuntu-data partition with any
-// configuration needed from e.g. the gadget or for cloud-init.
-func ConfigureRunSystem(opts *Options) error {
+// ConfigureTargetSystem configures the ubuntu-data partition with
+// any configuration needed from e.g. the gadget or for cloud-init (and also for
+// cloud-init from the gadget).
+// It is okay to use both from install mode for run mode, as well as from the
+// initramfs for recover mode.
+func ConfigureTargetSystem(opts *Options) error {
 	if err := configureCloudInit(opts); err != nil {
 		return err
 	}
 
-	if opts.GadgetDir != "" {
-		ginf, err := gadget.ReadInfo(opts.GadgetDir, nil)
-		if err != nil {
-			return err
-		}
-		defaults := gadget.SystemDefaults(ginf.Defaults)
+	var gadgetInfo *gadget.Info
+	var err error
+	switch {
+	case opts.GadgetSnap != nil:
+		// we do not perform consistency validation here because
+		// such unlikely problems are better surfaced in different
+		// and less surprising contexts like the seeding itself
+		gadgetInfo, err = gadget.ReadInfoFromSnapFileNoValidate(opts.GadgetSnap, nil)
+	case opts.GadgetDir != "":
+		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if gadgetInfo != nil {
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
 			// options are nil which implies core system
 			var options *FilesystemOnlyApplyOptions

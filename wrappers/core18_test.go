@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -42,6 +44,10 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
+	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
@@ -53,6 +59,11 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		// user services
 		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
+		// D-Bus configuration
+		{"usr/share/dbus-1/session.d/snapd.session-services.conf", "<busconfig/>"},
+		{"usr/share/dbus-1/system.d/snapd.system-services.conf", "<busconfig/>"},
+		// Extra non-snapd D-Bus config that shouldn't be copied
+		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
 	})
 
 	return info
@@ -91,9 +102,9 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
 			return []byte(s), nil
 		}
-		if len(cmd) == 4 && cmd[2] == "is-enabled" {
+		if len(cmd) == 2 && cmd[0] == "is-enabled" {
 			// pretend snapd.socket is disabled
-			if cmd[3] == "snapd.socket" {
+			if cmd[1] == "snapd.socket" {
 				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
 			}
 			return []byte("enabled"), nil
@@ -148,41 +159,50 @@ WantedBy=snapd.service
 		// check that snapd.session-agent.socket is created
 		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"),
 		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket",
+	}, {
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"),
+		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"),
+		"<busconfig/>",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
 
+	// Non-snapd D-Bus config is not copied
+	c.Check(filepath.Join(dirs.SnapDBusSystemPolicyDir, "io.netplan.Netplan.conf"), testutil.FileAbsent)
+
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"--root", dirs.GlobalRootDir, "enable", "usr-lib-snapd.mount"},
+		{"enable", "usr-lib-snapd.mount"},
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.snap-repair.timer"},
+		{"is-enabled", "snapd.autoimport.service"},
+		{"is-enabled", "snapd.service"},
+		{"is-enabled", "snapd.snap-repair.timer"},
 		// test pretends snapd.socket is disabled and needs enabling
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.system-shutdown.service"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
+		{"is-enabled", "snapd.socket"},
+		{"enable", "snapd.socket"},
+		{"is-enabled", "snapd.system-shutdown.service"},
+		{"is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
 		{"start", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.snap-repair.timer"},
+		{"is-active", "snapd.snap-repair.timer"},
 		{"stop", "snapd.snap-repair.timer"},
 		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
 		{"start", "snapd.snap-repair.timer"},
-		{"--root", dirs.GlobalRootDir, "is-active", "snapd.socket"},
+		{"is-active", "snapd.socket"},
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
+		{"--user", "--global", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "enable", "snapd.session-agent.socket"},
 	})
 }
 
@@ -202,9 +222,44 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
+}
+
+func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restoreEnsureDirState := wrappers.MockEnsureDirState(func(dir string, glob string, content map[string]osutil.FileState) (changed, removed []string, err error) {
+		return nil, nil, &os.PathError{Err: syscall.EROFS}
+	})
+	defer restoreEnsureDirState()
+
+	info := makeMockSnapdSnap(c)
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+
+	// add the snapd service
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+
+	// didn't fail despite of read-only SnapDBusSessionPolicyDir
+	c.Assert(err, IsNil)
+
+	// check that snapd services were *not* created
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
+
+	c.Assert(logBuf.String(), testutil.Contains, "/etc/dbus-1/session.d appears to be read-only, could not write snapd dbus config files")
 }
 
 func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
@@ -257,6 +312,8 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 		{filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"), "from-snapd"},
 		// extra unit not present in core snap
 		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
 	}
@@ -329,4 +386,21 @@ func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
 
 	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
 	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
+}
+
+func (s *servicesTestSuite) TestDeriveSnapdDBusConfig(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(info)
+	c.Assert(err, IsNil)
+	c.Check(sessionContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.session-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/session.d/snapd.session-services.conf"),
+		},
+	})
+	c.Check(systemContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.system-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/system.d/snapd.system-services.conf"),
+		},
+	})
 }

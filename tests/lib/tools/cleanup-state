@@ -75,6 +75,14 @@ case "$action" in
 			# XXX: if there's a way to check if an unit exists but is stopped,
 			# use it here to avoid starting a non-existing unit.
 			systemctl --user start snapd.session-agent.socket || true
+
+			# Do the same for root's D-Bus session bus.
+			# This will stop the bus and any clients that
+			# may be connected to it.
+			if systemctl --user is-active dbus.socket; then
+				systemctl --user stop dbus.socket
+			fi
+			systemctl --user start dbus.socket || true
 		fi
 		;;
 	post-invariant)

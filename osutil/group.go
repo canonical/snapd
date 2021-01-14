@@ -29,15 +29,11 @@ import (
 
 // FindUid returns the identifier of the given UNIX user name. It will
 // automatically fallback to use "getent" if needed.
-func FindUid(username string) (uint64, error) {
-	return findUid(username)
-}
+var FindUid = findUid
 
 // FindGid returns the identifier of the given UNIX group name. It will
 // automatically fallback to use "getent" if needed.
-func FindGid(groupname string) (uint64, error) {
-	return findGid(groupname)
-}
+var FindGid = findGid
 
 // getent returns the identifier of the given UNIX user or group name as
 // determined by the specified database
@@ -76,10 +72,43 @@ func getent(database, name string) (uint64, error) {
 	return strconv.ParseUint(string(parts[2]), 10, 64)
 }
 
+// TODO: both findUidNoGetentFallback and findGidNoGetentFallback should return
+//       a more qualified default value than uint64, because currently the
+//       default return value for findUid is "0" as per Go conventions, which is
+//       unfortunately also the uid of root, so if a caller ignored the error
+//       from this function and used that to perform access authorization, then
+//       the caller would accidentally provide the same access level as root in
+//       the error case. This is excaberated by the fact that the error case is
+//       very difficult to positively identify correctly as "not found", see the
+//       comments inside the functions for more details.
+// Note: there is a similar implementation in overlord/snapshotstate which
+//       should be similarly adjusted when resolving the above TODO.
+
 var findUidNoGetentFallback = func(username string) (uint64, error) {
 	myuser, err := user.Lookup(username)
 	if err != nil {
-		return 0, err
+		// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+		// currently Go's handling of returned errno from get{pw,gr}nam_r
+		// in the cgo implementation of user.Lookup is lacking, and thus
+		// user.Unknown{User,Group}Error is returned only when errno is 0
+		// and the list of users/groups is empty, but as per the man page
+		// for get{pw,gr}nam_r, there are many other errno's that typical
+		// systems could return to indicate that the user/group wasn't
+		// found, however unfortunately the POSIX standard does not actually
+		// dictate what errno should be used to indicate "user/group not
+		// found", and so even if Go is more robust, it may not ever be
+		// fully robust. See from the man page:
+		//
+		// > It [POSIX.1-2001] does not call "not found" an error, hence
+		// > does not specify what value errno might have in this situation.
+		// > But that makes it impossible to recognize errors.
+		//
+		// See upstream Go issue: https://github.com/golang/go/issues/40334
+
+		// if there is a real problem finding the user/group then presumably
+		// other things will fail upon trying to create the user, etc. which
+		// will give more useful and specific errors
+		return 0, user.UnknownUserError(username)
 	}
 
 	return strconv.ParseUint(myuser.Uid, 10, 64)
@@ -88,7 +117,28 @@ var findUidNoGetentFallback = func(username string) (uint64, error) {
 var findGidNoGetentFallback = func(groupname string) (uint64, error) {
 	group, err := user.LookupGroup(groupname)
 	if err != nil {
-		return 0, err
+		// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+		// currently Go's handling of returned errno from get{pw,gr}nam_r
+		// in the cgo implementation of user.Lookup is lacking, and thus
+		// user.Unknown{User,Group}Error is returned only when errno is 0
+		// and the list of users/groups is empty, but as per the man page
+		// for get{pw,gr}nam_r, there are many other errno's that typical
+		// systems could return to indicate that the user/group wasn't
+		// found, however unfortunately the POSIX standard does not actually
+		// dictate what errno should be used to indicate "user/group not
+		// found", and so even if Go is more robust, it may not ever be
+		// fully robust. See from the man page:
+		//
+		// > It [POSIX.1-2001] does not call "not found" an error, hence
+		// > does not specify what value errno might have in this situation.
+		// > But that makes it impossible to recognize errors.
+		//
+		// See upstream Go issue: https://github.com/golang/go/issues/40334
+
+		// if there is a real problem finding the user/group then presumably
+		// other things will fail upon trying to create the user, etc. which
+		// will give more useful and specific errors
+		return 0, user.UnknownGroupError(groupname)
 	}
 
 	return strconv.ParseUint(group.Gid, 10, 64)

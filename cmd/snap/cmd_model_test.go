@@ -59,6 +59,50 @@ ZaVXKg8Lu+cHtCJDeYXEkPIDQzXswdBO1M8Mb9D0mYxQwHxwvsWv1DByB+Otq08EYgPh4kyHo7ag
 85yK2e/NQ/fxSwQJMhBF74jM1z9arq6RMiE/KOleFAOraKn2hcROKnEeinABW+sOn6vNuMVv
 `
 
+const happyUC20ModelAssertionResponse = `type: model
+authority-id: testrootorg
+series: 16
+brand-id: testrootorg
+model: test-snapd-core-20-amd64
+architecture: amd64
+base: core20
+grade: secured
+snaps:
+  -
+    default-channel: 20/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 20/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    name: core20
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+timestamp: 2018-09-11T22:00:00+00:00
+sign-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
+
+AcLBUgQAAQoABgUCX06qogAAv10QAFaqQ0NDDvIB7LqM0xNIz+5Y6PB5wJaRk0HqVsg2LlNgS0PQ
+uJf0uFMV4GjQMraL7ZYv9BGyUoA+cz8Nbiz85m1g2ADt0ugqR/x2bAojii9lbFLmWpDMJcZhrtB1
+3k32lEUwqTMvzYTGiZ6TVug0KYbdmf2+5IGxsayAS3EwdrfbuGRHZOv6XGV7bmm1GEwCRAFvgHCk
+BHKoLZ+rfbNclF4l6G+biWJTdyc5jCMpMQ6X/INnx2hXaMRf9Jfrpl6s2bGCfsxW6HVf7AWZ8qHK
+jtWPQqJ6NFu2Kw1lYIA202ReK8DC3gfAlOeNzUG5dTPor3KwAoDJJI8ZaQypOazEhO9SHERIutbP
+eqPxPmEoB2+E0/o0+g0o5jK4qww3Yd7b8FTDkqm2xfuuldWAiAA4x6ZOQb2So9OLT6ovqHnD3D2r
+pLW/lhqwfKp3xzIVUrLi0sjGOVXu5xFDDRyFICZ6kwC7JynRGfHoa5E2y7rv8ehnOZQJ+esz9sgY
+lCJcyJ8vhabDlVHg0msSeNKMVBwhQnOSakEwlcfVyaSnapArkF+OCAMl8cuGpMTKO7vJLIJo2c2P
+jcVE0ftsTGs9eBi2HmdDhu3e3fmxHt9VcC4uRSOnYNVcJnMh0yVmG8RGS/Dqcz04II7llww6JJYG
+KKjQ3RU/TduXa8VJsoWiRRUYAv3H
+`
+
 const happyModelWithDisplayNameAssertionResponse = `type: model
 authority-id: mememe
 series: 16
@@ -137,6 +181,38 @@ sign-key-sha3-384: anCEGC2NYq7DzDEi6y7OafQCVeVLS90XlLt9PNjrRl9sim5rmRHDDNFNO7ODc
 AcJwBAABCgAGBQJdZFBdAADCLALwR6Sy24wm9PffwbvUhOEXneyY3BnxKC0+NgdHu1gU8go9vEP1
 i+Flh5uoS70+MBIO+nmF8T+9JWIx2QWFDDxvcuFosnIhvUajCEQohauys5FMz/H/WvB0vrbTBpvK
 eg==
+`
+
+const happySerialUC20AssertionResponse = `type: serial
+authority-id: testrootorg
+brand-id: testrootorg
+model: test-snapd-core-20-amd64
+serial: 7777
+device-key:
+    AcbBTQRWhcGAARAAuKf9n7WvZDI7u3NzMkD8WN+dxCYrb0UE9XIaHcbrj0i2zJpxCtUtpzoEo7Uk
+    Cvxuhr2uBpzAa8fScwzOd77MGHIZQDpS7sFSkhYsSSN0m4sy8vRevsj0roN31fugCjRnhtLTkgxo
+    KSoAsK87vYnC+m5V5AHaRER7q1KgpUoVD7eLOJZyrd/tWecsLL9OK87yAQHdF/cVlQupOP6OU3fK
+    DllER6V2TD4jADK2Gyj2lDhy3F0+rE0a+zsGpmQQBorvzbozUHgBE3z/XjTTMrHYP4m+4V5HeWdn
+    rHt/x1LZ8wMTCMT1eeruclC82UPRgF0zWI+P7WgBqogJpCbfadhAj1zvKW+5vJ385n0BU7PoAZtA
+    KddBbsmEnfK/gWIxgFemIrYcYGhIBxYY6iNcygTYRFo4R9xm3bELHLG+viHggih4Lrjnb4sLHOdC
+    h3C4/45bY+6hSno8GQGlp4kYQQM8mrF9st51jIM6oyB84NtoySLYYE1wMeGNzDHSuI+1IiRmaTgy
+    Q2ImXTuqOhclhNA1sOi3R4H+oOBxe6GmoM5ATBPBqJeqUEvK8GpSRCig0QH4qMNF/abNKwvKhGMZ
+    LqtpFp5LNx7xYuAwoVkcq0nxQTsXctl3gJqY+lRx7mIeoXLZPKZyJees+5v96oa9lMdNX3f5UUpX
+    zq0cNhdgHrXZfcsAEQEAAQ==
+device-key-sha3-384: CZeO_5nJm_Rg0izosNfcQRoQj9nFtAmK2Y_tz4YjlKlvS93b_9gTDHuby5HHwi7d
+timestamp: 2020-09-03T14:42:47-05:00
+sign-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
+
+AcLBUgQAAQoABgUCX1FHNwAAqFoQABFiyzipoTYAuYN0Wd7cXuPPD7z+z+E+LoZZ+j4vUKqvnGX8
+tksb2nEEOQhjSvVof5pPOswWgq8Nj52dtYA20R5Zgfy0MZHHcCCfgxaRj6EiFyrG5h9l5wWMnzdb
+pXo9SJ3hxw6lKdj3n9RAAY0mACvw6f/trcyLeSxQ7EBm6X9c4ohJSjlHkKj0TlKkNTrFflko5aQH
+uJUk/YgsvMTZUHbgj6QKHlODUH8iRvOHxzn/Y9BlnzBsb/SyzvNTPeQyzFtd9QkESI2sWghviys2
+fGeEZPeXU6xts6Ht+xhr3mj5npZwkkL/6YxSzm9owQ0zGrfaFTswN+xoDKZ5498qRtSY3mCK/5xx
+kvWpOTHHhfvuS3GGyvRZOih7IAffDEwQsUNh8V9IjQNNTIkCYTPZz4WBM42mI8UgeDsnDImmcoc0
+GlqBeCxUigszJlEdUAHQklwW7Sgp13mceR3zB7BHgp4Sk7n0RyPuTQUA94ys6SeesK5YphwmhVed
+V02lkdeqRbGt3yZ/T5Zg8CIUIM0RKDSqoHgvoCMZh98dRGv6LPRj/P0RSWmjYWotjdK+lXK1fySM
+RXMNJIInZoC0x8qEwGLXVl5V3z8motLG71ie7PQ677W0dE9XM5LRnZHEKXP41jfaOO9vu12TtBsh
+pe/pnYDfIzU6OyOsdmkGWaWD+nbD
 `
 
 const noModelAssertionYetResponse = `
@@ -271,6 +347,17 @@ func (s *SnapSuite) TestModel(c *check.C) {
 brand   MeMeMe (meuser*)
 model   test-model
 serial  serialserial
+`[1:],
+		},
+		{
+			comment: "normal uc20 serial and model asserts",
+			modelF:  simpleHappyResponder(happyUC20ModelAssertionResponse),
+			serialF: simpleHappyResponder(happySerialUC20AssertionResponse),
+			outText: `
+brand   MeMeMe (meuser*)
+model   test-snapd-core-20-amd64
+grade   secured
+serial  7777
 `[1:],
 		},
 		{

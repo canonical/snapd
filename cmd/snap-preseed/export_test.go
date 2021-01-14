@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	Run                     = run
-	SystemSnapFromSeed      = systemSnapFromSeed
-	CheckTargetSnapdVersion = checkTargetSnapdVersion
+	Run                      = run
+	SystemSnapFromSeed       = systemSnapFromSeed
+	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
@@ -59,4 +59,8 @@ func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore fun
 	return func() {
 		seedOpen = oldSeedOpen
 	}
+}
+
+func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
+	return targetSnapd.path, targetSnapd.version
 }

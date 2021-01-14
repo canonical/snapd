@@ -37,11 +37,24 @@ if [ -n "$1" ]; then
     version_from_user="$1"
 fi
 
+DIRTY=false
+
 # Let's try to derive the version from git..
 if command -v git >/dev/null; then
-    # not using "--dirty" here until the following bug is fixed:
-    # https://bugs.launchpad.net/snapcraft/+bug/1662388
+    # don't include --dirty here as we independently track whether the tree is
+    # dirty and append that last, including it here will make dirty trees 
+    # directly on top of tags show up with version_from_git as 2.46-dirty which
+    # will not match 2.46 from the changelog and then result in a final version
+    # like 2.46+git2.46.2.46 which is silly and unhelpful
+    # tracking the dirty independently like this will produce instead 2.46-dirty
+    # for a dirty tree on top of a tag, and 2.46+git83.g1671726-dirty for a 
+    # commit not directly on top of a tag
     version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
+
+    # check if we are using a dirty tree
+    if git describe --always --dirty | grep -q dirty; then
+        DIRTY=true
+    fi
 fi
 
 # at this point we maybe in _build/src/github etc where we have no
@@ -67,19 +80,31 @@ else
     exit 1
 fi
 
-# if we don't have a user provided versions and if the version is not
+# if we don't have a user provided version and if the version is not
 # a release (i.e. the git tag does not match the debian changelog
 # version) then we need to construct the version similar to how we do
 # it in a packaging recipe. We take the debian version from the changelog
 # and append the git revno and commit hash. A simpler approach would be
 # to git tag all pre/rc releases.
 if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && [ "$version_from_git" != "$version_from_changelog" ]; then
-    revno=$(git describe --always --abbrev=7|cut -d- -f2)
-    commit=$(git describe --always --abbrev=7|cut -d- -f3)
-    v="${version_from_changelog}+git${revno}.${commit}"
-    o="changelog+git"
+    # if the changelog version has "git" in it and we also have a git version
+    # directly, that is a bad changelog version, so fail, otherwise the below
+    # code will produce a duplicated git info
+    if echo "$version_from_changelog" | grep -q git; then
+        echo "Cannot generate version, there is a version from git and the changelog has a git version"
+        exit 1
+    else
+        revno=$(git describe --always --abbrev=7|cut -d- -f2)
+        commit=$(git describe --always --abbrev=7|cut -d- -f3)
+        v="${version_from_changelog}+git${revno}.${commit}"
+        o="changelog+git"
+    fi
 fi
 
+# append dirty at the end if we had a dirty tree
+if [ "$DIRTY" = "true" ]; then
+    v="$v-dirty"
+fi
 
 if [ "$OUTPUT_ONLY" = true ]; then
     echo "$v"

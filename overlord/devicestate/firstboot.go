@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -170,6 +170,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		if beginTask != nil {
 			// hooks must wait for mark-preseeded
 			hooksTask.WaitFor(preseedDoneTask)
+			if n := len(all); n > 0 {
+				// the first hook of the snap waits for all tasks of previous snap
+				hooksTask.WaitAll(all[n-1])
+			}
 			if lastBeforeHooksTask != nil {
 				beginTask.WaitFor(lastBeforeHooksTask)
 			}
@@ -219,7 +223,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	for _, seedSnap := range essentialSeedSnaps {
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		flags := snapstate.Flags{
+			SkipConfigure: true,
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +262,14 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
-		var flags snapstate.Flags
+		flags := snapstate.Flags{
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
@@ -273,6 +293,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
 
+	// ts is the taskset of the last snap
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
@@ -290,6 +311,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 
+	// mark-seeded waits for the taskset of last snap
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)
@@ -323,11 +345,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 	if err != nil {
 		return nil, err
 	}
-
-	modelAssertion, err := deviceSeed.Model()
-	if err != nil {
-		return nil, err
-	}
+	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
 	if release.OnClassic != classicModel {

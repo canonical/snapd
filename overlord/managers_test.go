@@ -65,7 +65,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
-	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -87,7 +86,6 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
-	Flags        *snapshotbackend.Flags
 }
 
 type baseMgrsSuite struct {
@@ -155,6 +153,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	// needed by hooks
 	s.AddCleanup(testutil.MockCommand(c, "snap", "").Restore)
 
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
@@ -165,8 +166,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Flags: flags})
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -351,6 +352,14 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		return errors.New("error out")
 	}
 	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
+
+	// setup cloud-init as restricted so that tests by default don't run the
+	// full EnsureCloudInitRestricted logic in the devicestate mgr
+	snapdCloudInitRestrictedFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
+	err = os.MkdirAll(filepath.Dir(snapdCloudInitRestrictedFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapdCloudInitRestrictedFile, nil, 0644)
+	c.Assert(err, IsNil)
 }
 
 type mgrsSuite struct {
@@ -513,6 +522,14 @@ hooks:
 }
 
 func (s *mgrsSuite) TestHappyRemove(c *C) {
+	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
+		return 0, nil
+	}
+	defer func() {
+		snapstate.EstimateSnapshotSize = oldEstimateSnapshotSize
+	}()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -555,7 +572,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, &snapshotbackend.Flags{Auto: true}}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil}})
 }
 
 func fakeSnapID(name string) string {
@@ -569,7 +586,8 @@ const (
 	    "all"
 	],
         "download": {
-            "url": "@URL@"
+			"url": "@URL@",
+			"size": 123
         },
         "epoch": @EPOCH@,
         "type": "@TYPE@",
@@ -795,6 +813,13 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					Name        string     `json:"name"`
 					InstanceKey string     `json:"instance-key"`
 					Epoch       snap.Epoch `json:"epoch"`
+					// assertions
+					Key        string `json:"key"`
+					Assertions []struct {
+						Type        string   `json:"type"`
+						PrimaryKey  []string `json:"primary-key"`
+						IfNewerThan *int     `json:"if-newer-than"`
+					}
 				} `json:"actions"`
 				Context []struct {
 					SnapID string     `json:"snap-id"`
@@ -814,9 +839,33 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				Name        string          `json:"name"`
 				Snap        json.RawMessage `json:"snap"`
 				InstanceKey string          `json:"instance-key"`
+				// For assertions
+				Key           string   `json:"key"`
+				AssertionURLs []string `json:"assertion-stream-urls"`
 			}
 			var results []resultJSON
 			for _, a := range input.Actions {
+				if a.Action == "fetch-assertions" {
+					urls := []string{}
+					for _, ar := range a.Assertions {
+						ref := &asserts.Ref{
+							Type:       asserts.Type(ar.Type),
+							PrimaryKey: ar.PrimaryKey,
+						}
+						_, err := ref.Resolve(s.storeSigning.Find)
+						if err != nil {
+							panic("missing assertions not supported")
+						}
+						urls = append(urls, fmt.Sprintf("%s/api/v1/snaps/assertions/%s", baseURL.String(), ref.Unique()))
+
+					}
+					results = append(results, resultJSON{
+						Result:        "fetch-assertions",
+						Key:           a.Key,
+						AssertionURLs: urls,
+					})
+					continue
+				}
 				name := s.serveIDtoName[a.SnapID]
 				epoch := id2epoch[a.SnapID]
 				if a.Action == "install" {
@@ -2350,7 +2399,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 func (s *mgrsSuite) removeSnap(c *C, name string) {
 	st := s.o.State()
 
-	ts, err := snapstate.Remove(st, name, snap.R(0), nil)
+	ts, err := snapstate.Remove(st, name, snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -3312,7 +3361,7 @@ func (s *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	_ = s.installLocalTestSnap(c, snapYamlContent1+"version: 1.0")
 
-	ts, err := snapstate.Remove(st, "snap1", snap.R(0), nil)
+	ts, err := snapstate.Remove(st, "snap1", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -3609,7 +3658,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)
@@ -3724,13 +3773,14 @@ hooks:
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
+	flags := &snapstate.RemoveFlags{Purge: true}
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), flags)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), flags)
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("uninstall", "...")
 	chg2.AddAll(ts2)
@@ -3812,7 +3862,7 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
 	}, nil, nil, nil, nil, nil)
 
-	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("uninstall", "...")
 	chg.AddAll(ts)
@@ -5180,7 +5230,7 @@ volumes:
 	s.serveSnap(snapPath, "2")
 
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 		c.Assert(ps.Name, Equals, "foo")
 		return &mockUpdater{}, nil
@@ -5659,7 +5709,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)

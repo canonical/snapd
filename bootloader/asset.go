@@ -28,6 +28,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/bootloader/assets"
 )
 
 var errNoEdition = errors.New("no edition")
@@ -71,6 +73,16 @@ func editionFromConfigAsset(asset io.Reader) (uint, error) {
 		return 0, fmt.Errorf("cannot parse asset edition: %v", err)
 	}
 	return uint(edition), nil
+}
+
+// editionFromInternalConfigAsset extracts edition information from a named
+// internal boot config asset.
+func editionFromInternalConfigAsset(assetName string) (uint, error) {
+	data := assets.Internal(assetName)
+	if data == nil {
+		return 0, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
+	return editionFromConfigAsset(bytes.NewReader(data))
 }
 
 // configAsset is a boot config asset, such as text script, used by grub or

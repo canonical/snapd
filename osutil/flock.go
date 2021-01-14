@@ -32,6 +32,18 @@ type FileLock struct {
 
 var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
 
+// OpenExistingLockForReading opens an existing lock file given by "path".
+// The lock is opened in read-only mode.
+func OpenExistingLockForReading(path string) (*FileLock, error) {
+	flag := syscall.O_RDONLY | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
+	file, err := os.OpenFile(path, flag, 0)
+	if err != nil {
+		return nil, err
+	}
+	l := &FileLock{file: file}
+	return l, nil
+}
+
 // NewFileLockWithMode creates and opens the lock file given by "path" with the given mode.
 func NewFileLockWithMode(path string, mode os.FileMode) (*FileLock, error) {
 	flag := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC

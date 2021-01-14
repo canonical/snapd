@@ -11,9 +11,7 @@ restore: |
     rm -f response
 
 debug: |
-    if [ -e response ]; then
-        grep -n '' response
-    fi
+    test -e response && cat response
 
 execute: |
     echo "Verify that search results contain common-ids"

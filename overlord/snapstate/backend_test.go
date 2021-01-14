@@ -24,12 +24,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -71,9 +75,22 @@ type fakeOp struct {
 	disabledServices []string
 
 	vitalityRank int
+
+	inhibitHint runinhibit.Hint
 }
 
 type fakeOps []fakeOp
+
+func (ops fakeOps) MustFindOp(c *C, opName string) *fakeOp {
+	for _, op := range ops {
+		if op.op == opName {
+			return &op
+		}
+	}
+	c.Errorf("cannot find operation with op: %q, all ops: %v", opName, ops.Ops())
+	c.FailNow()
+	return nil
+}
 
 func (ops fakeOps) Ops() []string {
 	opsOps := make([]string, len(ops))
@@ -200,7 +217,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "core18":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -231,6 +248,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		Version: spec.Name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		Confinement: confinement,
 		SnapType:    typ,
@@ -318,6 +336,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-other-snap-id":
+		name = "some-other-snap"
 	case "some-epoch-snap-id":
 		name = "some-epoch-snap"
 		epoch = snap.E("42")
@@ -659,6 +679,8 @@ type fakeSnappyBackend struct {
 	emptyContainer          snap.Container
 
 	servicesCurrentlyDisabled []string
+
+	lockDir string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -709,6 +731,22 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	f.appendOp(&op)
 	return info, f.emptyContainer, nil
 }
+
+// XXX: this is now something that is overridden by tests that need a
+//      different service setup so it should be configurable and part
+//      of the fakeSnappyBackend?
+var servicesSnapYaml = `name: services-snap
+apps:
+  svc1:
+    daemon: simple
+    before: [svc3]
+  svc2:
+    daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
+`
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
 	p.Notify("setup-snap")
@@ -778,18 +816,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		var err error
 		// fix services after/before so that there is only one solution
 		// to dependency ordering
-		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
-apps:
-  svc1:
-    daemon: simple
-    before: [svc3]
-  svc2:
-    daemon: simple
-    after: [svc1]
-  svc3:
-    daemon: simple
-    before: [svc2]
-`))
+		info, err = snap.InfoFromSnapYaml([]byte(servicesSnapYaml))
 		if err != nil {
 			panic(err)
 		}
@@ -865,10 +892,6 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		path: info.MountDir(),
 	}
 
-	// only add the services to the op if there's something to add
-	if len(linkCtx.PrevDisabledServices) != 0 {
-		op.disabledServices = linkCtx.PrevDisabledServices
-	}
 	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -897,16 +920,21 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
 	}
-	f.appendOp(&fakeOp{
+	op := fakeOp{
 		op:       "start-snap-services",
 		path:     svcSnapMountDir(svcs),
 		services: services,
-	})
+	}
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+	f.appendOp(&op)
 	return nil
 }
 
@@ -1044,6 +1072,14 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-inhibit-lock",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
@@ -1105,6 +1141,22 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 		name: snapName,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
+	f.appendOp(&fakeOp{
+		op:          "run-inhibit-snap-for-unlink",
+		name:        info.InstanceName(),
+		inhibitHint: hint,
+	})
+	if err := decision(); err != nil {
+		return nil, err
+	}
+	if f.lockDir == "" {
+		f.lockDir = os.TempDir()
+	}
+	// XXX: returning a real lock is somewhat annoying
+	return osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
 }
 
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {

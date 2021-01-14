@@ -1,0 +1,76 @@
+summary: smoke test for the snaps-state tool
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+restore: |
+    snap set system experimental.parallel-instances=null
+
+execute: |
+    SNAP_NAME=test-snapd-tools
+    SNAP_CLASSIC=test-snapd-classic-confinement
+    SNAP_DEVMODE=test-snapd-devmode
+    SNAP_JAILMODE=test-devmode-cgroup
+
+    # Check help
+    "$TESTSTOOLS"/snaps-state | MATCH "usage: pack-local <snap-name>"
+    "$TESTSTOOLS"/snaps-state -h | MATCH "usage: pack-local <snap-name>"
+    "$TESTSTOOLS"/snaps-state --help | MATCH "usage: pack-local <snap-name>"
+
+    # Pack a local snap by using the pack-local subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
+    snap install --dangerous "${snap_path}"
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Try to pack a local snap which does not exist
+    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "snap.yaml file not found for SNAP_NO_EXIST snap"
+
+    # Make and install a snap by using the install-local subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap when snap file is already created
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local-as subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-as "$SNAP_NAME" "$SNAP_NAME"_test)
+    test-snapd-tools_test.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"_test
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_test_1.0_all.snap"
+
+    # Make and install a snap by using the install-local subcommand with --devmode
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_DEVMODE" --devmode)
+    snap list "$SNAP_DEVMODE"
+    snap remove "$SNAP_DEVMODE"
+    rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local subcommand with --classic
+    if snap debug sandbox-features --required=confinement-options:classic; then
+        snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
+        snap list "$SNAP_CLASSIC" | MATCH 'classic$'
+        snap remove "$SNAP_CLASSIC"
+        rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
+    fi
+
+    # Make and install a snap by using the install-local subcommand with --jailmode
+    if [ "$(snap debug confinement)" = strict ] ; then
+        snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_JAILMODE" --jailmode)
+        snap list "$SNAP_JAILMODE" | MATCH 'jailmode$'
+        snap remove "$SNAP_JAILMODE"
+        rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
+    fi

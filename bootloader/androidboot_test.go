@@ -20,6 +20,7 @@
 package bootloader_test
 
 import (
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -45,14 +46,22 @@ func (s *androidBootTestSuite) SetUpTest(c *C) {
 	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
 }
 
-func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	a := bootloader.NewAndroidBoot("/something/not/there")
-	c.Assert(a, IsNil)
-}
-
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
+	// no files means bl is not present, but we can still create the bl object
+	c.Assert(os.RemoveAll(s.rootdir), IsNil)
 	a := bootloader.NewAndroidBoot(s.rootdir)
 	c.Assert(a, NotNil)
+	c.Assert(a.Name(), Equals, "androidboot")
+
+	present, err := a.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
+	present, err = a.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 }
 
 func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {

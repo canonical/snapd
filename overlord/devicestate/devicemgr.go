@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -34,26 +36,45 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	cloudInitStatus   = sysconfig.CloudInitStatus
+	restrictCloudInit = sysconfig.RestrictCloudInit
 )
 
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
 	systemMode string
+	// saveAvailable keeps track whether /var/lib/snapd/save
+	// is available, i.e. exists and is mounted from ubuntu-save
+	// if the latter exists.
+	// TODO: evolve this to state to track things if we start mounting
+	// save as rw vs ro, or mount/umount it fully on demand
+	saveAvailable bool
 
-	state      *state.State
-	keypairMgr asserts.KeypairManager
+	state   *state.State
+	hookMgr *hookstate.HookManager
+
+	cachedKeypairMgr asserts.KeypairManager
 
 	// newStore can make new stores for remodeling
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -64,6 +85,10 @@ type DeviceManager struct {
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan bool
+
+	cloudInitAlreadyRestricted           bool
+	cloudInitErrorAttemptStart           *time.Time
+	cloudInitEnabledInactiveAttemptStart *time.Time
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
@@ -77,17 +102,12 @@ type DeviceManager struct {
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
-	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	if err != nil {
-		return nil, err
-	}
-
 	m := &DeviceManager{
-		state:      s,
-		keypairMgr: keypairMgr,
-		newStore:   newStore,
-		reg:        make(chan struct{}),
-		preseed:    snapdenv.Preseeding(),
+		state:    s,
+		hookMgr:  hookManager,
+		newStore: newStore,
+		reg:      make(chan struct{}),
+		preseed:  snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := maybeReadModeenv()
@@ -128,6 +148,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
+	// wire FDE kernel hook support into boot
+	boot.HasFDESetupHook = m.hasFDESetupHook
+	boot.RunFDESetupHook = m.runFDESetupHook
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
+
 	return m, nil
 }
 
@@ -137,6 +162,55 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeEnv, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	// system mode is explicitly set on UC20
+	// TODO:UC20: ubuntu-save needs to be mounted for recover too
+	if !release.OnClassic && m.systemMode == "run" {
+		if err := m.maybeSetupUbuntuSave(); err != nil {
+			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) maybeSetupUbuntuSave() error {
+	// only called for UC20
+
+	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
+	if err != nil {
+		return err
+	}
+	if saveMounted {
+		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		m.saveAvailable = true
+		return nil
+	}
+
+	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return err
+	}
+	if !runMntSaveMounted {
+		// we don't have ubuntu-save, save will be used directly
+		logger.Noticef("no ubuntu-save mount")
+		m.saveAvailable = true
+		return nil
+	}
+
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+
+	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
+		dirs.SnapSaveDir, "-o", "bind")
+	if err != nil {
+		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
+		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
+	}
+	m.saveAvailable = true
+	return nil
 }
 
 type deviceMgrKey struct{}
@@ -425,6 +499,26 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now()
+}
+
+func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
+	var prev time.Time
+	err := m.state.Get(name, &prev)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !prev.IsZero() {
+		// already set
+		return nil
+	}
+	m.state.Set(name, t)
+	return nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -446,6 +540,19 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	if m.changeInFlight("seed") {
 		return nil
+	}
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return err
 	}
 
 	var opts *populateStateFromSeedOptions
@@ -523,6 +630,162 @@ func (m *DeviceManager) ensureBootOk() error {
 			return err
 		}
 		m.bootRevisionsUpdated = true
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) ensureCloudInitRestricted() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.cloudInitAlreadyRestricted {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// On Ubuntu Core devices that have been seeded, we want to restrict
+	// cloud-init so that its more dangerous (for an IoT device at least)
+	// features are not exploitable after a device has been seeded. This allows
+	// device administrators and other tools (such as multipass) to still
+	// configure an Ubuntu Core device on first boot, and also allows cloud
+	// vendors to run cloud-init with only a specific data-source on subsequent
+	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
+	// attached to a device via a USB drive and inject code onto the device.
+
+	if seeded && !release.OnClassic {
+		opts := &sysconfig.CloudInitRestrictOptions{}
+
+		// check the current state of cloud-init, if it is disabled or already
+		// restricted then we have nothing to do
+		cloudInitStatus, err := cloudInitStatus()
+		if err != nil {
+			return err
+		}
+		statusMsg := ""
+
+		switch cloudInitStatus {
+		case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
+			// already been permanently disabled, nothing to do
+			m.cloudInitAlreadyRestricted = true
+			return nil
+		case sysconfig.CloudInitUntriggered:
+			// hasn't been used
+			statusMsg = "reported to be in disabled state"
+		case sysconfig.CloudInitDone:
+			// is done being used
+			statusMsg = "reported to be done"
+		case sysconfig.CloudInitErrored:
+			// cloud-init errored, so we give the device admin / developer a few
+			// minutes to reboot the machine to re-run cloud-init and try again,
+			// otherwise we will disable cloud-init permanently
+
+			// initialize the time we first saw cloud-init in error state
+			if m.cloudInitErrorAttemptStart == nil {
+				// save the time we started the attempt to restrict
+				now := timeNow()
+				m.cloudInitErrorAttemptStart = &now
+				logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
+			}
+
+			// check if 3 minutes have elapsed since we first saw cloud-init in
+			// error state
+			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
+			if timeSinceFirstAttempt <= 3*time.Minute {
+				// we need to keep waiting for cloud-init, up to 3 minutes
+				nextCheck := 3*time.Minute - timeSinceFirstAttempt
+				m.state.EnsureBefore(nextCheck)
+				return nil
+			}
+			// otherwise, we timed out waiting for cloud-init to be fixed or
+			// rebooted and should restrict cloud-init
+			// we will restrict cloud-init below, but we need to force the
+			// disable, as by default RestrictCloudInit will error on state
+			// CloudInitErrored
+			opts.ForceDisable = true
+			statusMsg = "reported to be in error state after 3 minutes"
+		default:
+			// in unknown states we are conservative and let the device run for
+			// a while to see if it transitions to a known state, but eventually
+			// will disable anyways
+			fallthrough
+		case sysconfig.CloudInitEnabled:
+			// we will give cloud-init up to 5 minutes to try and run, if it
+			// still has not transitioned to some other known state, then we
+			// will give up waiting for it and disable it anyways
+
+			// initialize the first time we saw cloud-init in enabled state
+			if m.cloudInitEnabledInactiveAttemptStart == nil {
+				// save the time we started the attempt to restrict
+				now := timeNow()
+				m.cloudInitEnabledInactiveAttemptStart = &now
+			}
+
+			// keep re-scheduling again in 10 seconds until we hit 5 minutes
+			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
+			if timeSinceFirstAttempt <= 5*time.Minute {
+				// TODO: should we log a message here about waiting for cloud-init
+				//       to be in a "known state"?
+				m.state.EnsureBefore(10 * time.Second)
+				return nil
+			}
+
+			// otherwise, we gave cloud-init 5 minutes to run, if it's still not
+			// done disable it anyways
+			// note we we need to force the disable, as by default
+			// RestrictCloudInit will error on state CloudInitEnabled
+			opts.ForceDisable = true
+			statusMsg = "failed to transition to done or error state after 5 minutes"
+		}
+
+		// we should always have a model if we are seeded and are not on classic
+		model, err := m.Model()
+		if err != nil {
+			return err
+		}
+
+		// For UC20, we want to always disable cloud-init after it has run on
+		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+		// or if we installed cloud-init configuration from the gadget
+		if model.Grade() != asserts.ModelGradeUnset {
+			// always disable NoCloud/local datasources after first boot on
+			// uc20, this is because even if the gadget has a cloud.conf
+			// configuring NoCloud, the config installed by cloud-init should
+			// not work differently for later boots, so it's sufficient that
+			// NoCloud runs on first-boot and never again
+			opts.DisableAfterLocalDatasourcesRun = true
+		}
+
+		// now restrict/disable cloud-init
+		res, err := restrictCloudInit(cloudInitStatus, opts)
+		if err != nil {
+			return err
+		}
+
+		// log a message about what we did
+		actionMsg := ""
+		switch res.Action {
+		case "disable":
+			actionMsg = "disabled permanently"
+		case "restrict":
+			// log different messages depending on what datasource was used
+			if res.DataSource == "NoCloud" {
+				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
+			} else {
+				// all other datasources just log that we limited it to that datasource
+				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
+			}
+		default:
+			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
+		}
+		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
+
+		m.cloudInitAlreadyRestricted = true
 	}
 
 	return nil
@@ -678,6 +941,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		if err := m.ensureCloudInitRestricted(); err != nil {
+			errs = append(errs, err)
+		}
+
 		if err := m.ensureOperational(); err != nil {
 			errs = append(errs, err)
 		}
@@ -702,6 +969,93 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
+var errNoSaveSupport = errors.New("no save directory before UC20")
+
+// withSaveDir invokes a function making sure save dir is available.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveDir(f func() error) error {
+	// we use the model to check whether this is a UC20 device
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access save dir before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	if model.Grade() == asserts.ModelGradeUnset {
+		return errNoSaveSupport
+	}
+	// at this point we need save available
+	if !m.saveAvailable {
+		return fmt.Errorf("internal error: save dir is unavailable")
+	}
+
+	return f()
+}
+
+// withSaveAssertDB invokes a function making the save device assertion
+// backup database available to it.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveAssertDB(f func(*asserts.Database) error) error {
+	return m.withSaveDir(func() error {
+		// open an ancillary backup assertion database in save/device
+		assertDB, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
+		if err != nil {
+			return err
+		}
+		return f(assertDB)
+	})
+}
+
+// withKeypairMgr invokes a function making the device KeypairManager
+// available to it.
+// It uses the right location for the manager depending on UC16/18 vs 20,
+// the latter uses ubuntu-save.
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) error {
+	// we use the model to check whether this is a UC20 device
+	// TODO: during a theoretical UC18->20 remodel the location of
+	// keypair manager keys would move, we will need dedicated code
+	// to deal with that, this code typically will return the old location
+	// until a restart
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	underSave := false
+	if model.Grade() != asserts.ModelGradeUnset {
+		// on UC20 the keys are kept under the save dir
+		underSave = true
+	}
+	where := dirs.SnapDeviceDir
+	if underSave {
+		// at this point we need save available
+		if !m.saveAvailable {
+			return fmt.Errorf("internal error: cannot access device keypair manager if ubuntu-save is unavailable")
+		}
+		where = dirs.SnapDeviceSaveDir
+	}
+	keypairMgr := m.cachedKeypairMgr
+	if keypairMgr == nil {
+		var err error
+		keypairMgr, err = asserts.OpenFSKeypairManager(where)
+		if err != nil {
+			return err
+		}
+		m.cachedKeypairMgr = keypairMgr
+	}
+	return f(keypairMgr)
+}
+
+// TODO:UC20: we need proper encapsulated support to read
+// tpm-policy-auth-key from save if the latter can get unmounted on
+// demand
+
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
 	if err != nil {
@@ -712,9 +1066,16 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 		return nil, state.ErrNoState
 	}
 
-	privKey, err := m.keypairMgr.Get(device.KeyID)
+	var privKey asserts.PrivateKey
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
+		privKey, err = keypairMgr.Get(device.KeyID)
+		if err != nil {
+			return fmt.Errorf("cannot read device key pair: %v", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot read device key pair: %v", err)
+		return nil, err
 	}
 	return privKey, nil
 }
@@ -811,23 +1172,88 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 var ErrUnsupportedAction = errors.New("unsupported action")
 
-// RequestSystemAction request provided system to be run in a given mode. A
-// system reboot will be requested when the request can be successfully carried
-// out.
+// Reboot triggers a reboot into the given systemLabel and mode.
+//
+// When called without a systemLabel and without a mode it will just
+// trigger a regular reboot.
+//
+// When called without a systemLabel but with a mode it will use
+// the current system to enter the given mode.
+//
+// Note that "recover" and "run" modes are only available for the
+// current system.
+func (m *DeviceManager) Reboot(systemLabel, mode string) error {
+	rebootCurrent := func() {
+		logger.Noticef("rebooting system")
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+
+	// most simple case: just reboot
+	if systemLabel == "" && mode == "" {
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		rebootCurrent()
+		return nil
+	}
+
+	// no systemLabel means "current" so get the current system label
+	if systemLabel == "" {
+		systemMode := m.SystemMode()
+		currentSys, err := currentSystemForMode(m.state, systemMode)
+		if err != nil {
+			return fmt.Errorf("cannot get current system: %v", err)
+		}
+		systemLabel = currentSys.System
+	}
+
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// even if we are already in the right mode we restart here by
+	// passing rebootCurrent as this is what the user requested
+	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+// RequestSystemAction requests the provided system to be run in a
+// given mode as specified by action.
+// A system reboot will be requested when the request can be
+// successfully carried out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
 
+	nop := func() {}
+	switched := func(systemLabel string, sysAction *SystemAction) {
+		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+		m.state.RequestRestart(state.RestartSystemNow)
+	}
+	// we do nothing (nop) if the mode and system are the same
+	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
+}
+
+// switchToSystemAndMode switches to given systemLabel and mode.
+// If the systemLabel and mode are the same as current, it calls
+// sameSystemAndMode. If successful otherwise it calls switched. Both
+// are called with the state lock held.
+func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSystemAndMode func(), switched func(systemLabel string, sysAction *SystemAction)) error {
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}
 
 	systemMode := m.SystemMode()
+	// ignore the error to be robust in scenarios that
+	// dont' stricly require currentSys to be carried through.
+	// make sure that currentSys == nil does not break
+	// the code below!
+	// TODO: should we log the error?
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
+		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
 	system, err := systemFromSeed(systemLabel, currentSys)
@@ -837,12 +1263,13 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
-		if action.Mode == act.Mode {
+		if mode == act.Mode {
 			sysAction = &act
 			break
 		}
 	}
 	if sysAction == nil {
+		// XXX: provide more context here like what mode was requested?
 		return ErrUnsupportedAction
 	}
 
@@ -853,7 +1280,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && currentSys != nil && systemLabel == currentSys.System {
+			m.state.Lock()
+			defer m.state.Unlock()
+			sameSystemAndMode()
 			return nil
 		}
 	case "install":
@@ -875,14 +1305,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if err != nil {
 		return err
 	}
-
-	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
-		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
-			systemLabel, action.Mode, err)
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v", systemLabel, mode, err)
 	}
 
-	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-	m.state.RequestRestart(state.RestartSystemNow)
+	switched(systemLabel, sysAction)
 	return nil
 }
 
@@ -936,4 +1363,130 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	return hasFDESetupHookInKernel(kernelInfo), nil
+}
+
+func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+	// TODO:UC20: when this runs on refresh we need to be very careful
+	// that we never run this when the kernel is not fully configured
+	// i.e. when there are no security profiles for the hook
+
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
+	hooksup := &hookstate.HookSetup{
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
+		Hook:     "fde-setup",
+		// XXX: should this be configurable somehow?
+		Timeout: 5 * time.Minute,
+	}
+	req := &fde.SetupRequest{
+		Op:      op,
+		Key:     &params.Key,
+		KeyName: params.KeyName,
+		// TODO: include boot chains
+	}
+	for _, model := range params.Models {
+		req.Models = append(req.Models, map[string]string{
+			"series":     model.Series(),
+			"brand-id":   model.BrandID(),
+			"model":      model.Model(),
+			"grade":      string(model.Grade()),
+			"signkey-id": model.SignKeyID(),
+		})
+	}
+	contextData := map[string]interface{}{
+		"fde-setup-request": req,
+	}
+	st.Unlock()
+	defer st.Lock()
+	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
+	}
+	// the hook is expected to call "snapctl fde-setup-result" which
+	// wil set the "fde-setup-result" value on the task
+	var hookResult []byte
+	context.Lock()
+	err = context.Get("fde-setup-result", &hookResult)
+	context.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
+	}
+
+	return hookResult, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
+type fdeSetupHandler struct {
+	context *hookstate.Context
+}
+
+func newFdeSetupHandler(ctx *hookstate.Context) hookstate.Handler {
+	return fdeSetupHandler{context: ctx}
+}
+
+func (h fdeSetupHandler) Before() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Done() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Error(err error) error {
+	return nil
 }

@@ -55,7 +55,7 @@ const multipassSupportBaseDeclarationSlots = `
 
 const multipassSupportConnectedPlugAppArmor = `
 # Description: this policy intentionally allows the Multipass daemon to configure AppArmor
-# as Multipass generates AppArmor profiles for the utility processes it spawns.
+# as Multipass generates AppArmor profiles for the utility processes it spawns.
 /sbin/apparmor_parser ixr,
 /etc/apparmor{,.d}/{,**} r,
 /sys/kernel/security/apparmor/{,**} r,
@@ -90,7 +90,7 @@ const multipassSupportConnectedPlugSecComp = `
 # (qemu, qemu-img, dnsmasq, sshfs_server)
 
 # Note that this profile necessarily contains the union of all the syscalls each of the
-# utilities requires. We rely on Multipass to generate specific AppArmor profiles
+# utilities requires. We rely on Multipass to generate specific AppArmor profiles
 # for each child process, to further restrict their abilities.
 
 # dnsmasq fails unless it can drop supplementary groups
@@ -101,10 +101,10 @@ setgroups32 0 -
 # user-specified directory on the host into the VM. Here we permit typical filesytem
 # syscalls with the knowledge that Multipass will generate a specific AppArmor
 # profile for sshfs_server, restricting any filesystem access to just the
-# user-specified directory.
+# user-specified directory.
 
 # More filesystem syscalls sshfs_server will need, as it allows user to change
-# file owner/group arbitrarily.
+# file owner/group arbitrarily.
 chown
 chown32
 fchown

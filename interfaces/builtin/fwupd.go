@@ -71,6 +71,12 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/efivars/** rw,
 
   # Allow write access for efi firmware updater
+  /boot/efi/{,**/} r,
+  # allow access to fwupd* and fw/ under boot/ for core systems
+  /boot/efi/EFI/boot/fwupd*.efi* rw,
+  /boot/efi/EFI/boot/fw/** rw,
+  # allow access to fwupd* and fw/ under ubuntu/ for classic systems
+  /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
   /boot/efi/EFI/ubuntu/fw/** rw,
 
   # Allow access from efivar library
@@ -129,11 +135,11 @@ const fwupdConnectedPlugAppArmor = `
   #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
   #
   dbus send
-       bus=system
-       path="/org/freedesktop/resolve1"
-       interface="org.freedesktop.resolve1.Manager"
-       member="Resolve{Address,Hostname,Record,Service}"
-       peer=(name="org.freedesktop.resolve1"),
+      bus=system
+      path="/org/freedesktop/resolve1"
+      interface="org.freedesktop.resolve1.Manager"
+      member="Resolve{Address,Hostname,Record,Service}"
+      peer=(name="org.freedesktop.resolve1"),
 
   # Allow access to fwupd service
   dbus (receive, send)

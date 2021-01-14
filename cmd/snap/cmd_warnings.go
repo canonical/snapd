@@ -159,7 +159,7 @@ type clientWarningData struct {
 }
 
 func writeWarningTimestamp(t time.Time) error {
-	user, err := osutil.RealUser()
+	user, err := osutil.UserMaybeSudoUser()
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func writeWarningTimestamp(t time.Time) error {
 }
 
 func lastWarningTimestamp() (time.Time, error) {
-	user, err := osutil.RealUser()
+	user, err := osutil.UserMaybeSudoUser()
 	if err != nil {
 		return time.Time{}, fmt.Errorf("cannot determine real user: %v", err)
 	}

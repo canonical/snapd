@@ -16,12 +16,10 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sandbox
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sandbox
 
     # home is not auto-connected on core
-    if grep -q ID=ubuntu-core /etc/os-release; then
+    if os.query is-core; then
         snap connect test-snapd-sandbox:home
     fi
 

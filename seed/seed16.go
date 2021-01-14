@@ -105,11 +105,11 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	return nil
 }
 
-func (s *seed16) Model() (*asserts.Model, error) {
+func (s *seed16) Model() *asserts.Model {
 	if s.model == nil {
-		return nil, fmt.Errorf("internal error: model assertion unset")
+		panic("internal error: model assertion unset (LoadAssertions not called)")
 	}
-	return s.model, nil
+	return s.model
 }
 
 func (s *seed16) Brand() (*asserts.Account, error) {
@@ -170,10 +170,7 @@ func (e *essentialSnapMissingError) Error() string {
 }
 
 func (s *seed16) LoadMeta(tm timings.Measurer) error {
-	model, err := s.Model()
-	if err != nil {
-		return err
-	}
+	model := s.Model()
 
 	seedYamlFile := filepath.Join(s.seedDir, "seed.yaml")
 	if !osutil.FileExists(seedYamlFile) {

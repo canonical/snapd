@@ -64,7 +64,7 @@ execute: |
         prevsnapdver="$(snap --version|grep "snapd ")"
         echo "$prevsnapdver" > prevsnapdver.out
 
-        if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
+        if os.query is-debian; then
             # For debian we install the latest core snap independently until
             # the bug fix is on stable once 2.27 landed
             snap install core
@@ -76,7 +76,7 @@ execute: |
 
         do_classic=no
         if is_classic_confinement_supported ; then
-            install_local_classic test-snapd-classic-confinement
+            "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
             do_classic=yes
             # Preserve the state across reboots if necessary
             touch do-classic
@@ -101,7 +101,7 @@ execute: |
         # allow-downgrades prevents errors when new versions hit the archive, for instance,
         # trying to install 2.11ubuntu1 over 2.11+0.16.04
         pkg_extension="$(distro_get_package_extension)"
-        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        if os.query is-arch-linux; then
             # Arch's pacman is a bit funky here, the command that's run is:
             #    pacman -U --noconfirm --force /home/gopath/snapd-*.pkg.tar.xz
             # The official repo package contains snapd and snap-confine. The local test package

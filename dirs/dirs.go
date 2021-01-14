@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/release"
@@ -56,6 +57,8 @@ var (
 	SnapRunNsDir              string
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
+
+	SnapdMaintenanceFile string
 
 	SnapdStoreSSLCertsDir string
 
@@ -91,9 +94,17 @@ var (
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapDesktopIconsDir string
-	SnapBusPolicyDir    string
 
-	SnapModeenvFile string
+	SnapDBusSessionPolicyDir   string
+	SnapDBusSystemPolicyDir    string
+	SnapDBusSessionServicesDir string
+	SnapDBusSystemServicesDir  string
+
+	SnapModeenvFile   string
+	SnapBootAssetsDir string
+	SnapFDEDir        string
+	SnapSaveDir       string
+	SnapDeviceSaveDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -109,8 +120,6 @@ var (
 	SystemFontsDir            string
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
-
-	PidsCgroupDir string
 
 	SnapshotsDir string
 
@@ -209,6 +218,11 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapdStateDir returns the path to /var/lib/snapd dir under rootdir.
+func SnapdStateDir(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir)
+}
+
 // SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
 func SnapBlobDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "snaps")
@@ -240,6 +254,34 @@ func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 }
 
+// SnapBootAssetsDirUnder returns the path to boot assets directory under a
+// rootdir.
+func SnapBootAssetsDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "boot-assets")
+}
+
+// SnapDeviceDirUnder returns the path to device directory under rootdir.
+func SnapDeviceDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "device")
+}
+
+// SnapFDEDirUnder returns the path to full disk encryption state directory
+// under rootdir.
+func SnapFDEDirUnder(rootdir string) string {
+	return filepath.Join(SnapDeviceDirUnder(rootdir), "fde")
+}
+
+// SnapSaveDirUnder returns the path to device save directory under rootdir.
+func SnapSaveDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "save")
+}
+
+// SnapFDEDirUnderSave returns the path to full disk encryption state directory
+// inside the given save tree dir.
+func SnapFDEDirUnderSave(savedir string) string {
+	return filepath.Join(savedir, "device/fde")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -260,6 +302,7 @@ func SetRootDir(rootdir string) {
 		"arch",
 		"archlinux",
 		"fedora",
+		"gentoo",
 		"manjaro",
 		"manjaro-arm",
 	}
@@ -281,6 +324,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
@@ -314,9 +358,13 @@ func SetRootDir(rootdir string) {
 	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
-	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+	SnapDeviceDir = SnapDeviceDirUnder(rootdir)
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
+	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
+	SnapFDEDir = SnapFDEDirUnder(rootdir)
+	SnapSaveDir = SnapSaveDirUnder(rootdir)
+	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -330,7 +378,13 @@ func SetRootDir(rootdir string) {
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
-	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+
+	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
+	// Use 'dbus-1/services' and `dbus-1/system-services' to mirror
+	// '/usr/share/dbus-1' hierarchy.
+	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
+	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
 
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
@@ -341,9 +395,28 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	if release.DistroLike("fedora") {
-		// rhel, centos, fedora and derivatives
-		// both rhel and centos list "fedora" in ID_LIKE
+	opensuseTWWithLibexec := func() bool {
+		// XXX: this is pretty naive if openSUSE ever starts going back
+		// and forth about the change
+		if !release.DistroLike("opensuse-tumbleweed") {
+			return false
+		}
+		v, err := strconv.Atoi(release.ReleaseInfo.VersionID)
+		if err != nil {
+			// nothing we can do here
+			return false
+		}
+		// first seen on snapshot "20200826"
+		if v < 20200826 {
+			return false
+		}
+		return true
+	}
+
+	if release.DistroLike("fedora") || opensuseTWWithLibexec() {
+		// RHEL, CentOS, Fedora and derivatives, some more recent
+		// snapshots of openSUSE Tumbleweed;
+		// both RHEL and CentOS list "fedora" in ID_LIKE
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
 	} else {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
@@ -375,7 +448,6 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")

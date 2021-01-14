@@ -17,9 +17,7 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-event snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-event
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-event
 
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then

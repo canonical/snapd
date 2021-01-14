@@ -1,9 +1,7 @@
 summary: Check that install/remove works
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"

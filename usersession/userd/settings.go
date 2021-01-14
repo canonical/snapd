@@ -122,13 +122,13 @@ type Settings struct {
 	conn *dbus.Conn
 }
 
-// Name returns the name of the interface this object implements
-func (s *Settings) Name() string {
+// Interface returns the name of the interface this object implements
+func (s *Settings) Interface() string {
 	return "io.snapcraft.Settings"
 }
 
-// BasePath returns the base path of the object
-func (s *Settings) BasePath() dbus.ObjectPath {
+// ObjectPath returns the path that the object is exported as
+func (s *Settings) ObjectPath() dbus.ObjectPath {
 	return "/io/snapcraft/Settings"
 }
 

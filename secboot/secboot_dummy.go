@@ -27,3 +27,11 @@ import (
 func CheckKeySealingSupported() error {
 	return fmt.Errorf("build without secboot support")
 }
+
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+	return fmt.Errorf("build without secboot support")
+}
+
+func ResealKeys(params *ResealKeysParams) error {
+	return fmt.Errorf("build without secboot support")
+}

@@ -37,8 +37,8 @@ type Specification struct {
 
 // AddService adds a new systemd service unit.
 func (spec *Specification) AddService(name string, s *Service) error {
-	if old, ok := spec.services[name]; ok && old != s {
-		return fmt.Errorf("interface requires conflicting system needs")
+	if old, ok := spec.services[name]; ok && old != nil && s != nil && *old != *s {
+		return fmt.Errorf("interface requires conflicting system needs: service %q used to be defined as %#v, now re-defined as %#v", name, *old, *s)
 	}
 	if spec.services == nil {
 		spec.services = make(map[string]*Service)

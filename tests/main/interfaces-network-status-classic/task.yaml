@@ -28,11 +28,8 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap that plugs network-status"
-    install_local test-snapd-network-status-client
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-network-status-client
 
     echo "The network-status plug is connected by default"
     snap connections test-snapd-network-status-client | MATCH "network-status +test-snapd-network-status-client:network-status +:network-status +-"

@@ -11,10 +11,8 @@ environment:
     SLOT: test-snapd-content-mimic-slot:content
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-content-mimic-plug
-    install_local test-snapd-content-mimic-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-mimic-plug
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-mimic-slot
 
 execute: |
     # Before the content interface is connected we expect to see certain files

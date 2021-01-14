@@ -16,9 +16,7 @@ prepare: |
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in strict"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-strict-cgroup
+    "$TESTSTOOLS"/snaps-state install-local test-strict-cgroup
 
 restore: |
     if [ -e /dev/fb0.spread ]; then

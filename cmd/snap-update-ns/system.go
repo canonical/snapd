@@ -72,6 +72,19 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
+	// Allow snap-update-ns to write to host's /tmp directory. This is
+	// specifically here to allow two snaps to share X11 sockets that are placed
+	// in the /tmp/.X11-unix/ directory in the private /tmp directories provided
+	// by snap-confine. The X11 interface cannot offer a precise permission for
+	// the slot-side snap, as there is no mechanism to convey this information.
+	// As such, provide write access to all of /tmp.
+	as.AddUnrestrictedPaths("/var/lib/snapd/hostfs/tmp")
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*", 0700)
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp", 1777)
+	// This is to ensure that unprivileged users can create the socket. This
+	// permission only matters if the plug-side app constructs its mount
+	// namespace before the slot-side app is launched.
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 1777)
 	return as
 }
 

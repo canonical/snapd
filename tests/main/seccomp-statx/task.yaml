@@ -7,12 +7,10 @@ details: |
 
 # This test will only pass on systems with seccomp 2.3.3 or newer which
 # is available on all Ubuntu LTS releases.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-statx
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-statx
 
 execute: |
     # Notably, this doesn't print statx: blocked anymore

@@ -21,6 +21,6 @@ restore: |
     lxc stop --force bionic
     lxc delete bionic
     snap remove --purge lxd
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 debug: |
     lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas"

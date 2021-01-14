@@ -25,18 +25,31 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 func resetPreseededChroot(preseedChroot string) error {
+	exists, isDir, err := osutil.DirExists(preseedChroot)
+	if err != nil {
+		return fmt.Errorf("cannot reset %q: %v", preseedChroot, err)
+	}
+	if !exists {
+		return fmt.Errorf("cannot reset non-existing directory %q", preseedChroot)
+	}
+	if !isDir {
+		return fmt.Errorf("cannot reset %q, it is not a directory", preseedChroot)
+	}
+
 	// globs that yield individual files
 	globs := []string{
 		dirs.SnapStateFile,
 		dirs.SnapSystemKeyFile,
 		filepath.Join(dirs.SnapBlobDir, "*.snap"),
 		filepath.Join(dirs.SnapUdevRulesDir, "*-snap.*.rules"),
-		filepath.Join(dirs.SnapBusPolicyDir, "snap.*.*.conf"),
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.*.*.conf"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.timer"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),
@@ -48,6 +61,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapUserServicesDir, "default.target.wants", "snap.*.service"),
 		filepath.Join(dirs.SnapUserServicesDir, "sockets.target.wants", "snap.*.socket"),
 		filepath.Join(dirs.SnapUserServicesDir, "timers.target.wants", "snap.*.timer"),
+		filepath.Join(runinhibit.InhibitDir, "*.lock"),
 	}
 
 	for _, gl := range globs {
@@ -70,6 +84,8 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapCacheDir, "*"),
 		filepath.Join(apparmor_sandbox.CacheDir, "*"),
 		filepath.Join(dirs.SnapDesktopFilesDir, "*"),
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "*"),
+		filepath.Join(dirs.SnapDBusSystemServicesDir, "*"),
 	}
 
 	for _, gl := range globs {

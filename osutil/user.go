@@ -282,12 +282,12 @@ func DelUser(name string, opts *DelUserOptions) error {
 	return nil
 }
 
-// RealUser finds the user behind a sudo invocation when root, if applicable
-// and possible.
+// UserMaybeSudoUser finds the user behind a sudo invocation when root, if
+// applicable and possible. Otherwise the current user is returned.
 //
 // Don't check SUDO_USER when not root and simply return the current uid
 // to properly support sudo'ing from root to a non-root user
-func RealUser() (*user.User, error) {
+func UserMaybeSudoUser() (*user.User, error) {
 	cur, err := userCurrent()
 	if err != nil {
 		return nil, err
@@ -305,7 +305,14 @@ func RealUser() (*user.User, error) {
 	}
 
 	real, err := user.Lookup(realName)
-	// can happen when sudo is used to enter a chroot (e.g. pbuilder)
+
+	// Note: comparing err here with UnknownUserError is inherently flawed and
+	// may end up missing some legitimate unknown user errors, see the comment
+	// on findGidNoGetentFallback in group.go for more details.
+	// however in this case the effect is not worrisome, because if we fail to
+	// identify the error as unknown user, we will just fail here and won't
+	// inadvertently raise or lower permissions, as the current user is already
+	// root in this codepath
 	if _, ok := err.(user.UnknownUserError); ok {
 		return cur, nil
 	}

@@ -37,9 +37,7 @@ execute: |
     }
 
     echo "Install the a snap with user services while a user session is active"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-user-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
 
     echo "We can see the service running"
     systemctl_user status snap.test-snapd-user-service.test-snapd-user-service

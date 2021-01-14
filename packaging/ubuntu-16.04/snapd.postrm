@@ -82,6 +82,8 @@ if [ "$1" = "purge" ]; then
             if [ -d /etc/dbus-1/system.d ]; then
                 find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             fi
+            # modules
+            rm -f "/etc/modules-load.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
@@ -105,17 +107,12 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/systemd/user/snapd.session-agent.service
     rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
 
+    # dbus activation configuration
+    rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+    rm -f /etc/dbus-1/system.d/snapd.system-services.conf
+
     # generated readme files
     rm -f "/snap/README"
-
-    echo "Final directory cleanup"
-    for d in "/snap/bin" "/snap" "/var/snap"; do
-        # Force remove due to directories for old revisions could still exist
-        rm -rf "$d"
-        if [ -d "$d" ]; then
-            echo "Cannot remove directory $d"
-        fi
-    done
 
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
@@ -129,6 +126,21 @@ if [ "$1" = "purge" ]; then
         find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
+
+    # inside containers we have a generator that creates a bind mount to /snap
+    if [ -e /run/systemd/container ]; then
+        echo "Unmount /snap inside a container"
+        umount /snap || true
+    fi
+
+    echo "Final directory cleanup"
+    for d in "/snap/bin" "/snap" "/var/snap"; do
+        # Force remove due to directories for old revisions could still exist
+        rm -rf "$d"
+        if [ -d "$d" ]; then
+            echo "Cannot remove directory $d"
+        fi
+    done
 
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine

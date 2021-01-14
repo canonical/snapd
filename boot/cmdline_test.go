@@ -27,6 +27,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,7 +48,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755)
 	c.Assert(err, IsNil)
-	restore := boot.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
+	restore := osutil.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 }
 
@@ -82,13 +86,19 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd: "snapd_recovery_mode=install foo=bar",
 		err: `cannot specify install mode without system label`,
 	}, {
-		// boot scripts couldn't decide on mode
-		cmd: "snapd_recovery_mode=install snapd_recovery_system=1234 snapd_recovery_mode=run",
-		err: "cannot specify mode more than once",
+		cmd: "snapd_recovery_system=1234",
+		err: `cannot specify system label without a mode`,
 	}, {
-		// boot scripts couldn't decide which system to use
-		cmd: "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
-		err: "cannot specify recovery system label more than once",
+		// multiple kernel command line params end up using the last one - this
+		// effectively matches the kernel handling too
+		cmd:  "snapd_recovery_mode=install snapd_recovery_system=1234 snapd_recovery_mode=run",
+		mode: "run",
+		// label gets unset because it's not used for run mode
+		label: "",
+	}, {
+		cmd:   "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
+		mode:  "install",
+		label: "1234",
 	}} {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)
@@ -102,4 +112,104 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	bl := bootloadertest.Mock("btloader", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "")
+
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "")
+
+	tbl := bl.WithTrustedAssets()
+	bootloader.Force(tbl)
+
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
+
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run")
+}
+
+func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
+	model := boottest.MakeMockModel()
+
+	bl := bootloadertest.Mock("btloader", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Check(cmdline, Equals, "")
+
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Check(cmdline, Equals, "")
+}
+
+func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
+
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
+}
+
+func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
+
+	cmdline, err := boot.ComposeCandidateCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=0")
+}
+
+func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedHappy(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
+
+	cmdline, err := boot.ComposeCandidateRecoveryCommandLine(model, "1234")
+	c.Assert(err, IsNil)
+	c.Check(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 candidate panic=0")
+
+	cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, "")
+	c.Assert(err, ErrorMatches, "internal error: system is unset")
+	c.Check(cmdline, Equals, "")
 }

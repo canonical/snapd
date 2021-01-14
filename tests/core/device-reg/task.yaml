@@ -5,8 +5,6 @@ summary: |
 execute: |
     #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB"/names.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done

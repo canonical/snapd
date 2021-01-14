@@ -197,7 +197,7 @@ func (r *TaskRunner) run(t *Task) {
 	r.tombs[t.ID()] = tomb
 	tomb.Go(func() error {
 		// Capture the error result with tomb.Kill so we can
-		// use tomb.Err uniformily to consider both it or a
+		// use tomb.Err uniformly to consider both it or a
 		// overriding previous Kill reason.
 		t0 := time.Now()
 		tomb.Kill(handler(t, tomb))

@@ -36,8 +36,8 @@ const upowerObserveBaseDeclarationSlots = `
   upower-observe:
     allow-installation:
       slot-snap-type:
-        - core
         - app
+        - core
     deny-connection:
       on-classic: false
 `

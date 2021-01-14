@@ -24,17 +24,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 )
-
-// PidsInGroup returns the list of process ID currently registered in a given cgroup
-func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
-	// TODO: check whether hierarchyMount looks like a valid cgroup root
-	// (i.e. at cgroup.procs exists)
-	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
-	return pidsInFile(fname)
-}
 
 // pidsInFile returns the list of process IDs in a given file.
 func pidsInFile(fname string) ([]int, error) {

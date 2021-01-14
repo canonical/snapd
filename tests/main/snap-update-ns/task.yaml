@@ -15,14 +15,12 @@ environment:
     SLOT_SNAP: test-snapd-content-slot
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     # NOTE: those are installed locally so that they are not connected because
     # of missing assertions. We are installing the slot before the plug snap so
     # that there's no attempt to load the default provider. Just in case
     # something changes we're disconnecting them so that tests are predictable.
-    install_local "$SLOT_SNAP"
-    install_local "$PLUG_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$SLOT_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$PLUG_SNAP"
     snap disconnect "$PLUG_SNAP:shared-content-plug" || :
     # Ensure there is no preserved mount namespace of the -plug snap.
     # (This one gets created because by connect hooks).

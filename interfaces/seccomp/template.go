@@ -42,6 +42,7 @@ var defaultTemplate = []byte(`
 
 access
 faccessat
+faccessat2
 
 alarm
 brk

@@ -4,9 +4,7 @@ details: |
     rules to the system. Before such connection is placed there are no
     wide-open, write-access rules present.
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-adb-support
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-adb-support
 execute: |
     # If there are any udev rules from existing snaps they are not granting
     # writable-to-all permission to anything. This part is conditional because

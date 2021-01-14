@@ -60,7 +60,8 @@ func isSessionBusLikelyPresent() bool {
 //  to use the session bus, we expect session bus daemon to have been started and
 // managed by the corresponding user session manager.
 //
-// This function is mockable by either MockConnections or MockSessionBus.
+// This function is mockable by either MockConnections or
+// MockOnlySessionBusAvailable.
 var SessionBus = func() (*dbus.Conn, error) {
 	if isSessionBusLikelyPresent() {
 		return dbus.SessionBus()
@@ -70,7 +71,8 @@ var SessionBus = func() (*dbus.Conn, error) {
 
 // SystemBus is like dbus.SystemBus and is provided for completeness.
 //
-// This function is mockable by either MockConnections or MockSystemBus.
+// This function is mockable by either MockConnections or
+// MockOnlySystemBusAvailable.
 var SystemBus = func() (*dbus.Conn, error) {
 	return dbus.SystemBus()
 }

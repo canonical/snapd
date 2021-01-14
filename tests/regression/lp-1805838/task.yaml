@@ -6,9 +6,7 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local network-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     version_info="$(sed -n '2 s/# //p' < /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src)"
     test -n "$version_info"

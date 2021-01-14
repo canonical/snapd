@@ -1,8 +1,9 @@
 summary: Ensure that the security rules related to device cgroups work.
 
-# We don't run the native kernel on these distributions yet so we can't
-# load kernel modules coming from distribution packages yet.
-systems: [-fedora-*, -opensuse-*]
+# fedora, opensuse: we don't run the native kernel on these distributions yet so
+#                   we can't load kernel modules coming from distribution packages yet
+# debian-sid: cgroup v2 which we do not fully support yet
+systems: [-fedora-*, -opensuse-*, -debian-sid-*]
 
 environment:
     DEVICE_NAME/kmsg: kmsg
@@ -77,9 +78,7 @@ execute: |
     fi
 
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Then the device is not assigned to that snap"
     udevadm info "$UDEVADM_PATH" | not MATCH "E: TAGS=.*snap_test-snapd-sh_sh"

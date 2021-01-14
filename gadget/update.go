@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -33,7 +34,7 @@ var (
 var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * SizeMiB,
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		SectorSize:        512,
 	}
 )
@@ -50,6 +51,63 @@ type GadgetData struct {
 // and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
+// ContentChange carries paths to files containing the content data being
+// modified by the operation.
+type ContentChange struct {
+	// Before is a path to a file containing the original data before the
+	// operation takes place (or took place in case of ContentRollback).
+	Before string
+	// After is a path to a file location of the data applied by the operation.
+	After string
+}
+
+type ContentOperation int
+type ContentChangeAction int
+
+const (
+	ContentWrite ContentOperation = iota
+	ContentUpdate
+	ContentRollback
+
+	ChangeAbort ContentChangeAction = iota
+	ChangeApply
+	ChangeIgnore
+)
+
+// ContentObserver allows for observing operations on the content of the gadget
+// structures.
+type ContentObserver interface {
+	// Observe is called to observe an pending or completed action, related
+	// to content being written, updated or being rolled back. In each of
+	// the scenarios, the target path is relative under the root.
+	//
+	// For a file write or update, the source path points to the content
+	// that will be written. When called during rollback, observe call
+	// happens after the original file has been restored (or removed if the
+	// file was added during the update), the source path is empty.
+	//
+	// Returning ChangeApply indicates that the observer agrees for a given
+	// change to be applied. When called with a ContentUpdate or
+	// ContentWrite operation, returning ChangeIgnore indicates that the
+	// change shall be ignored. ChangeAbort is expected to be returned along
+	// with a non-nil error.
+	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
+		targetRootDir, relativeTargetPath string, dataChange *ContentChange) (ContentChangeAction, error)
+}
+
+// ContentUpdateObserver allows for observing update (and potentially a
+// rollback) of the gadget structure content.
+type ContentUpdateObserver interface {
+	ContentObserver
+	// BeforeWrite is called when the backups of content that will get
+	// modified during the update are complete and update is ready to be
+	// applied.
+	BeforeWrite() error
+	// Canceled is called when the update has been canceled, or if changes
+	// were written and the update has been reverted.
+	Canceled() error
+}
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
@@ -63,7 +121,7 @@ type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
-func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc) error {
+func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
 	//       here because this would break refreshes of gadgets even
@@ -76,6 +134,10 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
 	if err != nil {
 		return err
+	}
+
+	if oldVol.Schema == "" || newVol.Schema == "" {
+		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
 	}
 
 	// layout old partially, without going deep into the layout of structure
@@ -110,12 +172,12 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// can update old layout to new layout
 	for _, update := range updates {
-		if err := canUpdateStructure(update.from, update.to, pNew.EffectiveSchema()); err != nil {
+		if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
 			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
 		}
 	}
 
-	return applyUpdates(new, updates, rollbackDirPath)
+	return applyUpdates(new, updates, rollbackDirPath, observer)
 }
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
@@ -136,10 +198,10 @@ func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 		return nil, nil, fmt.Errorf("cannot find entry for volume %q in updated gadget info", name)
 	}
 
-	return &oldV, &newV, nil
+	return oldV, newV, nil
 }
 
-func isSameOffset(one *Size, two *Size) bool {
+func isSameOffset(one *quantity.Offset, two *quantity.Offset) bool {
 	if one == nil && two == nil {
 		return true
 	}
@@ -162,7 +224,7 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.EffectiveRole() == schemaMBR
+	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
@@ -183,8 +245,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
 		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
 	}
-	if from.EffectiveRole() != to.EffectiveRole() {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.EffectiveRole(), to.EffectiveRole())
+	if from.Role != to.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.Role, to.Role)
 	}
 	if from.Type != to.Type {
 		if !isLegacyMBRTransition(from, to) {
@@ -202,7 +264,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 			return fmt.Errorf("cannot change filesystem from %q to %q",
 				from.Filesystem, to.Filesystem)
 		}
-		if from.EffectiveFilesystemLabel() != to.EffectiveFilesystemLabel() {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
 				from.Label, to.Label)
 		}
@@ -219,8 +281,8 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
-	if from.EffectiveSchema() != to.EffectiveSchema() {
-		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
+	if from.Schema != to.Schema {
+		return fmt.Errorf("cannot change volume schema from %q to %q", from.Schema, to.Schema)
 	}
 	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
@@ -240,7 +302,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
-	if from.EffectiveRole() == schemaMBR {
+	if from.Role == schemaMBR {
 		return false
 	}
 	return true
@@ -278,20 +340,35 @@ type Updater interface {
 	Rollback() error
 }
 
-func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
+func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
-		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
+		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir, observer)
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
 		}
 		updaters[i] = up
 	}
 
+	var backupErr error
 	for i, one := range updaters {
 		if err := one.Backup(); err != nil {
-			return fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+			backupErr = fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+			break
+		}
+	}
+	if backupErr != nil {
+		if observer != nil {
+			if err := observer.Canceled(); err != nil {
+				logger.Noticef("cannot observe canceled prepare update: %v", err)
+			}
+		}
+		return backupErr
+	}
+	if observer != nil {
+		if err := observer.BeforeWrite(); err != nil {
+			return fmt.Errorf("cannot observe prepared update: %v", err)
 		}
 	}
 
@@ -329,24 +406,30 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 		}
 	}
 
+	if observer != nil {
+		if err := observer.Canceled(); err != nil {
+			logger.Noticef("cannot observe canceled update: %v", err)
+		}
+	}
+
 	return updateErr
 }
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string) (Updater, error) {
+func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	var updater Updater
 	var err error
 	if !ps.HasFilesystem() {
 		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, findDeviceForStructureWithFallback)
 	} else {
-		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure)
+		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure, observer)
 	}
 	return updater, err
 }
 
 // MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
-func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
 	old := updaterForStructure
 	updaterForStructure = mock
 	return func() {

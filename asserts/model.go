@@ -339,6 +339,25 @@ const (
 	ModelDangerous ModelGrade = "dangerous"
 )
 
+// StorageSafety characterizes the requested storage safety of
+// the model which then controls what encryption is used
+type StorageSafety string
+
+const (
+	StorageSafetyUnset StorageSafety = "unset"
+	// StorageSafetyEncrypted implies mandatory full disk encryption.
+	StorageSafetyEncrypted StorageSafety = "encrypted"
+	// StorageSafetyPreferEncrypted implies full disk
+	// encryption when the system supports it.
+	StorageSafetyPreferEncrypted StorageSafety = "prefer-encrypted"
+	// StorageSafetyPreferUnencrypted implies no full disk
+	// encryption by default even if the system supports
+	// encryption.
+	StorageSafetyPreferUnencrypted StorageSafety = "prefer-unencrypted"
+)
+
+var validStorageSafeties = []string{string(StorageSafetyEncrypted), string(StorageSafetyPreferEncrypted), string(StorageSafetyPreferUnencrypted)}
+
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
@@ -373,6 +392,8 @@ type Model struct {
 	kernelSnap *ModelSnap
 
 	grade ModelGrade
+
+	storageSafety StorageSafety
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -415,15 +436,21 @@ func (mod *Model) Classic() bool {
 	return mod.classic
 }
 
-// Architecture returns the archicteture the model is based on.
+// Architecture returns the architecture the model is based on.
 func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
-// Grade returns the stability grade of the model. Will be ModeGradeUnset
+// Grade returns the stability grade of the model. Will be ModelGradeUnset
 // for Core 16/18 models.
 func (mod *Model) Grade() ModelGrade {
 	return mod.grade
+}
+
+// StorageSafety returns the storage safety for the model. Will be
+// StorageSafetyUnset for Core 16/18 models.
+func (mod *Model) StorageSafety() StorageSafety {
+	return mod.storageSafety
 }
 
 // GadgetSnap returns the details of the gadget snap the model uses.
@@ -643,6 +670,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, ok := assert.headers["grade"]; ok {
 			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
 		}
+		if _, ok := assert.headers["storage-safety"]; ok {
+			return nil, fmt.Errorf("cannot specify storage-safety for model without the extended snaps header")
+		}
 	}
 
 	if classic {
@@ -694,6 +724,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	var modSnaps *modelSnaps
 	grade := ModelGradeUnset
+	storageSafety := StorageSafetyUnset
 	if extended {
 		gradeStr, err := checkOptionalString(assert.headers, "grade")
 		if err != nil {
@@ -705,6 +736,27 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		grade = ModelSigned
 		if gradeStr != "" {
 			grade = ModelGrade(gradeStr)
+		}
+
+		storageSafetyStr, err := checkOptionalString(assert.headers, "storage-safety")
+		if err != nil {
+			return nil, err
+		}
+		if storageSafetyStr != "" && !strutil.ListContains(validStorageSafeties, storageSafetyStr) {
+			return nil, fmt.Errorf("storage-safety for model must be %s, not %q", strings.Join(validStorageSafeties, "|"), storageSafetyStr)
+		}
+		if storageSafetyStr != "" {
+			storageSafety = StorageSafety(storageSafetyStr)
+		} else {
+			if grade == ModelSecured {
+				storageSafety = StorageSafetyEncrypted
+			} else {
+				storageSafety = StorageSafetyPreferEncrypted
+			}
+		}
+
+		if grade == ModelSecured && storageSafety != StorageSafetyEncrypted {
+			return nil, fmt.Errorf(`secured grade model must not have storage-safety overridden, only "encrypted" is valid`)
 		}
 
 		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
@@ -794,6 +846,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
 		grade:                      grade,
+		storageSafety:              storageSafety,
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,

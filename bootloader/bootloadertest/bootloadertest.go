@@ -21,7 +21,7 @@ package bootloadertest
 
 import (
 	"fmt"
-	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -30,6 +30,9 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
+	MockedPresent bool
+	PresentErr    error
+
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
@@ -42,7 +45,6 @@ type MockBootloader struct {
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 
 	InstallBootConfigCalled []string
-	InstallBootConfigResult bool
 	InstallBootConfigErr    error
 
 	enabledKernel    snap.PlaceInfo
@@ -54,6 +56,7 @@ type MockBootloader struct {
 // ensure MockBootloader(s) implement the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
+var _ bootloader.TrustedAssetsBootloader = (*MockTrustedAssetsBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 
@@ -98,8 +101,8 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
-func (b *MockBootloader) ConfigFile() string {
-	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+func (b *MockBootloader) Present() (bool, error) {
+	return b.MockedPresent, b.PresentErr
 }
 
 func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
@@ -136,9 +139,9 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 
 // InstallBootConfig installs the boot config in the gadget directory to the
 // mock bootloader's root directory.
-func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) (bool, error) {
+func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
-	return b.InstallBootConfigResult, b.InstallBootConfigErr
+	return b.InstallBootConfigErr
 }
 
 // MockRecoveryAwareBootloader mocks a bootloader implementing the
@@ -201,6 +204,16 @@ func (b *MockRecoveryAwareBootloader) SetRecoverySystemEnv(recoverySystemDir str
 	b.RecoverySystemDir = recoverySystemDir
 	b.RecoverySystemBootVars = blVars
 	return nil
+}
+
+// GetRecoverySystemEnv gets the recovery system environment bootloader
+// variables; part of RecoveryAwareBootloader.
+func (b *MockRecoveryAwareBootloader) GetRecoverySystemEnv(recoverySystemDir, key string) (string, error) {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.GetRecoverySystemEnv called without recoverySystemDir")
+	}
+	b.RecoverySystemDir = recoverySystemDir
+	return b.RecoverySystemBootVars[key], nil
 }
 
 // MockExtractedRunKernelImageBootloader mocks a bootloader
@@ -359,4 +372,87 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 	b.runKernelImageMockedNumCalls["DisableTryKernel"]++
 	b.runKernelImageEnabledTryKernel = nil
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
+}
+
+// MockTrustedAssetsBootloader mocks a bootloader implementing the
+// bootloader.TrustedAssetsBootloader interface.
+type MockTrustedAssetsBootloader struct {
+	*MockBootloader
+
+	TrustedAssetsList  []string
+	TrustedAssetsErr   error
+	TrustedAssetsCalls int
+
+	RecoveryBootChainList []bootloader.BootFile
+	RecoveryBootChainErr  error
+	BootChainList         []bootloader.BootFile
+	BootChainErr          error
+
+	RecoveryBootChainCalls []string
+	BootChainRunBl         []bootloader.Bootloader
+	BootChainKernelPath    []string
+
+	UpdateErr                  error
+	UpdateCalls                int
+	Updated                    bool
+	ManagedAssetsList          []string
+	StaticCommandLine          string
+	CandidateStaticCommandLine string
+	CommandLineErr             error
+}
+
+func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
+	return &MockTrustedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockTrustedAssetsBootloader) ManagedAssets() []string {
+	return b.ManagedAssetsList
+}
+
+func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
+	b.UpdateCalls++
+	return b.Updated, b.UpdateErr
+}
+
+func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
+	args := []string(nil)
+	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
+		if argSet != "" {
+			args = append(args, argSet)
+		}
+	}
+	line := strings.Join(args, " ")
+	return strings.TrimSpace(line)
+}
+
+func (b *MockTrustedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+}
+
+func (b *MockTrustedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
+}
+
+func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {
+	b.TrustedAssetsCalls++
+	return b.TrustedAssetsList, b.TrustedAssetsErr
+}
+
+func (b *MockTrustedAssetsBootloader) RecoveryBootChain(kernelPath string) ([]bootloader.BootFile, error) {
+	b.RecoveryBootChainCalls = append(b.RecoveryBootChainCalls, kernelPath)
+	return b.RecoveryBootChainList, b.RecoveryBootChainErr
+}
+
+func (b *MockTrustedAssetsBootloader) BootChain(runBl bootloader.Bootloader, kernelPath string) ([]bootloader.BootFile, error) {
+	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
+	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
+	return b.BootChainList, b.BootChainErr
 }

@@ -1,6 +1,7 @@
 summary: Check that more than one snap is refreshed.
 
-systems: [-ubuntu-core-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
 details: |
     We use only the fake store for this test because we currently
@@ -53,14 +54,12 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
-    #shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB"/files.sh
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" test-snapd-tools
-    wait_for_file "$BLOB_DIR"/test-snapd-tools*fake1*.snap 4 .5
+    retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-tools*fake1*.snap
     init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
-    wait_for_file "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap 4 .5
+    retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap
 
     echo "And a refresh is performed"
     snap refresh

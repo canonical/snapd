@@ -32,10 +32,8 @@ execute: |
       > out
     PYTHONIOENCODING=utf8 python3 check.py < out
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     snap info --verbose "$TESTSLIB"/snaps/basic-desktop|MATCH "path: "
-    install_local basic-desktop
+    "$TESTSTOOLS"/snaps-state install-local basic-desktop
     snap info basic-desktop|MATCH "license:[ ]+GPL-3.0"
 
     snap info --verbose basic_1.0_all.snap|MATCH "sha3-384:"

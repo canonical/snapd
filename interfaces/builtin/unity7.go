@@ -62,8 +62,6 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 
 # subset of gnome abstraction
 /etc/gnome/defaults.list r,
-/usr/share/gnome/applications/             r,
-/usr/share/applications/mimeinfo.cache     r,
 
 /etc/gtk-*/*                               r,
 /usr/lib{,32,64}/gtk-*/**                  mr,
@@ -80,22 +78,29 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 /usr/share/icons/*/index.theme             rk,
 /usr/share/pixmaps/                        r,
 /usr/share/pixmaps/**                      r,
-/usr/share/unity/icons/**                  r,
-/usr/share/thumbnailer/icons/**            r,
-/usr/share/themes/**                       r,
 
 # The snapcraft desktop part may look for schema files in various locations, so
 # allow reading system installed schemas.
 /usr/share/glib*/schemas/{,*}              r,
-/usr/share/gnome/glib*/schemas/{,*}        r,
-/usr/share/ubuntu/glib*/schemas/{,*}       r,
 
 # Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
-# interface.
+# interface. This is duplicated from desktop for compatibility with existing
+# snaps.
 /usr/bin/xdg-open ixr,
-/usr/share/applications/{,*} r,
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others. This is duplicated from desktop for compatibility with
+# existing snaps.
+/usr/share/applications/ r,
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 
 # This allow access to the first version of the snapd-xdg-open
 # version which was shipped outside of snapd
@@ -492,16 +497,14 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
-# unity messaging menu
-# first, allow finding the desktop file
-/usr/share/applications/ r,
-# this leaks the names of snaps with desktop files
-/var/lib/snapd/desktop/applications/ r,
-/var/lib/snapd/desktop/applications/mimeinfo.cache r,
-# Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
-# parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
-# this leaks read access to desktop files of parallel installs of the snap
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+###SNAP_DESKTOP_FILE_RULES###
+# Snaps are unable to use the data in mimeinfo.cache (since they can't execute
+# the returned desktop file themselves). unity messaging menu doesn't require
+# mimeinfo.cache and xdg-mime will fallback to reading the desktop files
+# directly to look for MimeType. Since reading the snap's own desktop files is
+# allowed, we can safely deny access to this file (and xdg-mime will either
+# return one of the snap's mimetypes, or none).
+deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 
 # then allow talking to Unity DBus service
 dbus (send)
@@ -658,17 +661,23 @@ func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Unity7 will take the desktop filename and convert all '-' (and '.',
-	// but we don't care about that here because the rule above already
-	// does that) to '_'. Since we know that the desktop filename starts
-	// with the snap name, perform this conversion on the snap name.
+	// Unity7 will take the desktop filename and convert all '-' and '+'
+	// (and '.', but we don't care about that here because the rule above
+	// already does that) to '_'. Since we know that the desktop filename
+	// starts with the snap name, perform this conversion on the snap name.
 	//
 	// parallel-installs: UNITY_SNAP_NAME is used in the context of dbus
 	// mediation, this unintentionally opens access to dbus paths of keyed
 	// instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
+	new := strings.Replace(plug.Snap().DesktopPrefix(), "-", "_", -1)
+	new = strings.Replace(new, "+", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
+
+	old = "###SNAP_DESKTOP_FILE_RULES###"
+	new = strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	snippet = strings.Replace(snippet, old, new+"\n", -1)
+
 	spec.AddSnippet(snippet)
 	return nil
 }

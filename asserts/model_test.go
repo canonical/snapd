@@ -133,6 +133,7 @@ snaps:
     type: app
     presence: optional
 OTHERgrade: secured
+storage-safety: encrypted
 ` + "TSLINE" +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -178,6 +179,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelGradeUnset)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyUnset)
 	essentialSnaps := model.EssentialSnaps()
 	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
@@ -665,6 +667,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	})
 	c.Check(model.Store(), Equals, "brand-store")
 	c.Check(model.Grade(), Equals, asserts.ModelSecured)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
 	essentialSnaps := model.EssentialSnaps()
 	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.KernelSnap(),
@@ -840,6 +843,55 @@ func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	})
 }
 
+func (mods *modelSuite) TestCore20ValidStorageSafety(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: secured\n", "grade: signed\n", 1)
+
+	for _, tc := range []struct {
+		ss  asserts.StorageSafety
+		sss string
+	}{
+		{asserts.StorageSafetyPreferEncrypted, "prefer-encrypted"},
+		{asserts.StorageSafetyPreferUnencrypted, "prefer-unencrypted"},
+		{asserts.StorageSafetyEncrypted, "encrypted"},
+	} {
+		ex := strings.Replace(encoded, "storage-safety: encrypted\n", fmt.Sprintf("storage-safety: %s\n", tc.sss), 1)
+		a, err := asserts.Decode([]byte(ex))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.StorageSafety(), Equals, tc.ss)
+	}
+}
+
+func (mods *modelSuite) TestCore20DefaultStorageSafetySecured(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	ex := strings.Replace(encoded, "storage-safety: encrypted\n", "", 1)
+
+	a, err := asserts.Decode([]byte(ex))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
+}
+
+func (mods *modelSuite) TestCore20DefaultStorageSafetySignedDangerous(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "storage-safety: encrypted\n", "", 1)
+
+	for _, grade := range []string{"dangerous", "signed"} {
+		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
+		a, err := asserts.Decode([]byte(ex))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyPreferEncrypted)
+	}
+}
+
 func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 
@@ -878,6 +930,8 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
 		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
 		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
+		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be encrypted\|prefer-encrypted\|prefer-unencrypted, not "foo"`},
+		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `secured grade model must not have storage-safety overridden, only "encrypted" is valid`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)

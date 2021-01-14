@@ -65,6 +65,11 @@ case "$1" in
                 mv /var/lib/snapd/seed /var/lib/snapd/seed.disabled
             fi
         fi
+
+        # ensure "snap userd" is restarted
+        if dpkg --compare-versions "$2" lt-nl "2.45.2"; then
+            pkill -f "snap userd" || true
+        fi
 esac
 
 #DEBHELPER#

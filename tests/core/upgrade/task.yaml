@@ -10,10 +10,7 @@ priority: 100
 
 debug: |
     snap list
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
-    #shellcheck disable=SC2119
-    bootenv
+    "$TESTSTOOLS"/boot-state bootenv show
     cat /proc/cmdline
 
 restore: |
@@ -27,11 +24,8 @@ restore: |
     snap remove core --revision=x3
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     TARGET_SNAP=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP=core18
     fi
 
@@ -39,13 +33,8 @@ prepare: |
     snap install test-snapd-sh
 
 execute: |
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     TARGET_SNAP=core
-    if is_core18_system; then
+    if os.query is-core18; then
         TARGET_SNAP=core18
     fi
 
@@ -54,14 +43,14 @@ execute: |
     # want that on pristine images?
     if [ "$SPREAD_REBOOT" != 0 ]; then
         echo "Waiting for snapd to clean snap_mode"
-        while [ "$(bootenv snap_mode)" != "" ]; do
+        while [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" != "" ]; do
             sleep 1
         done
 
         echo "Ensure the bootloader is correct after reboot"
-        test "$(bootenv snap_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
-        test "$(bootenv snap_try_core)" = ""
-        test "$(bootenv snap_mode)" = ""
+        test "$("$TESTSTOOLS"/boot-state bootenv show snap_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
+        test "$("$TESTSTOOLS"/boot-state bootenv show snap_try_core)" = ""
+        test "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = ""
     fi
 
     snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > prevBoot
@@ -98,8 +87,8 @@ execute: |
     echo "Ensure the bootloader is correct before reboot"
     readlink "/snap/${TARGET_SNAP}/current" > nextBoot
     test "$(cat prevBoot)" != "$(cat nextBoot)"
-    test "$(bootenv snap_try_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
-    test "$(bootenv snap_mode)" = "try"
+    test "$("$TESTSTOOLS"/boot-state bootenv show snap_try_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
+    test "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" = "try"
 
     echo "Ensure the device is scheduled for auto-reboot"
     output=$(dbus-send --print-reply \

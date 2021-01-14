@@ -21,20 +21,15 @@ debug: |
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
 restore: |
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
+    "$TESTSTOOLS"/fs-state restore-file /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-state restore-dir /root/.snap
 
-    clean_file /root/.snap/auth.json
-    clean_dir /root/.snap
-
-    clean_file /home/test/.snap/auth.json
-    clean_dir /home/test/.snap
+    "$TESTSTOOLS"/fs-state restore-file /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-state restore-dir /home/test/.snap
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
 
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
@@ -47,12 +42,12 @@ execute: |
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
-    ensure_dir_exists_backup_real /root/.snap
-    ensure_file_exists_backup_real /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-state mock-dir /root/.snap
+    "$TESTSTOOLS"/fs-state mock-file /root/.snap/auth.json
     echo '{}' > /root/.snap/auth.json
 
-    ensure_dir_exists_backup_real /home/test/.snap
-    ensure_file_exists_backup_real /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-state mock-dir /home/test/.snap
+    "$TESTSTOOLS"/fs-state mock-file /home/test/.snap/auth.json
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"

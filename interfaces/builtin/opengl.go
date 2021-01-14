@@ -58,8 +58,12 @@ const openglConnectedPlugAppArmor = `
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
+# Allow access to all cards since a) this is common on hybrid systems, b) ARM
+# devices commonly have two devices (such as on the Raspberry Pi 4, one for KMS
+# and another that does not) and c) there is nothing saying that /dev/dri/card0
+# is the default card or the application is currently using.
 /dev/dri/ r,
-/dev/dri/card0 rw,
+/dev/dri/card[0-9]* rw,
 
 # nvidia
 /etc/vdpau_wrapper.cfg r,
@@ -70,6 +74,8 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
 # VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
+# VideoCore Video decoding (required for accelerated MMAL video playback)
+/dev/vcsm-cma rw,
 
 # va-api
 /dev/dri/renderD[0-9]* rw,
@@ -128,6 +134,7 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,

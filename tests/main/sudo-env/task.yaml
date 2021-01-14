@@ -7,8 +7,8 @@ description: |
 
 environment:
     # list of regular expressions that match systems where sudo is set up to use
-    # secure_path
-    SECURE_PATH_SUDO: "fedora-.* centos-.* amazon-linux-2-64 opensuse-.* debian-.*"
+    # secure_path without snap bindir
+    SECURE_PATH_SUDO_NO_SNAP: "centos-.* amazon-linux-2-64 opensuse-.* debian-.*"
 
 # ubuntu-14.04: no support for user sessions used by test helpers
 systems: [ -ubuntu-14.04-* ]
@@ -35,7 +35,7 @@ execute: |
     tests.session -u test exec sudo --login sh -c 'echo :$PATH:' > sudo-login.path
 
     secure_path=no
-    for regex in $SECURE_PATH_SUDO ; do
+    for regex in $SECURE_PATH_SUDO_NO_SNAP ; do
         if echo "$SPREAD_SYSTEM" | grep -Eq "$regex" ; then
             secure_path=yes
             break

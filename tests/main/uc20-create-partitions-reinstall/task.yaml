@@ -16,6 +16,10 @@ restore: |
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
     fi
+    umount ./ubuntu-seed || true
+    umount ./ubuntu-boot || true
+    umount ./ubuntu-save || true
+    umount ./ubuntu-data || true
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
@@ -59,13 +63,19 @@ execute: |
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
-    echo "Check if attribute bits were set for new partitions"
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p1.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p2.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p3.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p4.*attrs=\"GUID:59\""
+    echo "Create canary files on the ubuntu-{seed,boot,data} partitions"
+    mkdir ./ubuntu-seed ./ubuntu-boot ./ubuntu-save ./ubuntu-data
+    mount "${LOOP}p2" ./ubuntu-seed
+    mount "${LOOP}p3" ./ubuntu-boot
+    mount "${LOOP}p4" ./ubuntu-save
+    mount "${LOOP}p5" ./ubuntu-data
+    for label in ubuntu-seed ubuntu-boot ubuntu-save ubuntu-data; do
+        echo "$label" > ./"$label"/canary.txt
+        umount ./"$label"
+    done
 
     # re-create partitions on a new install attempt
     echo "Run the snap-bootstrap again"
@@ -74,6 +84,19 @@ execute: |
     echo "And check that the partitions are there"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
-    sfdisk -l "$LOOP" | not MATCH "${LOOP}p[56789]"
+    sfdisk -l "$LOOP" | NOMATCH "${LOOP}p[6789]"
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+
+    echo "Mount partitions again"
+    mount "${LOOP}p2" ./ubuntu-seed
+    mount "${LOOP}p3" ./ubuntu-boot
+    mount "${LOOP}p4" ./ubuntu-save
+    mount "${LOOP}p5" ./ubuntu-data
+    echo "The ubuntu-seed partition is still there untouched"
+    test -e ./ubuntu-seed/canary.txt
+    echo "But ubuntu-{boot,save,data} got re-created"
+    not test -e ./ubuntu-boot/canary.txt
+    not test -e ./ubuntu-save/canary.txt
+    not test -e ./ubuntu-data/canary.txt

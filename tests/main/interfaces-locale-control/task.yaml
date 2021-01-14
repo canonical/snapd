@@ -13,7 +13,7 @@ summary: |
     file both for reading and writing. This path doesn't exist on the excluded distributions.
 
 prepare: |
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         if snap interfaces | MATCH locale-control; then
             echo "locale-control should be only available on core"
             exit 1
@@ -22,11 +22,8 @@ prepare: |
         fi
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring a plug on the locale-control interface is installed"
-    install_local locale-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local locale-control-consumer
 
     mv /etc/default/locale locale.back
     cat > /etc/default/locale <<EOF
@@ -35,7 +32,7 @@ prepare: |
     EOF
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         if snap interfaces | MATCH locale-control; then
             echo "locale-control should be only available on core"
             exit 1
@@ -47,7 +44,7 @@ restore: |
     mv locale.back /etc/default/locale
 
 execute: |
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         if snap interfaces | MATCH locale-control; then
             echo "locale-control should be only available on core"
             exit 1

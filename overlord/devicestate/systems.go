@@ -75,10 +75,7 @@ func systemFromSeed(label string, current *currentSystem) (*System, error) {
 		return nil, fmt.Errorf("cannot load assertions: %v", err)
 	}
 	// get the model
-	model, err := s.Model()
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain model: %v", err)
-	}
+	model := s.Model()
 	brand, err := s.Brand()
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain brand: %v", err)

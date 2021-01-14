@@ -80,13 +80,12 @@ func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
 func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 	q := url.Values{}
 
-	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
-	defer cancel()
-	response, err := client.raw(ctx, "GET", path, q, nil, nil)
+	response, cancel, err := client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil)
 	if err != nil {
 		fmt := "failed to query current assertion: %w"
 		return nil, xerrors.Errorf(fmt, err)
 	}
+	defer cancel()
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
 		return nil, parseError(response)

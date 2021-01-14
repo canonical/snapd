@@ -20,16 +20,21 @@
 package ctlcmd_test
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
 type isConnectedSuite struct {
+	testutil.BaseTest
 	st          *state.State
 	mockHandler *hooktest.MockHandler
 }
@@ -37,6 +42,9 @@ type isConnectedSuite struct {
 var _ = Suite(&isConnectedSuite{})
 
 func (s *isConnectedSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.st = state.New(nil)
 	s.mockHandler = hooktest.NewMockHandler()
 }
@@ -61,14 +69,41 @@ var isConnectedTests = []struct {
 	args:     []string{"is-connected", "plug3"},
 	exitCode: 1,
 }, {
-	args:     []string{"is-connected", "slot2"},
-	exitCode: 1,
+	args: []string{"is-connected", "slot2"},
+	err:  `snap "snap1" has no plug or slot named "slot2"`,
 }, {
-	args:     []string{"is-connected", "foo"},
-	exitCode: 1,
+	args: []string{"is-connected", "foo"},
+	err:  `snap "snap1" has no plug or slot named "foo"`,
 }}
 
+func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
+	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{
+				RealName: info.SnapName(),
+				Revision: info.Revision,
+				SnapID:   info.InstanceName() + "-id",
+			},
+		},
+		Current: info.Revision,
+	})
+}
+
 func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
+	mockInstalledSnap(c, s.st, `name: snap1
+plugs:
+  plug1:
+    interface: x11
+  plug2:
+    interface: x11
+  plug3:
+    interface: x11
+slots:
+  slot1:
+    interface: x11`)
+
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},
 		"snap1:plug2 snap3:slot3": map[string]interface{}{"undesired": true},
@@ -81,20 +116,19 @@ func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
 
 	for _, test := range isConnectedTests {
 		stdout, stderr, err := ctlcmd.Run(context, test.args, 0)
+		comment := Commentf("%s", test.args)
 		if test.exitCode > 0 {
-			unsuccessfulErr, ok := err.(*ctlcmd.UnsuccessfulError)
-			c.Assert(ok, Equals, true)
-			c.Check(unsuccessfulErr.ExitCode, Equals, test.exitCode)
+			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
 		} else {
 			if test.err == "" {
-				c.Check(err, IsNil)
+				c.Check(err, IsNil, comment)
 			} else {
-				c.Check(err, ErrorMatches, test.err)
+				c.Check(err, ErrorMatches, test.err, comment)
 			}
 		}
 
-		c.Check(string(stdout), Equals, test.stdout, Commentf("%s\n", test.args))
-		c.Check(string(stderr), Equals, "")
+		c.Check(string(stdout), Equals, test.stdout, comment)
+		c.Check(string(stderr), Equals, "", comment)
 	}
 }
 
@@ -135,6 +169,11 @@ func (s *isConnectedSuite) TestNoContextError(c *C) {
 
 func (s *isConnectedSuite) TestGetRegularUser(c *C) {
 	s.st.Lock()
+
+	mockInstalledSnap(c, s.st, `name: snap1
+plugs:
+  plug1:
+    interface: x11`)
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},

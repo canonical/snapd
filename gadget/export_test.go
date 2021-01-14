@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,9 @@
 package gadget
 
 type (
-	ValidationState          = validationState
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
 )
-
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
 
 var (
 	ValidateStructureType   = validateStructureType
@@ -36,23 +30,21 @@ var (
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
 
+	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
+
 	ResolveVolume      = resolveVolume
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 
-	WriteFile      = writeFileOrSymlink
-	WriteDirectory = writeDirectory
+	WriteFile = writeFileOrSymlink
 
 	RawContentBackupPath = rawContentBackupPath
 
 	UpdaterForStructure = updaterForStructure
 
-	EnsureVolumeConsistency = ensureVolumeConsistency
-
 	Flatten = flatten
 
-	FilesystemInfo                 = filesystemInfo
-	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	FilesystemInfo = filesystemInfo
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
@@ -60,8 +52,9 @@ var (
 	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
 	FindMountPointForStructure         = findMountPointForStructure
 
-	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
+
+	SplitKernelRef = splitKernelRef
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -70,4 +63,8 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	return func() {
 		evalSymlinks = oldEvalSymlinks
 	}
+}
+
+func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
+	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
 }

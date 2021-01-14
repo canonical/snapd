@@ -125,8 +125,8 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 				snapName = errValStr
 			}
 		}
-	case client.ErrorKindChannelNotAvailable,
-		client.ErrorKindArchitectureNotAvailable:
+	case client.ErrorKindSnapChannelNotAvailable,
+		client.ErrorKindSnapArchitectureNotAvailable:
 		values, ok := err.Value.(map[string]interface{})
 		if ok {
 			candName, _ := values["snap-name"].(string)
@@ -144,7 +144,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 			}
 		}
 		fallthrough
-	case client.ErrorKindRevisionNotAvailable:
+	case client.ErrorKindSnapRevisionNotAvailable:
 		if snapName == "" {
 			errValStr, ok := err.Value.(string)
 			if ok && errValStr != "" {
@@ -207,7 +207,7 @@ If you understand and want to proceed repeat the command including --classic.
 		}
 	case client.ErrorKindSnapLocal:
 		msg = i18n.G("local snap %q is unknown to the store, use --amend to proceed anyway")
-	case client.ErrorKindNoUpdateAvailable:
+	case client.ErrorKindSnapNoUpdateAvailable:
 		isError = false
 		msg = i18n.G("snap %q has no updates available")
 	case client.ErrorKindSnapNotInstalled:
@@ -222,6 +222,31 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = i18n.G("snapd is about to reboot the system")
+	case client.ErrorKindInsufficientDiskSpace:
+		// this error carries multiple snap names
+		usesSnapName = false
+		values, ok := err.Value.(map[string]interface{})
+		if ok {
+			changeKind, _ := values["change-kind"].(string)
+			snaps, _ := values["snap-names"].([]interface{})
+			snapNames := make([]string, len(snaps))
+			for i, v := range snaps {
+				snapNames[i] = fmt.Sprint(v)
+			}
+			names := strutil.Quoted(snapNames)
+			switch changeKind {
+			case "remove":
+				msg = fmt.Sprintf(i18n.G("cannot remove %s due to low disk space for automatic snapshot, use --purge to avoid creating a snapshot"), names)
+			case "install":
+				msg = fmt.Sprintf(i18n.G("cannot install %s due to low disk space"), names)
+			case "refresh":
+				msg = fmt.Sprintf(i18n.G("cannot refresh %s due to low disk space"), names)
+			default:
+				msg = err.Error()
+			}
+			break
+		}
+		fallthrough
 	default:
 		usesSnapName = false
 		msg = err.Message
@@ -239,7 +264,7 @@ If you understand and want to proceed repeat the command including --classic.
 	return msg, nil
 }
 
-func snapRevisionNotAvailableMessage(kind, snapName, action, arch, snapChannel string, releases []interface{}) string {
+func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, arch, snapChannel string, releases []interface{}) string {
 	// releases contains all available (arch x channel)
 	// as reported by the store through the daemon
 	req, err := channel.Parse(snapChannel, arch)
@@ -276,7 +301,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, snapChannel s
 	}
 
 	// no release is for this architecture
-	if kind == client.ErrorKindArchitectureNotAvailable {
+	if kind == client.ErrorKindSnapArchitectureNotAvailable {
 		// TODO: add "Get more information..." hints once snap info
 		// support showing multiple/all archs
 

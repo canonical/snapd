@@ -7,10 +7,15 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     echo "Wait for first boot to be done"
-    while ! execute_remote "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
+    while ! nested_exec "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
 
     echo "We have a model assertion"
-    execute_remote "snap known model" | MATCH "series: 16"
+    nested_exec "snap known model" | MATCH "series: 16"
+
+    EXPRESSION="^core .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +core"
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        EXPRESSION="^core .* +x1 .* core"
+    fi
 
     echo "Make sure core has an actual revision"
-    execute_remote "snap list --unicode=never" | MATCH "^core +[0-9]+\\-[0-9.]+ +[0-9]+ +latest/$CORE_CHANNEL +canonical\\* +core"
+    nested_exec "snap list --unicode=never" | MATCH "$EXPRESSION"

@@ -111,6 +111,9 @@ func (vss *validationSetSuite) TestDecodeInvalid(c *C) {
 		{"sequence: 2\n", "sequence: one\n", `"sequence" header is not an integer: one`},
 		{"sequence: 2\n", "sequence: 0\n", `"sequence" must be >=1: 0`},
 		{"sequence: 2\n", "sequence: -1\n", `"sequence" must be >=1: -1`},
+		{"sequence: 2\n", "sequence: 00\n", `"sequence" header has invalid prefix zeros: 00`},
+		{"sequence: 2\n", "sequence: 01\n", `"sequence" header has invalid prefix zeros: 01`},
+		{"sequence: 2\n", "sequence: 010\n", `"sequence" header has invalid prefix zeros: 010`},
 		{snapsStanza, "", `"snaps" header is mandatory`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
 		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},
@@ -162,4 +165,23 @@ func (vss *validationSetSuite) TestSnapRevisionOptional(c *C) {
 	c.Assert(snaps, HasLen, 1)
 	// 0 means unset
 	c.Check(snaps[0].Revision, Equals, 0)
+}
+
+func (vss *validationSetSuite) TestIsValidValidationSetName(c *C) {
+	names := []struct {
+		name  string
+		valid bool
+	}{
+		{"", false},
+		{"abA", false},
+		{"-a", false},
+		{"1", true},
+		{"a", true},
+		{"ab", true},
+		{"foo1-bar0", true},
+	}
+
+	for i, name := range names {
+		c.Assert(asserts.IsValidValidationSetName(name.name), Equals, name.valid, Commentf("%d: %s", i, name.name))
+	}
 }

@@ -139,11 +139,25 @@ var createUsersTests = []struct {
 		Username: "two",
 	}, {
 		Username: "three",
+	},
+	},
+}, {
+	options: []*client.CreateUserOptions{{
+		Automatic: true,
 	}},
-}}
+	bodies: []string{
+		`{"action":"create","automatic":true}`,
+	},
+	responses: []string{
+		// for automatic result can be empty
+		`{"type": "sync", "result": []}`,
+	},
+},
+}
 
 func (cs *clientSuite) TestClientCreateUsers(c *C) {
 	for _, test := range createUsersTests {
+		cs.reqs = nil
 		cs.rsps = test.responses
 
 		results, err := cs.cli.CreateUsers(test.options)

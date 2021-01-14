@@ -6,9 +6,7 @@ environment:
     SPECIAL_USER_NAME/jenkins: jenkins
     SPECIAL_USER_NAME/postgres: postgres
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local_classic test-snapd-classic-confinement
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
 
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
@@ -18,9 +16,8 @@ prepare: |
             apt-get install -y default-jre-headless
             wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -
             echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            apt-get install -y jenkins
-            apt install jenkins
+            apt update
+            apt install -y jenkins
             ;;
         postgres)
             apt install -y postgresql

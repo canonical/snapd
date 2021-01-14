@@ -1,11 +1,15 @@
 summary: Ensure that `snap advise-snap` works
 
-# we need https://github.com/snapcore/core/pull/70 landed before
-# we can use this on ubuntu-core-*
-systems: [ubuntu-16*, ubuntu-18*]
+# advise-snap / command-not-found only works on ubuntu classic, and on uc16
+# on uc18+ we don't have the /usr/lib/command-not-found symlink so it's not
+# useful
+systems:
+    - ubuntu-1*
+    - ubuntu-2*
+    - ubuntu-core-16*
 
 prepare: |
-    if [ -e /usr/lib/command-not-found ]; then
+    if ! os.query is-core16 && [ -e /usr/lib/command-not-found ]; then
         mv /usr/lib/command-not-found /usr/lib/command-not-found.orig
     fi
 
@@ -15,10 +19,6 @@ restore: |
     fi
 
 execute: |
-    # FIXME: remove this once the store is in good shape again
-    echo "the store is unhappy right now"
-    exit 0
-
     echo "wait for snapd to pull in the commands data"
     echo "(it will do that on startup)"
     for _ in $(seq 120); do
@@ -27,7 +27,14 @@ execute: |
        fi
        sleep 1
     done
-    stat /var/cache/snapd/commands.db
+    if ! stat /var/cache/snapd/commands.db; then
+        # workaround for misbehaving store
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then
+            echo "Store is reporting 429 (too many requests), skipping the test"
+            exit 0
+        fi
+        exit 1
+    fi
     echo "Ensure the database is readable by a regular user"
     if [ "$(stat -c '%a' /var/cache/snapd/commands.db)" != "644" ]; then
         echo "incorrect permissions for /var/cache/snapd/commands.db"
@@ -40,11 +47,14 @@ execute: |
     snap advise-snap --command test-snapd-tools.echo | MATCH test-snapd-tools
 
     echo "Ensure 'advise-snap --command' works as command-not-found symlink"
-    ln -s /usr/bin/snap /usr/lib/command-not-found
+    # it's already this symlink on uc16, just use as-is there
+    if ! os.query is-core16; then
+        ln -s /usr/bin/snap /usr/lib/command-not-found    
+    fi
     /usr/lib/command-not-found test-snapd-tools.echo | MATCH test-snapd-tools
 
     echo "Ensure short names are found too"
-    snap advise-snap --command test_snapd_wellknown1 | MATCH 'The program ".*" can be found'
+    snap advise-snap --command test_snapd_wellknown1 | MATCH '"test_snapd_wellknown1" not found, but can be installed with'
 
     echo "Ensure advise-snap without a match returns exit code 1"
     if snap advise-snap --command no-such-command-for-any-snap; then

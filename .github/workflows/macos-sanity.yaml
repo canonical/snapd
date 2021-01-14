@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: "1.10.x"
+          go-version: "1.14.x"
 
       - name: Checkout code
         uses: actions/checkout@v2
@@ -36,7 +36,7 @@ jobs:
 
       - name: Build sanity checks
         run: |
-          go build -o /tmp/snp github.com/snapcore/snapd/cmd/snap
+          go build -tags nosecboot -o /tmp/snp github.com/snapcore/snapd/cmd/snap
 
       - name: Runtime sanity checks
         working-directory: ./src/github.com/snapcore/snapd

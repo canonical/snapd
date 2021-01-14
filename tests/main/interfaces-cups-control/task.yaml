@@ -24,7 +24,7 @@ prepare: |
     echo "Given a snap declaring a cups plug is installed"
     snap install test-snapd-cups-control-consumer
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         # Not all distributions are starting the cups service directly after
         # the package was installed.
         echo "Enabling cups service in case it is not enabled"
@@ -42,11 +42,8 @@ restore: |
     rm -rf "$HOME"/PDF "$TEST_FILE"
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     systemctl status cups || true
-    get_journalctl_log -u cpus || true
+    "$TESTSTOOLS"/journal-state get-log -u cpus || true
 
 execute: |
     echo "Then the plug is disconnected by default"

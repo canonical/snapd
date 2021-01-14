@@ -61,6 +61,9 @@ func autoImportCandidates() ([]string, error) {
 
 	isTesting := snapdenv.Testing()
 
+	// TODO: re-write this to use osutil.LoadMountInfo instead of doing the
+	//       parsing ourselves
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		l := strings.Fields(scanner.Text())
@@ -94,7 +97,24 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 
+		// TODO: should the following 2 checks try to be more smart like
+		//       `snap-bootstrap initramfs-mounts` and try to find the boot disk
+		//       and determine what partitions to skip using the disks package?
+
+		// skip all initramfs mounted disks on uc20
 		mountPoint := l[4]
+		if strings.HasPrefix(mountPoint, boot.InitramfsRunMntDir) {
+			continue
+		}
+
+		// skip all seed dir mount points too, as these are bind mounts to the
+		// initramfs dirs on uc20, this can show up as
+		// /writable/system-data/var/lib/snapd/seed as well as
+		// /var/lib/snapd/seed
+		if strings.HasSuffix(mountPoint, dirs.SnapSeedDir) {
+			continue
+		}
+
 		cand := filepath.Join(mountPoint, autoImportsName)
 		if osutil.FileExists(cand) {
 			cands = append(cands, cand)
@@ -102,7 +122,6 @@ func autoImportCandidates() ([]string, error) {
 	}
 
 	return cands, scanner.Err()
-
 }
 
 func queueFile(src string) error {
@@ -260,12 +279,15 @@ func init() {
 }
 
 func (x *cmdAutoImport) autoAddUsers() error {
-	cmd := cmdCreateUser{
-		clientMixin: x.clientMixin,
-		Known:       true,
-		Sudoer:      true,
+	options := client.CreateUserOptions{
+		Automatic: true,
 	}
-	return cmd.Execute(nil)
+	results, err := x.client.CreateUsers([]*client.CreateUserOptions{&options})
+	for _, result := range results {
+		fmt.Fprintf(Stdout, i18n.G("created user %q\n"), result.Username)
+	}
+
+	return err
 }
 
 func removableBlockDevices() (removableDevices []string) {

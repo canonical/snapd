@@ -18,8 +18,6 @@ restore: |
 
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
 
     get_prop() {
         prop=$(systemctl show -p "$1" "$2")
@@ -38,7 +36,7 @@ execute: |
         # we are using systemd-notify indicate the service is active, this is
         # currently not allowed by daemon-notify interface, so we may as well
         # just install in devmode
-        install_local_as test-snapd-after-before-service "test-snapd-after-before-service_$INSTANCE" --devmode
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-after-before-service "test-snapd-after-before-service_$INSTANCE" --devmode
 
         service_prefix="snap.test-snapd-after-before-service_$INSTANCE"
 

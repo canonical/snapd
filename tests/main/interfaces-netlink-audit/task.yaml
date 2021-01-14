@@ -9,11 +9,8 @@ details: |
 systems: [-ubuntu-14.04-*, -arch-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # Install a snap declaring a plug on netlink-audit
-    install_local test-snapd-netlink-audit
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-netlink-audit
 
 execute: |
     echo "The interface is disconnected by default"

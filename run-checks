@@ -170,6 +170,7 @@ if [ "$STATIC" = 1 ]; then
         done
         if [ -n "$fmt" ]; then
             echo "Formatting wrong in following files:"
+            # shellcheck disable=SC2001
             echo "$fmt" | sed -e 's/\\n/\n/g'
             exit 1
         fi
@@ -216,7 +217,7 @@ if [ "$STATIC" = 1 ]; then
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            xargs shellcheck
+            xargs shellcheck -x
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
@@ -225,25 +226,29 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+        # also run spread-shellcheck
+        ./spread-shellcheck spread.yaml tests
     fi
 
     echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
-    for file in *; do
-        if [ "$file" = "vendor" ] || [ "$file" = "po" ]; then
-            continue
-        fi
-        misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs "$file"
-    done
+    # FIXME: auter is only misspelled in the changelog so we should fix there
+    # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
+    # exportfs is used in the nfs-support test
+    MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
+    git ls-files -z -- . ':!:./po' ':!:./vendor' |
+        xargs -0 misspell -error -i "$MISSPELL_IGNORE"
 
-    echo "Checking for ineffective assignments"
-    if ! command -v ineffassign >/dev/null; then
-        go get -u github.com/gordonklaus/ineffassign
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
+        echo "Checking for ineffective assignments"
+        if ! command -v ineffassign >/dev/null; then
+            go get -u github.com/gordonklaus/ineffassign
+        fi
+        # ineffassign knows about ignoring vendor/ \o/
+        ineffassign ./...
     fi
-    # ineffassign knows about ignoring vendor/ \o/
-    ineffassign .
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
@@ -290,14 +295,21 @@ if [ "$UNIT" = 1 ]; then
     command -v go
     go version
 
+    tags=
+    if [ -n "${GO_BUILD_TAGS-}" ]; then
+        echo "Using build tags: $GO_BUILD_TAGS"
+        tags="-tags $GO_BUILD_TAGS"
+    fi
+
     echo Building
-    go build -v github.com/snapcore/snapd/...
+    # shellcheck disable=SC2086
+    go build -v $tags github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
-            # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            # shellcheck disable=SC2046,SC2086
+            GOTRACEBACK=1 $goctest $tags -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
@@ -305,12 +317,14 @@ if [ "$UNIT" = 1 ]; then
         echo "mode: $COVERMODE" > .coverage/coverage.out
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-            # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            # shellcheck disable=SC2046,SC2086
+            GOTRACEBACK=1 $goctest $tags -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
-                GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                # shellcheck disable=SC2086
+                GOTRACEBACK=1 go test $tags -timeout 5m -i "$pkg"
+                # shellcheck disable=SC2086
+                GOTRACEBACK=1 $goctest $tags -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
         fi
@@ -320,17 +334,17 @@ if [ "$UNIT" = 1 ]; then
         fi
     fi
 
-    # python unit test for mountinfo-tool and version-tool
-    command -v python2 && python2 ./tests/lib/tools/mountinfo-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/tools/mountinfo-tool --run-unit-tests
-    command -v python2 && python2 ./tests/lib/tools/version-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/tools/version-tool --run-unit-tests
+    # python unit test for mountinfo.query and version-compare
+    command -v python2 && python2 ./tests/lib/tools/mountinfo.query --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/version-compare --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/version-compare --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo "Checking whether PR author requested to skip spread"
-        if ./check-pr-skip-spread.py "$TRAVIS_PULL_REQUEST"; then
+        if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_SKIP_SPREAD_JOB"; then
             echo "Skipping spread job on request"
             exit 0
         fi
@@ -365,6 +379,20 @@ if [ -n "$SPREAD" ]; then
             exit 1
     esac
 
+    if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_RUN_SPREAD_NESTED"; then
+        case "$SPREAD" in
+            full)
+                spread "google-nested:tests/nested/"
+            ;;
+            ubuntu-only)
+                spread "google-nested:[u]...:tests/nested/"
+            ;;
+            *)
+                echo "Spread parameter $SPREAD not supported"
+                exit 1
+        esac
+    fi
+
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
 fi
@@ -378,5 +406,15 @@ There are files left in the git tree after the tests:
 
 $UNCLEAN
 EOF
+    exit 1
+fi
+
+if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
+    exit 0
+fi
+
+if git describe --always --dirty | grep -q dirty; then
+    echo "Build tree is dirty"
+    git diff
     exit 1
 fi

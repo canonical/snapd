@@ -41,12 +41,9 @@ execute: |
     	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
     EOF
 
-    #shellcheck source=tests/lib/strings.sh
-    . "$TESTSLIB"/strings.sh
-
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    str_to_one_line "$( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 )" | MATCH "$expected"
+    "$TESTSTOOLS"/to-one-line "$( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 )" | MATCH "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="test-snapd-devmode 1.0 installed"
@@ -70,12 +67,10 @@ execute: |
     snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
 
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
     # TODO:UC20: fix to work on uc20 too
     # The "seed/" dir is on a FAT partition on uc20 so the permissions are
     # different here.
-    if ! is_core20_system; then
+    if ! os.query is-core20; then
         echo "All snap blobs are 0600"
         test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
     fi

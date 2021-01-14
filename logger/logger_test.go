@@ -21,14 +21,17 @@ package logger_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -121,4 +124,25 @@ func (s *LogSuite) TestWithLoggerLock(c *C) {
 		c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 	})
 	c.Check(called, Equals, true)
+}
+
+func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
+	// must enable actually checking the command line, because by default the
+	// logger package will skip checking for the kernel command line parameter
+	// if it detects it is in a test because otherwise we would have to mock the
+	// cmdline in many many many more tests that end up using a logger
+	restore := logger.ProcCmdlineMustMock(false)
+	defer restore()
+
+	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
+	err := ioutil.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	var buf bytes.Buffer
+	l, err := logger.New(&buf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	l.Debug("xyzzy")
+	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }

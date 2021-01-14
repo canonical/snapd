@@ -73,6 +73,9 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	s.AddCleanup(reset1)
 	s.AddCleanup(reset2)
 	s.AddCleanup(snapstatetest.MockDeviceModel(nil))
+
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
 }
 
 func (s *baseHandlerSuite) SetUpTest(c *C) {

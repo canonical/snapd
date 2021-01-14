@@ -20,26 +20,22 @@
 package main
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var installRun = install.Run
 
 type cmdCreatePartitions struct {
-	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt              bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KeyFile              string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
-	RecoveryKeyFile      string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
-	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
-	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
-	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
-	ModelPath            string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
+	Mount   bool `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt bool `long:"encrypt" description:"Encrypt the data partition"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -52,22 +48,18 @@ const (
 	long  = ""
 )
 
-func readModel(modelPath string) (*asserts.Model, error) {
-	f, err := os.Open(modelPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+type simpleObserver struct{}
 
-	a, err := asserts.NewDecoder(f).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode assertion: %v", err)
-	}
-	if a.Type() != asserts.ModelType {
-		return nil, fmt.Errorf("not a model assertion")
-	}
-	return a.(*asserts.Model), nil
+func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	return gadget.ChangeApply, nil
 }
+
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
+
+type uc20Constraints struct{}
+
+func (c uc20Constraints) Classic() bool  { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade  { return asserts.ModelSigned }
 
 func main() {
 	args := &cmdCreatePartitions{}
@@ -76,26 +68,39 @@ func main() {
 		panic(err)
 	}
 
-	var model *asserts.Model
-	if args.ModelPath != "" {
-		var err error
-		model, err = readModel(args.ModelPath)
-		if err != nil {
-			panic(fmt.Sprintf("cannot load model: %v", err))
-		}
-	}
+	obs := &simpleObserver{}
+
 	options := install.Options{
-		Mount:                   args.Mount,
-		Encrypt:                 args.Encrypt,
-		KeyFile:                 args.KeyFile,
-		RecoveryKeyFile:         args.RecoveryKeyFile,
-		TPMLockoutAuthFile:      args.TPMLockoutAuthFile,
-		TPMPolicyUpdateDataFile: args.PolicyUpdateDataFile,
-		KernelPath:              args.KernelPath,
-		Model:                   model,
+		Mount:   args.Mount,
+		Encrypt: args.Encrypt,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options)
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
+	}
+
+	if args.Encrypt {
+		if installSideData == nil || installSideData.KeysForRoles == nil {
+			panic("expected encryption keys")
+		}
+		dataKey := installSideData.KeysForRoles[gadget.SystemData]
+		if dataKey == nil {
+			panic("ubuntu-data encryption key is unset")
+		}
+		saveKey := installSideData.KeysForRoles[gadget.SystemSave]
+		if saveKey == nil {
+			panic("ubuntu-save encryption key is unset")
+		}
+		toWrite := map[string][]byte{
+			"unsealed-key":  dataKey.Key[:],
+			"recovery-key":  dataKey.RecoveryKey[:],
+			"save-key":      saveKey.Key[:],
+			"reinstall-key": saveKey.RecoveryKey[:],
+		}
+		for keyFileName, keyData := range toWrite {
+			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+				panic(err)
+			}
+		}
 	}
 }

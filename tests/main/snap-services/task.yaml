@@ -4,11 +4,9 @@ restore: |
     rm -f ./*.out
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-service
-    install_local socket-activation
-    install_local test-snapd-timer-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local socket-activation
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service
 
     snap services test-snapd-timer-service > timer-service.out
     MATCH '^test-snapd-timer-service.random-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out

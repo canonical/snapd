@@ -18,7 +18,7 @@ prepare: |
     mkdir -p /usr/share/vulkan/icd.d
     echo "canary-vulkan" > /usr/share/vulkan/icd.d/nvidia_icd.json
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+    if os.query is-bionic; then
         # mock GLVND EGL vendor file
         echo "Test GLVND EGL vendor files access"
         mkdir -p /usr/share/glvnd/egl_vendor.d
@@ -26,7 +26,7 @@ prepare: |
     fi
 
     # mock nvidia libraries
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+    if os.query is-bionic; then
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
@@ -72,7 +72,7 @@ restore: |
         rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+    if os.query is-bionic; then
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
@@ -94,17 +94,15 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
 
-    install_local test-snapd-policy-app-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-policy-app-consumer
 
     echo "When the interface is connected"
     snap connect test-snapd-policy-app-consumer:opengl core:opengl
 
     echo "App can access nvidia library files"
     expected="canary-legacy"
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+    if os.query is-bionic; then
         expected="canary-triplet"
     fi
     files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
@@ -114,7 +112,7 @@ execute: |
 
     if [[ "$(uname -m)" == x86_64 ]]; then
         expected32="canary-32-legacy"
-        if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        if os.query is-bionic; then
             expected32="canary-32-triplet"
         fi
         for f in $files; do
@@ -125,7 +123,7 @@ execute: |
     echo "And vulkan ICD file"
     snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json" | MATCH canary-vulkan
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+    if os.query is-bionic; then
         echo "And GLVND EGL vendor file"
         snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json" | MATCH canary-egl
     fi

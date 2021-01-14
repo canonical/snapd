@@ -7,9 +7,7 @@ environment:
     APP/testsnapdtoolscat: test-snapd-tools.cat
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

@@ -22,9 +22,7 @@ systems: [-ubuntu-core-*]
 prepare: |
     # We will need the Swiss-army-knife shell snap. We want to use it in
     # devmode so that we can look at /customized file which is non-standard.
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local_devmode test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh --devmode
 
     # We will also need to prepare a hacked core snap that just differs from
     # our own in some detail that we can measure.
@@ -32,6 +30,8 @@ prepare: |
     touch squashfs-root/customized
     sed -i -e 's/version: .*/version: customized/' squashfs-root/meta/snap.yaml
 
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
     mksnap_fast squashfs-root core-customized.snap
 
 restore: |
