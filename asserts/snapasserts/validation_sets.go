@@ -375,14 +375,18 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 
 				switch {
 				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
+					// not installed, but optional or not required
 				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
+					// installed but not expected to be present
 					if invalid[rc.Name] == nil {
 						invalid[rc.Name] = make(map[string]bool)
 					}
 					invalid[rc.Name][rc.validationSetKey] = true
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
-				case isInstalled: // presence is either optional or required
+				case isInstalled:
+					// presence is either optional or required
 					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision {
+						// expected a different revision
 						if wrongrev[rc.Name] == nil {
 							wrongrev[rc.Name] = make(map[snap.Revision]map[string]bool)
 						}
