@@ -80,7 +80,7 @@ execute: |
     NUM_SAVED=$(snap saved | wc -l)
 
     echo "Import again doesn't create a duplicated snapshot"
-    IMPORTED_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
+    IMPORTED_ID=$( snap import-snapshot "${SET_ID}_export-2.snapshot" | head -n1 | cut -f2 -d'#' )
     [[ "$RESTORE_ID" == "$IMPORTED_ID" ]]
     [[ "$NUM_SAVED" == $(snap saved | wc -l) ]]
 
