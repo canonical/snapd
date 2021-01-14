@@ -18,6 +18,7 @@ NONE = 'none'
 ACTION = 'action'
 OPERATION = 'operation'
 INFO = 'info'
+ERROR = 'error'
 RESULT = 'result'
 START = 'Found'
 SPREAD_FILE = 'spread.yaml'
@@ -150,6 +151,8 @@ class LogReader:
             print(''.join(str(x) for x in self.full_log))
         elif filter == NONE:
             return
+        elif filter == ERROR:
+            print(''.join(str(x) for x in self.full_log if x.type == INFO and x.info_type == ERROR_TYPE))
         else:
             print(''.join(str(x) for x in self.full_log if x.type == filter))
 
@@ -200,7 +203,7 @@ class LogReader:
                         self.full_log.append(info)
                     continue
 
-                if self._match_operation(line): 
+                if self._match_operation(line):
                     operation = self._get_operation(line)
                     if operation:
                         #print(operation)
@@ -348,7 +351,7 @@ for the error/debug/warning output.
         "--print",
         type=str,
         default=ALL,
-        choices=[ALL, RESULT, OPERATION, ACTION, INFO, NONE],
+        choices=[ALL, RESULT, OPERATION, ACTION, INFO, ERROR, NONE],
         help="Filter which info print",
     )
     parser.add_argument(

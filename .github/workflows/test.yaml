@@ -247,9 +247,18 @@ jobs:
     - name: analyze spread log
       run: |
           echo "Running spread log analyzer"
-          cat spread.log
           ./tests/lib/tools/log-analyzer spread.log --print result --output spread-results.json
           cat spread-results.json
+    - name: spread highlights
+      run : |
+          TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/.. | wc -l)
+          TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
+          if [ "$TESTS_NUMBER" == "TESTS_SUCCESSFUL" ]; then
+              echo "All tests passed!"
+          else
+              echo "Last 20 lines of test failures"
+              ./tests/lib/tools/log-analyzer spread.log --cut 20 --print error
+          fi
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
