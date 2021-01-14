@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"crypto/sha256"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -216,4 +217,83 @@ func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Check(string(d), check.Equals, fakeSnapshotData)
 	}
+}
+
+func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
+	now := time.Now()
+	revno := snap.R(1)
+	sums := map[string]string{"user/foo.tgz": "some long hash"}
+
+	sh1 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh1_1 are the same except time
+	sh1_1 := &client.Snapshot{SetID: 1, Time: now.Add(10), Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh2 are the same except setID
+	sh2 := &client.Snapshot{SetID: 2, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+
+	h1, err := sh1.ContentHash()
+	c.Assert(err, check.IsNil)
+	// content hash uses sha256 internally
+	c.Check(h1, check.HasLen, sha256.Size)
+
+	// same except time means same hash
+	h1_1, err := sh1_1.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h1_1)
+
+	// same except set means same hash
+	h2, err := sh2.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h2)
+
+	// sh3 is actually different
+	sh3 := &client.Snapshot{SetID: 1, Time: now, Snap: "other-snap", Revision: revno, SHA3_384: sums}
+	h3, err := sh3.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.Not(check.DeepEquals), h3)
+
+	// identical to sh1 except for sha3_384 sums
+	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
+	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
+	// same except sha3_384 means different hash
+	h4, err := sh4.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h4, check.Not(check.DeepEquals), h1)
+}
+
+func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
+	sums := map[string]string{"user/foo.tgz": "some long hash"}
+	ss1 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 1, Snap: "snap2", Size: 2, SHA3_384: sums},
+		{SetID: 1, Snap: "snap1", Size: 1, SHA3_384: sums},
+		{SetID: 1, Snap: "snap3", Size: 3, SHA3_384: sums},
+	}}
+	// ss2 is the same ss1 but in a different order with different setID
+	// (but that does not matter for the content hash)
+	ss2 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 2, Snap: "snap3", Size: 3, SHA3_384: sums},
+		{SetID: 2, Snap: "snap2", Size: 2, SHA3_384: sums},
+		{SetID: 2, Snap: "snap1", Size: 1, SHA3_384: sums},
+	}}
+
+	h1, err := ss1.ContentHash()
+	c.Assert(err, check.IsNil)
+	// content hash uses sha256 internally
+	c.Check(h1, check.HasLen, sha256.Size)
+
+	// h1 and h2 have the same hash
+	h2, err := ss2.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h2, check.DeepEquals, h1)
+
+	// ss3 is different because the size of snap3 is different
+	ss3 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 1, Snap: "snap2", Size: 2},
+		{SetID: 1, Snap: "snap3", Size: 666666666},
+		{SetID: 1, Snap: "snap1", Size: 1},
+	}}
+	// h1 and h3 are different
+	h3, err := ss3.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h3, check.Not(check.DeepEquals), h1)
+
 }
