@@ -107,7 +107,7 @@ class Detail:
         return ''.join(self._get_lines())
 
     def __dict__(self):
-        return {'type': self.type, 'lines': self.lines[-1*self.lines_limit:]}
+        return {'lines': self.lines[-1*self.lines_limit:]}
 
 
 class Operation:
