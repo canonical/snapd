@@ -11,7 +11,8 @@ environment:
     DIRECTORY/apparmord: /etc/apparmor.d
 
 # This test only applies to classic systems
-systems: [-ubuntu-core-*]
+# fedora, centos, amazon: do not have /etc/apparmor.d
+systems: [-ubuntu-core-*, -fedora-*, -centos-*, -amazon-linux-*]
 
 prepare: |
     echo "Having installed the test snap"
