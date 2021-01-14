@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -108,6 +109,14 @@ func MockBackendOpen(f func(string, uint64) (*backend.Reader, error)) (restore f
 	backendOpen = f
 	return func() {
 		backendOpen = old
+	}
+}
+
+func MockBackendList(f func(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error)) (restore func()) {
+	old := backendList
+	backendList = f
+	return func() {
+		backendList = old
 	}
 }
 

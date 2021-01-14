@@ -40,3 +40,11 @@ execute: |
         echo "snap recovery --show-key should not work as a user"
         exit 1
     fi
+
+    echo "Wait for device initialisation to be done"
+    nested_retry_until_success 10 5 "snap changes | grep -q 'Done.*Initialize device'"
+
+    echo "Check that the serial backed up to save is as expected"
+    nested_exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(nested_model_authority)"'/pc/*/active' >serial.saved
+    nested_exec snap model --serial --assertion >serial
+    cmp serial serial.saved

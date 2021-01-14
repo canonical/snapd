@@ -122,11 +122,11 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	}
 }
 
-func MockSecbootLockTPMSealedKeys(f func() error) (restore func()) {
-	old := secbootLockTPMSealedKeys
-	secbootLockTPMSealedKeys = f
+func MockSecbootLockSealedKeys(f func() error) (restore func()) {
+	old := secbootLockSealedKeys
+	secbootLockSealedKeys = f
 	return func() {
-		secbootLockTPMSealedKeys = old
+		secbootLockSealedKeys = old
 	}
 }
 

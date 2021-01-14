@@ -74,10 +74,6 @@ func (u *uboot) Name() string {
 	return "uboot"
 }
 
-func (u *uboot) setRootDir(rootdir string) {
-	u.rootdir = rootdir
-}
-
 func (u *uboot) dir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")

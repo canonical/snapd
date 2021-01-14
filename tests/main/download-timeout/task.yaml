@@ -1,0 +1,44 @@
+summary: Test that downloads time-out on very slow connection.
+
+details: |
+  Test that snap download times out on a very slow connection. Download bandwidth
+  is reduced with 'tc', and in addition the download parameters for snapd are
+  tweaked for the test.
+
+systems: [ubuntu-18.04*, ubuntu-2*]
+
+environment:
+  # set minimum download speed that is a bit higher than the rate-limited speed set with tc.
+  # also force 1-minute window, so the test doesn't have to run for full 5 minutes (the default
+  # window).
+  SNAP_MIN_DOWNLOAD_SPEED: 99000
+  SNAP_DOWNLOAD_MEAS_WINDOW: 1m
+  OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/env-overrides.conf
+
+prepare: |
+  cat <<EOF >> "$OVERRIDES_FILE"
+  Environment=SNAP_MIN_DOWNLOAD_SPEED=${SNAP_MIN_DOWNLOAD_SPEED}
+  Environment=SNAP_DOWNLOAD_MEAS_WINDOW=${SNAP_DOWNLOAD_MEAS_WINDOW}
+  EOF
+
+  systemctl daemon-reload
+  systemctl restart snapd.{socket,service}
+
+execute: |
+  tc qdisc add dev ens4 ingress
+  tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+  tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
+
+  echo "Installing a large snap fails if connection is very slow"
+  snap install lxd 2>&1 | MATCH "download too slow:"
+
+  echo "Downloading a large snap fails too"
+  snap download lxd 2>&1 | MATCH "download too slow:"
+
+restore: |
+  tc filter del dev ens4
+  tc qdisc del dev ens4 ingress
+
+  rm -f "$OVERRIDES_FILE"
+  systemctl daemon-reload
+  systemctl restart snapd.{socket,service}

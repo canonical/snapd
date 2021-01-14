@@ -224,7 +224,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
 	if err != nil {
 		st := task.State()
 		st.Lock()
@@ -413,7 +413,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

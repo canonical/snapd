@@ -30,7 +30,7 @@ execute: |
 
     # on core16 journald is not reloaded, so changes are not visible until
     # rebooted.
-    if [[ ! "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
+    if not os.query is-core16; then
         # this check relies on *anything* getting logged; enabling persistent
         # journal writes an entry about journal size, which should be sufficient.
         MACHINE_ID=$(cat /etc/machine-id)

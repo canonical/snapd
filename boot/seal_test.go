@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -85,6 +86,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap"},
+
+			CurrentKernelCommandLines: boot.BootCommandLines{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			},
 		}
 
 		// mock asset cache
@@ -293,8 +298,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// marker
-		c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
-
+		marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+		c.Check(marker, testutil.FileEquals, "tpm")
 	}
 }
 
@@ -901,30 +906,143 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Check(cnt, Equals, 3)
 }
 
-func (s *sealSuite) TestSealToModeenvWithFdeHookFailsToday(c *C) {
+func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	oldHasFDESetupHook := boot.HasFDESetupHook
-	defer func() { boot.HasFDESetupHook = oldHasFDESetupHook }()
-	boot.HasFDESetupHook = func() (bool, error) {
+	restore := boot.MockHasFDESetupHook(func() (bool, error) {
 		return true, nil
-	}
-	oldRunFDESetupHook := boot.RunFDESetupHook
-	defer func() { boot.RunFDESetupHook = oldRunFDESetupHook }()
-	boot.RunFDESetupHook = func(string, *boot.FdeSetupHookParams) error {
-		c.Fatalf("hook runner should not be called yet")
-		return nil
-	}
+	})
+	defer restore()
+
+	n := 0
+	var runFDESetupHookParams []*boot.FDESetupHookParams
+	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+		n++
+		c.Assert(op, Equals, "initial-setup")
+		runFDESetupHookParams = append(runFDESetupHookParams, params)
+		return []byte("sealed-key: " + strconv.Itoa(n)), nil
+	})
+	defer restore()
 
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
-	c.Assert(err, ErrorMatches, "cannot use fde-setup hook yet")
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	c.Assert(err, IsNil)
+	// check that runFDESetupHook was called the expected way
+	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
+	})
+	// check that the sealed keys got written to the expected places
+	for i, p := range []string{
+		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+	} {
+		c.Check(p, testutil.FileEquals, "sealed-key: "+strconv.Itoa(i+1))
+	}
+	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
+}
+
+func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	restore := boot.MockHasFDESetupHook(func() (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
+	})
+	defer restore()
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
+
+	model := boottest.MakeMockUC20Model()
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	c.Assert(err, ErrorMatches, "hook failed")
+	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
+	c.Check(marker, testutil.FileAbsent)
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return nil
+	})
+	defer restore()
+
+	// TODO: this simulates that the hook is not available yet
+	//       because of e.g. seeding. Longer term there will be
+	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
+	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+		return false, fmt.Errorf("hook not available yet because e.g. seeding")
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, IsNil)
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return fmt.Errorf("fde setup hook failed")
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, ErrorMatches, "fde setup hook failed")
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }

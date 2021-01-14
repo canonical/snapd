@@ -1,0 +1,82 @@
+summary: Check that package remove and purge works inside LXD containers
+
+# Since it's only apt remove --purge and lxd tests are rather long, limit to a
+# couple of systems only. The postrm purge is more thoroughly checked in
+# tests/main/postrm-purge.
+systems: [ubuntu-18.04-*, ubuntu-20.04-*]
+
+# lxd downloads can be quite slow
+kill-timeout: 25m
+
+# start early
+priority: 1000
+
+prepare: |
+    # using apt here is ok because this test only runs on ubuntu
+    echo "Remove any installed debs (some images carry them) to ensure we test the snap"
+    # apt -v to test if apt is usable (its not on ubuntu-core)
+    if command -v apt && apt -v; then
+        apt autoremove -y lxd
+    fi
+    echo "Install lxd"
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
+
+    echo "Create a trivial container using the lxd snap"
+    snap set lxd waitready.timeout=240
+    lxd waitready
+    lxd init --auto
+
+    # the snapd package we build as part of the tests will only run on the
+    # distro we build on. So we need to launch the right ubuntu version.
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+    # sanity check
+    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+        echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
+        snap info lxd
+        exit 1
+    fi
+
+    echo "Ensure we can run things inside"
+    lxd.lxc exec my-ubuntu echo hello | MATCH hello
+
+    echo "Push snapd into container"
+    lxd.lxc file push --quiet prep-snapd-in-lxd.sh "my-ubuntu/root/"
+    lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/root/"
+
+    echo "Setting up proxy *inside* the container"
+    if [ -n "${http_proxy:-}" ]; then
+        lxd.lxc exec my-ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+    fi
+    if [ -n "${https_proxy:-}" ]; then
+        lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+    fi
+
+    echo "Install snapd in container"
+    lxd.lxc exec my-ubuntu -- /root/prep-snapd-in-lxd.sh
+
+restore: |
+    if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
+        exit
+    fi
+
+    lxd.lxc stop my-ubuntu --force || true
+    lxd.lxc delete my-ubuntu || true
+    snap remove --purge lxd
+    snap remove --purge lxd-demo-server
+
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+debug: |
+    # debug output from lxd
+    "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
+
+execute: |
+    lxd.lxc exec my-ubuntu -- snap install hello-world
+    lxd.lxc exec my-ubuntu -- hello-world
+    # purge completes successfully
+    lxd.lxc exec my-ubuntu -- apt remove --purge -y snapd
+    # sanity check that potentially problematic directories are gone
+    lxd.lxc exec my-ubuntu -- test ! -d /snap
+    lxd.lxc exec my-ubuntu -- test ! -d /var/snap
+    lxd.lxc exec my-ubuntu -- test ! -d /var/lib/snapd

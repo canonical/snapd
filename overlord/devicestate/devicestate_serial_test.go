@@ -1998,6 +1998,13 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	// as well
 	savedb, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
 	c.Assert(err, IsNil)
+	// a copy of model was saved there
+	_, err = savedb.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "canonical",
+		"model":    "pc-20",
+	})
+	c.Assert(err, IsNil)
 	// a copy of serial was backed up there
 	_, err = savedb.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",

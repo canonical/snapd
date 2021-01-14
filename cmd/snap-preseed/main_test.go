@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
@@ -616,6 +617,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 			{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
 			{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
 			{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+			{filepath.Join(runinhibit.InhibitDir, "foo.lock"), ""},
 			// bash-completion symlinks
 			{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
 			{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},

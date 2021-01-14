@@ -370,7 +370,9 @@ var lxdNoCloudCloudInitStatusJSON = `{
 var restrictNoCloudYaml = `datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`
+    fs_label: null
+manual_cache_clean: true
+`
 
 func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	tt := []struct {
@@ -435,12 +437,13 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDisableFile: true,
 		},
 		{
-			comment:                "gce done",
-			state:                  sysconfig.CloudInitDone,
-			cloudInitStatusJSON:    gceCloudInitStatusJSON,
-			expDatasource:          "GCE",
-			expAction:              "restrict",
-			expRestrictYamlWritten: "datasource_list: [GCE]",
+			comment:             "gce done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: gceCloudInitStatusJSON,
+			expDatasource:       "GCE",
+			expAction:           "restrict",
+			expRestrictYamlWritten: `datasource_list: [GCE]
+`,
 		},
 		{
 			comment:                "nocloud done",

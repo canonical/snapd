@@ -24,15 +24,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func TestInstall(t *testing.T) { TestingT(t) }
 
 type partitionTestSuite struct {
 	testutil.BaseTest
@@ -177,6 +181,74 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
+var mockOnDiskStructureSave = gadget.OnDiskStructure{
+	Node: "/dev/node3",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Save",
+			Size:       128 * quantity.SizeMiB,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-save",
+			Label:      "ubuntu-save",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1260388352,
+		Index:       3,
+	},
+	Size: 128 * quantity.SizeMiB,
+}
+
+var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
+	Node: "/dev/node4",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Writable",
+			Size:       1200 * quantity.SizeMiB,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-data",
+			Label:      "ubuntu-data",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1394606080,
+		Index:       4,
+	},
+	// expanded to fill the disk
+	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
+}
+
+type uc20Model struct{}
+
+func (c uc20Model) Classic() bool             { return false }
+func (c uc20Model) Grade() asserts.ModelGrade { return asserts.ModelSigned }
+
+var uc20Mod = uc20Model{}
+
+func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
+	defer cmdLsblk.Restore()
+
+	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	// the expected expanded writable partition size is:
+	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
+	sfdiskInput, create := install.BuildPartitionList(dl, pv)
+	c.Assert(sfdiskInput.String(), Equals,
+		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
+/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+`)
+	c.Check(create, NotNil)
+	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
+}
+
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
@@ -195,7 +267,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -227,7 +299,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -291,7 +363,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -316,7 +388,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -478,7 +550,7 @@ echo '{
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
@@ -599,7 +671,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
+	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20Mod)
 	c.Assert(err, IsNil)
 
 	list := install.CreatedDuringInstall(pv, dl)

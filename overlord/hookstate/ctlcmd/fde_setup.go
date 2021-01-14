@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 )
 
 type fdeSetupRequestCommand struct {
@@ -71,7 +71,7 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use fde-setup-request outside of the fde-setup hook")
 	}
 
-	var fdeSetup hookstate.FDESetupRequest
+	var fdeSetup fde.SetupRequest
 	if err := context.Get("fde-setup-request", &fdeSetup); err != nil {
 		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}

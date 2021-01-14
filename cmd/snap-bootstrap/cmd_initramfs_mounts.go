@@ -82,7 +82,7 @@ var (
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
-	secbootLockTPMSealedKeys func() error
+	secbootLockSealedKeys func() error
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -105,7 +105,7 @@ func generateInitramfsMounts() (err error) {
 	// ensure that the last thing we do is to lock access to sealed keys,
 	// regardless of mode or early failures.
 	defer func() {
-		if e := secbootLockTPMSealedKeys(); e != nil {
+		if e := secbootLockSealedKeys(); e != nil {
 			e = fmt.Errorf("error locking access to sealed keys: %v", e)
 			if err == nil {
 				err = e
@@ -485,7 +485,7 @@ func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
 func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error) error {
 	part := m.degradedState.partition(partName)
 	if err != nil {
-		if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+		if _, ok := err.(disks.PartitionNotFoundError); ok {
 			// explicit error that the device was not found
 			part.FindState = partitionNotFound
 			m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
@@ -755,7 +755,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	part := m.degradedState.partition("ubuntu-boot")
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, findErr := m.disk.FindMatchingPartitionUUID("ubuntu-boot")
+	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
 	if err := m.setFindState("ubuntu-boot", partUUID, findErr); err != nil {
 		return nil, err
 	}
@@ -1226,9 +1226,9 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-save")
+		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
 		if err != nil {
-			if _, ok := err.(disks.FilesystemLabelNotFoundError); ok {
+			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
 				// non-encrypted device
 				return false, nil
@@ -1259,7 +1259,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
-	partUUID, err := disk.FindMatchingPartitionUUID("ubuntu-seed")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	if err != nil {
 		return err
 	}

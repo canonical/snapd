@@ -374,13 +374,15 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+// AddSnapServicesOptions is a struct for controlling the generated service
+// definition for a snap service.
 type AddSnapServicesOptions struct {
 	Preseeding   bool
 	VitalityRank int
 }
 
-// AddSnapServices adds service units for the applications from the snap which are services.
-// Services do not get enabled nor started.
+// AddSnapServices adds service units for the applications from the snap which
+// are services. The services do not get enabled or started.
 func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")

@@ -143,8 +143,14 @@ nested_create_assertions_disk() {
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
         AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
-    else 
-        AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+    else
+        local per_model_auto
+        per_model_auto="$(nested_model_authority).auto-import.assert"
+        if [ -e "$TESTSLIB/assertions/${per_model_auto}" ]; then
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/${per_model_auto}"
+        else
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+        fi
     fi
     cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
@@ -426,6 +432,12 @@ nested_get_model() {
             exit 1
             ;;
     esac
+}
+
+nested_model_authority() {
+    local model
+    model="$(nested_get_model)"
+    grep "authority-id:" "$model"|cut -d ' ' -f2
 }
 
 nested_ensure_ubuntu_save() {
@@ -873,6 +885,10 @@ nested_start_core_vm_unit() {
             OVMF_VARS="snakeoil"
         fi
 
+        if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
+            PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+        fi
+        
         if [ "$NESTED_ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"

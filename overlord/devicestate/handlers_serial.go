@@ -694,6 +694,12 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 			}
 			b := asserts.NewBatch(nil)
 			err := b.Fetch(savedb, retrieve, func(f asserts.Fetcher) error {
+				// save the associated model as well
+				// as it might be required for cross-checks
+				// of the serial
+				if err := f.Save(regCtx.Model()); err != nil {
+					return err
+				}
 				return f.Save(serial)
 			})
 			if err != nil {

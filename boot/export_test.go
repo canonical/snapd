@@ -167,3 +167,25 @@ func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
 }
+
+func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+	oldHasFDESetupHook := HasFDESetupHook
+	HasFDESetupHook = f
+	return func() {
+		HasFDESetupHook = oldHasFDESetupHook
+	}
+}
+
+func MockRunFDESetupHook(f func(string, *FDESetupHookParams) ([]byte, error)) (restore func()) {
+	oldRunFDESetupHook := RunFDESetupHook
+	RunFDESetupHook = f
+	return func() { RunFDESetupHook = oldRunFDESetupHook }
+}
+
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Modeenv, bool) error) (restore func()) {
+	old := resealKeyToModeenvUsingFDESetupHook
+	resealKeyToModeenvUsingFDESetupHook = f
+	return func() {
+		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}

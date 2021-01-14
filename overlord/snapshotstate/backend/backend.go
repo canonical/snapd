@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,11 +70,6 @@ var (
 
 	usersForUsernames = usersForUsernamesImpl
 )
-
-// Flags encompasses extra flags for snapshots backend Save.
-type Flags struct {
-	Auto bool
-}
 
 // LastSnapshotSetID returns the highest set id number for the snapshots stored
 // in snapshots directory; set ids are inferred from the filenames.
@@ -307,14 +302,9 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *Flags) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
-	}
-
-	var auto bool
-	if flags != nil {
-		auto = flags.Auto
 	}
 
 	snapshot := &client.Snapshot{
@@ -328,7 +318,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
-		Auto:     auto,
+		// Note: Auto is no longer set in the Snapshot.
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
@@ -476,9 +466,49 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
+// multiError collects multiple errors that affected an operation.
+type multiError struct {
+	header string
+	errs   []error
+}
+
+// newMultiError returns a new multiError struct initialized with
+// the given format string that explains what operation potentially
+// went wrong. multiError can be nested and will render correctly
+// in these cases.
+func newMultiError(header string, errs []error) error {
+	return &multiError{header: header, errs: errs}
+}
+
+// Error formats the error string.
+func (me *multiError) Error() string {
+	return me.nestedError(0)
+}
+
+// helper to ensure formating of nested multiErrors works.
+func (me *multiError) nestedError(level int) string {
+	indent := strings.Repeat(" ", level)
+	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
+	if level > 8 {
+		return "circular or too deep error nesting (max 8)?!"
+	}
+	for i, err := range me.errs {
+		switch v := err.(type) {
+		case *multiError:
+			fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1))
+		default:
+			fmt.Fprintf(buf, "%s- %v", indent, err)
+		}
+		if i < len(me.errs)-1 {
+			fmt.Fprintf(buf, "\n")
+		}
+	}
+	return buf.String()
+}
+
 var (
 	importingFnRegexp = regexp.MustCompile("^([0-9]+)_importing$")
-	importingFnGlob   = "*_importing"
+	importingFnGlob   = "[0-9]*_importing"
 	importingFnFmt    = "%d_importing"
 	importingForIDFmt = "%d_*.zip"
 )
@@ -559,11 +589,7 @@ func (t *importTransaction) Cancel() error {
 		errs = append(errs, err)
 	}
 	if len(errs) > 0 {
-		buf := bytes.NewBuffer(nil)
-		for _, err := range errs {
-			fmt.Fprintf(buf, " - %v\n", err)
-		}
-		return fmt.Errorf("cannot cancel import for set id %d:\n%s", t.id, buf.String())
+		return newMultiError(fmt.Sprintf("cannot cancel import for set id %d", t.id), errs)
 	}
 	return nil
 }
@@ -585,6 +611,8 @@ func (t *importTransaction) unlock() error {
 	return os.Remove(t.lockPath)
 }
 
+var filepathGlob = filepath.Glob
+
 // CleanupAbandondedImports will clean any import that is in progress.
 // This is meant to be called at startup of snapd before any real imports
 // happen. It is not safe to run this concurrently with any other snapshot
@@ -593,7 +621,7 @@ func (t *importTransaction) unlock() error {
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
 func CleanupAbandondedImports() (cleaned int, err error) {
-	inProgressSnapshots, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
+	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
 		return 0, err
 	}
@@ -612,17 +640,7 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 		}
 	}
 	if len(errs) > 0 {
-		buf := bytes.NewBuffer(nil)
-		for _, err := range errs {
-			fmt.Fprintf(buf, " - %v\n", err)
-		}
-		var prefixFmt string
-		if cleaned == 0 {
-			prefixFmt = "cannot cleanup imports:\n%s"
-		} else {
-			prefixFmt = "cannot cleanup some imports:\n%s"
-		}
-		return cleaned, fmt.Errorf(prefixFmt, buf.String())
+		return cleaned, newMultiError("cannot cleanup imports", errs)
 	}
 	return cleaned, nil
 }

@@ -2027,6 +2027,101 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
 }
 
+func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core18",
+				"id":   s.AssertedSnapID("core18"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name":  "cont-producer",
+				"id":    s.AssertedSnapID("cont-producer"),
+				"modes": []interface{}{"run", "ephemeral"},
+			},
+		},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+
+	s.opts.Label = "20191003"
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly for all relevant modes \(run, ephemeral\)`)
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":  "core18",
+				"id":    s.AssertedSnapID("core18"),
+				"type":  "base",
+				"modes": []interface{}{"ephemeral"},
+			},
+			map[string]interface{}{
+				"name":  "cont-producer",
+				"id":    s.AssertedSnapID("cont-producer"),
+				"modes": []interface{}{"recover"},
+			},
+		},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+
+	s.opts.Label = "20191003"
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	c.Check(err, IsNil)
+}
+
 func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
@@ -2095,6 +2190,58 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 			c.Check(err, ErrorMatches, t.err)
 		}
 	}
+}
+func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":  "core18",
+				"id":    s.AssertedSnapID("core18"),
+				"type":  "base",
+				"modes": []interface{}{"run", "ephemeral"},
+			},
+			map[string]interface{}{
+				"name": "cont-producer",
+				"id":   s.AssertedSnapID("cont-producer"),
+			},
+			map[string]interface{}{
+				"name":  "cont-consumer",
+				"id":    s.AssertedSnapID("cont-consumer"),
+				"modes": []interface{}{"recover"},
+			},
+		},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+
+	s.opts.Label = "20191003"
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly for all relevant modes \(recover\)`)
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {

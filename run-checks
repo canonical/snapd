@@ -241,12 +241,14 @@ if [ "$STATIC" = 1 ]; then
     git ls-files -z -- . ':!:./po' ':!:./vendor' |
         xargs -0 misspell -error -i "$MISSPELL_IGNORE"
 
-    echo "Checking for ineffective assignments"
-    if ! command -v ineffassign >/dev/null; then
-        go get -u github.com/gordonklaus/ineffassign
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
+        echo "Checking for ineffective assignments"
+        if ! command -v ineffassign >/dev/null; then
+            go get -u github.com/gordonklaus/ineffassign
+        fi
+        # ineffassign knows about ignoring vendor/ \o/
+        ineffassign ./...
     fi
-    # ineffassign knows about ignoring vendor/ \o/
-    ineffassign .
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then

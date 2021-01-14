@@ -277,15 +277,15 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		CurrentRecoverySystems:           []string{recoverySystemLabel},
 		CurrentTrustedBootAssets:         currentTrustedBootAssets,
 		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
+		// kernel command lines are set later once a boot config is
+		// installed
+		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
-	}
-	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there
@@ -356,6 +356,18 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
 		}
+		// determine the expected command line
+		cmdline, err := ComposeCandidateCommandLine(model)
+		if err != nil {
+			return fmt.Errorf("cannot compose the candidate command line: %v", err)
+		}
+		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+	}
+
+	// all fields that needed to be set in the modeenv must have been set by
+	// now, write modeenv to disk
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
 	if sealer != nil {

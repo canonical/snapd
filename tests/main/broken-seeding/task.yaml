@@ -61,7 +61,7 @@ execute: |
     retry -n 30 sh -c 'snap warnings | MATCH "seeding failed "'
 
     # the ubuntu postinst will fix broken seeds, see LP: 1868706
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+    if os.query is-ubuntu; then
         # XXX: why is this needed?
         mkdir -p /var/lib/snapd/void
         # during a pkg upgrade snapd is stopped
