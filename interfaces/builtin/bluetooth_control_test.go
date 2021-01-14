@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -104,7 +107,7 @@ func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
 SUBSYSTEM=="BT_chrdev", TAG+="snap_other_app2"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_other_app2", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app2 $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_other_app2", RUN+="%v/snap-device-helper $env{ACTION} snap_other_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {
