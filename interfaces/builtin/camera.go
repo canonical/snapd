@@ -36,6 +36,9 @@ const cameraConnectedPlugAppArmor = `
 # VideoCore cameras (shared device with VideoCore/EGL)
 /dev/vchiq rw,
 
+# Blackmagic cameras
+/dev/blackmagic/io[0-9]*,
+
 # Allow detection of cameras. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb*/**/busnum r,
@@ -48,12 +51,13 @@ const cameraConnectedPlugAppArmor = `
 /run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
 /run/udev/data/+usb:* r,
 /sys/class/video4linux/ r,
-/sys/devices/pci**/usb*/**/video4linux/** r,
+/sys/devices/**/video4linux/** r,
 `
 
 var cameraConnectedPlugUDev = []string{
 	`KERNEL=="video[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="io[0-9]*"`,
 }
 
 func init() {
