@@ -243,7 +243,12 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google:${{ matrix.system }}:tests/...
+          spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
+    - name: analyze spread log
+      run: |
+        echo "Running spread log analyzer"
+        ./tests/lib/tools/log-analyzer spread.log --print result --output spread-results.json
+        cat spread-results.json
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
