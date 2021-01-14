@@ -26,7 +26,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	// TODO: eliminate this import and just use interfaces import directly
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -154,25 +156,17 @@ func (si simpleIface) Name() string                                             
 func (si simpleIface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool { return false }
 
 func (s *CoreSuite) TestByName(c *C) {
-	// first mock the GetAllInterfaces function
-
-	old := interfaces.GetAllInterfaces
-	interfaces.GetAllInterfaces = func() map[string]interfaces.Interface {
-
-		return map[string]interfaces.Interface{
-			"network": simpleIface{name: "network"},
-		}
-	}
-	defer func() {
-		interfaces.GetAllInterfaces = old
-	}()
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	r := builtin.MockInterface(simpleIface{name: "mock-network"})
+	defer r()
 
 	_, err := interfaces.ByName("no-such-interface")
 	c.Assert(err, ErrorMatches, "interface \"no-such-interface\" not found")
 
-	iface, err := interfaces.ByName("network")
+	iface, err := interfaces.ByName("mock-network")
 	c.Assert(err, IsNil)
-	c.Assert(iface.Name(), Equals, "network")
+	c.Assert(iface.Name(), Equals, "mock-network")
 }
 
 func (s *CoreSuite) TestSanitizePlug(c *C) {
