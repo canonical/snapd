@@ -238,6 +238,20 @@ func AutostartSessionApps() error {
 
 	usrSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
 
+	// restrict the user's "snap dir", i.e. /home/$USER/snap, to be private with
+	// permissions o0700 so that other users cannot read the data there, some
+	// snaps such as chromium etc may store secrets inside this directory
+	// note that this operation is safe since `userd --autostart` runs as the
+	// user so there is no issue with this modification being performed as root,
+	// and being vulnerable to symlink switching attacks, etc.
+	if err := os.Chmod(usrSnapDir, 0700); err != nil {
+		// if the dir doesn't exist for some reason (i.e. maybe this user has
+		// never used snaps but snapd is still installed) then ignore the error
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to restrict user snap home dir: %v", err)
+		}
+	}
+
 	glob := filepath.Join(usrSnapDir, "*/current/.config/autostart/*.desktop")
 	matches, err := filepath.Glob(glob)
 	if err != nil {
