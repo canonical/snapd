@@ -20,6 +20,8 @@
 package agent
 
 import (
+	"fmt"
+	"os/user"
 	"syscall"
 	"time"
 )
@@ -49,4 +51,20 @@ func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
 	return func() {
 		sysGetsockoptUcred = old
 	}
+}
+
+func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
+	old := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = old
+	}
+}
+
+// when export_test.go is included in tests, override userCurrent to return an
+// error so we don't accidentally operate on the host's user dirs
+func init() {
+	MockUserCurrent(func() (*user.User, error) {
+		return nil, fmt.Errorf("user.Current not mocked in a test yet")
+	})
 }

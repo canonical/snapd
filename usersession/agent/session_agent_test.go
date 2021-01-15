@@ -25,6 +25,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -41,9 +43,12 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type sessionAgentSuite struct {
+	testutil.BaseTest
 	testutil.DBusTest
+
 	socketPath string
 	client     *http.Client
+	fakeHome   string
 }
 
 var _ = Suite(&sessionAgentSuite{})
@@ -54,6 +59,14 @@ func (s *sessionAgentSuite) SetUpTest(c *C) {
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
 	s.socketPath = fmt.Sprintf("%s/snapd-session-agent.socket", xdgRuntimeDir)
+
+	s.fakeHome = c.MkDir()
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	restore := agent.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
+	})
+	s.AddCleanup(restore)
 
 	transport := &http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
@@ -68,6 +81,45 @@ func (s *sessionAgentSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	logger.SetLogger(logger.NullLogger)
 	s.DBusTest.TearDownTest(c)
+}
+
+func (s *sessionAgentSuite) TestNewRestrictsPermissions(c *C) {
+	// first make the "snap" dir permissive with 0755 perms
+	err := os.MkdirAll(filepath.Join(s.fakeHome, "snap"), 0755)
+	c.Assert(err, IsNil)
+
+	// make sure the perms are as we expect them if somehow the dir already
+	// existed, MkdirAll wouldn't have changed the perms
+	st, err := os.Stat(filepath.Join(s.fakeHome, "snap"))
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0755))
+
+	// now create the session agent
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.Version = "42"
+
+	// make sure that the directory was restricted
+	st, err = os.Stat(filepath.Join(s.fakeHome, "snap"))
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0700))
+	agent.Start()
+	agent.Stop()
+}
+
+func (s *sessionAgentSuite) TestNewRestrictsPermissionsNoCreateSnapDir(c *C) {
+	// ensure that the "snap" dir doesn't already exist
+	c.Assert(filepath.Join(s.fakeHome, "snap"), testutil.FileAbsent)
+
+	// now create the session agent
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.Version = "42"
+
+	// make sure that the directory was not created
+	c.Assert(filepath.Join(s.fakeHome, "snap"), testutil.FileAbsent)
+	agent.Start()
+	agent.Stop()
 }
 
 func (s *sessionAgentSuite) TestStartStop(c *C) {

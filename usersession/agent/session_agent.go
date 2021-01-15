@@ -25,6 +25,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -38,6 +40,10 @@ import (
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/systemd"
+)
+
+var (
+	userCurrent = user.Current
 )
 
 type SessionAgent struct {
@@ -213,7 +219,35 @@ func (s *SessionAgent) Init() error {
 		Handler:   s.router,
 		ConnState: s.idle.trackConn,
 	}
+
+	// last initialization step is to ensure that snap user home dirs are
+	// securely restricted
+	if err := s.restrictSnapUserHomeDirs(); err != nil {
+		// if the dir doesn't exist for some reason (i.e. maybe this user has
+		// never used snaps but snapd is still installed) then ignore the error
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to restrict user snap home dir: %v", err)
+		}
+	}
+
 	return nil
+}
+
+// restrictSnapUserHomeDirs will chmod the $HOME/snap dir for the active user
+// to 0700 to prevent other users from reading potentially private data in
+// $SNAP_USER_DATA or $SNAP_USER_COMMON, etc.
+func (s *SessionAgent) restrictSnapUserHomeDirs() error {
+	// this code is run as the user via the systemd user session agent, and so
+	// we don't have to be concerned about dropping privileges or anything like
+	// that here as we would with code that is running as root via snapd proper
+	usr, err := userCurrent()
+	if err != nil {
+		return err
+	}
+
+	// change ~/snap to 0700 to make all files underneath ~/snap private
+	userSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	return os.Chmod(userSnapDir, 0700)
 }
 
 func (s *SessionAgent) tryConnectSessionBus() (err error) {

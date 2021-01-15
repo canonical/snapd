@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -48,6 +49,8 @@ type restSuite struct {
 	testutil.DBusTest
 	sysdLog [][]string
 	agent   *agent.SessionAgent
+
+	fakeHome string
 }
 
 var _ = Suite(&restSuite{})
@@ -70,7 +73,14 @@ func (s *restSuite) SetUpTest(c *C) {
 	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
 	s.AddCleanup(restore)
 
-	var err error
+	s.fakeHome = c.MkDir()
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	restore = agent.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
+	})
+	s.AddCleanup(restore)
+
 	s.agent, err = agent.New()
 	c.Assert(err, IsNil)
 	s.agent.Start()
