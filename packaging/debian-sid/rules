@@ -222,6 +222,8 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# bootloader assets generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
