@@ -227,12 +227,14 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
@@ -241,6 +243,7 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
@@ -248,12 +251,20 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
+
+          FAILED_TESTS="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
+          echo "Failed tests: $FAILED_TESTS"
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" == "all"] ; then          
+              spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
+          else
+              spread -abend "$FAILED_TESTS" | tee spread.log
+          fi
+
     - name: analyze spread log
       run: |
           echo "Running spread log analyzer"
           ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
-          cat spread-results.json
+
     - name: spread highlights
       run : |
           TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/.. | wc -l)
@@ -264,6 +275,7 @@ jobs:
               echo "Last 20 lines of test failures"
               ./tests/lib/tools/log-analyzer spread.log --cut 20 --print error
           fi
+
     - name: Cache failed tests
       id: cache-failed-tests
       uses: actions/cache@v1
@@ -278,13 +290,15 @@ jobs:
           TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") |  .number ) // 0 '  spread-results.json | head -n1)
           TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED))
 
+          # Set which tests need to be re-executed
           if [ "$TOTAL_COUNTED" != "$TESTS_NUMBER" ]; then
               echo "Tests not listed in results, full re-run needed"
-              echo "::set-output name=re-run::all"
+              echo "::set-output name=failed-tests::all"
           else
-
-              echo "::set-output name=re-run::"
+              FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
+              echo "::set-output name=failed-tests::"$FAILED_TESTS""
           fi
+
     - name: Check cached test results
       id: cached-results
       run: |
@@ -297,6 +311,7 @@ jobs:
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
+
     - name: Discard spread workers
       if: always()
       run: |

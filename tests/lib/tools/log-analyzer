@@ -112,13 +112,13 @@ class Detail:
     def _get_lines(self):
         if self.lines_limit < 0 or self.lines_limit > len(self.lines):
             return self.lines
-        return self.lines[-1*self.lines_limit:]
+        return self.lines[-1*self.lines_limit-1:]
 
     def __repr__(self):
         return ''.join(self._get_lines())
 
     def __dict__(self):
-        return {'lines': self.lines[-1*self.lines_limit:]}
+        return {'lines': self.lines[-1*self.lines_limit-1:]}
 
 
 class Operation:
