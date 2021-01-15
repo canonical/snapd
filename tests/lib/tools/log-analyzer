@@ -8,17 +8,27 @@ import subprocess
 import sys
 import time
 
+# Info types
 ERROR_TYPE = 'Error'
 DEBUG_TYPE = 'Debug'
 WARN_TYPE = 'WARNING:'
-FAILED_RESULT = 'Failed'
 
+# Results
+FAILED_TYPE = 'Failed'
+ABORTED_TYPE = 'Aborted'
+SUCCESSFUL_TYPE = 'Successful'
+
+# Printable names
 ALL = 'all'
 NONE = 'none'
 ACTION = 'action'
 OPERATION = 'operation'
 INFO = 'info'
 ERROR = 'error'
+FAILED = 'failed'
+ABORTED = 'aborted'
+SUCCESSFUL = 'successful'
+
 RESULT = 'result'
 START = 'Found'
 SPREAD_FILE = 'spread.yaml'
@@ -144,17 +154,29 @@ class LogReader:
     def __dict__(self):
         return {'full_log': self.full_log}
 
-    def print_log(self, filter):
+    def print_log(self, details, results):
         if not self.full_log:
             return
-        if filter == ALL:
+        if details == ALL:
             print(''.join(str(x) for x in self.full_log))
-        elif filter == NONE:
-            return
-        elif filter == ERROR:
+        elif details == NONE:
+            pass
+        elif details == ERROR:
             print(''.join(str(x) for x in self.full_log if x.type == INFO and x.info_type == ERROR_TYPE))
         else:
-            print(''.join(str(x) for x in self.full_log if x.type == filter))
+            print(''.join(str(x) for x in self.full_log if x.type == details))
+
+        if results == ALL:
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT))
+        elif results == NONE:
+            pass
+        elif results == FAILED:
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == FAILED_TYPE))
+        elif results == ABORTED:
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == ABORTED_TYPE))
+        else:
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == SUCCESSFUL_TYPE))
+
 
     def export_log(self, filepath):
         prepared_log = []
@@ -293,7 +315,7 @@ class LogReader:
         level = parts[3].split(':')[0]
         number = parts[4]
 
-        if result_type == FAILED_RESULT:
+        if result_type == FAILED_TYPE:
             detail = self._get_detail(other_limit=-1)
         else:
             detail = None
@@ -347,12 +369,20 @@ for the error/debug/warning output.
         help="format for the output",
     )
     parser.add_argument(
-        "-p",
-        "--print",
+        "-pd",
+        "--print-details",
         type=str,
         default=ALL,
-        choices=[ALL, RESULT, OPERATION, ACTION, INFO, ERROR, NONE],
-        help="Filter which info print",
+        choices=[ALL, ERROR, OPERATION, ACTION, INFO, NONE],
+        help="Filter which info to print",
+    )
+    parser.add_argument(
+        "-pr",
+        "--print-results",
+        type=str,
+        default=NONE,
+        choices=[ALL, FAILED, ABORTED, SUCCESSFUL, NONE],
+        help="Filter which results to print",
     )
     parser.add_argument(
         "-o",
@@ -390,7 +420,7 @@ def main():
     if ns.output:
         reader.export_log(ns.output)
 
-    reader.print_log(ns.print)
+    reader.print_log(ns.print_details, ns.print_results)
     
 
 if __name__ == "__main__":
