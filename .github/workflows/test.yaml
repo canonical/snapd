@@ -251,6 +251,7 @@ jobs:
           cat spread-results.json
     - name: spread highlights
       run : |
+          sudo snap install jq
           TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/.. | wc -l)
           TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
           if [ "$TESTS_NUMBER" == "TESTS_SUCCESSFUL" ]; then
