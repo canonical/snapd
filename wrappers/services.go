@@ -32,8 +32,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
-	// in order to trigger the assignment of all interfaces
-	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
