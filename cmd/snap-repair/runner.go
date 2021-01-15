@@ -790,12 +790,18 @@ func findDevInfo16() (*deviceInfo, error) {
 		return nil, err
 	}
 
-	// get the base snap as well
+	// get the base snap as well, on uc16 it won't be specified in the model
+	// assertion and instead will be empty, so in this case we replace it with
+	// "core"
+	base := modelAs.Base()
+	if modelAs.Base() == "" {
+		base = "core"
+	}
 
 	return &deviceInfo{
 		Brand: modelAs.BrandID(),
 		Model: modelAs.Model(),
-		Base:  modelAs.Base(),
+		Base:  base,
 		// Mode is unset on uc16/uc18
 	}, nil
 }

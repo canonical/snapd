@@ -2092,6 +2092,11 @@ type shared1620RunnerSuite struct {
 	baseRunnerSuite
 
 	writeSeedAssert func(c *C, fname string, a asserts.Assertion)
+
+	// this is so we can check device details that will be different in the
+	// 20 version of tests from the 16 version of tests
+	expBase string
+	expMode string
 }
 
 func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
@@ -2128,6 +2133,10 @@ func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model-2")
 
+	base, mode := runner.BaseMode()
+	c.Check(base, Equals, s.expBase)
+	c.Check(mode, Equals, s.expMode)
+
 	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
 }
 
@@ -2139,6 +2148,9 @@ var _ = Suite(&runner16Suite{})
 
 func (s *runner16Suite) SetUpTest(c *C) {
 	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.shared1620RunnerSuite.expBase = "core"
+	s.shared1620RunnerSuite.expMode = ""
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 
@@ -2222,6 +2234,9 @@ base=core20_1.snap
 
 func (s *runner20Suite) SetUpTest(c *C) {
 	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.shared1620RunnerSuite.expBase = "core20"
+	s.shared1620RunnerSuite.expMode = "run"
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
 	err := os.MkdirAll(s.seedAssertsDir, 0755)
