@@ -74,7 +74,6 @@ bool sc_is_debian_like(void)
 		if (fseek(f, 0L, SEEK_SET) == -1) {
 			return false;
 		}
-		/* check ID_LIKE=debian first */
 		char *id_val SC_CLEANUP(sc_cleanup_string) = NULL;
 		int rc =
 		    sc_infofile_get_key(f, id_keys_to_try[i], &id_val, NULL);
