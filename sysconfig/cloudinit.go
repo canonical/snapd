@@ -195,6 +195,8 @@ const (
 	// states, as we are conservative in assuming that cloud-init is doing
 	// something.
 	CloudInitEnabled
+	// CloudInitNotFound is when there is no cloud-init on the device.
+	CloudInitNotFound
 	// CloudInitErrored is when cloud-init tried to run, but failed or had invalid
 	// configuration.
 	CloudInitErrored
@@ -208,6 +210,11 @@ const (
 // cloud-init may be doing something and will return CloudInitEnabled when we
 // do not recognize the state returned by the cloud-init status command.
 func CloudInitStatus() (CloudInitState, error) {
+	lp, err := exec.LookPath("cloud-init")
+	if err != nil {
+		return CloudInitNotFound, nil
+	}
+
 	// if cloud-init has been restricted by snapd, check that first
 	snapdRestrictingFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
 	if osutil.FileExists(snapdRestrictingFile) {
@@ -221,7 +228,7 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
-	out, err := exec.Command("cloud-init", "status").CombinedOutput()
+	out, err := exec.Command(lp, "status").CombinedOutput()
 	if err != nil {
 		return CloudInitErrored, osutil.OutputErr(out, err)
 	}

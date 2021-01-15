@@ -670,6 +670,10 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		statusMsg := ""
 
 		switch cloudInitStatus {
+		case sysconfig.CloudInitNotFound:
+			// no cloud init at all
+			m.cloudInitAlreadyRestricted = true
+			return nil
 		case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
 			// already been permanently disabled, nothing to do
 			m.cloudInitAlreadyRestricted = true
