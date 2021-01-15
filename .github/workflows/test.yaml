@@ -254,7 +254,7 @@ jobs:
 
           FAILED_TESTS="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
           echo "Failed tests: $FAILED_TESTS"
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" == "all"] ; then          
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" == "all"] ; then
               spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           else
               spread -abend "$FAILED_TESTS" | tee spread.log
@@ -273,7 +273,7 @@ jobs:
               echo "All tests passed!"
           else
               echo "Last 20 lines of test failures"
-              ./tests/lib/tools/log-analyzer spread.log --cut 20 --print error
+              ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
           fi
 
     - name: Cache failed tests
@@ -299,14 +299,6 @@ jobs:
               echo "::set-output name=failed-tests::"$FAILED_TESTS""
           fi
 
-    - name: Check cached test results
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
