@@ -178,14 +178,16 @@ static void test_is_on_custom_base(void)
 
 static const char *os_release_debian_like_valid = ""
     "ID=my-fun-distro\n"
-    "ID_LIKE=debian\n";
+	"ID_LIKE=debian\n";
 
 static const char *os_release_debian_like_quoted_valid = ""
     "ID=my-fun-distro\n"
-    "ID_LIKE=\"debian\"\n";
+	"ID_LIKE=\"debian\"\n";
 
 /* actual debian only sets ID=debian */
 static const char *os_release_actual_debian_valid = "ID=debian\n";
+
+static const char *os_release_invalid = "garbage\n";
 
 static void test_is_debian_like(void)
 {
@@ -199,6 +201,9 @@ static void test_is_debian_like(void)
 	g_assert_true(sc_is_debian_like());
 
 	mock_os_release(os_release_fedora_ws);
+	g_assert_false(sc_is_debian_like());
+
+	mock_os_release(os_release_invalid);
 	g_assert_false(sc_is_debian_like());
 }
 

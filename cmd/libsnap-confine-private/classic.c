@@ -64,7 +64,7 @@ bool sc_is_debian_like(void)
 	if (f == NULL) {
 		return false;
 	}
-	const char *id_keys_to_try[] = {
+	const char *const id_keys_to_try[] = {
 		"ID",		/* actual debian only sets ID */
 		"ID_LIKE",	/* distros based on debian */
 	};
@@ -75,8 +75,9 @@ bool sc_is_debian_like(void)
 			return false;
 		}
 		char *id_val SC_CLEANUP(sc_cleanup_string) = NULL;
+		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		int rc =
-		    sc_infofile_get_key(f, id_keys_to_try[i], &id_val, NULL);
+		    sc_infofile_get_key(f, id_keys_to_try[i], &id_val, &err);
 		if (rc != 0) {
 			/* only if sc_infofile_get_key failed */
 			return false;
