@@ -128,6 +128,12 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
+    - name: Install jq as a snap
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          if ! snap list jq; then
+              snap install jq
+          fi
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
@@ -236,11 +242,6 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
-    - name: Install jq as a snap
-      if: steps.cached-results.outputs.already-ran != 'true'
-      run: |
-          sudo apt-get remove --purge jq
-          sudo snap install jq
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
