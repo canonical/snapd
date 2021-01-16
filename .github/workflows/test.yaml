@@ -128,12 +128,6 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Install jq as a snap
-      if: steps.cached-results.outputs.already-ran != 'true'
-      run: |
-          if ! snap list jq; then
-              snap install jq
-          fi
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
