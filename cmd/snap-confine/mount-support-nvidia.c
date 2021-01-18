@@ -117,17 +117,41 @@ static const char *nvidia_globs[] = {
 	"libnvidia-rtcore.so*",
 	"libnvidia-tls.so*",
 	"libnvoptix.so*",
+	"tls/libnvidia-tls.so*",
+	"vdpau/libvdpau_nvidia.so*",
+
+	// additional libraries for Tegra
 	"libnvdc.so*",
 	"libnvos.so*",
 	"libnvrm_gpu.so*",
 	"libnvimp.so*",
 	"libnvrm.so*",
 	"libnvrm_graphics.so*",
-	"libnpp{c,ig,ial,icc,idei,ist,if,im,itc}*.so*",
+	"libnppc.so*",
+	"libnppig.so*",
+	"libnppial.so*",
+	"libnppicc.so*",
+	"libnppidei.so*",
+	"libnppist.so*",
+	"libnppcif.so*",
+	"libnppim.so*",
+	"libnppitc.so*",
 	"libcufft.so*",
-	"libcublas{,Lt}.so*"
-	"tls/libnvidia-tls.so*",
-	"vdpau/libvdpau_nvidia.so*",
+	"libcublas.so*",
+	"libcublasLt.so*",
+	"libcusolver.so*",
+	"libcuparse.so*",
+	"libcurand.so*",
+	// libraries for CUDA DNN
+	"libcudnn_adv_infer*",
+	"libcudnn_adv_train*",
+	"libcudnn_cnn_infer*",
+	"libcudnn_cnn_train*",
+	"libcudnn_ops_infer*",
+	"libcudnn_ops_train*",
+	"libnvrtc*",
+	"libnvrtc-builtins*",
+	"libnvToolsExt.so*"
 };
 
 static const size_t nvidia_globs_len =
