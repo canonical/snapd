@@ -121,7 +121,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -197,7 +197,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -223,7 +223,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -518,7 +518,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -546,7 +546,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)

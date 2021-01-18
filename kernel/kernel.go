@@ -42,8 +42,8 @@ type Info struct {
 	Assets map[string]*Asset `yaml:"assets,omitempty"`
 }
 
-// XXX: should we be more liberal? start conservative
-var validAssetName = regexp.MustCompile("^[a-zA-Z0-9]+$")
+// ValidAssetName is a regular expression matching valid asset name.
+var ValidAssetName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]*$")
 
 // InfoFromKernelYaml reads the provided kernel metadata.
 func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
@@ -54,8 +54,8 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 	}
 
 	for name := range ki.Assets {
-		if !validAssetName.MatchString(name) {
-			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric characters", name)
+		if !ValidAssetName.MatchString(name) {
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric characters and dashes", name)
 		}
 	}
 

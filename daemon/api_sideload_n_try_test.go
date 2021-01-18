@@ -227,7 +227,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -249,7 +249,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -264,7 +264,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	// add the assertions first
 	st := d.Overlord().State()
 
@@ -343,7 +343,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -394,7 +394,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "foo"}, nil
@@ -610,10 +610,7 @@ func (s *trySuite) TestTrySnapRelative(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := daemon.TrySnap(st, req, nil, "relative-path", snapstate.Flags{}).(*daemon.Resp)
+	rsp := daemon.TrySnap(st, "relative-path", snapstate.Flags{}).(*daemon.Resp)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "need an absolute path")
 }
@@ -622,16 +619,13 @@ func (s *trySuite) TestTrySnapNotDir(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := daemon.TrySnap(st, req, nil, "/does/not/exist", snapstate.Flags{}).(*daemon.Resp)
+	rsp := daemon.TrySnap(st, "/does/not/exist", snapstate.Flags{}).(*daemon.Resp)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "not a snap directory")
 }
 
 func (s *trySuite) TestTryChangeConflict(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	st := d.Overlord().State()
 
 	// mock a try dir
@@ -645,10 +639,7 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
-	req, err := http.NewRequest("POST", "/v2/snaps", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := daemon.TrySnap(st, req, nil, tryDir, snapstate.Flags{}).(*daemon.Resp)
+	rsp := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.Resp)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }

@@ -27,7 +27,14 @@ execute: |
        fi
        sleep 1
     done
-    stat /var/cache/snapd/commands.db
+    if ! stat /var/cache/snapd/commands.db; then
+        # workaround for misbehaving store
+        if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then
+            echo "Store is reporting 429 (too many requests), skipping the test"
+            exit 0
+        fi
+        exit 1
+    fi
     echo "Ensure the database is readable by a regular user"
     if [ "$(stat -c '%a' /var/cache/snapd/commands.db)" != "644" ]; then
         echo "incorrect permissions for /var/cache/snapd/commands.db"

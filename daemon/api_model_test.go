@@ -73,7 +73,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 		"revision": "2",
 	})
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -131,7 +131,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -156,7 +156,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -199,7 +199,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -236,7 +236,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -266,7 +266,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -334,7 +334,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
