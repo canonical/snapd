@@ -154,7 +154,7 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 	return seq
 }
 
-const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model","base":"","mode":""},"time-lower-bound":"2017-08-11T15:49:49Z"}`
 
 func (s *baseRunnerSuite) freshState(c *C) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
@@ -660,7 +660,7 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	err = runner.SaveState()
 	c.Assert(err, IsNil)
 
-	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
+	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, `{"device":{"brand":"my-brand","model":"my-model","base":"","mode":""},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
 }
 
 func (s *runnerSuite) TestApplicable(c *C) {
@@ -864,22 +864,6 @@ func (s *runnerSuite) TestVerify(c *C) {
 
 	err = runner.Verify(rpr, []asserts.Assertion{s.repairsAcctKey})
 	c.Check(err, IsNil)
-}
-
-func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
-	var seq []string
-	for _, rpr := range repairs {
-		decoded, err := asserts.Decode([]byte(rpr))
-		c.Assert(err, IsNil)
-		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
-		c.Assert(err, IsNil)
-		buf := &bytes.Buffer{}
-		enc := asserts.NewEncoder(buf)
-		enc.Encode(signed)
-		enc.Encode(s.repairsAcctKey)
-		seq = append(seq, buf.String())
-	}
-	return seq
 }
 
 func (s *runnerSuite) loadSequences(c *C) map[string][]*repair.RepairState {
@@ -1380,7 +1364,7 @@ AXNpZw==`, len(script), script)
 }
 
 func verifyRepairStatus(c *C, status repair.RepairStatus) {
-	c.Check(dirs.SnapRepairStateFile, testutil.FileContains, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}`, status))
+	c.Check(dirs.SnapRepairStateFile, testutil.FileContains, fmt.Sprintf(`{"device":{"brand":"","model":"","base":"","mode":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}`, status))
 }
 
 // tests related to correct execution of script
@@ -1802,6 +1786,7 @@ var _ = Suite(&runner20Suite{})
 var mockModeenv = []byte(`
 mode=run
 model=my-brand/my-model-2
+base=core20_1.snap
 `)
 
 func (s *runner20Suite) SetUpTest(c *C) {

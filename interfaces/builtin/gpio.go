@@ -103,7 +103,6 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	}
 	spec.AddSnippet(fmt.Sprintf("%s/* rwk,", dereferencedPath))
 	return nil
-
 }
 
 func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
