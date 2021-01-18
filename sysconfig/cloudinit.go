@@ -210,11 +210,6 @@ const (
 // cloud-init may be doing something and will return CloudInitEnabled when we
 // do not recognize the state returned by the cloud-init status command.
 func CloudInitStatus() (CloudInitState, error) {
-	lp, err := exec.LookPath("cloud-init")
-	if err != nil {
-		return CloudInitNotFound, nil
-	}
-
 	// if cloud-init has been restricted by snapd, check that first
 	snapdRestrictingFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
 	if osutil.FileExists(snapdRestrictingFile) {
@@ -226,6 +221,11 @@ func CloudInitStatus() (CloudInitState, error) {
 	disabledFile := filepath.Join(dirs.GlobalRootDir, cloudInitDisabledFile)
 	if osutil.FileExists(disabledFile) {
 		return CloudInitDisabledPermanently, nil
+	}
+
+	lp, err := exec.LookPath("cloud-init")
+	if err != nil {
+		return CloudInitNotFound, nil
 	}
 
 	out, err := exec.Command(lp, "status").CombinedOutput()
@@ -323,6 +323,8 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 		}
 		fallthrough
 	case CloudInitUntriggered:
+		fallthrough
+	case CloudInitNotFound:
 		fallthrough
 	default:
 		res.Action = "disable"

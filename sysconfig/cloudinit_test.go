@@ -531,6 +531,12 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expAction:      "disable",
 			expDisableFile: true,
 		},
+		{
+			comment:        "no cloud-init in $PATH",
+			state:          sysconfig.CloudInitNotFound,
+			expAction:      "disable",
+			expDisableFile: true,
+		},
 	}
 
 	for _, t := range tt {
