@@ -151,7 +151,7 @@ static const char *nvidia_globs[] = {
 	"libcudnn_ops_train*",
 	"libnvrtc*",
 	"libnvrtc-builtins*",
-	"libnvToolsExt.so*"
+	"libnvToolsExt.so*",
 };
 
 static const size_t nvidia_globs_len =
