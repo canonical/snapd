@@ -99,6 +99,71 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	return asrt, nil
 }
 
+// SeqFormingAssertion retrieves the sequence-forming assertion for the given
+// type (currently validation-set only) and primary or sequence key.
+func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	if assertType.Name != "validation-set" {
+		return nil, fmt.Errorf("internal error: requested non sequence-forming assertion type %q", assertType.Name)
+	}
+	v := url.Values{}
+	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
+
+	hasSequenceNumber := len(seqOrPrimaryKey) == len(assertType.PrimaryKey)
+
+	// sequence key is the primary key without sequence number element.
+	var sequenceKey []string
+	if hasSequenceNumber {
+		// full primary key passed, query specific sequence number.
+		v.Set("sequence", seqOrPrimaryKey[len(seqOrPrimaryKey)-1])
+		// drop sequence number
+		sequenceKey = seqOrPrimaryKey[:len(seqOrPrimaryKey)-1]
+	} else {
+		// sequence key passed, query for the latest sequence.
+		v.Set("sequence", "latest")
+		sequenceKey = seqOrPrimaryKey
+	}
+	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(sequenceKey...)), v)
+
+	var asrt asserts.Assertion
+
+	err := s.downloadAssertions(u, func(r io.Reader) error {
+		// decode assertion
+		dec := asserts.NewDecoder(r)
+		var e error
+		asrt, e = dec.Decode()
+		return e
+	}, func(svcErr *assertionSvcError) error {
+		// error-list indicates v2 error response.
+		if svcErr.isNotFound() {
+			// XXX: this re-implements asserts.HeadersFromPrimaryKey() but is
+			// more relaxed about key length, making sequence optional. Should
+			// we make it a helper on its own in store for the not-found-error
+			// handling?
+			if len(seqOrPrimaryKey) < len(assertType.PrimaryKey)-1 || len(seqOrPrimaryKey) > len(assertType.PrimaryKey) {
+				return fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
+			}
+			headers := make(map[string]string)
+			for i, keyVal := range seqOrPrimaryKey {
+				name := assertType.PrimaryKey[i]
+				if keyVal == "" {
+					return fmt.Errorf("primary key %q header cannot be empty", name)
+				}
+				headers[name] = keyVal
+			}
+			return &asserts.NotFoundError{
+				Type:    assertType,
+				Headers: headers,
+			}
+		}
+		// default error
+		return nil
+	}, "fetch assertion", user)
+	if err != nil {
+		return nil, err
+	}
+	return asrt, nil
+}
+
 func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error, handleSvcErr func(*assertionSvcError) error, what string, user *auth.UserState) error {
 	reqOptions := &requestOptions{
 		Method: "GET",
