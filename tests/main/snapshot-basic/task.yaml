@@ -36,10 +36,10 @@ execute: |
     # and is exportable
     snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
     test -e "${SET_ID}_export.snapshot"
-    test "$( tar -tvf "${SET_ID}_export.snapshot" | wc -l )" = "3"
+    test "$( tar -tvf "${SET_ID}_export.snapshot" | wc -l )" = "4"
     # do it again and ensure it has the files have the same size
     snap export-snapshot "$SET_ID" "${SET_ID}_export-2.snapshot"
-    test "$( tar -tvf "${SET_ID}_export-2.snapshot" | wc -l )" = "3"
+    test "$( tar -tvf "${SET_ID}_export-2.snapshot" | wc -l )" = "4"
     s1="$(stat -c%s "${SET_ID}_export.snapshot" )"
     s2="$(stat -c%s "${SET_ID}_export-2.snapshot" )"
     test "$s1" = "$s2"
@@ -48,17 +48,8 @@ execute: |
     f2="$(tar -tf "${SET_ID}_export-2.snapshot" )"
     test "$f1" = "$f2"
 
-    # and is importable
-    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
-    # and is valid
-    snap check-snapshot "$RESTORE_ID"
-
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
-
-    # remove the exports and import
-    rm "${SET_ID}"_export*.snapshot
-    snap forget "$RESTORE_ID"
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
@@ -80,6 +71,22 @@ execute: |
     # check removal works
     snap forget "$SET_ID"
     snap saved --id="$SET_ID" | grep "No snapshots found"
+
+    echo "Check that import works"
+    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
+    echo "And is valid"
+    snap check-snapshot "$RESTORE_ID"
+
+    NUM_SAVED=$(snap saved | wc -l)
+
+    echo "Import again doesn't create a duplicated snapshot"
+    IMPORTED_ID=$( snap import-snapshot "${SET_ID}_export-2.snapshot" | head -n1 | cut -f2 -d'#' )
+    [[ "$RESTORE_ID" == "$IMPORTED_ID" ]]
+    [[ "$NUM_SAVED" == $(snap saved | wc -l) ]]
+
+    # remove the exports and import
+    rm "${SET_ID}"_export*.snapshot
+    snap forget "$RESTORE_ID"
 
     # check automatic snapshot can be disabled
     snap set core snapshots.automatic.retention=no

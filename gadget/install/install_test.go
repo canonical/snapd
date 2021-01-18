@@ -426,7 +426,7 @@ func (s *installSuite) setupMockSysfs(c *C) {
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 	s.setupMockSysfs(c)
-	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20mod)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20Mod)
 
 	device, err := install.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, IsNil)
@@ -435,7 +435,7 @@ func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 
 func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	// note no sysfs mocking
-	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20mod)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml, uc20Mod)
 
 	_, err := install.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)
