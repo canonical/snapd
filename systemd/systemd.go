@@ -365,9 +365,9 @@ func (s *systemd) DaemonReexec() error {
 func (s *systemd) Enable(serviceName string) error {
 	var err error
 	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+		_, err = s.systemctl("--root", s.rootDir, "--no-reload", "enable", serviceName)
 	} else {
-		_, err = s.systemctl("enable", serviceName)
+		_, err = s.systemctl("--no-reload", "enable", serviceName)
 	}
 	return err
 }
@@ -385,9 +385,9 @@ func (s *systemd) Unmask(serviceName string) error {
 func (s *systemd) Disable(serviceName string) error {
 	var err error
 	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+		_, err = s.systemctl("--root", s.rootDir, "--no-reload", "disable", serviceName)
 	} else {
-		_, err = s.systemctl("disable", serviceName)
+		_, err = s.systemctl("--no-reload", "disable", serviceName)
 	}
 	return err
 }

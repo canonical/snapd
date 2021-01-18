@@ -92,7 +92,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	// the service was also started (whee)
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap.samba.interface.foo.service"},
+		{"--no-reload", "enable", "snap.samba.interface.foo.service"},
 		{"stop", "snap.samba.interface.foo.service"},
 		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 		{"start", "snap.samba.interface.foo.service"},
@@ -113,7 +113,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
-			{"systemctl", "disable", "snap.samba.interface.foo.service"},
+			{"systemctl", "--no-reload", "disable", "snap.samba.interface.foo.service"},
 			{"systemctl", "stop", "snap.samba.interface.foo.service"},
 			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 			{"systemctl", "daemon-reload"},
@@ -147,7 +147,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
 	// The bar service should have been stopped
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"systemctl", "disable", "snap.samba.interface.bar.service"},
+		{"systemctl", "--no-reload", "disable", "snap.samba.interface.bar.service"},
 		{"systemctl", "stop", "snap.samba.interface.bar.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
 		{"systemctl", "daemon-reload"},
@@ -180,7 +180,7 @@ func (s *backendSuite) TestInstallingSnapWhenPreseeding(c *C) {
 	c.Check(err, IsNil)
 	// the service was enabled but not started
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "enable", "snap.samba.interface.foo.service"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "enable", "snap.samba.interface.foo.service"},
 	})
 }
 
@@ -203,7 +203,7 @@ func (s *backendSuite) TestRemovingSnapWhenPreseeding(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was disabled (but no other systemctl calls)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
-			{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"},
+			{"systemctl", "--root", dirs.GlobalRootDir, "--no-reload", "disable", "snap.samba.interface.foo.service"},
 		})
 	}
 }

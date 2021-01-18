@@ -49,12 +49,12 @@ func (s *emulation) DaemonReexec() error {
 }
 
 func (s *emulation) Enable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
+	_, err := systemctlCmd("--root", s.rootDir, "--no-reload", "enable", service)
 	return err
 }
 
 func (s *emulation) Disable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", service)
+	_, err := systemctlCmd("--root", s.rootDir, "--no-reload", "disable", service)
 	return err
 }
 

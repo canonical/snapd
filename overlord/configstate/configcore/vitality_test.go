@@ -102,7 +102,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"is-enabled", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
-		{"enable", "snap.test-snap.foo.service"},
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)

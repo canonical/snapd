@@ -175,7 +175,7 @@ WantedBy=snapd.service
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "usr-lib-snapd.mount"},
+		{"--no-reload", "enable", "usr-lib-snapd.mount"},
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
@@ -185,7 +185,7 @@ WantedBy=snapd.service
 		{"is-enabled", "snapd.snap-repair.timer"},
 		// test pretends snapd.socket is disabled and needs enabling
 		{"is-enabled", "snapd.socket"},
-		{"enable", "snapd.socket"},
+		{"--no-reload", "enable", "snapd.socket"},
 		{"is-enabled", "snapd.system-shutdown.service"},
 		{"is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
@@ -199,10 +199,10 @@ WantedBy=snapd.service
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "enable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 	})
 }
 
@@ -349,14 +349,14 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		// pretend snapd socket needs enabling
 		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "enable", "snapd.socket"},
 
 		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.autoimport.service"},
 		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
 		{"start", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.not-in-core.service"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "disable", "snapd.not-in-core.service"},
 		{"stop", "snapd.not-in-core.service"},
 		{"show", "--property=ActiveState", "snapd.not-in-core.service"},
 		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.service"},
@@ -366,11 +366,11 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 		{"stop", "snapd.snap-repair.timer"},
 		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
 		{"start", "snapd.snap-repair.timer"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
-		{"--root", dirs.GlobalRootDir, "disable", "usr-lib-snapd.mount"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "--no-reload", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "--no-reload", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "--no-reload", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "--no-reload", "enable", "snapd.session-agent.socket"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "disable", "usr-lib-snapd.mount"},
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 	})

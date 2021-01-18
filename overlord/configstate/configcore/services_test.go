@@ -70,7 +70,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "sshd.service"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "enable", "sshd.service"},
 		{"start", "sshd.service"},
 	})
 }
@@ -79,7 +79,7 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},
+		{"--root", dirs.GlobalRootDir, "--no-reload", "disable", "sshd.service"},
 		{"--root", dirs.GlobalRootDir, "mask", "sshd.service"},
 		{"stop", "sshd.service"},
 		{"show", "--property=ActiveState", "sshd.service"},
@@ -121,7 +121,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			})
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "disable", srv},
+				{"--root", dirs.GlobalRootDir, "--no-reload", "disable", srv},
 				{"--root", dirs.GlobalRootDir, "mask", srv},
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
@@ -291,7 +291,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "unmask", srv},
-				{"--root", dirs.GlobalRootDir, "enable", srv},
+				{"--root", dirs.GlobalRootDir, "--no-reload", "enable", srv},
 				{"start", srv},
 			})
 		}
