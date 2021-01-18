@@ -1148,15 +1148,17 @@ func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 
 	restrictCalls := 0
 	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
 		// in this case, pretend it was a real cloud, so it just got restricted
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
-		}, fmt.Errorf("unexpected call")
+		}, nil
 	})
 	defer r()
 
 	err := devicestate.EnsureCloudInitRestricted(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
-	c.Assert(restrictCalls, Equals, 0)
+	c.Assert(restrictCalls, Equals, 1)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init not found, disabled permanently`)
 }
