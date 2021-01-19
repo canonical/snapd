@@ -927,13 +927,11 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 
 	if run.state.Device.Mode == "" {
 		// uc16 / uc18 device, the assertion is only applicable to us if modes
-		// has "run" in it or if it is unset
-		if len(modes) != 0 && !strutil.ListContains(modes, "run") {
-			// modes does not contain "run", not applicable to us
+		// is unset
+		if len(modes) != 0 {
 			return false
 		}
-		// else still applicable to us, either modes has "run" in it or it is
-		// empty
+		// else modes is unset and still applies to us
 	} else {
 		// uc20 device
 		switch {

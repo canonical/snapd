@@ -734,9 +734,9 @@ func (s *runnerSuite) TestApplicable(c *C) {
 		{nil, map[string]interface{}{"models": "my-brand/my-model"}, false},
 		// modes for uc16 / uc18 devices
 		{nil, map[string]interface{}{"modes": []interface{}{}}, true},
-		{nil, map[string]interface{}{"modes": []interface{}{"run"}}, true},
+		{nil, map[string]interface{}{"modes": []interface{}{"run"}}, false},
 		{nil, map[string]interface{}{"modes": []interface{}{"recover"}}, false},
-		{nil, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, true},
+		{nil, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, false},
 		// run mode for uc20 devices
 		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{}}, true},
 		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"run"}}, true},
@@ -1443,7 +1443,6 @@ timestamp: 2017-07-03T12:00:00Z
 body-length: 17
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
 %[1]s
-%[2]s
 #!/bin/sh
 exit 0
 
@@ -1582,6 +1581,20 @@ AXNpZw==
 			false,
 			"uc18 w/ alternate uc20 run mode assertion",
 		},
+		{
+			&dev{base: "core"},
+			[]string{"run"},
+			[]string{},
+			false,
+			"uc16 w/ uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{"run"},
+			[]string{},
+			false,
+			"uc16 w/ uc20 run mode assertion",
+		},
 
 		// all except uc20 recover mode assertion
 		{
@@ -1714,8 +1727,6 @@ AXNpZw==
 			for _, base := range t.bases {
 				basesStr += "  - " + base + "\n"
 			}
-			// drop last newline
-			basesStr = basesStr[:len(basesStr)-1]
 		}
 		modesStr := ""
 		if len(t.modes) != 0 {
@@ -1723,22 +1734,9 @@ AXNpZw==
 			for _, mode := range t.modes {
 				modesStr += "  - " + mode + "\n"
 			}
-			// don't drop last newline since if modes is set we want to have
-			// a trailing newline which delineates the "body" vs the "headers"
-			// of the repair assertion
 		}
 
-		assertion := fmt.Sprintf(repairTempl, basesStr, modesStr)
-
-		// if neither bases nor modes was set, then we will have an extra
-		// newline that needs to be deleted, so delete that
-		// to delineate the body from the headers of the repair assertion
-		if basesStr == "" && modesStr == "" {
-			assertion = strings.Replace(assertion, `
-#!/bin/sh`, "#!/bin/sh", 1)
-		}
-
-		seqRepairs := s.signSeqRepairs(c, []string{assertion})
+		seqRepairs := s.signSeqRepairs(c, []string{fmt.Sprintf(repairTempl, basesStr+modesStr)})
 
 		mockServer := makeMockServer(c, &seqRepairs, false)
 		cleanups = append(cleanups, func() { mockServer.Close() })
