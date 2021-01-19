@@ -245,7 +245,7 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           FAILED_TESTS="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
-          
+          echo "FAILED_TESTS=$FAILED_TESTS" | tee -a $GITHUB_ENV
           if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" == "all" ] ; then
               spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           else
