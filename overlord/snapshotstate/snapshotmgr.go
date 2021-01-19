@@ -112,8 +112,8 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		// forget needs to conflict with check and restore
-		if err := checkSnapshotConflict(mgr.state, r.SetID, "import-snapshot",
-			"export-snapshot", "check-snapshot", "restore-snapshot"); err != nil {
+		if err := checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
+			"check-snapshot", "restore-snapshot"); err != nil {
 			// there is a conflict, do nothing and we will retry this set on next Ensure().
 			return nil
 		}

@@ -333,7 +333,8 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 	st.Lock()
 	setID, err = newSnapshotSetID(st)
 	// note, this is a new set id which is not exposed yet, no need to mark it
-	// for conflicts via snapshotOp.
+	// for conflicts via snapshotOp. Also, since we're keeping state lock while
+	// checking conflicts below, there is no need to for setSnapshotOpInProgress.
 	st.Unlock()
 	if err != nil {
 		return 0, nil, err
@@ -347,11 +348,6 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
 				return 0, nil, err
 			}
-
-			// This is not technically needed since we're keeping state lock;
-			// it's done only for symmetry with export.
-			setSnapshotOpInProgress(st, dupErr.SetID, "import-snapshot")
-			defer UnsetSnapshotOpInProgress(st, dupErr.SetID)
 
 			// trying to import identical snapshot; instead return set ID of
 			// the existing one and reset its expiry time.
@@ -539,8 +535,8 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 // Note that the state must be locked by the caller.
 func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []string, ts *state.TaskSet, err error) {
 	// forget needs to conflict with check, restore, import and export.
-	if err := checkSnapshotConflict(st, setID, "import-snapshot",
-		"export-snapshot", "check-snapshot", "restore-snapshot"); err != nil {
+	if err := checkSnapshotConflict(st, setID, "export-snapshot",
+		"check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -566,7 +562,7 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 }
 
 // setSnapshotOpInProgress marks the given set ID as being a subject of
-// snapshot op inside state cache. State must be locked by the caller.
+// snapshot op inside state cache. The state must be locked by the caller.
 func setSnapshotOpInProgress(st *state.State, setID uint64, op string) {
 	var snapshotOps map[uint64]string
 	if val := st.Cached("snapshot-ops"); val != nil {
@@ -578,13 +574,20 @@ func setSnapshotOpInProgress(st *state.State, setID uint64, op string) {
 	st.Cache("snapshot-ops", snapshotOps)
 }
 
-func UnsetSnapshotOpInProgress(st *state.State, setID uint64) {
+// UnsetSnapshotOpInProgress un-sets the given set ID as being a
+// subject of a snapshot op. It returns the last operation (or empty string
+// if no op was marked active).
+// The state must be locked by the caller.
+func UnsetSnapshotOpInProgress(st *state.State, setID uint64) string {
+	var op string
 	if val := st.Cached("snapshot-ops"); val != nil {
 		var snapshotOps map[uint64]string
 		snapshotOps, _ = val.(map[uint64]string)
+		op = snapshotOps[setID]
 		delete(snapshotOps, setID)
 		st.Cache("snapshot-ops", snapshotOps)
 	}
+	return op
 }
 
 // Export exports a given snapshot ID

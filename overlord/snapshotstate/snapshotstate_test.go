@@ -1336,7 +1336,7 @@ func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
-func (snapshotSuite) TestForgetChecksImportExportConflicts(c *check.C) {
+func (snapshotSuite) TestForgetChecksExportConflicts(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
@@ -1354,12 +1354,6 @@ func (snapshotSuite) TestForgetChecksImportExportConflicts(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapshotstate.SetSnapshotOpInProgress(st, 42, "import-snapshot")
-
-	_, _, err = snapshotstate.Forget(st, 42, nil)
-	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while operation import-snapshot is in progress`)
-
-	snapshotstate.UnsetSnapshotOpInProgress(st, 42)
 	snapshotstate.SetSnapshotOpInProgress(st, 42, "export-snapshot")
 
 	_, _, err = snapshotstate.Forget(st, 42, nil)
@@ -1839,6 +1833,8 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
+	c.Assert(snapshotstate.UnsetSnapshotOpInProgress(st, 9999), check.Equals, "")
+
 	snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
 	snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
 
@@ -1848,14 +1844,14 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 		uint64(2): "bar-op",
 	})
 
-	snapshotstate.UnsetSnapshotOpInProgress(st, 1)
+	c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, "foo-op")
 
 	val = st.Cached("snapshot-ops")
 	c.Check(val, check.DeepEquals, map[uint64]string{
 		uint64(2): "bar-op",
 	})
 
-	snapshotstate.UnsetSnapshotOpInProgress(st, 2)
+	c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 2), check.Equals, "bar-op")
 
 	val = st.Cached("snapshot-ops")
 	c.Check(val, check.HasLen, 0)
