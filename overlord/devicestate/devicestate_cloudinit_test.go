@@ -1149,7 +1149,8 @@ func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 	restrictCalls := 0
 	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
 		restrictCalls++
-		// in this case, pretend it was a real cloud, so it just got restricted
+		// there was no cloud-init binary, so we explicitly disabled it
+		// if it reappears in future
 		return sysconfig.CloudInitRestrictionResult{
 			Action: "disable",
 		}, nil
