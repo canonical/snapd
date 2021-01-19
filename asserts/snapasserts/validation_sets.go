@@ -75,6 +75,12 @@ type ValidationSetsValidationError struct {
 	Sets map[string]*asserts.ValidationSet
 }
 
+type byRevision []snap.Revision
+
+func (b byRevision) Len() int           { return len(b) }
+func (b byRevision) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byRevision) Less(i, j int) bool { return b[i].N < b[j].N }
+
 func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
 	printDetails := func(header string, details map[string][]string,
@@ -98,16 +104,15 @@ func (e *ValidationSetsValidationError) Error() string {
 	if len(e.WrongRevisionSnaps) > 0 {
 		fmt.Fprint(buf, "\n- snaps at wrong revisions:")
 		for snapName, revisions := range e.WrongRevisionSnaps {
-			revisionsSorted := make([]int, 0, len(revisions))
+			revisionsSorted := make([]snap.Revision, 0, len(revisions))
 			for rev := range revisions {
-				revisionsSorted = append(revisionsSorted, rev.N)
+				revisionsSorted = append(revisionsSorted, rev)
 			}
-			sort.Ints(revisionsSorted)
+			sort.Sort(byRevision(revisionsSorted))
 			t := make([]string, 0, len(revisionsSorted))
 			for _, rev := range revisionsSorted {
-				r := snap.R(rev)
-				keys := revisions[r]
-				t = append(t, fmt.Sprintf("at revision %s by sets %s", r, strings.Join(keys, ",")))
+				keys := revisions[rev]
+				t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
 			}
 			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
 		}
@@ -213,19 +218,19 @@ func (e *snapConflictsError) Error() string {
 		invalid = true
 	}
 
-	var revnos []int
+	var revnos []snap.Revision
 	for r := range e.revisions {
 		if r.N >= 1 {
-			revnos = append(revnos, r.N)
+			revnos = append(revnos, r)
 		}
 	}
 	if len(revnos) == 1 {
-		msg += fmt.Sprintf(" at revision %d %s", revnos[0], whichSets(e.revisions[snap.R(revnos[0])]))
+		msg += fmt.Sprintf(" at revision %s %s", revnos[0], whichSets(e.revisions[revnos[0]]))
 	} else if len(revnos) > 1 {
-		sort.Ints(revnos)
+		sort.Sort(byRevision(revnos))
 		l := make([]string, 0, len(revnos))
 		for _, rev := range revnos {
-			l = append(l, fmt.Sprintf("%d %s", rev, whichSets(e.revisions[snap.R(rev)])))
+			l = append(l, fmt.Sprintf("%s %s", rev, whichSets(e.revisions[rev])))
 		}
 		msg += fmt.Sprintf(" at different revisions %s", strings.Join(l, ", "))
 	}
@@ -304,7 +309,7 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 	// this counts really different revisions or invalid
 	ndiff := len(cs.revisions)
 	if _, ok := cs.revisions[unspecifiedRevision]; ok {
-		ndiff -= 1
+		ndiff--
 	}
 	switch {
 	case cs.presence == asserts.PresenceOptional:
