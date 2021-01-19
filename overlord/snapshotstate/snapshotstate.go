@@ -339,14 +339,21 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 	if err != nil {
 		return 0, nil, err
 	}
-	snapNames, err = backendImport(ctx, setID, r)
+
+	snapNames, err = backendImport(ctx, setID, r, nil)
 	if err != nil {
 		if dupErr, ok := err.(backend.DuplicatedSnapshotImportError); ok {
 			st.Lock()
 			defer st.Unlock()
-			// XXX: ideally, we should retry import.
+
 			if err := checkSnapshotConflict(st, dupErr.SetID, "forget-snapshot"); err != nil {
-				return 0, nil, err
+				// we found an existing snapshot but it's being forgotten, so
+				// retry the import without checking for existing snapshot.
+				flags := &backend.ImportFlags{NoDuplicatedImportCheck: true}
+				st.Unlock()
+				snapNames, err = backendImport(ctx, setID, r, flags)
+				st.Lock()
+				return setID, snapNames, err
 			}
 
 			// trying to import identical snapshot; instead return set ID of

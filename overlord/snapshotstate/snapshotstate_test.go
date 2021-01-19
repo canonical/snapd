@@ -1648,7 +1648,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 	fakeSnapshotData := "fake-import-data"
 
 	buf := bytes.NewBufferString(fakeSnapshotData)
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		d, err := ioutil.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		c.Check(fakeSnapshotData, check.Equals, string(d))
@@ -1665,7 +1665,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	st := state.New(nil)
 
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		return nil, errors.New("some-error")
 	})
 	defer restore()
@@ -1784,9 +1784,41 @@ func (snapshotSuite) TestExportSnapshotConflictsWithForget(c *check.C) {
 	c.Assert(err.Error(), check.Equals, `cannot operate on snapshot set #42 while change "1" is in progress`)
 }
 
+func (snapshotSuite) TestImportSnapshotDuplicatedNoConflict(c *check.C) {
+	buf := &bytes.Buffer{}
+	var importCalls int
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
+		importCalls++
+		c.Check(id, check.Equals, uint64(1))
+		// FIXME: DuplicatedSnapshotImportError should include snap names
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42}
+	})
+	defer restore()
+
+	st := state.New(nil)
+	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
+	c.Check(importCalls, check.Equals, 1)
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(42))
+	// FIXME: DuplicatedSnapshotImportError should include snap names, not an empty list
+	c.Check(snaps, check.IsNil)
+}
+
 func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 	buf := &bytes.Buffer{}
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	var importCalls int
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
+		importCalls++
+		switch importCalls {
+		case 1:
+			c.Assert(flags, check.IsNil)
+		case 2:
+			c.Assert(flags, check.NotNil)
+			c.Assert(flags.NoDuplicatedImportCheck, check.Equals, true)
+			return []string{"foo"}, nil
+		default:
+			c.Fatal("unexpected number call to Import")
+		}
 		// DuplicatedSnapshotImportError is the only case where we can encounter
 		// conflict on import (trying to reuse existing snapshot).
 		return nil, backend.DuplicatedSnapshotImportError{SetID: 42}
@@ -1797,6 +1829,7 @@ func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// conflicting change
 	chg := st.NewChange("forget-snapshot-change", "...")
 	tsk := st.NewTask("forget-snapshot", "...")
 	tsk.SetStatus(state.DoingStatus)
@@ -1804,9 +1837,12 @@ func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 	chg.AddTask(tsk)
 
 	st.Unlock()
-	_, _, err := snapshotstate.Import(context.TODO(), st, buf)
+	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
 	st.Lock()
-	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change "1" is in progress`)
+	c.Check(importCalls, check.Equals, 2)
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(1))
+	c.Check(snaps, check.DeepEquals, []string{"foo"})
 }
 
 func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
