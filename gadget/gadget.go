@@ -937,32 +937,45 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified.
-func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, model)
+// LaidOutUbuntuVolumeFromGadget takes a gadget rootdir and lays out the
+// partitions as specified. It returns one specific volume, which is the volume
+// on which ubuntu-* roles/partitions exist, all other volumes are assumed to
+// already be flashed and managed separately at image build/flash time, while
+// the ubuntu-* roles can be manipulated on the returned volume during install
+// mode.
+func LaidOutUbuntuVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	// rely on the basic validation from ReadInfo to ensure that the ubuntu-*
+	// roles are all on the same volume for example
+	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
 		return nil, err
-	}
-	// Limit ourselves to just one volume for now.
-	if len(info.Volumes) != 1 {
-		return nil, fmt.Errorf("cannot position multiple volumes yet")
 	}
 
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
+		// TODO:UC20: make SectorSize dynamic, either through config in the
+		//            gadget or by dynamic detection
+		SectorSize: sectorSize,
 	}
 
+	// find the volume with the ubuntu-boot role on it, we already validated
+	// that the ubuntu-* roles are all on the same volume
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
-		if err != nil {
-			return nil, err
+		for _, structure := range vol.Structure {
+			// use the system-boot role
+			if structure.Role == SystemBoot || structure.Label == SystemBoot {
+				pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
+				if err != nil {
+					return nil, err
+				}
+
+				return pvol, nil
+			}
 		}
-		// we know  info.Volumes map has size 1 so we can return here
-		return pvol, nil
 	}
-	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+
+	// this should be impossible, the validation above should ensure this
+	return nil, fmt.Errorf("internal error: gadget passed validation but does not have ubuntu-* roles on any volume")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {
