@@ -155,6 +155,35 @@ func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
+func (s *storeAssertsSuite) TestAssertionNotFoundV1(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"status": 404,"title": "not found"}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		AssertionsBaseURL: mockServerURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.SnapDeclarationType,
+		Headers: map[string]string{
+			"series":  "16",
+			"snap-id": "snapidfoo",
+		},
+	})
+}
+
 func (s *storeAssertsSuite) TestAssertionNotFoundV2(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
