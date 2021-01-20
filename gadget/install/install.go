@@ -67,7 +67,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
-	if err := gadget.ResolveContentPaths(gadgetRoot, kernelRoot, lv.Volume); err != nil {
+	if err := gadget.ResolveContentPaths(lv.Volume, gadgetRoot, kernelRoot); err != nil {
 		return nil, err
 	}
 

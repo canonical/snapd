@@ -1194,7 +1194,7 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
-	err = gadget.ResolveContentPaths(lv, p.dir, kernelSnapDir)
+	err = gadget.ResolveContentPaths(lv.Volume, p.dir, kernelSnapDir)
 	c.Assert(err, ErrorMatches, `cannot find "dtbs" in kernel info from "/.*"`)
 }
 
@@ -1213,7 +1213,7 @@ func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
 	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
-	err = gadget.ResolveContentPaths(lv, p.dir, kernelSnapDir)
+	err = gadget.ResolveContentPaths(lv.Volume, p.dir, kernelSnapDir)
 	c.Assert(err, ErrorMatches, `cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
 }
 
@@ -1234,7 +1234,7 @@ assets:
 	lv, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 
-	err = gadget.ResolveContentPaths(lv, p.dir, kernelSnapDir)
+	err = gadget.ResolveContentPaths(lv.Volume, p.dir, kernelSnapDir)
 	c.Assert(err, ErrorMatches, `cannot find wanted kernel content "boot-assets/" in "/.*"`)
 }
 
@@ -1277,7 +1277,7 @@ assets:
 	})
 
 	// now resolve the kernel references
-	err = gadget.ResolveContentPaths(lv, p.dir, kernelSnapDir)
+	err = gadget.ResolveContentPaths(lv.Volume, p.dir, kernelSnapDir)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Structure, HasLen, 1)

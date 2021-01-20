@@ -75,7 +75,7 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.Kernel, args.Positional.Device, options, obs)
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}

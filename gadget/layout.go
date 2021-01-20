@@ -248,7 +248,7 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 // paths.
 //
 // XXX: maybe move into LayoutVolume(), operator on *Volume and make private?
-func ResolveContentPaths(lv *LaidOutVolume, gadgetRootDir, kernelRootDir string) error {
+func ResolveContentPaths(lv *Volume, gadgetRootDir, kernelRootDir string) error {
 	// Note that the kernelRootDir may reference the running
 	// kernel if there is a gadget update or the new kernel if
 	// there is a kernel update.
