@@ -868,6 +868,9 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* source cannot be unset")
 
 	ps.Content[0].UnresolvedSource = "/"
+	err = gadget.ResolveContentPathsForStructure("", "", nil, ps.VolumeStructure)
+	c.Assert(err, IsNil)
+
 	err = rw.Write(d, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* target cannot be unset")
 }
@@ -2996,6 +2999,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 				Content:    []gadget.VolumeContent{tc.content},
 			},
 		}
+		err := gadget.ResolveContentPathsForStructure("", "", nil, testPs.VolumeStructure)
+		c.Assert(err, IsNil)
 
 		rw, err := gadget.NewMountedFilesystemUpdater(testPs, s.backup, lookupOk, nil)
 		c.Assert(err, IsNil)

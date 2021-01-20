@@ -192,11 +192,6 @@ type VolumeContent struct {
 }
 
 func (vc VolumeContent) ResolvedSource() string {
-	// TODO: this is only needed so that
-	// validateGadgetTestSuite.TestValidateFilesystemContent works
-	if vc.resolvedSource == "" {
-		return vc.UnresolvedSource
-	}
 	return vc.resolvedSource
 }
 

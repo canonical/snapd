@@ -243,6 +243,19 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 	return vol, nil
 }
 
+type multiErr []error
+
+func (me multiErr) String() string {
+	s := ""
+	for i, e := range me {
+		s += "- " + e.Error()
+		if i < len(me)-1 {
+			s += "\n"
+		}
+	}
+	return s
+}
+
 // ResolveContentPaths resolves any "$kernel:" refs in the gadget
 // content and populates VolumeContent.resolvedSource with absolute
 // paths.
@@ -256,13 +269,21 @@ func ResolveContentPaths(lv *Volume, gadgetRootDir, kernelRootDir string) error 
 	if err != nil {
 		return err
 	}
+	var errs multiErr
 	for i := range lv.Structure {
 		if err := ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Structure[i]); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	switch len(errs) {
+	case 0:
+		return nil
+	case 1:
+		return errs[0]
+	default:
+		return fmt.Errorf("cannot resolve content paths:\n%v", errs)
+	}
 }
 
 func ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {

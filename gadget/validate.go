@@ -348,6 +348,12 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
+		// Ignore errors here because kernelRoot is not know here
+		// and the gadget could be used with different kernels so
+		// a check here does not make much sense. We still want to
+		// populate "resolvedSource"
+		_ = ResolveContentPaths(lv.Volume, gadgetSnapRootDir, "")
+
 		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
