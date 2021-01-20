@@ -102,7 +102,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 // SeqFormingAssertion retrieves the sequence-forming assertion for the given
 // type (currently validation-set only) and primary or sequence key.
 func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	if assertType.Name != "validation-set" {
+	if !assertType.SequenceForming() {
 		return nil, fmt.Errorf("internal error: requested non sequence-forming assertion type %q", assertType.Name)
 	}
 	v := url.Values{}
