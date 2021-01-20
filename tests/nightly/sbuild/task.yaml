@@ -5,7 +5,7 @@ priority: 500
 
 environment:
     BUILD_MODE/normal: normal
-    BUILD_MODE/any: any
+    BUILD_MODE/all: all
 
 systems: [debian-sid-*]
 
@@ -16,9 +16,9 @@ execute: |
     echo "Allow test user to run sbuild"
     sbuild-adduser test
 
-    BUILD_PARAM="--verbose --debug"
-    if [ "$BUILD_MODE" == "any" ]; then
-        BUILD_PARAM="$BUILD_PARAM --arch-any"
+    BUILD_PARAM="--verbose"
+    if [ "$BUILD_MODE" == "all" ]; then
+        BUILD_PARAM="$BUILD_PARAM --arch-all --no-arch-any"
     fi
 
     echo "Build mode: $BUILD_MODE"
