@@ -5,7 +5,9 @@ summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/164443
 # general. We discussed this in the past and we'd have to change how we do our
 # CI so that we can always build each branch against ubuntu 16.04 container and
 # only then repackage and test on a given distribution.
-systems: [ubuntu-14.04-32, ubuntu-14.04-64, ubuntu-16.04-32, ubuntu-16.04-64]
+
+systems: [ubuntu-14.04-64, ubuntu-16.04-32, ubuntu-16.04-64]
+
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
@@ -26,13 +28,6 @@ debug: |
     uname -a
 
 execute: |
-    # This test is meaningful only on Ubuntu for now as this is where we have
-    # the complete apparmor patch-set.
-    . /etc/os-release
-    if [ "$ID" != "ubuntu" ] && [ "$ID" != "ubuntu-core" ]; then
-        echo "This test is only supported on Ubuntu"
-        exit 0
-    fi
     # Don't test on other architectures as (especially on arm) kernel versions
     # are not synchronized with x86 and this test is not architecture specific
     # to warrant the extra work to figure out which kernel revision got the fix
@@ -41,11 +36,7 @@ execute: |
         echo "This test is only supported on x86_64 and i386"
         exit 0
     fi
-    # Check if the kernel is at least 4.4.0-67
-    if ! uname -r | perl -ne '/^(\d+)\.(\d+)\.(\d+)-(\d+)/ or exit 1; exit 1 if $1<4; exit 1 if $2<4; exit 1 if $3==0 && $4<67'; then
-        echo "This test is not supported on kernels older than 4.4.0-67"
-        exit 0
-    fi
+
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
     echo "We can now run a snap command from the namespace of a snap command and see it work"

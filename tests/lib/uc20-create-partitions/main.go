@@ -20,7 +20,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -58,22 +57,10 @@ func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gad
 
 func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
 
-func readModel(modelPath string) (*asserts.Model, error) {
-	f, err := os.Open(modelPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+type uc20Constraints struct{}
 
-	a, err := asserts.NewDecoder(f).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode assertion: %v", err)
-	}
-	if a.Type() != asserts.ModelType {
-		return nil, fmt.Errorf("not a model assertion")
-	}
-	return a.(*asserts.Model), nil
-}
+func (c uc20Constraints) Classic() bool             { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
 	args := &cmdCreatePartitions{}
@@ -88,7 +75,7 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.Kernel, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}

@@ -82,7 +82,7 @@ var (
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingKey         func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
-	secbootLockTPMSealedKeys func() error
+	secbootLockSealedKeys func() error
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
@@ -105,7 +105,7 @@ func generateInitramfsMounts() (err error) {
 	// ensure that the last thing we do is to lock access to sealed keys,
 	// regardless of mode or early failures.
 	defer func() {
-		if e := secbootLockTPMSealedKeys(); e != nil {
+		if e := secbootLockSealedKeys(); e != nil {
 			e = fmt.Errorf("error locking access to sealed keys: %v", e)
 			if err == nil {
 				err = e

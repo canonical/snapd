@@ -1,0 +1,143 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: tests.pkgs {install,remove} [PACKAGE...]"
+    echo "       tests.pkgs {is-installed,query} [PACKAGE]"
+    echo
+    echo "Package names are standardized based on Debian package names"
+    echo "internally, package names are re-mapped to fit the convention"
+    echo "of the used system."
+}
+
+unsupported() {
+    echo "tests.pkgs: cannot manage packages on this system" >&2
+    exit 1
+}
+
+cmd_install() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_is_installed() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_query() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_remove() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+remap_one() {
+    # This may be re-defined by the backend file.
+    echo "$1"
+}
+
+remap_many() {
+    local many
+    many=""
+    for pkg in "$@"; do
+        if [ -z "$many" ]; then
+            many="$(remap_one "$pkg")"
+        else
+            many="$many $(remap_one "$pkg")"
+        fi
+    done
+    echo "$many"
+}
+
+import_backend() {
+    case "$1" in
+        ubuntu-core-*)
+            echo "tests.pkgs: Ubuntu Core is not supported" >&2
+            exit 1
+            ;;
+        ubuntu-*|debian-*)
+            #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
+            . "$TESTSLIB/tools/tests.pkgs.apt.sh"
+            ;;
+        fedora-*|centos-*|redhat-*|amazon-*)
+            #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
+            . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
+            ;;
+        opensuse-*)
+            #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
+            . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
+            ;;
+        arch-*)
+            #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
+            . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
+            ;;
+        *)
+            echo "tests.pkgs: cannot import packaging backend $1" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+
+    if [ -z "${SPREAD_SYSTEM:-}" ]; then
+        echo "tests.pkg: cannot manage packages without knowing SPREAD_SYSTEM" >&2
+        exit 1
+    fi
+    import_backend "$SPREAD_SYSTEM"
+
+    action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            install|remove|query|is-installed)
+                action="$1"
+                shift
+                break  # consume remaining arguments
+                ;;
+            -*)
+                echo "tests.pkgs: unknown option $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "tests.pkgs: unknown command $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    case "$action" in
+        install)
+            cmd_install "$(remap_many "$@")"
+            ;;
+        is-installed)
+            cmd_is_installed "$(remap_one "$@")"
+            ;;
+        query)
+            cmd_query "$(remap_one "$@")"
+            ;;
+        remove)
+            cmd_remove "$(remap_many "$@")"
+            ;;
+        *)
+            echo "tests.pkgs: unknown action $action" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

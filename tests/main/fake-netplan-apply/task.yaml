@@ -18,6 +18,12 @@ systems:
     - -arch-*
     - -amazon-*
     - -centos-*
+    # TODO: re-enable this when network-setup-control is updated to allow
+    # running netplan directly from the base snap and we can update this test to
+    # just using a simple shell script snap instead of building netplan from
+    # source, as currently that is broken on xenial with
+    # test-snapd-netplan-apply for some reason, see https://github.com/anonymouse64/test-snapd-netplan-apply/issues/1
+    - -ubuntu-16*
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

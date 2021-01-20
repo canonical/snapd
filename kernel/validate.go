@@ -31,15 +31,24 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
 	for name, as := range info.Assets {
-		for _, c := range as.Content {
+		for _, assetContent := range as.Content {
+			c := assetContent
+			// a single trailing / is allowed and indicates a directory
+			isDir := strings.HasSuffix(c, "/")
+			if isDir {
+				c = strings.TrimSuffix(c, "/")
+			}
+			if filepath.Clean(c) != c || strings.Contains(c, "..") || c == "/" {
+				return fmt.Errorf("asset %q: invalid content %q", name, assetContent)
+			}
 			realSource := filepath.Join(kernelRoot, c)
 			if !osutil.FileExists(realSource) {
-				return fmt.Errorf("asset %q: content %q source path does not exist", name, c)
+				return fmt.Errorf("asset %q: content %q source path does not exist", name, assetContent)
 			}
-			if strings.HasSuffix(c, "/") {
+			if isDir {
 				// expecting a directory
 				if !osutil.IsDirectory(realSource + "/") {
-					return fmt.Errorf("asset %q: content %q is not a directory", name, c)
+					return fmt.Errorf("asset %q: content %q is not a directory", name, assetContent)
 				}
 			}
 		}

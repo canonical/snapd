@@ -63,8 +63,8 @@ func (cs *clientSuite) TestListValidationsSets(c *check.C) {
 		"type": "sync",
 		"status-code": 200,
 		"result": [
-			{"validation-set": "abc/def", "mode": "monitor", "sequence": 0},
-			{"validation-set": "ghi/jkl", "mode": "enforce", "sequence": 2}
+			{"account-id": "abc", "name": "def", "mode": "monitor", "sequence": 0},
+			{"account-id": "ghi", "name": "jkl", "mode": "enforce", "sequence": 2}
 		]
 	}`
 
@@ -73,8 +73,8 @@ func (cs *clientSuite) TestListValidationsSets(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets")
 	c.Check(vsets, check.DeepEquals, []*client.ValidationSetResult{
-		{ValidationSet: "abc/def", Mode: "monitor", Sequence: 0, Valid: false},
-		{ValidationSet: "ghi/jkl", Mode: "enforce", Sequence: 2, Valid: false},
+		{AccountID: "abc", Name: "def", Mode: "monitor", Sequence: 0, Valid: false},
+		{AccountID: "ghi", Name: "jkl", Mode: "enforce", Sequence: 2, Valid: false},
 	})
 }
 
@@ -156,7 +156,7 @@ func (cs *clientSuite) TestValidationSet(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"validation-set": "abc/def", "mode": "monitor", "sequence": 0}
+		"result": {"account-id": "abc", "name": "def", "mode": "monitor", "sequence": 0}
 	}`
 
 	vsets, err := cs.cli.ValidationSet("foo", "bar", 0)
@@ -164,7 +164,7 @@ func (cs *clientSuite) TestValidationSet(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	c.Check(vsets, check.DeepEquals, &client.ValidationSetResult{
-		ValidationSet: "abc/def", Mode: "monitor", Sequence: 0, Valid: false,
+		AccountID: "abc", Name: "def", Mode: "monitor", Sequence: 0, Valid: false,
 	})
 }
 
@@ -187,7 +187,7 @@ func (cs *clientSuite) TestValidationSetWithSequence(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"validation-set": "abc/def", "mode": "monitor", "sequence": 9}
+		"result": {"account-id": "abc", "name": "def", "mode": "monitor", "sequence": 9}
 	}`
 
 	vsets, err := cs.cli.ValidationSet("foo", "bar", 9)
@@ -196,6 +196,6 @@ func (cs *clientSuite) TestValidationSetWithSequence(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{"sequence": []string{"9"}})
 	c.Check(vsets, check.DeepEquals, &client.ValidationSetResult{
-		ValidationSet: "abc/def", Mode: "monitor", Sequence: 9, Valid: false,
+		AccountID: "abc", Name: "def", Mode: "monitor", Sequence: 9, Valid: false,
 	})
 }

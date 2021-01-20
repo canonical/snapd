@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -35,9 +36,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -191,10 +194,12 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brOpts install.Options
 	var installRunCalled int
 	var installSealingObserver gadget.ContentObserver
-	restore = devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
+
+		c.Check(mod.Grade(), Equals, asserts.ModelGrade(grade))
 
 		brGadgetRoot = gadgetRoot
 		brDevice = device
@@ -336,7 +341,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -514,7 +519,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
-	restore := devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		c.Check(options.Encrypt, Equals, true)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
@@ -525,7 +530,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
-	restore := devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		c.Check(options.Encrypt, Equals, true)
 		// no keys set
 		return &install.InstalledSystemSideData{
@@ -542,7 +547,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -756,7 +761,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -781,7 +786,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -805,33 +810,52 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	mockModel := s.brands.Model("canonical", "pc", map[string]interface{}{
+	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
 	for _, tc := range []struct {
-		kernelYaml string
-		tpmErr     error
-		encrypt    bool
+		hasFDESetupHook bool
+		hasTPM          bool
+		encrypt         bool
 	}{
 		// unhappy: no tpm, no hook
-		{kernelYamlNoFdeSetup, fmt.Errorf("tpm says no"), false},
+		{false, false, false},
 		// happy: either tpm or hook or both
-		{kernelYamlWithFdeSetup, nil, true},
-		{kernelYamlNoFdeSetup, nil, true},
-		{kernelYamlWithFdeSetup, fmt.Errorf("tpm says no"), true},
+		{false, true, true},
+		{true, false, true},
+		{true, true, true},
 	} {
-		// TODO: right now having the hook in the kernel is enough
-		//       to trigger encryption, soon the code will try to
-		//       actually run the hook with "op":"features"
-		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
-		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return tc.tpmErr })
+		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+			ctx.Lock()
+			defer ctx.Unlock()
+			ctx.Set("fde-setup-result", []byte(`{"features":[]}`))
+			return nil, nil
+		}
+		rhk := hookstate.MockRunHook(hookInvoke)
+		defer rhk()
+
+		if tc.hasFDESetupHook {
+			makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+		} else {
+			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
+		}
+		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+			if tc.hasTPM {
+				return nil
+			}
+			return fmt.Errorf("tpm says no")
+		})
 		defer restore()
 
-		encrypt, err := devicestate.CheckEncryption(st, deviceCtx)
+		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
 		c.Assert(err, IsNil)
 		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
 	}
@@ -884,7 +908,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 		})
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
-		encrypt, err := devicestate.CheckEncryption(s.state, deviceCtx)
+		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Assert(err, IsNil)
 		c.Check(encrypt, Equals, tc.expectedEncryption)
 	}
@@ -940,7 +964,118 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 				}},
 		})
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
-		_, err := devicestate.CheckEncryption(s.state, deviceCtx)
+		_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
 	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
+
+	for _, tc := range []struct {
+		hookOutput  string
+		expectedErr string
+	}{
+		// invalid json
+		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`},
+		// no output is invalid
+		{"", `cannot parse hook output "": unexpected end of JSON input`},
+		// specific error
+		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`},
+		{`{}`, `cannot use hook: neither "features" nor "error" returned`},
+		// valid
+		{`{"features":[]}`, ""},
+		{`{"features":["a"]}`, ""},
+		{`{"features":["a","b"]}`, ""},
+		// features must be list of strings
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`},
+	} {
+		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+			ctx.Lock()
+			defer ctx.Unlock()
+			ctx.Set("fde-setup-result", []byte(tc.hookOutput))
+			return nil, nil
+		}
+		rhk := hookstate.MockRunHook(hookInvoke)
+		defer rhk()
+
+		err := devicestate.DeviceManagerCheckFDEFeatures(s.mgr, st)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
+		} else {
+			c.Check(err, IsNil, Commentf("%v", tc))
+		}
+	}
+}
+
+var checkEncryptionModelHeaders = map[string]interface{}{
+	"display-name": "my model",
+	"architecture": "amd64",
+	"base":         "core20",
+	"grade":        "dangerous",
+	"snaps": []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              pcKernelSnapID,
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              pcSnapID,
+			"type":            "gadget",
+			"default-channel": "20",
+		}},
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsTPM(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		return fmt.Errorf("tpm says no")
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+	c.Check(err, IsNil)
+	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
+	// mock kernel installed but no hook or handle so checkEncryption
+	// will fail
+	makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
+	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+	c.Check(err, IsNil)
+	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
 }

@@ -267,7 +267,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 }
 
 func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMockAndStore(c)
 
 	text, err := json.Marshal(map[string]interface{}{"key": "value"})
 	c.Assert(err, check.IsNil)

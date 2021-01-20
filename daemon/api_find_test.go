@@ -39,9 +39,6 @@ type findSuite struct {
 	apiBaseSuite
 }
 
-// XXX this should go away
-var snapList = daemon.SnapList
-
 func (s *findSuite) TestFind(c *check.C) {
 	s.daemon(c)
 

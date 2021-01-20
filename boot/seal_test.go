@@ -139,7 +139,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Check(params.TPMLockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
@@ -147,7 +147,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}, {Key: myKey2, KeyFile: saveKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
@@ -937,9 +937,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, KeyName: "ubuntu-data", Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, KeyName: "ubuntu-data", Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{5, 6, 7, 8}, KeyName: "ubuntu-save", Models: []*asserts.Model{model}},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
@@ -979,4 +979,70 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return nil
+	})
+	defer restore()
+
+	// TODO: this simulates that the hook is not available yet
+	//       because of e.g. seeding. Longer term there will be
+	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
+	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+		return false, fmt.Errorf("hook not available yet because e.g. seeding")
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, IsNil)
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	resealKeyToModeenvUsingFDESetupHookCalled := 0
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+		resealKeyToModeenvUsingFDESetupHookCalled++
+		return fmt.Errorf("fde setup hook failed")
+	})
+	defer restore()
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+	}
+
+	model := boottest.MakeMockUC20Model()
+	expectReseal := false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, ErrorMatches, "fde setup hook failed")
+	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
