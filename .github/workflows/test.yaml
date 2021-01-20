@@ -228,6 +228,12 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+    - name: Cache failed tests
+      id: cache-failed-tests
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
     - name: Check cached test results
       id: cached-results
       run: |
@@ -246,7 +252,7 @@ jobs:
 
           FAILED_TESTS="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
           echo "FAILED_TESTS=$FAILED_TESTS" | tee -a $GITHUB_ENV
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" == "all" ] ; then
+          if [ -z "$FAILED_TESTS" ] ; then
               spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           else
               spread -abend "$FAILED_TESTS" | tee spread.log
@@ -264,12 +270,6 @@ jobs:
           else
               ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
           fi
-    - name: Cache failed tests
-      id: cache-failed-tests
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
     - name: Check cached test results
       id: cached-tests
       run: |
@@ -282,7 +282,7 @@ jobs:
 
           # Set which tests need to be re-executed
           if [ "$TOTAL_COUNTED" != "$TESTS_NUMBER" ]; then
-              echo "::set-output name=failed-tests::all"
+              echo "::set-output name=failed-tests::"
           else
               FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
               echo "::set-output name=failed-tests::$FAILED_TESTS"
