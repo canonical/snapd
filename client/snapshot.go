@@ -22,11 +22,13 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -91,6 +93,21 @@ func (sh *Snapshot) IsValid() bool {
 	return !(sh == nil || sh.SetID == 0 || sh.Snap == "" || sh.Revision.Unset() || len(sh.SHA3_384) == 0 || sh.Time.IsZero())
 }
 
+// ContentHash returns a hash that can be used to identify the snapshot
+// by its content, leaving out metadata like "time" or "set-id".
+func (sh *Snapshot) ContentHash() ([]byte, error) {
+	sh2 := *sh
+	sh2.SetID = 0
+	sh2.Time = time.Time{}
+	sh2.Auto = false
+	h := sha256.New()
+	enc := json.NewEncoder(h)
+	if err := enc.Encode(&sh2); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
 // A SnapshotSet is a set of snapshots created by a single "snap save".
 type SnapshotSet struct {
 	ID        uint64      `json:"id"`
@@ -118,6 +135,30 @@ func (ss SnapshotSet) Size() int64 {
 		sum += sh.Size
 	}
 	return sum
+}
+
+type bySnap []*Snapshot
+
+func (ss bySnap) Len() int           { return len(ss) }
+func (ss bySnap) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
+func (ss bySnap) Less(i, j int) bool { return ss[i].Snap < ss[j].Snap }
+
+// ContentHash returns a hash that can be used to identify the SnapshotSet by
+// its content.
+func (ss SnapshotSet) ContentHash() ([]byte, error) {
+	sortedSnapshots := make([]*Snapshot, len(ss.Snapshots))
+	copy(sortedSnapshots, ss.Snapshots)
+	sort.Sort(bySnap(sortedSnapshots))
+
+	h := sha256.New()
+	for _, sh := range sortedSnapshots {
+		ch, err := sh.ContentHash()
+		if err != nil {
+			return nil, err
+		}
+		h.Write(ch)
+	}
+	return h.Sum(nil), nil
 }
 
 // SnapshotSets lists the snapshot sets in the system that belong to the
