@@ -313,7 +313,7 @@ class LogReader:
         time = parts[1]
         result_type = parts[2]
         level = parts[3].split(':')[0]
-        number = parts[4]
+        number = parts[-1]
 
         if result_type == FAILED_TYPE:
             detail = self._get_detail(other_limit=-1)
@@ -387,6 +387,7 @@ for the error/debug/warning output.
     parser.add_argument(
         "-o",
         "--output",
+        default="spread-results.json",
         type=str,
         help="output file to save the result",
     )
