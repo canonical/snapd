@@ -287,7 +287,7 @@ jobs:
           TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") |  .number ) // 0 '  spread-results.json | head -n1)
           TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
 
-          if [ -z "FAILED_TESTS_FILE"]; then
+          if [ -z "FAILED_TESTS_FILE" ]; then
               FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
               mkdir -p $(dirname "$FAILED_TESTS_FILE")
               touch "$FAILED_TESTS_FILE"
