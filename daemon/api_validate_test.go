@@ -23,24 +23,49 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var _ = check.Suite(&apiValidationSetsSuite{})
 
 type apiValidationSetsSuite struct {
 	apiBaseSuite
+
+	mockSeqFormingAssertionFn func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+}
+
+type byName []*snapasserts.InstalledSnap
+
+func (b byName) Len() int      { return len(b) }
+func (b byName) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byName) Less(i, j int) bool {
+	return b[i].SnapName() < b[j].SnapName()
 }
 
 func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
+
+	s.mockSeqFormingAssertionFn = nil
+
+	st := d.Overlord().State()
+	st.Lock()
+	snapstate.ReplaceStore(st, s)
+	st.Unlock()
+
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
 }
@@ -64,7 +89,17 @@ func mockValidationSetsTracking(st *state.State) {
 	})
 }
 
+func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	return s.mockSeqFormingAssertionFn(assertType, seqOrPrimaryKey, user)
+}
+
 func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
+
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
@@ -212,6 +247,12 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
+
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
 	c.Assert(err, check.IsNil)
 
@@ -231,7 +272,168 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	})
 }
 
+var validationSetAssertion = []byte("type: validation-set\n" +
+	"format: 1\n" +
+	"authority-id: foo\n" +
+	"account-id: foo\n" +
+	"name: other\n" +
+	"sequence: 2\n" +
+	"revision: 5\n" +
+	"series: 16\n" +
+	"snaps:\n" +
+	"  -\n" +
+	"    id: yOqKhntON3vR7kwEbVPsILm7bUViPDzz\n" +
+	"    name: snap-b\n" +
+	"    presence: optional\n" +
+	"    revision: 1\n" +
+	"timestamp: 2020-11-06T09:16:26Z\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+	"AXNpZw==")
+
+func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		c.Assert(assertType, check.NotNil)
+		c.Assert(assertType.Name, check.Equals, "validation-set")
+		// no sequence number element, querying the latest
+		c.Assert(seqOrPrimaryKey, check.DeepEquals, []string{"16", "foo", "other"})
+		as, err := asserts.Decode(validationSetAssertion)
+		c.Assert(err, check.IsNil)
+		return as, nil
+	}
+
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+		c.Assert(vsets, check.NotNil)
+		sort.Sort(byName(snaps))
+		c.Assert(snaps, check.DeepEquals, []*snapasserts.InstalledSnap{
+			{
+				SnapRef:  naming.NewSnapRef("snap-a", "snapaid"),
+				Revision: snap.R(2),
+			},
+			{
+				SnapRef:  naming.NewSnapRef("snap-b", "snapbid"),
+				Revision: snap.R(4),
+			},
+		})
+		// nil indicates successful validation
+		return nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
+	c.Assert(err, check.IsNil)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	mockValidationSetsTracking(st)
+
+	snapstate.Set(st, "snap-a", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(2), SnapID: "snapaid"}},
+		Current:  snap.R(2),
+	})
+	snapstate.Set(st, "snap-b", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(4), SnapID: "snapbid"}},
+		Current:  snap.R(4),
+	})
+
+	st.Unlock()
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "other",
+		Sequence:  2,
+		Valid:     true,
+	})
+}
+
+func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteValidationFails(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		as, err := asserts.Decode(validationSetAssertion)
+		c.Assert(err, check.IsNil)
+		return as, nil
+	}
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+		return &snapasserts.ValidationSetsValidationError{}
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "other",
+		Sequence:  2,
+		Valid:     false,
+	})
+}
+
+func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		c.Assert(assertType, check.NotNil)
+		c.Assert(assertType.Name, check.Equals, "validation-set")
+		c.Assert(seqOrPrimaryKey, check.DeepEquals, []string{"16", "foo", "other", "2"})
+		as, err := asserts.Decode(validationSetAssertion)
+		c.Assert(err, check.IsNil)
+		return as, nil
+	}
+
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+		c.Assert(vsets, check.NotNil)
+		sort.Sort(byName(snaps))
+		c.Assert(snaps, check.DeepEquals, []*snapasserts.InstalledSnap{
+			{
+				SnapRef:  naming.NewSnapRef("snap-a", "snapaid"),
+				Revision: snap.R(33),
+			},
+		})
+		// nil indicates successful validation
+		return nil
+	})
+	defer restore()
+
+	q := url.Values{}
+	q.Set("sequence", "2")
+	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other?"+q.Encode(), nil)
+	c.Assert(err, check.IsNil)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	mockValidationSetsTracking(st)
+
+	snapstate.Set(st, "snap-a", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(33), SnapID: "snapaid"}},
+		Current:  snap.R(33),
+	})
+
+	st.Unlock()
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "other",
+		Sequence:  2,
+		Valid:     true,
+	})
+}
+
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
+
 	q := url.Values{}
 	q.Set("sequence", "333")
 	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)

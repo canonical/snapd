@@ -28,9 +28,11 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -51,7 +53,7 @@ type validationSetResult struct {
 	AccountID string `json:"account-id"`
 	Name      string `json:"name"`
 	PinnedAt  int    `json:"pinned-at,omitempty"`
-	Mode      string `json:"mode"`
+	Mode      string `json:"mode,omitempty"`
 	Sequence  int    `json:"sequence,omitempty"`
 	Valid     bool   `json:"valid"`
 	// TODO: attributes for Notes column
@@ -141,7 +143,29 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	return SyncResponse(results, nil)
 }
 
-func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
+var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+	return vsets.CheckInstalledSnaps(snaps)
+}
+
+func installedSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
+	var snaps []*snapasserts.InstalledSnap
+	all, err := snapstate.All(st)
+	if err != nil {
+		return nil, err
+	}
+	for _, snapState := range all {
+		cur, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snaps = append(snaps, snapasserts.NewInstalledSnap(
+			snapState.InstanceName(), snapState.CurrentSideInfo().SnapID,
+			cur.Revision))
+	}
+	return snaps, nil
+}
+
+func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	accountID := vars["account"]
 	name := vars["name"]
@@ -176,8 +200,8 @@ func getValidationSet(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
 	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
-		// TODO: not available locally, try to find in the store.
-		return validationSetNotFound(accountID, name, sequence)
+		// not available locally, try to find in the store.
+		return validateAgainstStore(st, c, accountID, name, sequence, user)
 	}
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)
@@ -288,4 +312,60 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	}
 	assertstate.DeleteValidationSet(st, accountID, name)
 	return SyncResponse(nil, nil)
+}
+
+func validateAgainstStore(st *state.State, c *Command, accountID, name string, sequence int, user *auth.UserState) Response {
+	// not available locally, try to find in the store.
+	as, err := getSingleSeqFormingAssertion(c, accountID, name, sequence, user)
+	if _, ok := err.(*asserts.NotFoundError); ok {
+		return validationSetNotFound(accountID, name, sequence)
+	}
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	sets := snapasserts.NewValidationSets()
+	vset := as.(*asserts.ValidationSet)
+	if err := sets.Add(vset); err != nil {
+		return InternalError(err.Error())
+	}
+	snaps, err := installedSnaps(st)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	validErr := checkInstalledSnaps(sets, snaps)
+	res := validationSetResult{
+		AccountID: vset.AccountID(),
+		Name:      vset.Name(),
+		Sequence:  vset.Sequence(),
+		// XXX: pass actual err details and implement "verbose" mode
+		// for the client?
+		Valid: validErr == nil,
+	}
+	return SyncResponse(res, nil)
+}
+
+func getSingleSeqFormingAssertion(c *Command, accountID, name string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	sto := snapstate.Store(c.d.overlord.State(), nil)
+	at := asserts.Type("validation-set")
+	if at == nil {
+		return nil, fmt.Errorf("internal error: validation-set assert type not found")
+	}
+
+	model, err := c.d.overlord.DeviceManager().Model()
+	if err != nil {
+		return nil, err
+	}
+
+	primaryKeys := []string{model.Series(), accountID, name}
+	if sequence != 0 {
+		primaryKeys = append(primaryKeys, fmt.Sprintf("%d", sequence))
+	}
+
+	as, err := sto.SeqFormingAssertion(at, primaryKeys, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return as, nil
 }
