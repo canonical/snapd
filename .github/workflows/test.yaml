@@ -266,12 +266,13 @@ jobs:
               spread -abend "$FAILED_TESTS" | tee spread.log
           fi
           exit "${PIPESTATUS[0]}"
-
     - name: analyze spread log
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      if: always()
       run: |
-          echo "Running spread log analyzer"
-          ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
+          if [ -e spread.log ]; then
+              echo "Running spread log analyzer"
+              ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
+          fi
     - name: spread highlights
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run : |
