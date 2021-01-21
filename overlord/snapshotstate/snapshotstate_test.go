@@ -1676,6 +1676,37 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	c.Assert(err.Error(), check.Equals, "some-error")
 	c.Check(sid, check.Equals, uint64(0))
 }
+
+func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
+	st := state.New(nil)
+
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 3, SnapNames: []string{"foo-snap"}}
+	})
+	defer restore()
+
+	st.Lock()
+	st.Set("snapshots", map[uint64]interface{}{
+		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+		3: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	})
+	st.Unlock()
+
+	sid, snapNames, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(3))
+	c.Check(snapNames, check.DeepEquals, []string{"foo-snap"})
+
+	st.Lock()
+	defer st.Unlock()
+	// expiry-time has been removed for snapshot set 3
+	var snapshots map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
+	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+	})
+}
+
 func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
@@ -1790,8 +1821,7 @@ func (snapshotSuite) TestImportSnapshotDuplicatedNoConflict(c *check.C) {
 	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		importCalls++
 		c.Check(id, check.Equals, uint64(1))
-		// FIXME: DuplicatedSnapshotImportError should include snap names
-		return nil, backend.DuplicatedSnapshotImportError{SetID: 42}
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42, SnapNames: []string{"foo-snap"}}
 	})
 	defer restore()
 
@@ -1800,8 +1830,7 @@ func (snapshotSuite) TestImportSnapshotDuplicatedNoConflict(c *check.C) {
 	c.Check(importCalls, check.Equals, 1)
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(42))
-	// FIXME: DuplicatedSnapshotImportError should include snap names, not an empty list
-	c.Check(snaps, check.IsNil)
+	c.Check(snaps, check.DeepEquals, []string{"foo-snap"})
 }
 
 func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
@@ -1821,7 +1850,7 @@ func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
 		}
 		// DuplicatedSnapshotImportError is the only case where we can encounter
 		// conflict on import (trying to reuse existing snapshot).
-		return nil, backend.DuplicatedSnapshotImportError{SetID: 42}
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42, SnapNames: []string{"not-relevant-because-of-retry"}}
 	})
 	defer restore()
 

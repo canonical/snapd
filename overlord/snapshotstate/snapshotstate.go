@@ -364,7 +364,7 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 			if err := removeSnapshotState(st, dupErr.SetID); err != nil {
 				return 0, nil, err
 			}
-			return dupErr.SetID, snapNames, nil
+			return dupErr.SetID, dupErr.SnapNames, nil
 		}
 		return 0, nil, err
 	}
