@@ -3,8 +3,7 @@ summary: test for the log analyzer tool
 execute: |
     "$TESTSTOOLS"/log-analyzer --help | grep -qE 'usage: log-analyzer \[-h\] \[-c CUT\]'
     "$TESTSTOOLS"/log-analyzer -h | grep -qE 'usage: log-analyzer \[-h\] \[-c CUT\]'
-    "$TESTSTOOLS"/log-analyzer | grep -qE 'usage: log-analyzer \[-h\] \[-c CUT\]'
-
+    
     # Check results when the log just contains successful tests
     "$TESTSTOOLS"/log-analyzer all-passed.log.spread -pd none
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
