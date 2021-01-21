@@ -259,14 +259,11 @@ jobs:
               FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
           fi
 
-          # Set pipefail to make step fail when the spread run fails
-          set -o pipefail
-
           # Run spread tests
           if [ -z "$FAILED_TESTS" ] ; then
-              spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
+              $( set -o pipefail && spread -abend google:${{ matrix.system }}:tests/... | tee spread.log )
           else
-              spread -abend "$FAILED_TESTS" | tee spread.log
+              $( set -o pipefail && spread -abend "$FAILED_TESTS" | tee spread.log )
           fi
     - name: analyze spread log
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
