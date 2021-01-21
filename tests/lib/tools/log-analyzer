@@ -372,7 +372,7 @@ for the error/debug/warning output.
         "-pd",
         "--print-details",
         type=str,
-        default=ALL,
+        default=NONE,
         choices=[ALL, ERROR, OPERATION, ACTION, INFO, NONE],
         help="Filter which info to print",
     )
