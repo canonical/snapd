@@ -269,12 +269,12 @@ jobs:
               spread -abend "$FAILED_TESTS" | tee spread.log
           fi
     - name: analyze spread log
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           echo "Running spread log analyzer"
           ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
     - name: spread highlights
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run : |
           TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
           TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
@@ -284,7 +284,7 @@ jobs:
               ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
           fi
     - name: Cache failed tests
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
 
