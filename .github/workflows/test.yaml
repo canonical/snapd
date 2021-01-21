@@ -259,6 +259,10 @@ jobs:
               FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
           fi
 
+          # Set pipefail to make step fail when the spread run fails
+          set -o pipefail
+
+          # Run spread tests
           if [ -z "$FAILED_TESTS" ] ; then
               spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           else

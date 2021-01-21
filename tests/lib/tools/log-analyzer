@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+"""
+This tool reads a spread log and creates a file with all the data
+The output file includes the more importan information extracted
+from the log to be analyzed
+"""
+
 import argparse
 import json
 import os
 import re
-import subprocess
 import sys
-import time
 
 # Info types
 ERROR_TYPE = 'Error'
@@ -35,11 +39,18 @@ SPREAD_FILE = 'spread.yaml'
 
 EXEC_VERBS = ['Preparing', 'Executing', 'Restoring']
 INFO_TYPES = [ERROR_TYPE, DEBUG_TYPE, WARN_TYPE]
-OPERATIONS = ['Rebooting', 'Discarding', 'Allocating', 'Waiting', 'Allocated', 'Connecting', 'Connected', 'Sending']
+OPERATIONS = [
+    'Rebooting', 'Discarding', 'Allocating', 'Waiting',
+    'Allocated', 'Connecting', 'Connected', 'Sending'
+    ]
 RESULTS = ['Successful', 'Aborted', 'Failed']
 
-
 class Action:
+    """
+    Action represents the main spread tasks actions
+    The actions can be: Preparing, Executing and Restoring
+    """
+
     def __init__(self, verb, task, date, time, source_line):
         self.type = ACTION
         self.verb = verb
@@ -52,10 +63,21 @@ class Action:
         return self.source_line
 
     def __dict__(self):
-        return {'type': 'action', 'date': self.date, 'time': self.time, 'verb': self.verb, 'task': self.task}
+        return {
+            'type': 'action',
+            'date': self.date,
+            'time': self.time,
+            'verb': self.verb,
+            'task': self.task
+            }
 
 
 class Result:
+    """
+    Result represents the results for a spread run
+    The results can be: Successful, failed and aborted
+    """
+
     def __init__(self, result_type, level, number, date, time, detail, source_line):
         self.type = RESULT
         self.result_type = result_type
@@ -69,17 +91,29 @@ class Result:
     def __repr__(self):
         if self.detail:
             return '{}{}'.format(self.source_line, str(self.detail))
-        else:
-            return self.source_line
+        return self.source_line
 
     def __dict__(self):
         prepared_detail = None
         if self.detail:
             prepared_detail = self.detail.__dict__()
-        return {'type': self.type, 'date': self.date, 'time': self.time, 'result_type': self.result_type, 'level': self.level,  'number': self.number, 'detail': prepared_detail}
+        return {
+            'type': self.type,
+            'date': self.date,
+            'time': self.time,
+            'result_type': self.result_type,
+            'level': self.level,
+            'number': self.number,
+            'detail': prepared_detail
+            }
 
 
 class Info:
+    """
+    Info represents the extra tasks information which is included in the spread log
+    The info can be: Error, Debug and Warning
+    """
+
     def __init__(self, info_type, verb, task, extra, date, time, detail, source_line):
         self.type = INFO
         self.info_type = info_type
@@ -87,24 +121,36 @@ class Info:
         self.time = time
         self.date = date
         self.task = task
-        self.extra = extra 
+        self.extra = extra
         self.detail = detail
         self.source_line = source_line
 
     def __repr__(self):
         if self.detail:
             return '{}{}'.format(self.source_line, self.detail)
-        else:
-            return self.source_line
+        return self.source_line
 
     def __dict__(self):
         prepared_detail = None
         if self.detail:
             prepared_detail = self.detail.__dict__()
-        return {'type': self.type, 'date': self.date, 'time': self.time, 'info_type': self.info_type, 'verb': self.verb, 'task': self.task, 'extra': self.extra, 'detail': prepared_detail}
+        return {
+            'type': self.type,
+            'date': self.date,
+            'time': self.time,
+            'info_type': self.info_type,
+            'verb': self.verb,
+            'task': self.task,
+            'extra': self.extra,
+            'detail': prepared_detail
+            }
 
 
 class Detail:
+    """
+    Detail represents the extra information which are all the lines included for the info
+    """
+
     def __init__(self, lines_limit, lines):
         self.lines_limit = lines_limit
         self.lines = lines
@@ -122,6 +168,11 @@ class Detail:
 
 
 class Operation:
+    """
+    Operation represents other actions that the spread running can do while executing tests like:
+    Rebooting, Discarding, Allocating, Waiting, Allocated, Connecting, Connected, Sending
+    """
+
     def __init__(self, verb, task, extra, date, time, source_line):
         self.type = OPERATION
         self.verb = verb
@@ -135,10 +186,20 @@ class Operation:
         return self.source_line
 
     def __dict__(self):
-        return {'type': self.type, 'date': self.date, 'time': self.time, 'verb': self.verb, 'task': self.task, 'extra': self.extra}
+        return {
+            'type': self.type,
+            'date': self.date,
+            'time': self.time,
+            'verb': self.verb,
+            'task': self.task,
+            'extra': self.extra
+            }
 
 
 class LogReader:
+    """
+    LogReader manages the spread log, it allows to read, export and print a spread log.
+    """
     def __init__(self, filepath, output_type, lines_limit, store_setup):
         self.filepath = filepath
         self.output_type = output_type
@@ -162,7 +223,8 @@ class LogReader:
         elif details == NONE:
             pass
         elif details == ERROR:
-            print(''.join(str(x) for x in self.full_log if x.type == INFO and x.info_type == ERROR_TYPE))
+            print(''.join(str(x) for x in self.full_log if x.type == INFO and \
+                x.info_type == ERROR_TYPE))
         else:
             print(''.join(str(x) for x in self.full_log if x.type == details))
 
@@ -171,11 +233,14 @@ class LogReader:
         elif results == NONE:
             pass
         elif results == FAILED:
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == FAILED_TYPE))
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and \
+                x.result_type == FAILED_TYPE))
         elif results == ABORTED:
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == ABORTED_TYPE))
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and \
+                x.result_type == ABORTED_TYPE))
         else:
-            print(''.join(str(x) for x in self.full_log if x.type == RESULT and x.result_type == SUCCESSFUL_TYPE))
+            print(''.join(str(x) for x in self.full_log if x.type == RESULT and \
+                x.result_type == SUCCESSFUL_TYPE))
 
 
     def export_log(self, filepath):
@@ -193,8 +258,8 @@ class LogReader:
         return os.path.exists(self.filepath)
 
     def read_spread_log(self):
-        with open(self.filepath) as fp:
-            self.lines = fp.readlines()
+        with open(self.filepath) as filepath:
+            self.lines = filepath.readlines()
             self.iter = 0
 
             if self.store_setup:
@@ -202,8 +267,7 @@ class LogReader:
                     line = self._next_line()
                     if self._match_start(line):
                         break
-                    else:
-                        self.full_log.append(line)
+                    self.full_log.append(line)
 
                 if self.iter >= len(self.lines):
                     # Start not found, the log could be either empty, corrupted or cut
@@ -247,29 +311,48 @@ class LogReader:
 
     def _match_info(self, line):
         parts = line.split(' ')
-        return len(parts) > 3 and parts[2] in INFO_TYPES and self._match_date(parts[0]) and self._match_time(parts[1])
+        return len(parts) > 3 and \
+            parts[2] in INFO_TYPES and \
+            self._match_date(parts[0]) and \
+            self._match_time(parts[1])
 
     def _match_task(self, line):
         parts = line.split(' ')
-        return len(parts) > 2 and parts[2] in EXEC_VERBS and self._match_date(parts[0]) and self._match_time(parts[1])
+        return len(parts) > 2 and \
+            parts[2] in EXEC_VERBS and \
+            self._match_date(parts[0]) and \
+            self._match_time(parts[1])
 
     def _match_start(self, line):
         parts = line.split(' ')
-        return len(parts) > 2 and parts[2] == START and self._match_date(parts[0]) and self._match_time(parts[1]) and SPREAD_FILE in parts[3]
+        return len(parts) > 2 and \
+            parts[2] == START and \
+            self._match_date(parts[0]) and \
+            self._match_time(parts[1]) and \
+            SPREAD_FILE in parts[3]
 
     def _match_operation(self, line):
         parts = line.split(' ')
-        return len(parts) > 2 and parts[2] in OPERATIONS and self._match_date(parts[0]) and self._match_time(parts[1])
+        return len(parts) > 2 and \
+            parts[2] in OPERATIONS and \
+            self._match_date(parts[0]) and \
+            self._match_time(parts[1])
 
     def _match_result(self, line):
         parts = line.split(' ')
-        return len(parts) > 2 and parts[2] in RESULTS and self._match_date(parts[0]) and self._match_time(parts[1])
+        return len(parts) > 2 and \
+            parts[2] in RESULTS and \
+            self._match_date(parts[0]) and \
+            self._match_time(parts[1])
 
     def _get_detail(self, other_limit=None):
         initial_iter = self.iter
         while self.iter < len(self.lines):
             line = self._next_line()
-            if self._match_task(line) or self._match_info(line) or self._match_operation(line) or self._match_result(line):
+            if self._match_task(line) or \
+                self._match_info(line) or \
+                self._match_operation(line) or \
+                self._match_result(line):
                 break
         self.iter = self.iter - 1
         if not other_limit:
@@ -279,7 +362,7 @@ class LogReader:
     def _get_info(self, line):
         parts = line.split(' ')
         if len(parts) < 3:
-            return None 
+            return None
         date = parts[0]
         time = parts[1]
         info_type = parts[2]
@@ -405,24 +488,24 @@ for the error/debug/warning output.
 def main():
     # type: () -> None
     parser = _make_parser()
-    ns = parser.parse_args()
+    args = parser.parse_args()
     # The command cannot be empty but it is difficult to express in argparse itself.
-    if len(ns.logpath) == 0:
+    if len(args.logpath) == 0:
         parser.print_usage()
         parser.exit(0)
-    
-    reader = LogReader(ns.logpath, ns.format, ns.cut, ns.store_setup)
+
+    reader = LogReader(args.logpath, args.format, args.cut, args.store_setup)
     if not reader.check_log_exists():
         print("Log not found")
         sys.exit(1)
 
     reader.read_spread_log()
 
-    if ns.output:
-        reader.export_log(ns.output)
+    if args.output:
+        reader.export_log(args.output)
 
-    reader.print_log(ns.print_details, ns.print_results)
-    
+    reader.print_log(args.print_details, args.print_results)
+
 
 if __name__ == "__main__":
     main()
