@@ -37,7 +37,9 @@ type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
-	// SectorSize is the size of the sector to be used for calculations
+	// SectorSize is the size of the sector to be used for calculations, if set
+	// from the gadget.yaml. If the gadget.yaml does not specify a sector size,
+	// then this should be unset.
 	SectorSize quantity.Size
 }
 
@@ -121,14 +123,20 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
-	if constraints.SectorSize == 0 {
-		return nil, nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
+	// only error if the constraint and the volume sector size are set
+	// if the constraint is unset, then any volume setting is valid
+	// and if the volume setting is unset, then it matches all
+	// constraints
+	if volume.SectorSize != 0 && constraints.SectorSize != 0 {
+		if volume.SectorSize != constraints.SectorSize {
+			return nil, nil, fmt.Errorf("internal error: volume has sector-size of %s but constraint of %s specified", volume.SectorSize.String(), constraints.SectorSize.String())
+		}
 	}
 
 	for idx, s := range volume.Structure {
 		var start quantity.Offset
 		if s.Offset == nil {
-			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
+			if s.Role != SchemaMBR && previousEnd < constraints.NonMBRStartOffset {
 				start = constraints.NonMBRStartOffset
 			} else {
 				start = previousEnd
@@ -144,10 +152,14 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			Index:           idx,
 		}
 
-		if ps.Role != schemaMBR {
-			if s.Size%constraints.SectorSize != 0 {
-				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
-					ps, constraints.SectorSize)
+		// if there was a sector size specified in the constraint, then check
+		// that the structure size is an even multiple of the sector size
+		if constraints.SectorSize != 0 {
+			if ps.Role != SchemaMBR {
+				if s.Size%constraints.SectorSize != 0 {
+					return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
+						ps, constraints.SectorSize)
+				}
 			}
 		}
 
@@ -186,9 +198,10 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 	if err != nil {
 		return nil, err
 	}
+
 	vol := &PartiallyLaidOutVolume{
 		Volume:           volume,
-		SectorSize:       constraints.SectorSize,
+		SectorSize:       volume.SectorSize,
 		LaidOutStructure: structures,
 	}
 	return vol, nil
@@ -235,8 +248,8 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 
 	vol := &LaidOutVolume{
 		Volume:           volume,
+		SectorSize:       volume.SectorSize,
 		Size:             volumeSize,
-		SectorSize:       constraints.SectorSize,
 		LaidOutStructure: structures,
 		RootDir:          gadgetRootDir,
 	}
@@ -432,8 +445,20 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 			current.Bootloader, new.Bootloader)
 	}
 
+	// if the current volume specifies a sector size, then it must be the same
+	// in the new one
+	// ideally we would also check that if the current volume doesn't specify a
+	// specific sector size that the new volume specifies either nothing or the
+	// current sector size
+	// or we could just say that it always has to be the same
+	if current.SectorSize != 0 {
+		if new.SectorSize != current.SectorSize {
+			return fmt.Errorf("incompatible sector size change from %s to %s", current.SectorSize.String(), new.SectorSize.String())
+		}
+	}
+
 	// XXX: the code below asssumes both volumes have the same number of
-	// structures, this limitation may be lifter later
+	// structures, this limitation may be lifted later
 	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
 			len(current.LaidOutStructure), len(new.LaidOutStructure))

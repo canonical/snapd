@@ -160,7 +160,12 @@ func Run(model gadget.Model, gadgetRoot, device string, options Options, observe
 			logger.Noticef("encrypted device %v", part.Node)
 		}
 
-		if err := makeFilesystem(&part, lv.SectorSize); err != nil {
+		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
+		// that if there is a sector-size specified in the gadget that it
+		// matches what is on the disk, but sometimes there may not be a sector
+		// size specified in the gadget.yaml, but we will always have the sector
+		// size from the physical disk device
+		if err := makeFilesystem(&part, diskLayout.SectorSize); err != nil {
 			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
 		}
 
@@ -250,9 +255,21 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 		return false, reasonAbsent
 	}
 
+	// check size of volumes
 	if gadgetLayout.Size > diskLayout.Size {
 		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
 			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	}
+
+	// check that the sizes of all structures in the gadget are multiples of
+	// the disk sector size (unless the structure is the MBR)
+	for _, ls := range gadgetLayout.LaidOutStructure {
+		if ls.Role != gadget.SchemaMBR {
+			if ls.Size%diskLayout.SectorSize != 0 {
+				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
+					ls, diskLayout.SectorSize)
+			}
+		}
 	}
 
 	// Check if top level properties match

@@ -41,9 +41,9 @@ import (
 )
 
 const (
-	// schemaMBR identifies a Master Boot Record partitioning schema, or an
+	// SchemaMBR identifies a Master Boot Record partitioning schema, or an
 	// MBR like role
-	schemaMBR = "mbr"
+	SchemaMBR = "mbr"
 	// schemaGPT identifies a GUID Partition Table partitioning schema
 	schemaGPT = "gpt"
 
@@ -108,6 +108,11 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
+	// SectorSize is the logical sector size for the volume. Defaults to
+	// whatever the disk that the image gets installed onto is, but can also be
+	// specifically set to restrict gadget installation to a specific disk
+	// sector size.
+	SectorSize quantity.Size `yaml:"sector-size"`
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -157,7 +162,7 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
-	return vs.Type != "bare" && vs.Role != schemaMBR
+	return vs.Type != "bare" && vs.Role != SchemaMBR
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -411,8 +416,8 @@ func setImplicitForVolume(name string, vol *Volume, model Model, knownFsLabels m
 }
 
 func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
-	if vs.Role == "" && vs.Type == schemaMBR {
-		vs.Role = schemaMBR
+	if vs.Role == "" && vs.Type == SchemaMBR {
+		vs.Role = SchemaMBR
 		return nil
 	}
 	if rs == volRuleset16 && vs.Role == "" && vs.Label == SystemBoot {
@@ -527,7 +532,7 @@ func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolum
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
+	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != SchemaMBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -588,10 +593,10 @@ func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolum
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
 func isMBR(vs *VolumeStructure) bool {
-	if vs.Role == schemaMBR {
+	if vs.Role == SchemaMBR {
 		return true
 	}
-	if vs.Role == "" && vs.Type == schemaMBR {
+	if vs.Role == "" && vs.Type == SchemaMBR {
 		return true
 	}
 	return false
@@ -710,7 +715,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	if s == schemaMBR {
+	if s == SchemaMBR {
 		// backward compatibility for type: mbr
 		return nil
 	}
@@ -741,7 +746,7 @@ func validateStructureType(s string, vol *Volume) error {
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
-	if schema != schemaMBR && isMBR {
+	if schema != SchemaMBR && isMBR {
 		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
@@ -750,24 +755,24 @@ func validateStructureType(s string, vol *Volume) error {
 
 func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
-		if vs.Role != "" && vs.Role != schemaMBR {
+		if vs.Role != "" && vs.Role != SchemaMBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
-	if vs.Type == schemaMBR {
-		if vsRole != "" && vsRole != schemaMBR {
+	if vs.Type == SchemaMBR {
+		if vsRole != "" && vsRole != SchemaMBR {
 			return fmt.Errorf(`conflicting legacy type: "mbr"`)
 		}
 		// backward compatibility
-		vsRole = schemaMBR
+		vsRole = SchemaMBR
 	}
 
 	switch vsRole {
 	case SystemData, SystemSeed, SystemSave:
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
-	case schemaMBR:
+	case SchemaMBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
@@ -951,19 +956,21 @@ func LaidOutUbuntuVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 		return nil, err
 	}
 
-	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// TODO:UC20: make SectorSize dynamic, either through config in the
-		//            gadget or by dynamic detection
-		SectorSize: sectorSize,
-	}
-
 	// find the volume with the ubuntu-boot role on it, we already validated
 	// that the ubuntu-* roles are all on the same volume
 	for _, vol := range info.Volumes {
 		for _, structure := range vol.Structure {
 			// use the system-boot role
 			if structure.Role == SystemBoot || structure.Label == SystemBoot {
+
+				constraints := LayoutConstraints{
+					NonMBRStartOffset: 1 * quantity.OffsetMiB,
+					// if the sector-size is unset in the gadget.yaml volume,
+					// then this will be unset and no sector-size constraints
+					// will be applied
+					SectorSize: vol.SectorSize,
+				}
+
 				pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
 				if err != nil {
 					return nil, err

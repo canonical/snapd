@@ -35,7 +35,6 @@ var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 )
 
@@ -224,7 +223,7 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.Role == schemaMBR
+	return from.Type == SchemaMBR && to.Role == SchemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
@@ -302,7 +301,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
-	if from.Role == schemaMBR {
+	if from.Role == SchemaMBR {
 		return false
 	}
 	return true

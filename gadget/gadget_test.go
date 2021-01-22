@@ -2165,6 +2165,33 @@ func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleSelf(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadVolumeSectorSize(c *C) {
+	var mockYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+    sector-size: 512
+`)
+
+	var badYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+    sector-size: 4096
+`)
+
+	gi, err := gadget.InfoFromGadgetYaml(mockYaml, coreMod)
+	c.Assert(err, IsNil)
+	giNew, err := gadget.InfoFromGadgetYaml(badYaml, coreMod)
+	c.Assert(err, IsNil)
+	err = gadget.IsCompatible(gi, giNew)
+	c.Check(err, ErrorMatches, "incompatible layout change: incompatible sector size change from 512 to 4096")
+}
+
 func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadVolume(c *C) {
 	var mockYaml = []byte(`
 volumes:
@@ -2216,7 +2243,7 @@ volumes:
 volumes:
   volumename:
     schema: mbr
-    bootloader: grub
+    bootloader: u-boot
     id: 0C
     structure:
       - name: bad-size
@@ -2229,7 +2256,7 @@ volumes:
 	}{
 		{mockOtherYaml, `cannot find entry for volume "volumename" in updated gadget info`},
 		{mockManyYaml, "gadgets with multiple volumes are unsupported"},
-		{mockBadStructureSizeYaml, `cannot lay out the new volume: cannot lay out volume, structure #0 \("bad-size"\) size is not a multiple of sector size 512`},
+		{mockBadStructureSizeYaml, `incompatible layout change: incompatible change in the number of structures from 0 to 1`},
 		{mockBadIDYaml, "incompatible layout change: incompatible ID change from 0C to 0D"},
 		{mockSchemaYaml, "incompatible layout change: incompatible schema change from mbr to gpt"},
 		{mockBootloaderYaml, "incompatible layout change: incompatible bootloader change from u-boot to grub"},
@@ -2245,7 +2272,6 @@ volumes:
 		} else {
 			c.Check(err, ErrorMatches, tc.err)
 		}
-
 	}
 }
 

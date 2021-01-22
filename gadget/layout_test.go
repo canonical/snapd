@@ -50,6 +50,33 @@ var defaultConstraints = gadget.LayoutConstraints{
 	SectorSize:        512,
 }
 
+func (p *layoutTestSuite) TestSectorSize(c *C) {
+	vol := gadget.Volume{
+		SectorSize: 512,
+		Structure: []gadget.VolumeStructure{
+			{Size: 2 * quantity.SizeMiB},
+		},
+	}
+	v, err := gadget.LayoutVolume(p.dir, &vol, defaultConstraints)
+	c.Assert(err, IsNil)
+
+	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
+		Volume: &gadget.Volume{
+			SectorSize: 512,
+			Structure: []gadget.VolumeStructure{
+				{Size: 2 * quantity.SizeMiB},
+			},
+		},
+		SectorSize: 512,
+		Size:       3 * quantity.SizeMiB,
+		RootDir:    p.dir,
+		LaidOutStructure: []gadget.LaidOutStructure{{
+			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
+			StartOffset:     1 * quantity.OffsetMiB,
+		}},
+	})
+}
+
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
@@ -65,9 +92,8 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 				{Size: 2 * quantity.SizeMiB},
 			},
 		},
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{{
 			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
 			StartOffset:     1 * quantity.OffsetMiB,
@@ -102,10 +128,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       501 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    501 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -145,10 +170,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       1101 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    1101 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -202,10 +226,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       1300 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    1300 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -258,10 +281,9 @@ volumes:
 	c.Assert(err, IsNil)
 
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       1200 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    1200 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
@@ -471,10 +493,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -523,10 +544,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -572,10 +592,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -615,10 +634,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -655,10 +673,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
@@ -672,6 +689,10 @@ volumes:
 			},
 		},
 	})
+
+	// for the rest of the test cases, assume that the volume had a sector-size
+	// specified
+	vol.SectorSize = 512
 
 	// still valid
 	constraints := gadget.LayoutConstraints{
@@ -726,6 +747,8 @@ volumes:
 			},
 		},
 	})
+
+	vol.SectorSize = 1024
 
 	// sector size is properly recorded
 	constraintsSector := gadget.LayoutConstraints{
@@ -783,13 +806,25 @@ volumes:
 	c.Assert(err, ErrorMatches, "cannot lay out volume, structure #1 size is not a multiple of sector size 384")
 }
 
-func (p *layoutTestSuite) TestLayoutVolumeConstraintsNeedsSectorSize(c *C) {
+func (p *layoutTestSuite) TestLayoutVolumeConstraintsSectorSizeOptional(c *C) {
 	constraintsBadSectorSize := gadget.LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// SectorSize left unspecified
 	}
 	_, err := gadget.LayoutVolume(p.dir, &gadget.Volume{}, constraintsBadSectorSize)
-	c.Assert(err, ErrorMatches, "cannot lay out volume, invalid constraints: sector size cannot be 0")
+	c.Assert(err, IsNil)
+}
+
+func (p *layoutTestSuite) TestLayoutVolumeConstraintsSectorSizeMustMatchVolumeSectorSize(c *C) {
+	constraintsBadSectorSize := gadget.LayoutConstraints{
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
+		SectorSize:        512,
+	}
+	vol := &gadget.Volume{
+		SectorSize: 1024,
+	}
+	// this shouldn't happen in practice, but just to be sure
+	_, err := gadget.LayoutVolume(p.dir, vol, constraintsBadSectorSize)
+	c.Assert(err, ErrorMatches, "internal error: volume has sector-size of 1024 but constraint of 512 specified")
 }
 
 func (p *layoutTestSuite) TestLayoutVolumeMBRImplicitConstraints(c *C) {
@@ -813,10 +848,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       2 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    2 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
@@ -866,10 +900,9 @@ volumes:
 	v, err := gadget.LayoutVolume(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
-		Volume:     vol,
-		Size:       3 * quantity.SizeMiB,
-		SectorSize: 512,
-		RootDir:    p.dir,
+		Volume:  vol,
+		Size:    3 * quantity.SizeMiB,
+		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
@@ -1036,8 +1069,7 @@ volumes:
 
 	v, err := gadget.LayoutVolumePartially(vol, defaultConstraints)
 	c.Assert(v, DeepEquals, &gadget.PartiallyLaidOutVolume{
-		Volume:     vol,
-		SectorSize: 512,
+		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
