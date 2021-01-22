@@ -272,38 +272,45 @@ jobs:
           if [ -e spread.log ]; then
               echo "Running spread log analyzer"
               ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
+          
+              TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
+              TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") |  .number ) // 0 '  spread-results.json | head -n1)
+              TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") |  .number ) // 0 '  spread-results.json | head -n1)
+              TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") |  .number ) // 0 '  spread-results.json | head -n1)
+
+              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
+              echo "TESTS_SUCCESSFUL=$TESTS_SUCCESSFUL" >> $GITHUB_ENV
+              echo "TESTS_FAILED=$TESTS_FAILED" >> $GITHUB_ENV
+              echo "TESTS_ABORTED=$TESTS_ABORTED" >> $GITHUB_ENV
           fi
     - name: spread highlights
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      if: always()
       run : |
-          TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
-          TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
-          if [ "$TESTS_NUMBER" == "TESTS_SUCCESSFUL" ]; then
-              echo "All tests passed!"
-          else
-              ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
+          if [ -e spread.log ]; then
+              if [ "$TESTS_NUMBER" == "TESTS_SUCCESSFUL" ]; then
+                  echo "All tests passed!"
+              else
+                  ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
+              fi
           fi
     - name: Cache failed tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      if: always()
       run: |
-          TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
+          if [ -e spread.log ]; then
+              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
+              TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
 
-          # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
-          TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") |  .number ) // 0 '  spread-results.json | head -n1)
-          TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") |  .number ) // 0 '  spread-results.json | head -n1)
-          TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") |  .number ) // 0 '  spread-results.json | head -n1)
-          TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
+              if [ -z "FAILED_TESTS_FILE" ]; then
+                  FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
+                  mkdir -p $(dirname "$FAILED_TESTS_FILE")
+                  touch "$FAILED_TESTS_FILE"
+              fi
 
-          if [ -z "FAILED_TESTS_FILE" ]; then
-              FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
-              mkdir -p $(dirname "$FAILED_TESTS_FILE")
-              touch "$FAILED_TESTS_FILE"
-          fi
-
-          # Set which tests need to be re-executed (empty will re-execute all the tests)
-          if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
-              FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
-              echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
+              # Set which tests need to be re-executed (empty will re-execute all the tests)
+              if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
+                  FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
+                  echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
+              fi
           fi
     - name: Cache successful run
       run: |
