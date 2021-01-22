@@ -1,0 +1,47 @@
+summary: Check that a kernel refresh reseals
+
+systems: [ubuntu-20.04-64]
+
+prepare: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  # repack the snapd snap with a marker file
+  unsquashfs -d snapd-snap snapd-from-deb.snap
+
+  # leave a marker file that triggers boot config assets to be injected
+  echo 'bootassetstesting' > snapd-snap/usr/lib/snapd/bootassetstesting
+
+  snap pack snapd-snap --filename=snapd-boot-config-update.snap
+  rm -rf snapd-snap
+  nested_copy snapd-boot-config-update.snap
+
+execute: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+
+  # Install new (unasserted) kernel and wait for reboot/change finishing
+  boot_id="$( nested_get_boot_id )"
+  REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
+  nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+  # boot assets have been updated
+  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
+  # TODO: this should be automatically requested by snapd
+  nested_exec "sudo reboot" || true
+  nested_wait_for_reboot "${boot_id}"
+
+  nested_exec "cat /proc/cmdline" | MATCH bootassetstesting
+
+  # ensure ubuntu-data.sealed-key mtime is newer
+  SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+
+  # check that we have boot chains
+  nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
+
+  RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"
