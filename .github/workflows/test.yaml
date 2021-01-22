@@ -228,12 +228,6 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
-    - name: Cache failed tests
-      id: cache-failed-tests
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
     - name: Check cached test results
       id: cached-results
       run: |
@@ -242,6 +236,20 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
+    - name: Download failed tests
+      uses: actions/download-artifact@v2
+      with:
+        path: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
+    - name: Display structure of downloaded files
+      run: |
+          ls -al
+          FAILED_TESTS_FILE=
+          if [ -e "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests" ]; then
+              FAILED_TESTS_FILE="${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
+          fi
+          echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
+    
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
@@ -251,9 +259,6 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           # Save previous failed test results in FAILED_TESTS env var
-          FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
-          echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
-
           FAILED_TESTS=""
           if [ -e "$FAILED_TESTS_FILE" ]; then
               FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
@@ -266,6 +271,7 @@ jobs:
               spread -abend "$FAILED_TESTS" | tee spread.log
           fi
           exit "${PIPESTATUS[0]}"
+
     - name: analyze spread log
       if: always()
       run: |
@@ -293,7 +299,8 @@ jobs:
                   ./tests/lib/tools/log-analyzer spread.log --cut 20 --print-detail error
               fi
           fi
-    - name: Cache failed tests
+
+    - name: Save failed tests
       if: always()
       run: |
           if [ -e spread.log ]; then
@@ -301,7 +308,6 @@ jobs:
               TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
 
               rm -f "$FAILED_TESTS_FILE"
-              mkdir -p $(dirname "$FAILED_TESTS_FILE")
               touch "$FAILED_TESTS_FILE"
 
               # Set which tests need to be re-executed (empty will re-execute all the tests)
@@ -310,6 +316,12 @@ jobs:
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               fi
           fi
+    - name: Upload failed tests
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        path: $FAILED_TESTS_FILE
+
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
