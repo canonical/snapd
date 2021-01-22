@@ -274,9 +274,9 @@ jobs:
               ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
           
               TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
-              TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") |  .number ) // 0 '  spread-results.json | head -n1)
-              TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") |  .number ) // 0 '  spread-results.json | head -n1)
-              TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") |  .number ) // 0 '  spread-results.json | head -n1)
+              TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
+              TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
+              TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
 
               echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
               echo "TESTS_SUCCESSFUL=$TESTS_SUCCESSFUL" >> $GITHUB_ENV

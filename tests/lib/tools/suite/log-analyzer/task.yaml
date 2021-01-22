@@ -1,5 +1,8 @@
 summary: test for the log analyzer tool
 
+# Github actions agents are just running in bionic and focal
+systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+
 execute: |
     "$TESTSTOOLS"/log-analyzer --help | grep -qE 'usage: log-analyzer \[-h\] \[-c CUT\]'
     "$TESTSTOOLS"/log-analyzer -h | grep -qE 'usage: log-analyzer \[-h\] \[-c CUT\]'
@@ -63,4 +66,3 @@ execute: |
     "$TESTSTOOLS"/log-analyzer with-failed-and-aborted.log.spread -pr failed | grep -c "Aborted tasks: 24"
     "$TESTSTOOLS"/log-analyzer all-successful.log.spread -pr failed | grep -q "Successful tasks: 434"
     "$TESTSTOOLS"/log-analyzer all-successful.log.spread -pr failed | grep -v "Aborted tasks"
-
