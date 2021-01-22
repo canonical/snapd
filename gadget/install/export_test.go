@@ -20,11 +20,9 @@
 package install
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/quantity"
 )
 
 var (
@@ -70,34 +68,4 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 	return func() {
 		ensureNodesExist = old
 	}
-}
-
-// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified. This function does not handle multiple volumes and
-// is meant for test helpers only. For runtime users, with multiple volumes
-// handled by choosing the ubuntu-* role volume, see LaidOutUbuntuVolumeFromGadget
-func LaidOutVolumeFromGadget(gadgetRoot string, model gadget.Model) (*gadget.LaidOutVolume, error) {
-	info, err := gadget.ReadInfo(gadgetRoot, model)
-	if err != nil {
-		return nil, err
-	}
-	// Limit ourselves to just one volume for now.
-	if len(info.Volumes) != 1 {
-		return nil, fmt.Errorf("cannot position multiple volumes yet")
-	}
-
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
-	}
-
-	for _, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(gadgetRoot, vol, constraints)
-		if err != nil {
-			return nil, err
-		}
-		// we know  info.Volumes map has size 1 so we can return here
-		return pvol, nil
-	}
-	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
 }
