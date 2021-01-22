@@ -31,11 +31,11 @@ jobs:
               done < <(find "$(dirname $CACHE_RESULT_STAMP)" -name "*.snap")
               if [ "$has_cached_snap" = "1" ]; then
                   # we have restored an artifact from the cache
-                  echo "::set-output name=already-ran::true"
+                  echo "::set-output name=already-passed::true"
               fi
           fi
     - name: Build snapd snap
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       uses: snapcore/action-build@v1
     - name: Cache built artifact
       run: |
@@ -112,7 +112,7 @@ jobs:
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
+              echo "::set-output name=already-passed::true"
           fi
     - name: Install Debian dependencies
       if: steps.cached-results.outputs.cached-results != 'true'
@@ -120,11 +120,11 @@ jobs:
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
     - name: Install the go snap
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
     - name: Install ShellCheck as a snap
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
@@ -139,7 +139,7 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
     - name: Run static checks
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
           # run gofmt checks only with Go 1.9 and 1.10
@@ -150,26 +150,26 @@ jobs:
           fi
           ./run-checks --static
     - name: Build C
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
     - name: Build Go
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           go build github.com/snapcore/snapd/...
     - name: Test C
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
     - name: Test Go (nosecboot)
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: steps.cached-results.outputs.already-passed != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         echo "Dropping github.com/snapcore/secboot"
@@ -231,25 +231,32 @@ jobs:
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
+          CACHE_RUN_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-run"
+          echo "CACHE_RUN_STAMP=$CACHE_RUN_STAMP" >> $GITHUB_ENV
+          if [ -e "$CACHE_RUN_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
 
-    - name: Download all artifacts 
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
+          
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-passed::true"
+          fi
+
+    - name: Download failed tests
+      if: "steps.cached-results.outputs.already-ran == 'true'"
       uses: actions/download-artifact@v2
+      with:
+        name: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
     - name: Display structure of downloaded files
       run: |
           ls -al
-          FAILED_TESTS_FILE=
-          if [ -e "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests" ]; then
-              FAILED_TESTS_FILE="${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
-          fi
+          FAILED_TESTS_FILE="${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
     
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-passed != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -324,6 +331,12 @@ jobs:
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
+    - name: Cache run
+      if: always()
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+
     - name: Discard spread workers
       if: always()
       run: |
@@ -363,12 +376,12 @@ jobs:
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
+              echo "::set-output name=already-passed::true"
           fi
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
       # nested' label set on the PR
-      if: "(contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')) && steps.cached-results.outputs.already-ran != 'true'"
+      if: "(contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')) && steps.cached-results.outputs.already-passed != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
