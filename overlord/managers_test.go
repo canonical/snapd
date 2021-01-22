@@ -5849,3 +5849,150 @@ type: kernel`
 		"snap_try_kernel": "",
 	})
 }
+
+type gadgetUpdatesSuite struct {
+	baseMgrsSuite
+}
+
+var _ = Suite(&gadgetUpdatesSuite{})
+
+func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
+	ms.baseMgrsSuite.SetUpTest(c)
+
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	ms.AddCleanup(func() { bootloader.Force(nil) })
+
+	restore := release.MockOnClassic(false)
+	ms.AddCleanup(restore)
+
+	mockServer := ms.mockStore(c)
+	ms.AddCleanup(mockServer.Close)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// setup model assertion
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserial",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+}
+
+func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
+	// mock /dev/disk/by-label/{structureName}
+	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
+	err := os.MkdirAll(byLabelDir, 0755)
+	c.Assert(err, IsNil)
+	// create fakedevice node
+	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0p1"), nil, 0644)
+	c.Assert(err, IsNil)
+	// and point the mocked by-label entry to the fakedevice node
+	err = os.Symlink(filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0p1"), filepath.Join(byLabelDir, structureName))
+	c.Assert(err, IsNil)
+
+	// mock /proc/self/mountinfo with the above generated paths
+	ms.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/%s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, structureName)))
+
+	// and mock the mount point
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, structureName), 0755)
+	c.Assert(err, IsNil)
+}
+
+func (ms *gadgetUpdatesSuite) TestRefreshGadgetUpdates(c *C) {
+	structureName := "ubuntu-seed"
+	gadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: foo.img
+                target: /subdir/foo-renamed.img`, structureName)
+	newGadgetYaml := gadgetYaml + `
+            update:
+              edition: 2
+`
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"foo.img", "foo"},
+	})
+
+	ms.makeMockedDev(c, structureName)
+
+	// add new gadget snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pc",
+		"publisher-id": "can0nical",
+		"revision":     "2",
+	})
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
+		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
+		{"boot-assets/overlays/uart0.dtbo", "uart0.dtbo rev2"},
+		{"foo.img", "foo rev2"},
+	})
+	ms.serveSnap(snapPath, "2")
+
+	ts, err := snapstate.Update(st, "pc", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// Kill re-refresh task (always last task). Without that settle
+	// will not converge
+	ts = state.NewTaskSet(ts.Tasks()[:len(ts.Tasks())-2]...)
+
+	chg := st.NewChange("upgrade-gadget", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// pretend we restarted
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	// settle again
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// check that files/dirs got updated and subdirs are correct
+	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "subdir/foo-renamed.img"), testutil.FileContains, "foo rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+}
