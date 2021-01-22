@@ -81,6 +81,8 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		// though note if the sector size was specified (i.e. non-zero) and
 		// larger than 1K, then we need to use that, since you can't create
 		// a filesystem with a block-size smaller than the sector-size
+		// see e2fsprogs source code:
+		// https://github.com/tytso/e2fsprogs/blob/0d47f5ab05177c1861f16bb3644a47018e6be1d0/misc/mke2fs.c#L2151-L2156
 		defaultSectorSize := 1 * quantity.SizeKiB
 		if sectorSize > 1024 {
 			defaultSectorSize = sectorSize
@@ -117,17 +119,20 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 // filesystem label, and populates it with the contents of provided root
 // directory.
 func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
-	// taken from ubuntu-image
-	// TODO: handle sector sizes other than 512, can't create a block size that
-	// is less than the sector size
-
 	// 512B logical sector size by default, unless the specified sector size is
 	// larger than 512, in which case use the sector size
+	// mkfs.vfat will automatically increase the block size to the internal
+	// sector size of the disk if the specified block size is too small, but
+	// be paranoid and always set the block size to that of the sector size if
+	// we know the sector size is larger than the default 512 (originally from
+	// ubuntu-image). see dosfstools:
+	// https://github.com/dosfstools/dosfstools/blob/e579a7df89bb3a6df08847d45c70c8ebfabca7d2/src/mkfs.fat.c#L1892-L1898
 	defaultSectorSize := quantity.Size(512)
 	if sectorSize > defaultSectorSize {
 		defaultSectorSize = sectorSize
 	}
 	mkfsArgs := []string{
+		// options taken from ubuntu-image, except the sector size
 		"-S", defaultSectorSize.String(),
 		// 1 sector per cluster
 		"-s", "1",
