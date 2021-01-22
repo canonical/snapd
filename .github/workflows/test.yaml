@@ -325,7 +325,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v2
       with:
-        path: $FAILED_TESTS_FILE
+        path: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
 
     - name: Cache successful run
       run: |
