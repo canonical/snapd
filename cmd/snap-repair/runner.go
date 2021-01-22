@@ -922,9 +922,8 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	}
 
 	// modes is slightly more nuanced, if the modes setting in the assertion
-	// header is unset, that means that the assertion should only be run in
-	// "run" mode on uc20
-
+	// header is unset, then it means it runs on all uc16/uc18 devices, but only
+	// during run mode on uc20 devices
 	if run.state.Device.Mode == "" {
 		// uc16 / uc18 device, the assertion is only applicable to us if modes
 		// is unset
