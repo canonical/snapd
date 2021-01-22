@@ -2017,11 +2017,11 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetMultiVolume(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	lv, err := gadget.LaidOutUbuntuVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
@@ -2029,7 +2029,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetMultiVolume(c *C)
 	c.Assert(lv.LaidOutStructure, HasLen, 4)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetHappy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2037,14 +2037,14 @@ func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutUbuntuVolumeFromGadget(s.dir, nil)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
 	c.Assert(lv.LaidOutStructure, HasLen, 3)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetUC20Happy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2052,7 +2052,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutUbuntuVolumeFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutUbuntuVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data

@@ -937,13 +937,13 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// LaidOutUbuntuVolumeFromGadget takes a gadget rootdir and lays out the
+// LaidOutSystemVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified. It returns one specific volume, which is the volume
-// on which ubuntu-* roles/partitions exist, all other volumes are assumed to
+// on which system-* roles/partitions exist, all other volumes are assumed to
 // already be flashed and managed separately at image build/flash time, while
 // the ubuntu-* roles can be manipulated on the returned volume during install
 // mode.
-func LaidOutUbuntuVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
 	// rely on the basic validation from ReadInfo to ensure that the ubuntu-*
 	// roles are all on the same volume for example
 	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
@@ -975,7 +975,7 @@ func LaidOutUbuntuVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 	}
 
 	// this should be impossible, the validation above should ensure this
-	return nil, fmt.Errorf("internal error: gadget passed validation but does not have ubuntu-* roles on any volume")
+	return nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {

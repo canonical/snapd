@@ -63,7 +63,7 @@ func Run(model gadget.Model, gadgetRoot, device string, options Options, observe
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.LaidOutUbuntuVolumeFromGadget(gadgetRoot, model)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
