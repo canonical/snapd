@@ -237,10 +237,8 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
 
-    - name: Download failed tests
+    - name: Download all artifacts 
       uses: actions/download-artifact@v2
-      with:
-        name: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
     - name: Display structure of downloaded files
       run: |
           ls -al
