@@ -252,7 +252,7 @@ jobs:
 
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
-          echo "FAILED_TESTS_FILE="$(cat $FAILED_TESTS_FILE)"" | tee -a $GITHUB_ENV
+          echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
 
           FAILED_TESTS=""
           if [ -e "$FAILED_TESTS_FILE" ]; then
@@ -300,11 +300,9 @@ jobs:
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
               TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
 
-              if [ -z "FAILED_TESTS_FILE" ]; then
-                  FAILED_TESTS_FILE="${{ github.workspace }}/.test-results/${{ matrix.system }}-failed-tests.outputs.failed-tests"
-                  mkdir -p $(dirname "$FAILED_TESTS_FILE")
-                  touch "$FAILED_TESTS_FILE"
-              fi
+              rm -f "$FAILED_TESTS_FILE"
+              mkdir -p $(dirname "$FAILED_TESTS_FILE")
+              touch "$FAILED_TESTS_FILE"
 
               # Set which tests need to be re-executed (empty will re-execute all the tests)
               if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
