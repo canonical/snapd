@@ -231,28 +231,25 @@ jobs:
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RUN_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-run"
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          CACHE_RUN_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-run"
           echo "CACHE_RUN_STAMP=$CACHE_RUN_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RUN_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
 
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-passed::true"
           fi
 
-    - name: Download failed tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran == 'true'"
-      uses: actions/download-artifact@v2
-      with:
-        name: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
-    - name: Display structure of downloaded files
+    - name: Save failed tests
       run: |
-          ls -al
-          FAILED_TESTS_FILE="${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
+          FAILED_TESTS_FILE="$TEST_RESULTS_DIR/failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
     
     - name: Run spread tests
@@ -321,21 +318,17 @@ jobs:
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               fi
           fi
-    - name: Upload failed tests
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        path: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
 
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
     - name: Cache run
       if: always()
       run: |
         mkdir -p $(dirname "$CACHE_RUN_STAMP")
         touch "$CACHE_RUN_STAMP"
+
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
 
     - name: Discard spread workers
       if: always()
