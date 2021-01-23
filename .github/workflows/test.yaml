@@ -247,11 +247,9 @@ jobs:
               echo "::set-output name=already-passed::true"
           fi
 
-    - name: Save failed tests
-      run: |
           FAILED_TESTS_FILE="$TEST_RESULTS_DIR/failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
-    
+  
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-passed != 'true'"
       env:
@@ -302,6 +300,11 @@ jobs:
               fi
           fi
 
+    - name: Create results dir
+      if: always()
+      run: |
+          mkdir -p "$TEST_RESULTS_DIR"
+
     - name: Save failed tests
       if: always()
       run: |
@@ -309,25 +312,23 @@ jobs:
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
               TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
 
-              rm -f "$FAILED_TESTS_FILE"
-              touch "$FAILED_TESTS_FILE"
-
               # Set which tests need to be re-executed (empty will re-execute all the tests)
+              rm -f "$FAILED_TESTS_FILE"
               if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
                   FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
+              else
+                  touch "$FAILED_TESTS_FILE"
               fi
           fi
 
     - name: Cache run
       if: always()
       run: |
-        mkdir -p $(dirname "$CACHE_RUN_STAMP")
         touch "$CACHE_RUN_STAMP"
 
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
 
     - name: Discard spread workers
