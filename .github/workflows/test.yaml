@@ -245,7 +245,7 @@ jobs:
           fi
 
     - name: Download failed tests
-      if: "steps.cached-results.outputs.already-ran == 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran == 'true'"
       uses: actions/download-artifact@v2
       with:
         name: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-failed-tests"
@@ -334,8 +334,8 @@ jobs:
     - name: Cache run
       if: always()
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
+        mkdir -p $(dirname "$CACHE_RUN_STAMP")
+        touch "$CACHE_RUN_STAMP"
 
     - name: Discard spread workers
       if: always()
