@@ -224,7 +224,7 @@ jobs:
         fetch-depth: 0
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
+      uses: actions/always-upload-cache@v1
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
