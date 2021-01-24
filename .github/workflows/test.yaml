@@ -228,12 +228,16 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
-    - name: Check cached test results
-      id: cached-results
+    - name: List files included in the cache
       run: |
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
+          ls -al "$TEST_RESULTS_DIR"
+
+    - name: Check cached test results
+      id: cached-results
+      run: |
           CACHE_RUN_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-run"
           echo "CACHE_RUN_STAMP=$CACHE_RUN_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RUN_STAMP" ]; then
@@ -249,7 +253,10 @@ jobs:
 
           FAILED_TESTS_FILE="$TEST_RESULTS_DIR/failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
-  
+          if [ -e "$FAILED_TESTS_FILE" ]; then
+              cat "$FAILED_TESTS_FILE"
+          fi
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-passed != 'true'"
       env:
