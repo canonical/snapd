@@ -233,7 +233,9 @@ jobs:
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
-          ls -al "$TEST_RESULTS_DIR"
+          if [ -d "$TEST_RESULTS_DIR" ]; then
+              ls -al "$TEST_RESULTS_DIR"
+          fi
 
     - name: Check cached test results
       id: cached-results
