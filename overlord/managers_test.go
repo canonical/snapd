@@ -328,6 +328,19 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a7), IsNil)
 	c.Assert(s.storeSigning.Add(a7), IsNil)
 
+	// add pi snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "pi",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a8, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a8), IsNil)
+	c.Assert(s.storeSigning.Add(a8), IsNil)
+
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
@@ -5874,7 +5887,9 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	defer st.Unlock()
 
 	// setup model assertion
-	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget": "pi",
+	})
 	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
 		Model:  "my-model",
@@ -5925,14 +5940,16 @@ volumes:
             update:
               edition: 2
 `
+	ms.makeMockedDev(c, structureName)
 
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
-	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pc", &snapstate.SnapState{
+	// we have an installed gadget
+	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pi", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
@@ -5940,14 +5957,11 @@ volumes:
 	})
 	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
-		{"foo.img", "foo"},
 	})
-
-	ms.makeMockedDev(c, structureName)
 
 	// add new gadget snap to fake store
 	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pc",
+		"snap-name":    "pi",
 		"publisher-id": "can0nical",
 		"revision":     "2",
 	})
@@ -5960,7 +5974,7 @@ volumes:
 	})
 	ms.serveSnap(snapPath, "2")
 
-	ts, err := snapstate.Update(st, "pc", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	// Kill re-refresh task (always last task). Without that settle
 	// will not converge
