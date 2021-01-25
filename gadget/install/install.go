@@ -160,8 +160,8 @@ func Run(model gadget.Model, gadgetRoot, device string, options Options, observe
 			logger.Noticef("encrypted device %v", part.Node)
 		}
 
-		if err := makeFilesystem(&part); err != nil {
-			return nil, err
+		if err := makeFilesystem(&part, lv.SectorSize); err != nil {
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
 		}
 
 		if err := writeContent(&part, gadgetRoot, observer); err != nil {
