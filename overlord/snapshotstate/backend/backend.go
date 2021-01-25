@@ -692,7 +692,8 @@ func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
 }
 
 type DuplicatedSnapshotImportError struct {
-	SetID uint64
+	SetID     uint64
+	SnapNames []string
 }
 
 func (e DuplicatedSnapshotImportError) Error() string {
@@ -721,7 +722,11 @@ func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash 
 			return fmt.Errorf("cannot calculate content hash for %v: %v", setID, err)
 		}
 		if bytes.Equal(h, contentHash) {
-			return DuplicatedSnapshotImportError{setID}
+			var snapNames []string
+			for _, snapshot := range ss.Snapshots {
+				snapNames = append(snapNames, snapshot.Snap)
+			}
+			return DuplicatedSnapshotImportError{SetID: setID, SnapNames: snapNames}
 		}
 	}
 	return nil
