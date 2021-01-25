@@ -253,7 +253,7 @@ jobs:
               echo "::set-output name=already-passed::true"
           fi
 
-          FAILED_TESTS_FILE="$TEST_RESULTS_DIR/failed-tests"
+          FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
           if [ -e "$FAILED_TESTS_FILE" ]; then
               cat "$FAILED_TESTS_FILE"
