@@ -85,7 +85,7 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
-func (Store) SeqFormingAssertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
+func (Store) SeqFormingAssertion(*asserts.AssertionType, []string, int, *auth.UserState) (asserts.Assertion, error) {
 	panic("Store.SeqFormingAssertion not expected")
 }
 

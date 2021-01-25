@@ -100,27 +100,21 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 }
 
 // SeqFormingAssertion retrieves the sequence-forming assertion for the given
-// type (currently validation-set only) and primary or sequence key.
-func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+// type (currently validation-set only).
+func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 	if !assertType.SequenceForming() {
 		return nil, fmt.Errorf("internal error: requested non sequence-forming assertion type %q", assertType.Name)
 	}
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 
-	hasSequenceNumber := len(seqOrPrimaryKey) == len(assertType.PrimaryKey)
-
-	// sequence key is the primary key without sequence number element.
-	var sequenceKey []string
+	hasSequenceNumber := sequence > 0
 	if hasSequenceNumber {
 		// full primary key passed, query specific sequence number.
-		v.Set("sequence", seqOrPrimaryKey[len(seqOrPrimaryKey)-1])
-		// drop sequence number
-		sequenceKey = seqOrPrimaryKey[:len(seqOrPrimaryKey)-1]
+		v.Set("sequence", fmt.Sprintf("%d", sequence))
 	} else {
-		// sequence key passed, query for the latest sequence.
+		// query for the latest sequence.
 		v.Set("sequence", "latest")
-		sequenceKey = seqOrPrimaryKey
 	}
 	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(sequenceKey...)), v)
 
@@ -139,16 +133,19 @@ func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrim
 			// more relaxed about key length, making sequence optional. Should
 			// we make it a helper on its own in store for the not-found-error
 			// handling?
-			if len(seqOrPrimaryKey) < len(assertType.PrimaryKey)-1 || len(seqOrPrimaryKey) > len(assertType.PrimaryKey) {
-				return fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
+			if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
+				return fmt.Errorf("sequence key has wrong length for %q assertion", assertType.Name)
 			}
 			headers := make(map[string]string)
-			for i, keyVal := range seqOrPrimaryKey {
+			for i, keyVal := range sequenceKey {
 				name := assertType.PrimaryKey[i]
 				if keyVal == "" {
 					return fmt.Errorf("primary key %q header cannot be empty", name)
 				}
 				headers[name] = keyVal
+			}
+			if hasSequenceNumber {
+				headers[assertType.PrimaryKey[len(assertType.PrimaryKey)-1]] = fmt.Sprintf("%d", sequence)
 			}
 			return &asserts.NotFoundError{
 				Type:    assertType,

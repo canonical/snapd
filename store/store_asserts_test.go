@@ -455,11 +455,12 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 	defer mockServer.Close()
 
 	for _, tc := range []struct {
-		primaryKey     []string
+		sequenceKey    []string
+		sequence       int
 		expectedSeqArg string
 	}{
-		{[]string{"16", "account-foo", "set-bar", "2"}, "2"},
-		{[]string{"16", "account-foo", "set-bar"}, "latest"},
+		{[]string{"16", "account-foo", "set-bar"}, 2, "2"},
+		{[]string{"16", "account-foo", "set-bar"}, 0, "latest"},
 	} {
 		expectedSeqArg = tc.expectedSeqArg
 
@@ -470,7 +471,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 		dauthCtx := &testDauthContext{c: c, device: s.device}
 		sto := store.New(&cfg, dauthCtx)
 
-		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.primaryKey, nil)
+		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil)
 		c.Assert(err, IsNil)
 		c.Check(a, NotNil)
 		c.Check(a.Type(), Equals, asserts.ValidationSetType)
@@ -496,7 +497,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 
-	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar", "1"}, nil)
+	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil)
 	c.Check(asserts.IsNotFound(err), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
@@ -509,7 +510,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
 	})
 
 	// latest requested
-	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, nil)
+	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil)
 	c.Check(asserts.IsNotFound(err), Equals, true)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.ValidationSetType,
