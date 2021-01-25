@@ -5919,6 +5919,20 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	c.Assert(err, IsNil)
 }
 
+// tsWithoutReRefresh removes the re-refresh task from the given taskset.
+//
+// It assumes that re-refresh is the last task and will fail if that is
+// not the case.
+//
+// This is needed because settle() will not converge with the re-refresh
+// task because re-refresh will always be in doing state.
+func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
+	refreshIdx := len(ts.Tasks()) - 1
+	c.Assert(ts.Tasks()[refreshIdx].Kind(), Equals, "check-rerefresh")
+	ts = state.NewTaskSet(ts.Tasks()[:refreshIdx-1]...)
+	return ts
+}
+
 func (ms *gadgetUpdatesSuite) TestRefreshGadgetUpdates(c *C) {
 	structureName := "ubuntu-seed"
 	gadgetYaml := fmt.Sprintf(`
@@ -5976,9 +5990,8 @@ volumes:
 
 	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	// Kill re-refresh task (always last task). Without that settle
-	// will not converge
-	ts = state.NewTaskSet(ts.Tasks()[:len(ts.Tasks())-2]...)
+	// remove the re-refresh as it will prevent settle from converging
+	ts = tsWithoutReRefresh(c, ts)
 
 	chg := st.NewChange("upgrade-gadget", "...")
 	chg.AddAll(ts)
