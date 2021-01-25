@@ -196,7 +196,7 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
-func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
 
 	structures, byName, err := layoutVolumeStructures(volume, constraints)
 	if err != nil {
@@ -232,7 +232,6 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 	if fartherstOffsetWrite+quantity.Offset(SizeLBA48Pointer) > farthestEnd {
 		volumeSize = quantity.Size(fartherstOffsetWrite) + SizeLBA48Pointer
 	}
-
 	vol := &LaidOutVolume{
 		Volume:           volume,
 		Size:             volumeSize,
@@ -240,15 +239,17 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		LaidOutStructure: structures,
 		RootDir:          gadgetRootDir,
 	}
+	if err := resolveContentPaths(vol, gadgetRootDir, kernelRootDir); err != nil {
+		return nil, err
+	}
+
 	return vol, nil
 }
 
-// ResolveContentPaths resolves any "$kernel:" refs in the gadget
+// resolveContentPaths resolves any "$kernel:" refs in the gadget
 // content and populates VolumeContent.resolvedSource with absolute
 // paths.
-//
-// XXX: maybe move into LayoutVolume(), operator on *Volume and make private?
-func ResolveContentPaths(lv *LaidOutVolume, gadgetRootDir, kernelRootDir string) error {
+func resolveContentPaths(lv *LaidOutVolume, gadgetRootDir, kernelRootDir string) error {
 	// Note that the kernelRootDir may reference the running
 	// kernel if there is a gadget update or the new kernel if
 	// there is a kernel update.
@@ -257,7 +258,7 @@ func ResolveContentPaths(lv *LaidOutVolume, gadgetRootDir, kernelRootDir string)
 		return err
 	}
 	for i := range lv.Volume.Structure {
-		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
+		if err := ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
 			return err
 		}
 	}
@@ -265,7 +266,9 @@ func ResolveContentPaths(lv *LaidOutVolume, gadgetRootDir, kernelRootDir string)
 	return nil
 }
 
-func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
+// TODO: unexport this, it is currently only needed for the
+// TestWriteFilesystemContent test
+func ResolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
 	for i := range ps.Content {
 		source := ps.Content[i].UnresolvedSource
 		if source != "" {
@@ -287,6 +290,14 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 func resolveContentOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
+		// Skip any $kernel: ref resolving if no kernel dir is
+		// given. This can happen in e.g. validateGadget()
+		//
+		// TODO: make this more elegant
+		if kernelRootDir == "" {
+			return pathOrRef, nil
+		}
+
 		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
 		if err != nil {
 			return "", fmt.Errorf("cannot parse kernel ref: %v", err)

@@ -377,7 +377,7 @@ func layoutFromYaml(c *C, gadgetYaml string, model gadget.Model) *gadget.LaidOut
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
+	pv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, "", model)
 	c.Assert(err, IsNil)
 	return pv
 }

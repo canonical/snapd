@@ -344,7 +344,9 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
 	for name, vol := range info.Volumes {
-		lv, err := LayoutVolume(gadgetSnapRootDir, vol, defaultConstraints)
+		// no kernel root dir at this point
+		kernelRootDir := ""
+		lv, err := LayoutVolume(gadgetSnapRootDir, kernelRootDir, vol, defaultConstraints)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

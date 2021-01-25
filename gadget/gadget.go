@@ -192,12 +192,7 @@ type VolumeContent struct {
 }
 
 func (vc VolumeContent) ResolvedSource() string {
-	// TODO: ensure that sources are always resolved and only return
-	//       vc.resolvedSource(). This will come in the next PR.
-	if vc.resolvedSource != "" {
-		return vc.resolvedSource
-	}
-	return vc.UnresolvedSource
+	return vc.resolvedSource
 }
 
 func (vc VolumeContent) String() string {
@@ -939,7 +934,7 @@ func IsCompatible(current, new *Info) error {
 
 // LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
 	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
@@ -955,7 +950,7 @@ func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, er
 	}
 
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
+		pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 		if err != nil {
 			return nil, err
 		}
