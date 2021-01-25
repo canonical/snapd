@@ -354,9 +354,11 @@ class LogReader:
                 self._match_operation(line) or \
                 self._match_result(line):
                 break
-        self.iter = self.iter - 1
+        if not self.iter == len(self.lines):
+            self.iter = self.iter - 1
         if not other_limit:
             other_limit = self.lines_limit
+
         return Detail(other_limit, self.lines[initial_iter:self.iter])
 
     def _get_info(self, line):

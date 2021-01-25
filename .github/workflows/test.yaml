@@ -332,7 +332,7 @@ jobs:
                   echo "Failed tests saved for re-execution: $FAILED_TESTS"
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               else
-                  echo "No failed tests found"
+                  echo "No failed tests saved"
                   touch "$FAILED_TESTS_FILE"
               fi
           fi
