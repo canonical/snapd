@@ -1636,6 +1636,37 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	c.Assert(err.Error(), check.Equals, "some-error")
 	c.Check(sid, check.Equals, uint64(0))
 }
+
+func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
+	st := state.New(nil)
+
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 3, SnapNames: []string{"foo-snap"}}
+	})
+	defer restore()
+
+	st.Lock()
+	st.Set("snapshots", map[uint64]interface{}{
+		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+		3: map[string]interface{}{"expiry-time": "2019-02-12T12:11:00Z"},
+	})
+	st.Unlock()
+
+	sid, snapNames, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(3))
+	c.Check(snapNames, check.DeepEquals, []string{"foo-snap"})
+
+	st.Lock()
+	defer st.Unlock()
+	// expiry-time has been removed for snapshot set 3
+	var snapshots map[uint64]interface{}
+	c.Assert(st.Get("snapshots", &snapshots), check.IsNil)
+	c.Check(snapshots, check.DeepEquals, map[uint64]interface{}{
+		2: map[string]interface{}{"expiry-time": "2019-01-11T11:11:00Z"},
+	})
+}
+
 func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 	st := state.New(nil)
 	st.Lock()

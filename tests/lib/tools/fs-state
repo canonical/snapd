@@ -77,24 +77,28 @@ restore_file() {
     fi
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit 0
-fi
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
 
-action=
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help|'')
-            show_help
-            exit 0
-            ;;
-        *)
-            action=$(echo "$1" | tr '-' '_')
-            shift
-            break
-            ;;
-    esac
-done
+    action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help|'')
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$1" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
 
-"$action" "$@"
+    "$action" "$@"
+}
+
+main "$@"
