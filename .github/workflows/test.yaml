@@ -243,19 +243,22 @@ jobs:
           CACHE_RUN_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-run"
           echo "CACHE_RUN_STAMP=$CACHE_RUN_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RUN_STAMP" ]; then
+              echo "Tests already executed for current job id"
               echo "::set-output name=already-ran::true"
           fi
 
           CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          
           if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "Tests already passed for current job id"
               echo "::set-output name=already-passed::true"
           fi
 
           FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
+          ls -al "$FAILED_TESTS_FILE" || true
           if [ -e "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
               cat "$FAILED_TESTS_FILE"
           fi
 
