@@ -32,7 +32,9 @@ var (
 
 	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
 
-	ResolveVolume      = resolveVolume
+	ResolveVolume                   = resolveVolume
+	ResolveContentPathsForStructure = resolveContentPathsForStructure
+
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 

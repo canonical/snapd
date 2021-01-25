@@ -37,6 +37,8 @@ import (
 type mountedfilesystemTestSuite struct {
 	dir    string
 	backup string
+
+	mockKernelRoot string
 }
 
 var _ = Suite(&mountedfilesystemTestSuite{})
@@ -44,6 +46,12 @@ var _ = Suite(&mountedfilesystemTestSuite{})
 func (s *mountedfilesystemTestSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 	s.backup = c.MkDir()
+	s.mockKernelRoot = c.MkDir()
+}
+
+func (s *mountedfilesystemTestSuite) mustResolveContentPathsForStructure(c *C, ps *gadget.LaidOutStructure) {
+	err := gadget.ResolveContentPathsForStructure(s.dir, s.mockKernelRoot, nil, ps.VolumeStructure)
+	c.Assert(err, IsNil)
 }
 
 type gadgetData struct {
@@ -344,6 +352,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -418,6 +427,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -443,6 +453,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -474,6 +485,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -511,6 +523,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, psOverwritesDirectoryWithFile)
 
 	outDir := c.MkDir()
 
@@ -545,6 +558,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, psOverwritesFile)
 
 	outDir := c.MkDir()
 
@@ -579,6 +593,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -664,6 +679,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
@@ -708,6 +724,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C)
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	obs := &mockWriteObserver{
 		c:              c,
@@ -755,6 +772,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
@@ -784,6 +802,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 
@@ -811,6 +830,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
@@ -835,10 +855,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 			},
 		},
 	}
-
-	rw, err = gadget.NewMountedFilesystemWriter("", ps, nil)
-	c.Assert(err, ErrorMatches, `internal error: gadget content directory cannot be unset`)
-	c.Assert(rw, IsNil)
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err = gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
@@ -876,6 +893,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
@@ -1008,6 +1026,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -1104,6 +1123,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	outDir := c.MkDir()
 	obs := &mockWriteObserver{
@@ -1167,6 +1187,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1221,6 +1242,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1259,6 +1281,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1309,6 +1332,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1354,6 +1378,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1406,6 +1431,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictB
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	backupBar := filepath.Join(s.backup, "backup-bar")
 	backupFoo := filepath.Join(s.backup, "backup-foo")
@@ -1468,6 +1494,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1514,6 +1541,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1551,6 +1579,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPre
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1655,6 +1684,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -1790,6 +1820,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1845,6 +1876,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1903,6 +1935,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -1960,6 +1993,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2013,6 +2047,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2049,6 +2084,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2061,7 +2097,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/data.backup"), 0, nil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /foo: symbolic links are not supported")
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file .*/foo: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir(c *C) {
@@ -2087,6 +2123,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2100,7 +2137,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar.backup"), 0, nil)
 
 	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /baz: symbolic links are not supported")
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file .*/baz: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {
@@ -2135,6 +2172,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2202,6 +2240,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2255,6 +2294,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2313,6 +2353,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2387,6 +2428,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -2446,6 +2488,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2529,6 +2572,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2707,6 +2751,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	muo := &mockContentUpdateObserver{
 		c:              c,
@@ -2903,7 +2948,6 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 			Content: []gadget.VolumeContent{},
 		},
 	}
-
 	lookupFail := func(to *gadget.LaidOutStructure) (string, error) {
 		c.Fatalf("unexpected call")
 		return "", nil
@@ -2920,10 +2964,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 			Content:    []gadget.VolumeContent{},
 		},
 	}
-
-	rw, err = gadget.NewMountedFilesystemUpdater("", ps, s.backup, lookupFail, nil)
-	c.Assert(err, ErrorMatches, `internal error: gadget content directory cannot be unset`)
-	c.Assert(rw, IsNil)
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, ps, "", lookupFail, nil)
 	c.Assert(err, ErrorMatches, `internal error: backup directory must not be unset`)
@@ -3020,6 +3061,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
@@ -3071,6 +3113,7 @@ managed grub.cfg from disk`
 			},
 		},
 	}
+	s.mustResolveContentPathsForStructure(c, ps)
 	obs := &mockContentUpdateObserver{
 		c:               c,
 		expectedStruct:  ps,
@@ -3164,6 +3207,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveNewFile(c
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psForObserver, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, psForObserver)
+			s.mustResolveContentPathsForStructure(c, psForObserver)
 			return outDir, nil
 		},
 		obs)
@@ -3222,6 +3266,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterObserverPreserveExistingF
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psForObserver, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, psForObserver)
+			s.mustResolveContentPathsForStructure(c, psForObserver)
 			return outDir, nil
 		},
 		obs)
