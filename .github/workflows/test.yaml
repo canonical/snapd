@@ -323,13 +323,16 @@ jobs:
           if [ -e spread.log ]; then
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
               TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
+              echo "Found a total number of tests: $TOTAL_COUNTED"
 
               # Set which tests need to be re-executed (empty will re-execute all the tests)
               rm -f "$FAILED_TESTS_FILE"
               if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
                   FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
+                  echo "Failed tests saved for re-execution: $FAILED_TESTS"
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               else
+                  echo "No failed tests found"
                   touch "$FAILED_TESTS_FILE"
               fi
           fi
