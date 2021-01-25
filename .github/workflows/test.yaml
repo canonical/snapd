@@ -256,7 +256,6 @@ jobs:
 
           FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
           echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
-          ls -al "$FAILED_TESTS_FILE" || true
           if [ -e "$FAILED_TESTS_FILE" ]; then
               echo "Failed tests file found"
               cat "$FAILED_TESTS_FILE"
@@ -277,9 +276,16 @@ jobs:
           fi
 
           # Run spread tests
-          if [ -z "$FAILED_TESTS" ] ; then
+          if [ -z "$FAILED_TESTS" ]; then
+              TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
+              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
               spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           else
+              # We make sure that failed tests just include single tests because
+              # otherwise there were aborted tests and in that scenario the $FAILED_TESTS_FILE
+              # should be empty (just is rexecuted when there are no aborted tests)
+              TESTS_NUMBER=$(echo "$FAILED_TESTS" | wc -w)
+              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
               spread -abend "$FAILED_TESTS" | tee spread.log
           fi
           exit "${PIPESTATUS[0]}"
@@ -290,13 +296,11 @@ jobs:
           if [ -e spread.log ]; then
               echo "Running spread log analyzer"
               ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
-          
-              TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
+
               TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
               TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
               TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
 
-              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
               echo "TESTS_SUCCESSFUL=$TESTS_SUCCESSFUL" >> $GITHUB_ENV
               echo "TESTS_FAILED=$TESTS_FAILED" >> $GITHUB_ENV
               echo "TESTS_ABORTED=$TESTS_ABORTED" >> $GITHUB_ENV
