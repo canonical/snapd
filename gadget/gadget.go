@@ -958,8 +958,8 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 		SectorSize: sectorSize,
 	}
 
-	// find the volume with the ubuntu-boot role on it, we already validated
-	// that the ubuntu-* roles are all on the same volume
+	// find the volume with the system-boot role on it, we already validated
+	// that the system-* roles are all on the same volume
 	for _, vol := range info.Volumes {
 		for _, structure := range vol.Structure {
 			// use the system-boot role
