@@ -944,6 +944,10 @@ func IsCompatible(current, new *Info) error {
 // the ubuntu-* roles can be manipulated on the returned volume during install
 // mode.
 func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+	// model should never be nil here
+	if model == nil {
+		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
+	}
 	// rely on the basic validation from ReadInfo to ensure that the ubuntu-*
 	// roles are all on the same volume for example
 	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
@@ -963,7 +967,7 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 	for _, vol := range info.Volumes {
 		for _, structure := range vol.Structure {
 			// use the system-boot role
-			if structure.Role == SystemBoot || structure.Label == SystemBoot {
+			if structure.Role == SystemBoot {
 				pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
 				if err != nil {
 					return nil, err
