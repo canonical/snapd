@@ -96,6 +96,7 @@ int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const cha
             }
             section_matched = false;
             char *start_section_name = line_buf + 1;
+            // skip the leading [ and trailing \0
             char *end_section_name = memchr(start_section_name, ']', nread - 2);
             if (end_section_name == NULL) {
                 err = sc_error_init_simple("line %d is not a valid ini section", lineno);

@@ -186,7 +186,8 @@ static void test_infofile_get_ini_key(void) {
         "key=value\n"
         "[section2]\n"
         "key2=value-two\n"
-        "other-key2=other-value-two\n";
+        "other-key2=other-value-two\n"
+        "key=value-one-two\n";
     FILE *stream = fmemopen(text, sizeof text - 1, "r");
     g_assert_nonnull(stream);
 
@@ -210,6 +211,16 @@ static void test_infofile_get_ini_key(void) {
     g_assert_null(err);
     g_assert_nonnull(value);
     g_assert_cmpstr(value, ==, "value-two");
+    free(value);
+
+    /* Key matching in the second section (identical to the key from 1st section) */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section2", "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_nonnull(value);
+    g_assert_cmpstr(value, ==, "value-one-two");
     free(value);
 
     /* No matching section */
