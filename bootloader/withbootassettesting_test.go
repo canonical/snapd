@@ -22,7 +22,6 @@ package bootloader_test
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -40,7 +39,7 @@ var _ = Suite(&withbootasetstestingTestSuite{})
 
 func (s *withbootasetstestingTestSuite) TestInjects(c *C) {
 	d := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "bootassetstesting"), nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "bootassetstesting"), []byte("with-bootassetstesting\n"), 0644), IsNil)
 	restore := bootloader.MockMaybeInjectOsReadlink(func(_ string) (string, error) {
 		return filepath.Join(d, "foo"), nil
 	})
@@ -57,15 +56,40 @@ this is mocked grub-recovery.conf
 `))
 	defer restore()
 
-	os.Readlink("/proc/self/exe")
-
 	bootloader.MaybeInjectTestingBootloaderAssets()
 
 	bumped := assets.Internal("grub.cfg")
 	c.Check(string(bumped), Equals, `# Snapd-Boot-Config-Edition: 6
-set snapd_static_cmdline_args='foo bar baz bootassetstesting'
+set snapd_static_cmdline_args='foo bar baz with-bootassetstesting'
 this is mocked grub-recovery.conf
 `)
 	cmdline := bootloader.StaticCommandLineForGrubAssetEdition("grub.cfg", 6)
-	c.Check(cmdline, Equals, `foo bar baz bootassetstesting`)
+	c.Check(cmdline, Equals, `foo bar baz with-bootassetstesting`)
+}
+
+func (s *withbootasetstestingTestSuite) TestNoMarker(c *C) {
+	d := c.MkDir()
+	restore := bootloader.MockMaybeInjectOsReadlink(func(_ string) (string, error) {
+		return filepath.Join(d, "foo"), nil
+	})
+	defer restore()
+	restore = snapdenv.MockTesting(true)
+	defer restore()
+	restore = assets.MockSnippetsForEdition("grub.cfg:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 2, Snippet: []byte(`foo bar baz`)},
+	})
+	defer restore()
+	grubCfg := `# Snapd-Boot-Config-Edition: 5
+set snapd_static_cmdline_args='foo bar baz'
+this is mocked grub-recovery.conf
+`
+	restore = assets.MockInternal("grub.cfg", []byte(grubCfg))
+	defer restore()
+
+	bootloader.MaybeInjectTestingBootloaderAssets()
+
+	notBumped := assets.Internal("grub.cfg")
+	c.Check(string(notBumped), Equals, grubCfg)
+	cmdline := bootloader.StaticCommandLineForGrubAssetEdition("grub.cfg", 5)
+	c.Check(cmdline, Equals, `foo bar baz`)
 }

@@ -21,22 +21,22 @@
 package assets
 
 import (
-	"fmt"
+	"github.com/snapcore/snapd/logger"
 )
 
 // InjectInternal injects an internal asset under the given name.
 func InjectInternal(name string, data []byte) {
-	fmt.Printf("injecting bootloader asset %q\n", name)
+	logger.Noticef("injecting bootloader asset %q", name)
 	registeredAssets[name] = data
 }
 
-func InternalSnippets(name string) []ForEditions {
+func SnippetsForEditions(name string) []ForEditions {
 	return registeredEditionSnippets[name]
 }
 
 // InjectSnippetForEditions injects a set of snippets under a given key.
-func InjectSnippetForEditions(name string, snippets []ForEditions) {
-	fmt.Printf("injecting bootloader asset edition snippets for %q\n", name)
+func InjectSnippetsForEditions(name string, snippets []ForEditions) {
+	logger.Noticef("injecting bootloader asset edition snippets for %q", name)
 
 	if err := sanitizeSnippets(snippets); err != nil {
 		panic(err)

@@ -23,12 +23,13 @@ package bootloader
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader/assets"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -49,17 +50,24 @@ func MaybeInjectTestingBootloaderAssets() {
 		return
 	}
 
-	fmt.Printf("maybe inject boot assets?\n")
+	// log an info level message, it is a testing build of snapd anyway
+	logger.Noticef("maybe inject boot assets?")
 
 	// is there a marker file at /usr/lib/snapd/ in the snap?
 	selfExe, err := maybeInjectOsReadlink("/proc/self/exe")
 	if err != nil {
 		panic(fmt.Sprintf("cannot readlink: %v", err))
 	}
-	if !osutil.FileExists(filepath.Join(filepath.Dir(selfExe), "bootassetstesting")) {
-		fmt.Printf("no boot asset testing marker\n")
+
+	injectPieceRaw, err := ioutil.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
+	if os.IsNotExist(err) {
+		logger.Noticef("no boot asset testing marker")
 		return
 	}
+	if len(injectPieceRaw) == 0 {
+		logger.Noticef("boot asset testing snippet is empty")
+	}
+	injectPiece := strings.TrimSpace(string(injectPieceRaw))
 
 	// with boot assets testing enabled and the marker file present, inject
 	// a mock boot config update
@@ -68,7 +76,7 @@ func MaybeInjectTestingBootloaderAssets() {
 	if grubBootconfig == nil {
 		panic("no bootconfig")
 	}
-	snippets := assets.InternalSnippets("grub.cfg:static-cmdline")
+	snippets := assets.SnippetsForEditions("grub.cfg:static-cmdline")
 	if len(snippets) == 0 {
 		panic(fmt.Sprintf("cannot obtain internal grub.cfg:static-cmdline snippets"))
 	}
@@ -77,17 +85,17 @@ func MaybeInjectTestingBootloaderAssets() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot inject boot config for asset: %v", err))
 	}
-	// bump he injected edition number
+	// bump the injected edition number
 	injectedEdition := internalEdition + 1
 
-	fmt.Printf("injecting grub boot assets for testing, edition: %v\n", injectedEdition)
+	logger.Noticef("injecting grub boot assets for testing, edition: %v snippet: %q", injectedEdition, injectPiece)
 
 	lastSnippet := string(snippets[len(snippets)-1].Snippet)
-	injectedSnippet := lastSnippet + " bootassetstesting"
+	injectedSnippet := lastSnippet + " " + injectPiece
 	injectedSnippets := append(snippets,
 		assets.ForEditions{FirstEdition: injectedEdition, Snippet: []byte(injectedSnippet)})
 
-	assets.InjectSnippetForEditions("grub.cfg:static-cmdline", injectedSnippets)
+	assets.InjectSnippetsForEditions("grub.cfg:static-cmdline", injectedSnippets)
 
 	origGrubBoot := string(grubBootconfig)
 	bumpedEdition := strings.Replace(origGrubBoot,
