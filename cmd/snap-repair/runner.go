@@ -790,12 +790,18 @@ func findDevInfo16() (*deviceInfo, error) {
 		return nil, err
 	}
 
-	// get the base snap as well
+	// get the base snap as well, on uc16 it won't be specified in the model
+	// assertion and instead will be empty, so in this case we replace it with
+	// "core"
+	base := modelAs.Base()
+	if modelAs.Base() == "" {
+		base = "core"
+	}
 
 	return &deviceInfo{
 		Brand: modelAs.BrandID(),
 		Model: modelAs.Model(),
-		Base:  modelAs.Base(),
+		Base:  base,
 		// Mode is unset on uc16/uc18
 	}, nil
 }
@@ -900,8 +906,47 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 		}
 	}
 
-	// TODO:UC20: need to consider filtering by bases and modes in the assertion
-	// here
+	// also filter by base snaps and modes
+	bases, err := stringList(headers, "bases")
+	if err != nil {
+		return false
+	}
+
+	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
+		return false
+	}
+
+	modes, err := stringList(headers, "modes")
+	if err != nil {
+		return false
+	}
+
+	// modes is slightly more nuanced, if the modes setting in the assertion
+	// header is unset, then it means it runs on all uc16/uc18 devices, but only
+	// during run mode on uc20 devices
+	if run.state.Device.Mode == "" {
+		// uc16 / uc18 device, the assertion is only applicable to us if modes
+		// is unset
+		if len(modes) != 0 {
+			return false
+		}
+		// else modes is unset and still applies to us
+	} else {
+		// uc20 device
+		switch {
+		case len(modes) == 0 && run.state.Device.Mode != "run":
+			// if modes is unset, then it is only applicable if we are
+			// in run mode
+			return false
+		case len(modes) != 0 && !strutil.ListContains(modes, run.state.Device.Mode):
+			// modes was specified and our current mode is not in the header, so
+			// not applicable to us
+			return false
+		}
+		// other cases are either that we are in run mode and modes is unset (in
+		// which case it is applicable) or modes is set to something with our
+		// current mode in the list (also in which case it is applicable)
+	}
 
 	return true
 }
