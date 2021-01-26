@@ -941,14 +941,14 @@ func IsCompatible(current, new *Info) error {
 // partitions as specified. It returns one specific volume, which is the volume
 // on which system-* roles/partitions exist, all other volumes are assumed to
 // already be flashed and managed separately at image build/flash time, while
-// the ubuntu-* roles can be manipulated on the returned volume during install
+// the system-* roles can be manipulated on the returned volume during install
 // mode.
 func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
 	// model should never be nil here
 	if model == nil {
 		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
 	}
-	// rely on the basic validation from ReadInfo to ensure that the ubuntu-*
+	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
