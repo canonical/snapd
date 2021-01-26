@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 show_help() {
 	echo "usage: tests.invariant check [INVARIANT...]"
@@ -146,31 +146,35 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+main() {
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
 
-case "$action" in
-	check)
-		ok=1
-		if [ $# -gt 0 ]; then
-			INV_LIST="$*"
-		else
-			INV_LIST="$ALL_INVARIANTS"
-		fi
-		for inv in $INV_LIST; do
-			if check_invariant "$inv"; then
-				echo "tests.invariant: $inv ok"
+	case "$action" in
+		check)
+			ok=1
+			if [ $# -gt 0 ]; then
+				INV_LIST="$*"
 			else
-				echo "tests.invariant: $inv not-ok" >&2
-				ok=0
+				INV_LIST="$ALL_INVARIANTS"
 			fi
-		done
-		if [ $ok -eq 0 ]; then
-			echo "tests.invariant: system is corrupted" >&2
+			for inv in $INV_LIST; do
+				if check_invariant "$inv"; then
+					echo "tests.invariant: $inv ok"
+				else
+					echo "tests.invariant: $inv not-ok" >&2
+					ok=0
+				fi
+			done
+			if [ $ok -eq 0 ]; then
+				echo "tests.invariant: system is corrupted" >&2
+				exit 1
+			fi
+			;;
+		*)
+			echo "tests.invariant: unknown action $action" >&2
 			exit 1
-		fi
-		;;
-	*)
-		echo "tests.invariant: unknown action $action" >&2
-		exit 1
-		;;
-esac
+			;;
+	esac
+}
+
+main "$@"
