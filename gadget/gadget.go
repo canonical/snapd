@@ -184,10 +184,19 @@ type VolumeContent struct {
 	Size quantity.Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
+
+	// resolvedSource is the absolute path of the Source after resolving
+	// any references (e.g. to a "$kernel:" snap)
+	resolvedSource string
+	// TODO: provide resolvedImage too
 }
 
 func (vc VolumeContent) ResolvedSource() string {
-	// TODO: implement resolved sources
+	// TODO: ensure that sources are always resolved and only return
+	//       vc.resolvedSource(). This will come in the next PR.
+	if vc.resolvedSource != "" {
+		return vc.resolvedSource
+	}
 	return vc.UnresolvedSource
 }
 

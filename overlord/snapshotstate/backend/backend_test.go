@@ -1016,7 +1016,7 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	_, err = backend.Import(ctx, 123, buf)
 	dupErr, ok := err.(backend.DuplicatedSnapshotImportError)
 	c.Assert(ok, check.Equals, true)
-	c.Assert(dupErr, check.DeepEquals, backend.DuplicatedSnapshotImportError{SetID: shID})
+	c.Assert(dupErr, check.DeepEquals, backend.DuplicatedSnapshotImportError{SetID: shID, SnapNames: []string{"hello-snap"}})
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
