@@ -1641,7 +1641,7 @@ func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	st := state.New(nil)
 
 	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
-		return nil, backend.DuplicatedSnapshotImportError{SetID: 3}
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 3, SnapNames: []string{"foo-snap"}}
 	})
 	defer restore()
 
@@ -1652,9 +1652,10 @@ func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	})
 	st.Unlock()
 
-	sid, _, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
+	sid, snapNames, err := snapshotstate.Import(context.TODO(), st, bytes.NewBufferString(""))
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(3))
+	c.Check(snapNames, check.DeepEquals, []string{"foo-snap"})
 
 	st.Lock()
 	defer st.Unlock()
