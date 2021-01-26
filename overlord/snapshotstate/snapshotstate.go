@@ -317,12 +317,6 @@ func List(ctx context.Context, st *state.State, setID uint64, snapNames []string
 	return sets, nil
 }
 
-// XXX: Something needs to cleanup incomplete imports. This is conceptually
-//      very simple: on startup, do:
-//      for setID in *_importing:
-//          newImportTransaction(setID).Cancel()
-//      But it needs to happen early *before* anything can start new imports
-
 // Import a given snapshot ID from an exported snapshot
 func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, snapNames []string, err error) {
 	st.Lock()
@@ -333,6 +327,19 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (setID uint64, sn
 	}
 	snapNames, err = backendImport(ctx, setID, r)
 	if err != nil {
+		if dupErr, ok := err.(backend.DuplicatedSnapshotImportError); ok {
+			st.Lock()
+			defer st.Unlock()
+			// trying to import identical snapshot; instead return set ID of
+			// the existing one and reset its expiry time.
+			// XXX: at the moment expiry-time is the only attribute so we can
+			// just remove the record. If we ever add more attributes this needs
+			// to reset expiry-time only.
+			if err := removeSnapshotState(st, dupErr.SetID); err != nil {
+				return 0, nil, err
+			}
+			return dupErr.SetID, dupErr.SnapNames, nil
+		}
 		return 0, nil, err
 	}
 	return setID, snapNames, nil
