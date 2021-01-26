@@ -177,7 +177,8 @@ jobs:
         # install secboot again
         ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         ${{ github.workspace }}/bin/govendor remove +unused
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        # we don't need coverage anymore
+        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")

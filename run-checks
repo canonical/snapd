@@ -292,21 +292,29 @@ if [ "$UNIT" = 1 ]; then
             # shellcheck disable=SC2046,SC2086
             GOTRACEBACK=1 $goctest $tags -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
-        # Prepare the coverage output profile.
-        rm -rf .coverage
-        mkdir .coverage
-        echo "mode: $COVERMODE" > .coverage/coverage.out
+        coverage=""
+        if [ -z "${SKIP_COVERAGE-}" ]; then
+            coverage="-coverprofile=.coverage/coverage.out -covermode=$COVERMODE"
+            # Prepare the coverage output profile.
+            rm -rf .coverage
+            mkdir .coverage
+            echo "mode: $COVERMODE" > .coverage/coverage.out
+        else
+            echo "Skipping test coverage"
+        fi
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
                 # shellcheck disable=SC2086
                 GOTRACEBACK=1 go test $tags -timeout 5m -i "$pkg"
-                # shellcheck disable=SC2086
-                GOTRACEBACK=1 $goctest $tags -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-                append_coverage .coverage/profile.out
+                if [ -z "${SKIP_COVERAGE-}" ]; then
+                    # shellcheck disable=SC2086
+                    GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage "$pkg"
+                    append_coverage .coverage/profile.out
+                fi
             done
         fi
     fi
