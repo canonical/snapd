@@ -54,6 +54,11 @@ func init() {
 		baseurl = "https://api.snapcraft.io/v2/"
 	}
 
+	// allow overwriting the SAS url too
+	if forcedURL := os.Getenv("SNAPPY_FORCE_SAS_URL"); forcedURL != "" {
+		baseurl = forcedURL
+	}
+
 	var err error
 	baseURL, err = url.Parse(baseurl)
 	if err != nil {
