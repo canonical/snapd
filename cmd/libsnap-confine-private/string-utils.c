@@ -74,6 +74,8 @@ bool sc_startswith(const char *str, const char *prefix)
 
 char *sc_strdup(const char *str)
 {
+	// Set errno in case we die.
+	errno = 0;
 	size_t len;
 	char *copy;
 	if (str == NULL) {
@@ -90,6 +92,8 @@ char *sc_strdup(const char *str)
 
 int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 {
+	// Set errno in case we die.
+	errno = 0;
 	int n;
 
 	va_list va;
@@ -196,6 +200,8 @@ void sc_string_init(char *buf, size_t buf_size)
 
 void sc_string_quote(char *buf, size_t buf_size, const char *str)
 {
+	// Set errno in case we die.
+	errno = 0;
 	if (str == NULL) {
 		die("cannot quote string: string is NULL");
 	}
