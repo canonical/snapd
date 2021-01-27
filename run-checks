@@ -303,7 +303,7 @@ if [ "$UNIT" = 1 ]; then
             echo "Skipping test coverage"
         fi
 
-        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+        if command -v dpkg >/dev/null && dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046,SC2086
             GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
         else
