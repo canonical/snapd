@@ -204,9 +204,9 @@ type StaticInfo struct {
 	BaseDeclarationSlots string
 }
 
-// PermanentPlugServiceSnippets will return the set of unique snippets for the
-// systemd service unit that should be generated for a snap with the specified
-// plug.
+// PermanentPlugServiceSnippets will return the set of snippets for the systemd
+// service unit that should be generated for a snap with the specified plug.
+// The list returned is not unique, callers must de-duplicate themselves.
 // The plug is provided because the snippet may depend on plug attributes for
 // example. The plug is sanitized before the snippets are returned.
 func PermanentPlugServiceSnippets(iface Interface, plug *snap.PlugInfo) (snips []string, err error) {
