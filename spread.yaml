@@ -137,7 +137,7 @@ backends:
                   workers: 6
                   manual: true
             - centos-8-64:
-                  workers: 4
+                  workers: 6
                   storage: preserve-size
                   image: centos-8-64
 
