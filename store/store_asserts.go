@@ -100,7 +100,9 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 }
 
 // SeqFormingAssertion retrieves the sequence-forming assertion for the given
-// type (currently validation-set only).
+// type (currently validation-set only). For sequence <= 0 we query for the
+// latest sequence, otherwise the latest revision of the given sequence is
+// requested.
 func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 	if !assertType.SequenceForming() {
 		return nil, fmt.Errorf("internal error: requested non sequence-forming assertion type %q", assertType.Name)
@@ -140,7 +142,7 @@ func (s *Store) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceK
 			for i, keyVal := range sequenceKey {
 				name := assertType.PrimaryKey[i]
 				if keyVal == "" {
-					return fmt.Errorf("primary key %q header cannot be empty", name)
+					return fmt.Errorf("sequence key %q header cannot be empty", name)
 				}
 				headers[name] = keyVal
 			}
