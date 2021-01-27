@@ -44,7 +44,7 @@ var _ = check.Suite(&apiValidationSetsSuite{})
 type apiValidationSetsSuite struct {
 	apiBaseSuite
 
-	mockSeqFormingAssertionFn func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+	mockSeqFormingAssertionFn func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
 }
 
 type byName []*snapasserts.InstalledSnap
@@ -89,12 +89,12 @@ func mockValidationSetsTracking(st *state.State) {
 	})
 }
 
-func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	return s.mockSeqFormingAssertionFn(assertType, seqOrPrimaryKey, user)
+func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	return s.mockSeqFormingAssertionFn(assertType, sequenceKey, sequence, user)
 }
 
 func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		return nil, &asserts.NotFoundError{
 			Type: assertType,
 		}
@@ -247,7 +247,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		return nil, &asserts.NotFoundError{
 			Type: assertType,
 		}
@@ -291,11 +291,12 @@ var validationSetAssertion = []byte("type: validation-set\n" +
 	"AXNpZw==")
 
 func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		c.Assert(assertType, check.NotNil)
 		c.Assert(assertType.Name, check.Equals, "validation-set")
 		// no sequence number element, querying the latest
-		c.Assert(seqOrPrimaryKey, check.DeepEquals, []string{"16", "foo", "other"})
+		c.Assert(sequenceKey, check.DeepEquals, []string{"16", "foo", "other"})
+		c.Assert(sequence, check.Equals, 0)
 		as, err := asserts.Decode(validationSetAssertion)
 		c.Assert(err, check.IsNil)
 		return as, nil
@@ -351,7 +352,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteValidationFails(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		as, err := asserts.Decode(validationSetAssertion)
 		c.Assert(err, check.IsNil)
 		return as, nil
@@ -376,10 +377,11 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteValidationF
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, seqOrPrimaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		c.Assert(assertType, check.NotNil)
 		c.Assert(assertType.Name, check.Equals, "validation-set")
-		c.Assert(seqOrPrimaryKey, check.DeepEquals, []string{"16", "foo", "other", "2"})
+		c.Assert(sequenceKey, check.DeepEquals, []string{"16", "foo", "other"})
+		c.Assert(sequence, check.Equals, 2)
 		as, err := asserts.Decode(validationSetAssertion)
 		c.Assert(err, check.IsNil)
 		return as, nil
@@ -428,7 +430,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
-	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		return nil, &asserts.NotFoundError{
 			Type: assertType,
 		}

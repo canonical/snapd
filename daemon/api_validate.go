@@ -357,12 +357,8 @@ func getSingleSeqFormingAssertion(c *Command, accountID, name string, sequence i
 		return nil, err
 	}
 
-	primaryKeys := []string{model.Series(), accountID, name}
-	if sequence != 0 {
-		primaryKeys = append(primaryKeys, fmt.Sprintf("%d", sequence))
-	}
-
-	as, err := sto.SeqFormingAssertion(at, primaryKeys, user)
+	sequenceKey := []string{model.Series(), accountID, name}
+	as, err := sto.SeqFormingAssertion(at, sequenceKey, sequence, user)
 	if err != nil {
 		return nil, err
 	}
