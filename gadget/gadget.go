@@ -939,7 +939,7 @@ func IsCompatible(current, new *Info) error {
 
 // LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified.
-func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
 	info, err := ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, err
@@ -955,7 +955,7 @@ func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, er
 	}
 
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
+		pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 		if err != nil {
 			return nil, err
 		}

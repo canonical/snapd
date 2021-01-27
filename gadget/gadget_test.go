@@ -1983,7 +1983,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.LaidOutVolumeFromGadget(s.dir, nil)
+	_, err = gadget.LaidOutVolumeFromGadget(s.dir, "", nil)
 	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
 }
 
@@ -1995,7 +1995,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutVolumeFromGadget(s.dir, nil)
+	lv, err := gadget.LaidOutVolumeFromGadget(s.dir, "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
