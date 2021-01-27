@@ -45,6 +45,13 @@ func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
 }
 
 type assertionSvcError struct {
+	// v1 error fields
+	// XXX: remove once switched to v2 API request.
+	Status int    `json:"status"`
+	Type   string `json:"type"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+
 	// v2 error list - the only field included in v2 error response.
 	// XXX: there is an overlap with searchV2Results (and partially with
 	// errorListEntry), we could share the definition.
@@ -55,7 +62,7 @@ type assertionSvcError struct {
 }
 
 func (e *assertionSvcError) isNotFound() bool {
-	return len(e.ErrorList) > 0 && e.ErrorList[0].Code == "not-found"
+	return (len(e.ErrorList) > 0 && e.ErrorList[0].Code == "not-found" /* v2 error */) || e.Status == 404
 }
 
 func (e *assertionSvcError) toError() error {
@@ -63,7 +70,8 @@ func (e *assertionSvcError) toError() error {
 	if len(e.ErrorList) > 0 {
 		return fmt.Errorf("assertion service error: %q", e.ErrorList[0].Message)
 	}
-	return fmt.Errorf("unexpected assertion service error")
+	// v1 error
+	return fmt.Errorf("assertion service error: [%s] %q", e.Title, e.Detail)
 }
 
 // Assertion retrieves the assertion for the given type and primary key.

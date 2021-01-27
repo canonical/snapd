@@ -318,6 +318,19 @@ fi
 	}
 }
 
+func (s *sysconfigSuite) TestCloudInitNotFoundStatus(c *C) {
+	emptyDir := c.MkDir()
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		c.Assert(os.Setenv("PATH", oldPath), IsNil)
+	}()
+	os.Setenv("PATH", emptyDir)
+
+	status, err := sysconfig.CloudInitStatus()
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, sysconfig.CloudInitNotFound)
+}
+
 var gceCloudInitStatusJSON = `{
 	"v1": {
 	 "datasource": "DataSourceGCE",
@@ -515,6 +528,12 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 				DisableAfterLocalDatasourcesRun: true,
 			},
 			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:        "no cloud-init in $PATH",
+			state:          sysconfig.CloudInitNotFound,
 			expAction:      "disable",
 			expDisableFile: true,
 		},

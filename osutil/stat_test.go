@@ -233,3 +233,61 @@ func (s *StatTestSuite) TestIsExecutable(c *C) {
 		c.Check(IsExecutable(p), Equals, tc.is)
 	}
 }
+
+func (ts *StatTestSuite) TestRegularFileExists(c *C) {
+	tt := []struct {
+		make           bool
+		makeNonRegular bool
+		path           string
+		expExists      bool
+		expIsReg       bool
+		expErr         string
+		comment        string
+	}{
+		{
+			make:      true,
+			path:      "foo",
+			expExists: true,
+			expIsReg:  true,
+			comment:   "file is regular",
+		},
+		{
+			make:           true,
+			makeNonRegular: true,
+			path:           "bar",
+			expExists:      true,
+			comment:        "file is symlink",
+		},
+		{
+			path:      "not-exists",
+			expExists: false,
+			expErr:    ".*no such file or directory",
+			comment:   "file doesn't exist",
+		},
+	}
+
+	for _, t := range tt {
+		fullpath := filepath.Join(c.MkDir(), t.path)
+		comment := Commentf(t.comment)
+
+		if t.make {
+			if t.makeNonRegular {
+				// make it a symlink
+				err := os.Symlink("foo", fullpath)
+				c.Assert(err, IsNil, comment)
+			} else {
+				// make it a normal file
+				err := ioutil.WriteFile(fullpath, nil, 0644)
+				c.Assert(err, IsNil, comment)
+			}
+		}
+
+		exists, isReg, err := RegularFileExists(fullpath)
+		if t.expErr != "" {
+			c.Assert(err, ErrorMatches, t.expErr, comment)
+			continue
+		}
+		c.Assert(exists, Equals, t.expExists, comment)
+		c.Assert(isReg, Equals, t.expIsReg, comment)
+	}
+}
