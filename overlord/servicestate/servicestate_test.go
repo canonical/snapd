@@ -161,5 +161,36 @@ UnitFileState=%s
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
+		// service with D-Bus activation
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "system",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
 	}
 }

@@ -278,6 +278,19 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		}
 	}
+	// Decorate with D-Bus names that activate this service
+	for _, slot := range snapApp.ActivatesOn {
+		var busName string
+		if err := slot.Attr("name", &busName); err != nil {
+			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
+		}
+		appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+			Name:    busName,
+			Enabled: true,
+			Active:  true,
+			Type:    "dbus",
+		})
+	}
 
 	return nil
 }
