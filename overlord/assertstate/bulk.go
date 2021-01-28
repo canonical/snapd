@@ -33,6 +33,7 @@ import (
 )
 
 const storeGroup = "store assertion"
+const validationSetsGroup = "validation set assertions"
 
 // maxGroups is the maximum number of assertion groups we set with the
 // asserts.Pool used to refresh snap assertions, it corresponds
@@ -136,6 +137,37 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 		return mergedRPErr
 	}
 
+	return nil
+}
+
+func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, deviceCtx snapstate.DeviceContext) error {
+	db := cachedDB(s)
+
+	pool := asserts.NewPool(db, maxGroups)
+
+	for _, vs := range vsets {
+		var atSeq *asserts.AtSequence
+		if vs.PinnedAt > 0 {
+			// pinned to specific sequence, update to latest revision for same
+			// sequence.
+			atSeq = &asserts.AtSequence{
+				Type:       asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, vs.AccountID, vs.Name},
+				Sequence: vs.PinnedAt,
+				Pinned: true,
+			}
+		} else {
+			// not pinned, update to latest sequence
+			atSeq = &asserts.AtSequence{
+				Type:       asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, vs.AccountID, vs.Name},
+				Sequence: vs.Current,
+			}
+		}
+		if err := pool.AddSequenceToUpdate(atSeq, validationSetsGroup); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

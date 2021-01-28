@@ -59,7 +59,7 @@ type CurrentSnap struct {
 }
 
 type AssertionQuery interface {
-	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, error)
+	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, map[asserts.Grouping][]*asserts.AtSequence, error)
 
 	AddError(e error, ref *asserts.Ref) error
 	AddGroupingError(e error, grouping asserts.Grouping) error
@@ -123,13 +123,23 @@ type snapActionJSON struct {
 	Epoch interface{} `json:"epoch,omitempty"`
 	// For assertions
 	Key        string         `json:"key,omitempty"`
-	Assertions []assertAtJSON `json:"assertions,omitempty"`
+	Assertions []interface{}  `json:"assertions,omitempty"`
 }
 
 type assertAtJSON struct {
 	Type        string   `json:"type"`
 	PrimaryKey  []string `json:"primary-key"`
 	IfNewerThan *int     `json:"if-newer-than,omitempty"`
+}
+
+type assertSeqAtJSON struct {
+	Type        string   `json:"type"`
+	SequenceKey  []string `json:"sequence-key"`
+	IfNewerThan *int     `json:"if-newer-than,omitempty"`
+	IfSequenceNewerThan *int `json:"if-sequence-newer-than,omitempty"`
+	// if-sequence-equal-or-newer-than and sequence are mutually exclusive
+	IfSequenceEqualOrNewerThan *int `json:"if-sequence-equal-or-newer-than,omitempty"`
+	Sequence int `json:"sequence,omitempty"`
 }
 
 type snapRelease struct {
@@ -196,22 +206,23 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	var toResolve map[asserts.Grouping][]*asserts.AtRevision
+	var toResolveSeq map[asserts.Grouping][]*asserts.AtSequence
 	if assertQuery != nil {
 		var err error
-		toResolve, err = assertQuery.ToResolve()
+		toResolve, toResolveSeq, err = assertQuery.ToResolve()
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
-	if len(currentSnaps) == 0 && len(actions) == 0 && len(toResolve) == 0 {
+	if len(currentSnaps) == 0 && len(actions) == 0 && len(toResolve) == 0 && len(toResolveSeq) == 0 {
 		// nothing to do
 		return nil, nil, &SnapActionError{NoResults: true}
 	}
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -278,7 +289,7 @@ type AssertionResult struct {
 	StreamURLs []string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -317,7 +328,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve))
+	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve)+len(toResolveSeq))
+	var actionIndex int
 
 	// snaps
 	downloadNum := 0
@@ -325,7 +337,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	installs := make(map[string]*SnapAction, len(actions))
 	downloads := make(map[string]*SnapAction, len(actions))
 	refreshes := make(map[string]*SnapAction, len(actions))
-	for i, a := range actions {
+	for _, a := range actions {
 		if !isValidAction(a.Action) {
 			return nil, nil, fmt.Errorf("internal error: unsupported action %q", a.Action)
 		}
@@ -385,30 +397,76 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		aJSON.InstanceKey = instanceKey
 
-		actionJSONs[i] = aJSON
+		actionJSONs[actionIndex] = aJSON
+		actionIndex++
 	}
 
 	// assertions
 	var assertMaxFormats map[string]int
 	if len(toResolve) > 0 {
-		i := len(actionJSONs) - len(toResolve)
 		for grp, ats := range toResolve {
 			aJSON := &snapActionJSON{
 				Action: "fetch-assertions",
 				Key:    string(grp),
 			}
-			aJSON.Assertions = make([]assertAtJSON, len(ats))
+			aJSON.Assertions = make([]interface{}, len(ats))
 			for j, at := range ats {
-				aJSON.Assertions[j].Type = at.Type.Name
-				aJSON.Assertions[j].PrimaryKey = at.PrimaryKey
+				aj := &assertAtJSON{
+					Type: at.Type.Name,
+					PrimaryKey: at.PrimaryKey,
+				}
 				rev := at.Revision
 				if rev != asserts.RevisionNotKnown {
-					aJSON.Assertions[j].IfNewerThan = &rev
+					aj.IfNewerThan = &rev
 				}
+				aJSON.Assertions[j] = aj
 			}
-			actionJSONs[i] = aJSON
-			i++
+			actionJSONs[actionIndex] = aJSON
+			actionIndex++
 		}
+	}
+
+	if len(toResolveSeq) > 0 {
+		for grp, ats := range toResolveSeq {
+			aJSON := &snapActionJSON{
+				Action: "fetch-assertions",
+				Key:    string(grp),
+			}
+			aJSON.Assertions = make([]interface{}, len(ats))
+			for j, at := range ats {
+				aj := assertSeqAtJSON{
+					Type: at.Type.Name,
+					SequenceKey: at.SequenceKey,
+				}
+				// for pinned we request the assertion ​by the sequence point <sequence-number>​, i.e.
+				// {"type": "validation-set",
+				//  "sequence-key": ["16", "account-id", "name"],
+				//  "sequence": <sequence-number>}
+				if at.Pinned {
+					if at.Sequence <= 0 {
+						return nil, nil, fmt.Errorf("internal error: sequence not set for pinned sequence %s, %v", at.Type.Name, at.SequenceKey)
+					}
+					aj.Sequence = at.Sequence
+				} else {
+					// for not pinned, if sequence is specified, then
+					// use it for "if-sequence-equal-or-newer-than": <sequence-number>
+					if at.Sequence > 0 {
+						aj.IfSequenceEqualOrNewerThan = &at.Sequence
+					}
+				}
+				rev := at.Revision
+				// revision (if set) goes to "if-newer-than": <assert-revision>
+				if rev != asserts.RevisionNotKnown {
+					aj.IfNewerThan = &rev
+				}
+				aJSON.Assertions[j] = aj
+			}
+			actionJSONs[actionIndex] = aJSON
+			actionIndex++
+		}
+	}
+
+	if len(toResolve) > 0 || len(toResolveSeq) > 0 {
 		assertMaxFormats = asserts.MaxSupportedFormats(1)
 	}
 

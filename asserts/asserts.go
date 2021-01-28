@@ -278,6 +278,62 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 
 const RevisionNotKnown = -1
 
+// AtSequence represents a sequence forming assertion at a given sequence possibly
+// <= 0 (meaning not specified) and revision, possibly not known (RevisionNotKnown).
+type AtSequence struct {
+	Type        *AssertionType
+	SequenceKey []string
+	Sequence    int
+	Pinned      bool
+	Revision    int
+}
+
+// Unique returns a unique string representing the sequence by its sequence key
+// that can be used as a key in maps.
+func (at *AtSequence) Unique() string {
+	return fmt.Sprintf("%s/%s", at.Type.Name, strings.Join(at.SequenceKey, "/"))
+}
+
+func (at *AtSequence) String() string {
+	pkStr := "-"
+	n := len(at.SequenceKey)
+	if n != len(at.Type.PrimaryKey)-1 {
+		pkStr = "???"
+	} else if n > 0 {
+		pkStr = at.SequenceKey[n-1]
+		var sfx []string
+		if n > 1 {
+			sfx = []string{pkStr + ";"}
+			for i, v := range at.SequenceKey {
+				k := at.Type.PrimaryKey[i]
+				sfx = append(sfx, fmt.Sprintf("%s:%s", k, v))
+			}
+		}
+		if at.Sequence > 0 {
+			sfx = append(sfx, fmt.Sprintf("%s:%d", at.Type.PrimaryKey[len(at.Type.PrimaryKey)-1], at.Sequence))
+		}
+		if sfx != nil {
+			pkStr = strings.Join(sfx, " ")
+		}
+	}
+	sk := fmt.Sprintf("%s (%s)", at.Type.Name, pkStr)
+	if at.Revision == RevisionNotKnown {
+		return sk
+	}
+	return fmt.Sprintf("%s at revision %d", sk, at.Revision)
+}
+
+// Resolve resolves the sequence with known sequence number using the given find function.
+func (at *AtSequence) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
+	// note, at.Sequence may be unset (-1) in which case NotFound error is expected.
+	pkey := append(at.SequenceKey, fmt.Sprintf("%d", at.Sequence))
+	headers, err := HeadersFromPrimaryKey(at.Type, pkey)
+	if err != nil {
+		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", at.Type.Name, at.Type.PrimaryKey, pkey)
+	}
+	return find(at.Type, headers)
+}
+
 // AtRevision represents an assertion at a given revision, possibly
 // not known (RevisionNotKnown).
 type AtRevision struct {
