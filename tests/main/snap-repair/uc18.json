@@ -1,0 +1,6 @@
+{
+    "revision": "1",
+    "bases": [
+        "core18"
+    ]
+}

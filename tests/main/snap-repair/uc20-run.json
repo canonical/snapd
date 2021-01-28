@@ -1,0 +1,9 @@
+{
+    "revision": "1",
+    "bases": [
+        "core20"
+    ],
+    "modes": [
+        "run"
+    ]
+}

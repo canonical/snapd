@@ -1,0 +1,10 @@
+{
+    "revision": "1",
+    "summary": "recovery mode repair assertion",
+    "bases": [
+        "core20"
+    ],
+    "modes": [
+        "recover"
+    ]
+}
