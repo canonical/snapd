@@ -47,7 +47,7 @@ import (
 type firstBoot20Suite struct {
 	firstBootBaseTest
 
-	snapYaml map[string]string
+	extraSnapYaml map[string]string
 
 	// TestingSeed20 helps populating seeds (it provides
 	// MakeAssertedSnap, MakeSeed) for tests.
@@ -63,7 +63,7 @@ var (
 var _ = Suite(&firstBoot20Suite{})
 
 func (s *firstBoot20Suite) SetUpTest(c *C) {
-	s.snapYaml = seedtest.SampleSnapYaml
+	s.extraSnapYaml = make(map[string]string)
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 
@@ -78,7 +78,14 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraSnaps ...string) *asserts.Model {
+func (s *firstBoot20Suite) snapYaml(snp string) string {
+	if yml, ok := seedtest.SampleSnapYaml[snp]; ok {
+		return yml
+	}
+	return s.extraSnapYaml[snp]
+}
+
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraGadgetYaml string, extraSnaps ...string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -94,12 +101,14 @@ volumes:
           size: 2G
 `
 
+	gadgetYaml += extraGadgetYaml
+
 	makeSnap := func(yamlKey string) {
 		var files [][]string
 		if yamlKey == "pc=20" {
 			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
 		}
-		s.MakeAssertedSnap(c, s.snapYaml[yamlKey], files, snap.R(1), "canonical", s.StoreSigning.Database)
+		s.MakeAssertedSnap(c, s.snapYaml(yamlKey), files, snap.R(1), "canonical", s.StoreSigning.Database)
 	}
 
 	makeSnap("snapd")
@@ -205,13 +214,13 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 	c.Check(matched, Equals, len(snapsWithDevModeFlag))
 }
 
-func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraSnaps ...string) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
+func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraGadgetYaml string, extraSnaps ...string) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	sysLabel := m.RecoverySystem
-	model = s.setupCore20Seed(c, sysLabel, modelGrade, extraSnaps...)
+	model = s.setupCore20Seed(c, sysLabel, modelGrade, extraGadgetYaml, extraSnaps...)
 	// sanity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
@@ -241,7 +250,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	})
 	defer systemctlRestorer()
 
-	model, bloader := s.earlySetup(c, m, modelGrade, extraDevModeSnaps...)
+	model, bloader := s.earlySetup(c, m, modelGrade, "", extraDevModeSnaps...)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
@@ -451,4 +460,43 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade)
 	}
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
+	s.extraSnapYaml["user-daemons1"] = `name: user-daemons1
+version: 1.0
+type: app
+base: core20
+
+apps:
+  foo:
+    daemon: simple
+    daemon-scope: user
+`
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	defaultsGadgetYaml := `
+defaults:
+   system:
+      experimental:
+        user-daemons: true
+`
+
+	s.earlySetup(c, &m, "signed", defaultsGadgetYaml, "user-daemons1")
+
+	opts := devicestate.PopulateStateFromSeedOptions{
+		Label: m.RecoverySystem,
+		Mode:  m.Mode,
+	}
+
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	c.Assert(err, IsNil)
+
 }
