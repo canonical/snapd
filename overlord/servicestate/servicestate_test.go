@@ -98,9 +98,10 @@ UnitFileState=%s
 			Daemon: "simple",
 		}
 		snapApp = &snap.AppInfo{
-			Snap:   snp,
-			Name:   "svc",
-			Daemon: "simple",
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
 
 		err = sd.DecorateWithStatus(app, snapApp)
@@ -192,5 +193,28 @@ UnitFileState=%s
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
+
+		// No state is currently extracted for user daemons
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		}
+		snapApp.Timer = &snap.TimerInfo{
+			App:   snapApp,
+			Timer: "10:00",
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, false)
+		c.Check(app.Enabled, Equals, false)
+		c.Check(app.Activators, HasLen, 0)
 	}
 }

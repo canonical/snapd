@@ -228,6 +228,11 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		// nothing to do
 		return nil
 	}
+	if snapApp.DaemonScope != snap.SystemDaemon {
+		// FIXME: the system instance of systemd can't tell us
+		// the state of user daemons, so bail out.
+		return nil
+	}
 
 	// collect all services for a single call to systemctl
 	extra := len(snapApp.Sockets)
