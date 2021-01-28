@@ -238,7 +238,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		// copy existing mock
 		m := mockOnDiskStructureSystemSeed
-		m.LaidOutContent = []gadget.LaidOutContent{
+		m.ResolvedContent = []gadget.ResolvedContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					UnresolvedSource: "grubx64.efi",
