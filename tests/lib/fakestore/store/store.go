@@ -102,6 +102,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	// v2
 	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
+	mux.HandleFunc("/v2/repairs/", store.repairsEndpoint)
+
 	return store
 }
 
@@ -255,6 +257,63 @@ type detailsReplyJSON struct {
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(501)
 	fmt.Fprintf(w, "search not implemented")
+}
+
+func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
+	brandAndRepairID := strings.Split(strings.TrimPrefix(req.URL.Path, "/v2/repairs/"), "/")
+	if len(brandAndRepairID) != 2 {
+		http.Error(w, "missing brand and repair ID", 400)
+		return
+	}
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
+		return
+	}
+
+	a, err := s.retrieveAssertion(bs, asserts.RepairType, brandAndRepairID)
+	if asserts.IsNotFound(err) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		w.Write([]byte(`{"status": 404}`))
+		return
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cannot retrieve repair assertion %v: %v", brandAndRepairID, err), 400)
+		return
+	}
+
+	// there are two cases, one where we are asked for the full assertion, and
+	// one where we are asked for JSON headers of the assertion, so check which
+	// one we were asked for by inspecting the Accept header
+
+	// TODO: what about the If-None-Match header?
+
+	accept := req.Header.Get("Accept")
+	switch accept {
+	case "application/json":
+		// headers only
+		headers := a.Headers()
+		// we have to wrap the headers in a JSON object under the key
+		// "headers"
+		resp := map[string]interface{}{
+			"headers": headers,
+		}
+		b, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("internal error collecting assertion headers as json: %v", err), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(b)
+	case "application/x.ubuntu.assertion":
+		// full assertion
+		w.Header().Set("Content-Type", asserts.MediaType)
+		w.WriteHeader(200)
+		w.Write(asserts.Encode(a))
+	}
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -663,7 +722,6 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	if len(comps) == 0 {
 		http.Error(w, "missing assertion type", 400)
 		return
-
 	}
 
 	typ := asserts.Type(comps[0])
