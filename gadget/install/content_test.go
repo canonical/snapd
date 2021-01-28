@@ -244,6 +244,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 					UnresolvedSource: "grubx64.efi",
 					Target:           "EFI/boot/grubx64.efi",
 				},
+				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
 			},
 		}
 		obs := &mockWriteObserver{

@@ -301,6 +301,11 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 // content and populates VolumeContent.resolvedSource with absolute
 // paths.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+	// TODO: what to here? we could error instead?
+	if pathOrRef == "" {
+		return "", nil
+	}
+
 	// content may refer to "$kernel:<name>/<content>"
 	var resolvedSource string
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
