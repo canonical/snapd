@@ -68,7 +68,10 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	}
 	if updated {
 		t.Logf("updated boot config assets")
-		// XXX: request a system reboot now?
+		// boot assets were updated, request a restart now so that the
+		// situation does not end up more complicated if more updates of
+		// boot assets were to be applied
+		st.RequestRestart(state.RestartSystem)
 	}
 
 	t.SetStatus(state.DoneStatus)

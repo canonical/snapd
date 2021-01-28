@@ -119,6 +119,11 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 			log := tsk.Log()
 			c.Assert(log, HasLen, 1)
 			c.Check(log[0], Matches, ".* updated boot config assets")
+			// update was applied, thus a restart was requested
+			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+		} else {
+			// update was not applied or failed
+			c.Check(s.restartRequests, HasLen, 0)
 		}
 	} else {
 		c.Assert(s.managedbl.UpdateCalls, Equals, 0)
