@@ -78,7 +78,7 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) *asserts.Model {
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraSnaps ...string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -106,7 +106,7 @@ volumes:
 	makeSnap("pc-kernel=20")
 	makeSnap("core20")
 	makeSnap("pc=20")
-	for _, sn := range extraDevModeSnaps {
+	for _, sn := range extraSnaps {
 		makeSnap(sn)
 	}
 
@@ -141,7 +141,7 @@ volumes:
 		},
 	}
 
-	for _, sn := range extraDevModeSnaps {
+	for _, sn := range extraSnaps {
 		name, channel := splitSnapNameWithChannel(sn)
 		model["snaps"] = append(model["snaps"].([]interface{}), map[string]interface{}{
 			"name":            name,
@@ -205,30 +205,19 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 	c.Check(matched, Equals, len(snapsWithDevModeFlag))
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
+func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraSnaps ...string) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	// restart overlord to pick up the modeenv
-	s.startOverlord(c)
-
-	// XXX some things are not yet completely final/realistic
-	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
-	})
-	defer systemctlRestorer()
-
 	sysLabel := m.RecoverySystem
-	model := s.setupCore20Seed(c, sysLabel, modelGrade, extraDevModeSnaps...)
+	model = s.setupCore20Seed(c, sysLabel, modelGrade, extraSnaps...)
 	// sanity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
-	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
+	bloader = bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
+	s.AddCleanup(func() { bootloader.Force(nil) })
 
 	// since we are in runmode, MakeBootable will already have run from install
 	// mode, and extracted the kernel assets for the kernel snap into the
@@ -236,10 +225,26 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 	r := bloader.SetEnabledKernel(kernel)
-	defer r()
+	s.AddCleanup(r)
+
+	// restart overlord to pick up the modeenv
+	s.startOverlord(c)
+
+	return model, bloader
+}
+
+func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	model, bloader := s.earlySetup(c, m, modelGrade, extraDevModeSnaps...)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: sysLabel,
+		Label: m.RecoverySystem,
 		Mode:  m.Mode,
 	}
 
