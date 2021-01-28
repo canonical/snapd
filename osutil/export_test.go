@@ -37,7 +37,34 @@ var (
 	StreamsEqualChunked  = streamsEqualChunked
 	FilesAreEqualChunked = filesAreEqualChunked
 	SudoersFile          = sudoersFile
+	DoCopyFile           = doCopyFile
 )
+
+type Fileish = fileish
+
+func MockMaxCp(new int64) (restore func()) {
+	old := maxcp
+	maxcp = new
+	return func() {
+		maxcp = old
+	}
+}
+
+func MockCopyFile(new func(fileish, fileish, os.FileInfo) error) (restore func()) {
+	old := copyfile
+	copyfile = new
+	return func() {
+		copyfile = old
+	}
+}
+
+func MockOpenFile(new func(string, int, os.FileMode) (fileish, error)) (restore func()) {
+	old := openfile
+	openfile = new
+	return func() {
+		openfile = old
+	}
+}
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	realUserLookup := userLookup
@@ -102,6 +129,14 @@ func MockChown(f func(*os.File, sys.UserID, sys.GroupID) error) func() {
 	chown = f
 	return func() {
 		chown = oldChown
+	}
+}
+
+func MockLookPath(new func(string) (string, error)) (restore func()) {
+	old := lookPath
+	lookPath = new
+	return func() {
+		lookPath = old
 	}
 }
 
