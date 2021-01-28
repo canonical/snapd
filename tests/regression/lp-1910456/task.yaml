@@ -5,71 +5,107 @@ details: |
     Delegate=true snippet added to prevent CVE-2020-27352.
 
 prepare: |
-    # build and install the test snap
+    # build and install the strict test snap
     snap pack container-mgr-snap
     snap install --dangerous test-snapd-container-mgrs*.snap
 
+    if os.query is-classic; then
+        # then also check the classic snap too
+
+        # create the classic test snap by just adding "confinement: classic" to the
+        # snap.yaml of the strict snap
+
+        cp -r container-mgr-snap classic-container-mgr-snap
+        sed -i -e "s@name: test-snapd-container-mgrs@name: test-snapd-classic-container-mgrs@" \
+            classic-container-mgr-snap/meta/snap.yaml
+        echo "confinement: classic" >> classic-container-mgr-snap/meta/snap.yaml
+
+        # TODO: use os.query is-arch on master, "is-arch" sub-command is unavailable
+        # on 2.48 branch
+        if [ "$SPREAD_SYSTEM" = "arch-linux-64" ]; then
+            # need to enable /snap symlink to install classic snaps
+            ln -s /var/lib/snapd/snap /snap
+        fi
+
+        snap pack classic-container-mgr-snap
+        snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
+    fi
+
 execute: |
-    echo "Check that all services exist in the snap"
+    for confinement in classic strict; do
+        echo "Check that all services exist in the $confinement snap"
 
-    snap services | MATCH test-snapd-container-mgrs\.docker-support
-    snap services | MATCH test-snapd-container-mgrs\.greengrass-support
-    snap services | MATCH test-snapd-container-mgrs\.kubernetes-support
-    snap services | MATCH test-snapd-container-mgrs\.lxd-support
+        if [ "$confinement" = "classic" ]; then
+            if os.query is-core; then
+                # skip the classic snap version of the test on core systems
+                echo "Skipping classic variant on Ubuntu Core"
+                continue
+            fi
 
-    snap services | MATCH test-snapd-container-mgrs\.greengrass-no-cont
-    snap services | MATCH test-snapd-container-mgrs\.greengrass-legacy-cont
-
-    snap services | MATCH test-snapd-container-mgrs\.kubelet
-    snap services | MATCH test-snapd-container-mgrs\.kubeproxy
-    snap services | MATCH test-snapd-container-mgrs\.autobind-unix
-
-    snap services | MATCH test-snapd-container-mgrs\.bare
-
-    snap services | MATCH test-snapd-container-mgrs\.multiple-plugs
-
-    echo "Check that the container services have Delegate=true in their service unit exactly once"
-
-    for svc in docker-support greengrass-support kubernetes-support lxd-support greengrass-legacy-cont kubelet kubeproxy multiple-plugs; do
-
-        serviceFile="/etc/systemd/system/snap.test-snapd-container-mgrs.$svc.service"
-
-        cat "$serviceFile" | MATCH "Delegate=true"
-        test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
-
-        # connect and disconnect the interfaces to ensure that 
-        # connection/disconnection does not effect the presence of Delegate=true
-
-        if [ "$svc" = "multiple-plugs" ]; then
-            snap connect "test-snapd-container-mgrs:docker-support"
-            snap connect "test-snapd-container-mgrs:greengrass-support"
-            snap connect "test-snapd-container-mgrs:kubernetes-support"
-            snap connect "test-snapd-container-mgrs:lxd-support"
+            snapName="test-snapd-classic-container-mgrs"
         else
-            snap connect "test-snapd-container-mgrs:$svc"
+            snapName="test-snapd-container-mgrs"
         fi
 
-        cat "$serviceFile" | MATCH "Delegate=true"
-        test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+        snap services | MATCH $snapName\.docker-support
+        snap services | MATCH $snapName\.greengrass-support
+        snap services | MATCH $snapName\.kubernetes-support
+        snap services | MATCH $snapName\.lxd-support
 
-        if [ "$svc" = "multiple-plugs" ]; then
-            snap disconnect "test-snapd-container-mgrs:docker-support"
-            snap disconnect "test-snapd-container-mgrs:greengrass-support"
-            snap disconnect "test-snapd-container-mgrs:kubernetes-support"
-            snap disconnect "test-snapd-container-mgrs:lxd-support"
-        else
-            snap disconnect "test-snapd-container-mgrs:$svc"
-        fi
+        snap services | MATCH $snapName\.greengrass-no-cont
+        snap services | MATCH $snapName\.greengrass-legacy-cont
 
-        cat "$serviceFile" | MATCH "Delegate=true"
-        test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
-    done
+        snap services | MATCH $snapName\.kubelet
+        snap services | MATCH $snapName\.kubeproxy
+        snap services | MATCH $snapName\.autobind-unix
 
-    echo "Check that the non-container manager services do not have Delegate=true in their service units"
+        snap services | MATCH $snapName\.bare
 
-    for svc in bare "autobind-unix" "greengrass-no-cont"; do 
-        serviceFile="/etc/systemd/system/snap.test-snapd-container-mgrs.$svc.service"
-        cat "$serviceFile" | NOMATCH "Delegate=true"
+        snap services | MATCH $snapName\.multiple-plugs
+
+        echo "Check that the container services have Delegate=true in their service unit exactly once"
+
+        for svc in docker-support greengrass-support kubernetes-support lxd-support greengrass-legacy-cont kubelet kubeproxy multiple-plugs; do
+
+            serviceFile="/etc/systemd/system/snap.$snapName.$svc.service"
+
+            cat "$serviceFile" | MATCH "Delegate=true"
+            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+
+            # connect and disconnect the interfaces to ensure that 
+            # connection/disconnection does not effect the presence of Delegate=true
+
+            if [ "$svc" = "multiple-plugs" ]; then
+                snap connect "$snapName:docker-support"
+                snap connect "$snapName:greengrass-support"
+                snap connect "$snapName:kubernetes-support"
+                snap connect "$snapName:lxd-support"
+            else
+                snap connect "$snapName:$svc"
+            fi
+
+            cat "$serviceFile" | MATCH "Delegate=true"
+            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+
+            if [ "$svc" = "multiple-plugs" ]; then
+                snap disconnect "$snapName:docker-support"
+                snap disconnect "$snapName:greengrass-support"
+                snap disconnect "$snapName:kubernetes-support"
+                snap disconnect "$snapName:lxd-support"
+            else
+                snap disconnect "$snapName:$svc"
+            fi
+
+            cat "$serviceFile" | MATCH "Delegate=true"
+            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+        done
+
+        echo "Check that the non-container manager services do not have Delegate=true in their service units"
+
+        for svc in bare "autobind-unix" "greengrass-no-cont"; do 
+            serviceFile="/etc/systemd/system/snap.$snapName.$svc.service"
+            cat "$serviceFile" | NOMATCH "Delegate=true"
+        done
     done
 
     # only run this test on ubuntu since the docker snap is not guaranteed to 
