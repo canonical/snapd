@@ -31,17 +31,8 @@ execute: |
         ./run-checks --static" test
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-        TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER \
-        TRAVIS_BRANCH=$TRAVIS_BRANCH \
-        TRAVIS_COMMIT=$TRAVIS_COMMIT \
-        TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER \
         TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST \
-        TRAVIS_JOB_ID=$TRAVIS_JOB_ID \
-        TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG \
-        TRAVIS_TAG=$TRAVIS_TAG \
         PATH=$PATH \
-        COVERMODE=$COVERMODE \
-        TRAVIS=true \
-        CI=true \
         GOPATH=/tmp/static-unit-tests \
+        SKIP_COVERAGE=1 \
         ./run-checks --unit" test
