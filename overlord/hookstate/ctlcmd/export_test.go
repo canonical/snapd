@@ -28,6 +28,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const (
+	NotASnapCode    = notASnapCode
+	ClassicSnapCode = classicSnapCode
+)
+
 var AttributesTask = attributesTask
 
 func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *servicestate.Flags, *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {

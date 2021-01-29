@@ -42,7 +42,7 @@ execute: |
     expect_status 1 test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
 
     echo "Disconnected interfaces are not connected to non-snap process"
-    expect_status 10 test-snap2.snapctl is-connected --pid 1 foo-slot
+    expect_status 11 test-snap2.snapctl is-connected --pid 1 foo-slot
 
     echo "Connect interface"
     snap connect test-snap1:foo-plug test-snap2:foo-slot
@@ -51,7 +51,7 @@ execute: |
     test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
 
     echo "Interfaces still not connected to non-snap process"
-    expect_status 10 test-snap2.snapctl is-connected --pid 1 foo-slot
+    expect_status 11 test-snap2.snapctl is-connected --pid 1 foo-slot
 
     if [[ "$(snap debug confinement)" = strict ]]; then
       svc_label=$(sed 's/ (.*)$//' < "/proc/$svc_pid/attr/current")
@@ -62,7 +62,7 @@ execute: |
       expect_status 1 test-snap2.snapctl is-connected --apparmor-label "$svc_label" foo-slot
 
       echo "Non-snap AppArmor labels return a special exit code"
-      expect_status 10 test-snap2.snapctl is-connected --apparmor-label /usr/bin/evince foo-slot
+      expect_status 11 test-snap2.snapctl is-connected --apparmor-label /usr/bin/evince foo-slot
     fi
 
     # The remaining tests rely on classic confinement, so skip Ubuntu Core
@@ -79,7 +79,7 @@ execute: |
     classic_pid=$(systemctl show --property=MainPID snap.test-snap-classic.svc.service | cut -d = -f 2)
 
     echo "Unconnected classic snaps report a special exit code"
-    expect_status 11 test-snap2.snapctl is-connected --pid "$classic_pid" foo-slot
+    expect_status 10 test-snap2.snapctl is-connected --pid "$classic_pid" foo-slot
 
     echo "But still reports success when connected"
     snap connect test-snap-classic:foo-plug test-snap2:foo-slot

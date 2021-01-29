@@ -95,7 +95,7 @@ var isConnectedTests = []struct {
 }, {
 	// snap1:cc slot is not connected to a non-snap pid
 	args:     []string{"is-connected", "--pid", "42", "cc"},
-	exitCode: 10,
+	exitCode: ctlcmd.NotASnapCode,
 }, {
 	// snap1:cc slot is connected to a classic snap5
 	args:     []string{"is-connected", "--pid", "1005", "cc"},
@@ -103,7 +103,7 @@ var isConnectedTests = []struct {
 }, {
 	// snap1:audio-record slot is not connected to classic snap5
 	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
-	exitCode: 11,
+	exitCode: ctlcmd.ClassicSnapCode,
 }, {
 	// snap1:plug1 does not use a whitelisted interface
 	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
@@ -123,7 +123,7 @@ var isConnectedTests = []struct {
 }, {
 	// snap1:cc slot is not connected to a non-snap pid
 	args:     []string{"is-connected", "--apparmor-label", "/usr/bin/evince", "cc"},
-	exitCode: 10,
+	exitCode: ctlcmd.NotASnapCode,
 }, {
 	// snap1:cc slot is connected to a classic snap5
 	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "cc"},
@@ -131,7 +131,7 @@ var isConnectedTests = []struct {
 }, {
 	// snap1:audio-record slot is not connected to classic snap5
 	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "audio-record"},
-	exitCode: 11,
+	exitCode: ctlcmd.ClassicSnapCode,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {

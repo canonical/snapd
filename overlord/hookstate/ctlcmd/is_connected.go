@@ -33,6 +33,11 @@ import (
 
 var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 
+const (
+	classicSnapCode = 10
+	notASnapCode    = 11
+)
+
 type isConnectedCommand struct {
 	baseCommand
 
@@ -58,8 +63,8 @@ implied by the snapctl execution context.
 The --pid and --aparmor-label options can be used to determine whether
 a plug or slot is connected to the snap identified by the given
 process ID or AppArmor label.  In this mode, additional failure exit
-codes may be returned: 10 if the other process is not snap confined,
-or 11 if the other snap is not connected but uses classic confinement.
+codes may be returned: 10 if the other snap is not connected but uses
+classic confinement, or 11 if the other process is not snap confined.
 `)
 
 func init() {
@@ -118,7 +123,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		}
 		name, _, _, err := apparmor.DecodeLabel(c.AppArmorLabel)
 		if err != nil {
-			return &UnsuccessfulError{ExitCode: 10}
+			return &UnsuccessfulError{ExitCode: notASnapCode}
 		}
 		otherSnap, err = snapstate.CurrentInfo(st, name)
 		if err != nil {
@@ -131,7 +136,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		name, err := cgroupSnapNameFromPid(c.Pid)
 		if err != nil {
 			// Indicate that this pid is not a snap
-			return &UnsuccessfulError{ExitCode: 10}
+			return &UnsuccessfulError{ExitCode: notASnapCode}
 		}
 		otherSnap, err = snapstate.CurrentInfo(st, name)
 		if err != nil {
@@ -166,7 +171,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	}
 
 	if otherSnap != nil && otherSnap.Confinement == snap.ClassicConfinement {
-		return &UnsuccessfulError{ExitCode: 11}
+		return &UnsuccessfulError{ExitCode: classicSnapCode}
 	}
 
 	return &UnsuccessfulError{ExitCode: 1}
