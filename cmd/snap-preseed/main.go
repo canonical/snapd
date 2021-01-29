@@ -26,6 +26,10 @@ import (
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
+
+	// for SanitizePlugsSlots
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 )
 
 const (
@@ -60,6 +64,10 @@ func Parser() *flags.Parser {
 }
 
 func main() {
+	// real validation of plugs and slots; needs to be set
+	// for processing of seeds with gadget because of readInfo().
+	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
+
 	parser := Parser()
 	if err := run(parser, os.Args[1:]); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
