@@ -65,6 +65,9 @@ a plug or slot is connected to the snap identified by the given
 process ID or AppArmor label.  In this mode, additional failure exit
 codes may be returned: 10 if the other snap is not connected but uses
 classic confinement, or 11 if the other process is not snap confined.
+
+The --pid and --apparmor-label options may only be used with slots of
+interface type "pulseaudio", "audio-record", or "cups-control".
 `)
 
 func init() {
