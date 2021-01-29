@@ -66,6 +66,8 @@ func init() {
 	}
 }
 
+var rootBrandIDs = []string{"canonical"}
+
 func (c *cmdRun) Execute(args []string) error {
 	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0755); err != nil {
 		return err
@@ -90,19 +92,22 @@ func (c *cmdRun) Execute(args []string) error {
 		return err
 	}
 
-	for {
-		repair, err := run.Next("canonical")
-		if err == ErrRepairNotFound {
-			// no more repairs
-			break
-		}
-		if err != nil {
-			return err
-		}
+	for _, rootRepairBrandID := range rootBrandIDs {
+		for {
+			repair, err := run.Next(rootRepairBrandID)
+			if err == ErrRepairNotFound {
+				// no more repairs
+				break
+			}
+			if err != nil {
+				return err
+			}
 
-		if err := repair.Run(); err != nil {
-			return err
+			if err := repair.Run(); err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }
