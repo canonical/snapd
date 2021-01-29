@@ -36,7 +36,8 @@ const allegroVcuBaseDeclarationSlots = `
 `
 
 const allegroVcuConnectedPlugAppArmor = `
-# Description: Can access to Xilinx Allegro VCU.
+# Description: Can access the Xilinx Allegro Video Core Unit, using a kernel
+# module which directly controls hardware on the device.
 
 /dev/allegroDecodeIP rw,
 /dev/allegroIP rw,
