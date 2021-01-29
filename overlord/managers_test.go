@@ -5899,6 +5899,8 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+// makeMockDev puts a mock mount point under /run/mnt/{structureName}
+// that can then be used from mocked gadget.yaml
 func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// mock /dev/disk/by-label/{structureName}
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
@@ -5912,10 +5914,10 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	c.Assert(err, IsNil)
 
 	// mock /proc/self/mountinfo with the above generated paths
-	ms.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/%s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, structureName)))
+	ms.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/run/mnt/%[2]s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, structureName)))
 
 	// and mock the mount point
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, structureName), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0755)
 	c.Assert(err, IsNil)
 }
 
@@ -6018,8 +6020,8 @@ volumes:
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
 	// check that files/dirs got updated and subdirs are correct
-	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "subdir/foo-renamed.img"), testutil.FileContains, "foo rev2")
-	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
-	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
-	c.Check(filepath.Join(dirs.GlobalRootDir, structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "subdir/foo-renamed.img"), testutil.FileContains, "foo rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
 }
