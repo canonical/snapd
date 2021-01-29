@@ -12,14 +12,14 @@ transition_to_recover_mode(){
 
     # redirect shutdown command to our mock to observe calls and avoid racing
     # with spread
-    mount -o bind "$PWD/mock-shutdown" /usr/sbin/shutdown
+    mount -o bind "$TESTSLIB/mock-shutdown" /usr/sbin/shutdown
 
     # reboot to recovery mode
     echo "Request rebooting into recovery mode"
     if [ "$HAVE_LABEL" = 1 ]; then
         snap reboot --recover "$label" | MATCH 'Reboot into ".*" "recover" mode'
     else 
-        snap reboot --recover | MATCH 'Reboot into ".*" "recover" mode'
+        snap reboot --recover | MATCH 'Reboot into "recover" mode'
     fi
 
     # snapd schedules a slow timeout and an immediate one, however it is
@@ -77,13 +77,13 @@ transition_to_run_mode() {
     fi
 
     # see earlier note
-    mount -o bind "$PWD/mock-shutdown" /usr/sbin/shutdown
+    mount -o bind "$TESTSLIB/mock-shutdown" /usr/sbin/shutdown
 
     # request going back to run mode
     if [ "$HAVE_LABEL" = "1" ]; then
         snap reboot --run "$label" | MATCH 'Reboot into ".*" "run" mode.'
     else
-        snap reboot --run | MATCH 'Reboot into ".*" "run" mode.'
+        snap reboot --run | MATCH 'Reboot into "run" mode.'
     fi
     # XXX: is this a race between spread seeing REBOOT and machine rebooting?
 
