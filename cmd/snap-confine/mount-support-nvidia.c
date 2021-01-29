@@ -96,9 +96,6 @@ static const char *nvidia_globs[] = {
 	"libGLU.so*",
 	"libXvMCNVIDIA.so*",
 	"libXvMCNVIDIA_dynamic.so*",
-	"libcuda.so*",
-	"libcudart.so*",
-	"libnvcuvid.so*",
 	"libnvidia-cfg.so*",
 	"libnvidia-compiler.so*",
 	"libnvidia-eglcore.so*",
@@ -121,12 +118,24 @@ static const char *nvidia_globs[] = {
 	"vdpau/libvdpau_nvidia.so*",
 
 	// additional libraries for Tegra
+	// https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/manifest_tx2_tx2i.html
 	"libnvdc.so*",
 	"libnvos.so*",
 	"libnvrm_gpu.so*",
 	"libnvimp.so*",
 	"libnvrm.so*",
 	"libnvrm_graphics.so*",
+	// CUDA
+	// https://docs.nvidia.com/cuda/#cuda-api-references
+	"libcuda.so*",
+	"libcudart.so*",
+	"libnvcuvid.so*",
+	"libcufft.so*",
+	"libcublas.so*",
+	"libcublasLt.so*",
+	"libcusolver.so*",
+	"libcuparse.so*",
+	"libcurand.so*",
 	"libnppc.so*",
 	"libnppig.so*",
 	"libnppial.so*",
@@ -136,22 +145,18 @@ static const char *nvidia_globs[] = {
 	"libnppcif.so*",
 	"libnppim.so*",
 	"libnppitc.so*",
-	"libcufft.so*",
-	"libcublas.so*",
-	"libcublasLt.so*",
-	"libcusolver.so*",
-	"libcuparse.so*",
-	"libcurand.so*",
+	"libnvrtc*",
+	"libnvrtc-builtins*",
+	"libnvToolsExt.so*",
 	// libraries for CUDA DNN
+	// https://docs.nvidia.com/deeplearning/cudnn/api/index.html
+	// https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html
 	"libcudnn_adv_infer*",
 	"libcudnn_adv_train*",
 	"libcudnn_cnn_infer*",
 	"libcudnn_cnn_train*",
 	"libcudnn_ops_infer*",
 	"libcudnn_ops_train*",
-	"libnvrtc*",
-	"libnvrtc-builtins*",
-	"libnvToolsExt.so*",
 };
 
 static const size_t nvidia_globs_len =
