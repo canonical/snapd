@@ -43,8 +43,12 @@ var (
 type GadgetData struct {
 	// Info is the gadget metadata
 	Info *Info
+	// XXX: should be GadgetRootDir
 	// RootDir is the root directory of gadget snap data
 	RootDir string
+
+	// KernelRootDir is the root directory of kernel snap data
+	KernelRootDir string
 }
 
 // UpdatePolicyFunc is a callback that evaluates the provided pair of structures
