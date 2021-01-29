@@ -16,14 +16,20 @@ prepare: |
   rm -rf snapd-snap
   nested_copy snapd-boot-config-update.snap
 
+debug: |
+  cat boot-chains-before.json || true
+  cat boot-chains-after.json || true
+
 execute: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
+  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | not MATCH ' bootassetstesting'
 
-  # Install new (unasserted) kernel and wait for reboot/change finishing
+  # Install new (unasserted) snapd and wait for reboot/change finishing
   boot_id="$( nested_get_boot_id )"
   REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
   nested_exec sudo snap watch "${REMOTE_CHG_ID}"
@@ -42,5 +48,7 @@ execute: |
   # check that we have boot chains
   nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
 
-  RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
+  RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
   test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-after.json | MATCH ' bootassetstesting'
