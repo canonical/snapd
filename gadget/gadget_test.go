@@ -83,6 +83,44 @@ volumes:
             target: /
 `)
 
+var mockMultiVolumeUC20GadgetYaml = []byte(`
+device-tree: frobinator-3000.dtb
+device-tree-origin: kernel
+volumes:
+  frobinator-image:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-save
+        size: 10485760
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+  u-boot-frobinator:
+    structure:
+      - name: u-boot
+        type: bare
+        size: 623000
+        offset: 0
+        content:
+          - image: u-boot.imz
+`)
+
 var mockMultiVolumeGadgetYaml = []byte(`
 device-tree: frobinator-3000.dtb
 device-tree-origin: kernel
@@ -1979,15 +2017,19 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetMultiVolume(c *C) {
-	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.LaidOutVolumeFromGadget(s.dir, "", nil)
-	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
+	// ubuntu-seed, ubuntu-save, ubuntu-boot and ubuntu-data
+	c.Assert(lv.LaidOutStructure, HasLen, 4)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetHappy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -1995,11 +2037,40 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutVolumeFromGadget(s.dir, "", nil)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", coreMod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
 	c.Assert(lv.LaidOutStructure, HasLen, 3)
+}
+
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// need the model in order to lay out system volumes due to the verification
+	// and other metadata we use with the gadget
+	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, "", nil)
+	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
+}
+
+func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
+	c.Assert(err, IsNil)
+	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data
+	c.Assert(lv.LaidOutStructure, HasLen, 6)
 }
 
 func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {

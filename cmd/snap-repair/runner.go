@@ -171,7 +171,12 @@ func (r *Repair) Run() error {
 		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
 	}
 
-	// TODO:UC20: add SNAPD_RECOVER_MODE if the repair assertion is for uc20
+	// TODO:UC20 what other details about recover mode should be included in the
+	// env for the repair assertion to read about? probably somethings related
+	// to degraded.json
+	if r.run.state.Device.Mode != "" {
+		env = append(env, fmt.Sprintf("SNAP_SYSTEM_MODE=%s", r.run.state.Device.Mode))
+	}
 
 	workdir := filepath.Join(rundir, "work")
 	if err := os.MkdirAll(workdir, 0700); err != nil {
