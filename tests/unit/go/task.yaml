@@ -31,7 +31,6 @@ execute: |
         ./run-checks --static" test
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-        TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST \
         PATH=$PATH \
         GOPATH=/tmp/static-unit-tests \
         SKIP_COVERAGE=1 \
