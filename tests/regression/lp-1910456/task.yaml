@@ -20,9 +20,9 @@ prepare: |
             classic-container-mgr-snap/meta/snap.yaml
         echo "confinement: classic" >> classic-container-mgr-snap/meta/snap.yaml
 
-        # TODO: use os.query is-arch on master, "is-arch" sub-command is unavailable
-        # on 2.48 branch
-        if [ "$SPREAD_SYSTEM" = "arch-linux-64" ]; then
+        # TODO: use os.query is-arch on master; "is-arch" etc. sub-commands are
+        # unavailable on 2.48 branch
+        if [ "$SPREAD_SYSTEM" = "arch-linux-64" ] || [[ "$SPREAD_SYSTEM" == fedora-* ]] || [[ "$SPREAD_SYSTEM" == centos-* ]]; then
             # need to enable /snap symlink to install classic snaps
             ln -s /var/lib/snapd/snap /snap
         fi
@@ -111,8 +111,9 @@ execute: |
     # only run this test on ubuntu since the docker snap is not guaranteed to 
     # work on non-ubuntu systems
 
-    if ! os.query is-ubuntu; then
+    if ! [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
         echo "skipping docker test on non-ubuntu"
+        exit 0
     fi
 
     snap install docker
