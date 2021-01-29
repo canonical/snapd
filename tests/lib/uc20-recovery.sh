@@ -1,8 +1,10 @@
 #!/bin/bash -ex
 
 transition_to_recover_mode(){
-    if [ -n "$1" ]; then
-        local label=$1
+    local label=""
+    local HAVE_LABEL=""
+    if [ -n "${1:-}" ]; then
+        label=$1
         HAVE_LABEL=1
     else
         HAVE_LABEL=0
@@ -65,8 +67,10 @@ EOF
 }
 
 transition_to_run_mode() {
-    if [ -n "$1" ]; then
-        local label=$1
+    local label=""
+    local HAVE_LABEL=""
+    if [ -n "${1:-}" ]; then
+        label=$1
         HAVE_LABEL=1
     else
         HAVE_LABEL=0
