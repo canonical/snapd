@@ -111,7 +111,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
      "result": "fetch-assertions",
      "key": "g1",
      "assertion-stream-urls": [
-        "https://api.snapcraft.io/api/v1/snaps/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"
+        "https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"
       ]
      }
    ]
@@ -150,7 +150,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 	c.Check(aresults, HasLen, 1)
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
 	c.Check(aresults[0].StreamURLs, DeepEquals, []string{
-		"https://api.snapcraft.io/api/v1/snaps/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+		"https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 	})
 }
 
@@ -218,7 +218,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
      "result": "fetch-assertions",
      "key": "g1",
      "assertion-stream-urls": [
-        "https://api.snapcraft.io/api/v1/snaps/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"
+        "https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"
       ]
      }, {
      "result": "fetch-assertions",
@@ -274,7 +274,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		if aresult.Grouping == asserts.Grouping("g1") {
 			seen++
 			c.Check(aresult.StreamURLs, DeepEquals, []string{
-				"https://api.snapcraft.io/api/v1/snaps/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+				"https://api.snapcraft.io/v2/assertions/snap-declaration/16/iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
 			})
 		} else {
 			seen++
