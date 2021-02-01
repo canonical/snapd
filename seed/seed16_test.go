@@ -1238,3 +1238,105 @@ func (s *seed16Suite) TestLoadEssentialMetaCore18(c *C) {
 		unhide()
 	}
 }
+
+func (s *seed16Suite) TestLoadEssentialAndMetaCore18(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSeed(c, map[string]interface{}{
+		"base":           "core18",
+		"kernel":         "pc-kernel=18",
+		"gadget":         "pc=18",
+		"required-snaps": []interface{}{"core", "required", "required18"},
+	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, requiredSeed, coreSeed, required18Seed)
+
+	snapdSnap := &seed.Snap{
+		Path:          s.expectedPath("snapd"),
+		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+		EssentialType: snap.TypeSnapd,
+		Essential:     true,
+		Required:      true,
+		Channel:       "stable",
+	}
+	core18Snap := &seed.Snap{
+		Path:          s.expectedPath("core18"),
+		SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+		EssentialType: snap.TypeBase,
+		Essential:     true,
+		Required:      true,
+		Channel:       "stable",
+	}
+	pcKernelSnap := &seed.Snap{
+		Path:          s.expectedPath("pc-kernel"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18",
+	}
+	pcSnap := &seed.Snap{
+		Path:          s.expectedPath("pc"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18",
+	}
+
+	seed16, err := seed.Open(s.SeedDir, "")
+	c.Assert(err, IsNil)
+
+	err = seed16.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = seed16.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed16.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed16.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{pcSnap})
+
+	err = seed16.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	essSnaps = seed16.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap, pcSnap})
+
+	runSnaps, err := seed16.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 0)
+
+	// caching in place
+	hideSnaps(c, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap}, nil)
+
+	err = seed16.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed16.UsesSnapdSnap(), Equals, true)
+
+	essSnaps = seed16.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap, pcSnap})
+
+	runSnaps, err = seed16.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 3)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required"),
+			SideInfo: &s.AssertedSnapInfo("required").SideInfo,
+			Required: true,
+			Channel:  "stable",
+		}, {
+			Path:     s.expectedPath("core"),
+			SideInfo: &s.AssertedSnapInfo("core").SideInfo,
+			Required: true,
+			Channel:  "stable",
+		}, {
+			Path:     s.expectedPath("required18"),
+			SideInfo: &s.AssertedSnapInfo("required18").SideInfo,
+			Required: true,
+			Channel:  "stable",
+		},
+	})
+}

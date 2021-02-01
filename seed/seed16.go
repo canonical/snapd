@@ -52,6 +52,8 @@ type seed16 struct {
 
 	yamlSnaps []*internal.Snap16
 
+	essCache map[string]*Snap
+
 	snaps             []*Snap
 	essentialSnapsNum int
 
@@ -118,45 +120,52 @@ func (s *seed16) Brand() (*asserts.Account, error) {
 	return findBrand(s, s.db)
 }
 
-func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
+func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
-	snapChannel := sn.Channel
-	if pinnedTrack != "" {
-		var err error
-		snapChannel, err = channel.ResolvePinned(pinnedTrack, snapChannel)
-		if err != nil {
-			// fallback to using the pinned track directly
-			snapChannel = pinnedTrack
-		}
-	}
-	seedSnap := &Snap{
-		Path:    path,
-		Channel: snapChannel,
-		Classic: sn.Classic,
-		DevMode: sn.DevMode,
-	}
 
-	var sideInfo snap.SideInfo
-	if sn.Unasserted {
-		sideInfo.RealName = sn.Name
-	} else {
-		var si *snap.SideInfo
-		var err error
-		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
-			si, err = snapasserts.DeriveSideInfo(path, s.db)
-		})
-		if asserts.IsNotFound(err) {
-			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+	seedSnap := cache[path]
+	if seedSnap == nil {
+		snapChannel := sn.Channel
+		if pinnedTrack != "" {
+			var err error
+			snapChannel, err = channel.ResolvePinned(pinnedTrack, snapChannel)
+			if err != nil {
+				// fallback to using the pinned track directly
+				snapChannel = pinnedTrack
+			}
 		}
-		if err != nil {
-			return nil, err
+		seedSnap = &Snap{
+			Path:    path,
+			Channel: snapChannel,
+			Classic: sn.Classic,
+			DevMode: sn.DevMode,
 		}
-		sideInfo = *si
-		sideInfo.Private = sn.Private
-		sideInfo.Contact = sn.Contact
-	}
 
-	seedSnap.SideInfo = &sideInfo
+		var sideInfo snap.SideInfo
+		if sn.Unasserted {
+			sideInfo.RealName = sn.Name
+		} else {
+			var si *snap.SideInfo
+			var err error
+			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
+				si, err = snapasserts.DeriveSideInfo(path, s.db)
+			})
+			if asserts.IsNotFound(err) {
+				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			}
+			if err != nil {
+				return nil, err
+			}
+			sideInfo = *si
+			sideInfo.Private = sn.Private
+			sideInfo.Contact = sn.Contact
+		}
+
+		seedSnap.SideInfo = &sideInfo
+		if cache != nil {
+			cache[path] = seedSnap
+		}
+	}
 
 	s.snaps = append(s.snaps, seedSnap)
 
@@ -190,7 +199,13 @@ func (s *seed16) loadYaml() error {
 	return nil
 }
 
-func (s *seed16) reset() {
+func (s *seed16) resetSnaps() {
+	// setup essential snaps cache
+	if s.essCache == nil {
+		// 4 = snapd+base+kernel+gadget
+		s.essCache = make(map[string]*Snap, 4)
+	}
+
 	s.snaps = nil
 	s.essentialSnapsNum = 0
 }
@@ -246,7 +261,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, tm)
+		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, s.essCache, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +343,7 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
 	added := make(map[string]bool, 3)
 
-	s.reset()
+	s.resetSnaps()
 
 	return s.loadEssentialMeta(essentialTypes, required, added, tm)
 }
@@ -343,7 +358,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
 	added := make(map[string]bool, 3)
 
-	s.reset()
+	s.resetSnaps()
 
 	if err := s.loadEssentialMeta(nil, required, added, tm); err != nil {
 		return err
@@ -354,7 +369,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn, "", tm)
+		seedSnap, err := s.addSnap(sn, "", nil, tm)
 		if err != nil {
 			return err
 		}
