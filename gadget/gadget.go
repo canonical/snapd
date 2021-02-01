@@ -943,7 +943,7 @@ func IsCompatible(current, new *Info) error {
 // already be flashed and managed separately at image build/flash time, while
 // the system-* roles can be manipulated on the returned volume during install
 // mode.
-func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
 	// model should never be nil here
 	if model == nil {
 		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
@@ -968,7 +968,7 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 		for _, structure := range vol.Structure {
 			// use the system-boot role
 			if structure.Role == SystemBoot {
-				pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
+				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 				if err != nil {
 					return nil, err
 				}
