@@ -424,3 +424,129 @@ func (s *storeAssertsSuite) TestDownloadAssertionsStreamNotFound(c *C) {
 	err = sto.DownloadAssertions(urls, b, nil)
 	c.Assert(err, ErrorMatches, `assertion service error: \"not found.*`)
 }
+
+var testValidationSetAssertion = `type: validation-set
+authority-id: K9scFPuK62alndiUfSxJte9WSeZihEcD
+series: 16
+account-id: K9scFPuK62alndiUfSxJte9WSeZihEcD
+name: set-1
+sequence: 2
+snaps:
+  -
+    id: yOqKhntON3vR7kwEbVPsILm7bUViPDzz
+    name: lxd
+    presence: optional
+    revision: 1
+  -
+    id: andRelFqGSFNzJRfWD6SEL34YzEfEEiR
+    name: jq
+    presence: optional
+  -
+    id: UP3QB9yet9QvNhXcCZVdgL1VleVaqz8V
+    name: suligap-python3-qrcode
+    revision: 4
+timestamp: 2020-11-06T09:16:26Z
+sign-key-sha3-384: 4sq0NF2nUf53bg-G3AXBs0Paj73IYg4g1kWpBEVaAnzh1eNQEI2-UVeFz4e1MEUW
+
+AcLBcwQAAQoAHRYhBA519PIIp64v4+mi5pz1bjeveYQwBQJfpRRqAAoJEJz1bjeveYQwIHUP/A6z
+51knc4y/hYF/aAbrea1VFBxddu7BW18w4J97QDWJOah+TT7HMbvduEneeTEPNl9fO8CUtqUSV5JH
+GO5WmcS8gHMELMRz7deMKkwzHU1tL7G3xAqIP5ctkNDhobJyCQmU8yyJdp2e6dw5RVFBE9WcAlpO
+bRhYIFIUUO0Fn6XvKZuDvCFC3rzRmQV/taAR0jYTbHgeOirr8loEfTKKQZQOaE2GyA5cl0vzx3UT
+5uct/giBHDNXFocHEpw/1wwUkqZgOGkT3/tuyiYd0HQ5jdTDldHs9EPRIcwTEjjFtseBUr9W5m/a
+kFkWBWPe5FkLvC74H8WXUQbQHgii6RxDnJ1bBVzCOH65pgtRWNCTcoYr5sEB2tPEFEh50bha+37Q
+1c3lvGGQWyQRz5uxE5aZNiTaLdnQxPEF+nFd1yTwh7yR8Gqv/SuQMxS/AMQz/3sltfssOjayOtV1
+N2R8HGUVKutoRGWMp+YmGO68wHjk5Ff9cIQvXfDviSl4KezrDIIFRqx0ZJaYh1FDmOTfAK68yEFu
+P8aWCC2W3HIrdx2mnikT3oVf6yN1KSY5qCE2xdhyyKtt+4y5ZJdQK6JxzTanzh4PZVdiPIUhDv4r
+AeDBddPc+mqQtb8bpZ7hMD+dA/B4dA3cRl44Nb/5KcfKjdvl7qpmJQl88OA3DOMpXuxmrrVA
+`
+
+func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 88)
+	defer restore()
+
+	// overwritten by test loop for each test case
+	expectedSeqArg := "dummy"
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/v2/assertions/.*")
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/validation-set/16/account-foo/set-bar")
+		q := r.URL.Query()
+		c.Check(q.Get("sequence"), Equals, expectedSeqArg)
+		c.Check(q.Get("max-format"), Equals, "88")
+		io.WriteString(w, testValidationSetAssertion)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	for _, tc := range []struct {
+		sequenceKey    []string
+		sequence       int
+		expectedSeqArg string
+	}{
+		{[]string{"16", "account-foo", "set-bar"}, 2, "2"},
+		{[]string{"16", "account-foo", "set-bar"}, 0, "latest"},
+	} {
+		expectedSeqArg = tc.expectedSeqArg
+
+		mockServerURL, _ := url.Parse(mockServer.URL)
+		cfg := store.Config{
+			StoreBaseURL: mockServerURL,
+		}
+		dauthCtx := &testDauthContext{c: c, device: s.device}
+		sto := store.New(&cfg, dauthCtx)
+
+		a, err := sto.SeqFormingAssertion(asserts.ValidationSetType, tc.sequenceKey, tc.sequence, nil)
+		c.Assert(err, IsNil)
+		c.Check(a, NotNil)
+		c.Check(a.Type(), Equals, asserts.ValidationSetType)
+	}
+}
+
+func (s *storeAssertsSuite) TestSeqFormingAssertionNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/v2/assertions/.*")
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/validation-set/16/account-foo/set-bar")
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"error-list":[{"code":"not-found","message":"not found: no ..."}]}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		AssertionsBaseURL: mockServerURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	_, err := sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 1, nil)
+	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.ValidationSetType,
+		Headers: map[string]string{
+			"series":     "16",
+			"account-id": "account-foo",
+			"name":       "set-bar",
+			"sequence":   "1",
+		},
+	})
+
+	// latest requested
+	_, err = sto.SeqFormingAssertion(asserts.ValidationSetType, []string{"16", "account-foo", "set-bar"}, 0, nil)
+	c.Check(asserts.IsNotFound(err), Equals, true)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.ValidationSetType,
+		Headers: map[string]string{
+			"series":     "16",
+			"account-id": "account-foo",
+			"name":       "set-bar",
+		},
+	})
+}
