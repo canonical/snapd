@@ -5,7 +5,10 @@ systems: [ubuntu-20.04-64]
 prepare: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB/snaps.sh"
 
+  repack_snapd_deb_into_snapd_snap "$PWD"
   # repack the snapd snap with a marker file
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
