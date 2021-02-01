@@ -88,7 +88,13 @@ type Seed interface {
 	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
-	// XXX
+	// LoadEssentialMeta loads the seed's snaps metadata for the
+	// essential snaps with types in the essentialTypes set while
+	// verifying them against assertions. It can return ErrNoMeta
+	// if there is no metadata nor snaps in the seed, this is
+	// legitimate only on classic. It can be called multiple times
+	// if needed before invoking LoadMeta.
+	// It will panic if called before LoadAssertions.
 	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 
 	// LoadMeta loads the seed and seed's snaps metadata while
@@ -111,22 +117,6 @@ type Seed interface {
 	ModeSnaps(mode string) ([]*Snap, error)
 }
 
-// EssentialMetaLoaderSeed is a Seed that can be asked to load and verify
-// only a subset of the essential model snaps via LoadEssentialMeta.
-type EssentialMetaLoaderSeed interface {
-	Seed
-
-	// LoadEssentialMeta loads the seed's snaps metadata for the
-	// essential snaps with types in the essentialTypes set while
-	// verifying them against assertions. It can return ErrNoMeta
-	// if there is no metadata nor snaps in the seed, this is
-	// legitimate only on classic. It is an error to mix it with
-	// LoadMeta.
-	// It will panic if called before LoadAssertions.
-
-	// XXX LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
-}
-
 // Open returns a Seed implementation for the seed at seedDir.
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
@@ -146,14 +136,9 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 	if label == "" {
 		return nil, nil, fmt.Errorf("system label cannot be empty")
 	}
-	seed, err := Open(seedDir, label)
+	seed20, err := Open(seedDir, label)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	seed20, ok := seed.(EssentialMetaLoaderSeed)
-	if !ok {
-		return nil, nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
 	}
 
 	// load assertions into a temporary database
