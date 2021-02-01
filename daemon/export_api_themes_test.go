@@ -22,11 +22,11 @@ package daemon
 type ThemeStatus = themeStatus
 
 var (
-	ThemesCmd                  = themesCmd
-	InstalledThemes            = installedThemes
-	ThemePackageCandidates     = themePackageCandidates
-	ThemeStatusAndMissingSnaps = themeStatusAndMissingSnaps
-	ThemeStatusForPrefix       = themeStatusForPrefix
+	ThemesCmd                   = themesCmd
+	InstalledThemes             = installedThemes
+	ThemePackageCandidates      = themePackageCandidates
+	ThemeStatusAndMissingSnaps  = themeStatusAndMissingSnaps
+	CollectThemeStatusForPrefix = collectThemeStatusForPrefix
 
 	ThemeInstalled   = themeInstalled
 	ThemeAvailable   = themeAvailable
