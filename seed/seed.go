@@ -88,6 +88,9 @@ type Seed interface {
 	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
+	// XXX
+	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
+
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
@@ -120,7 +123,8 @@ type EssentialMetaLoaderSeed interface {
 	// legitimate only on classic. It is an error to mix it with
 	// LoadMeta.
 	// It will panic if called before LoadAssertions.
-	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
+
+	// XXX LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
