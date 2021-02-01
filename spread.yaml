@@ -470,7 +470,7 @@ debug-each: |
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
-        ps aux
+        ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
