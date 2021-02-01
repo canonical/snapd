@@ -1433,6 +1433,70 @@ AXNpZw==`}
 	c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, "#!/bin/sh\nexit 0\n")
 }
 
+func (s *runnerSuite) TestRepairBasicRun20RecoverEnv(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+summary: repair one
+series:
+  - 16
+bases:
+  - core20
+modes:
+  - recover
+  - run
+timestamp: 2017-07-02T12:00:00Z
+body-length: 81
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+#!/bin/sh
+env | grep SNAP_SYSTEM_MODE
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0
+
+AXNpZw==`}
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	for _, mode := range []string{"recover", "run"} {
+		s.freshStateWithBaseAndMode(c, "core20", mode)
+
+		mockServer := makeMockServer(c, &seqRepairs, false)
+		defer mockServer.Close()
+
+		runner := repair.NewRunner()
+		runner.BaseURL = mustParseURL(mockServer.URL)
+		runner.LoadState()
+
+		rpr, err := runner.Next("canonical")
+		c.Assert(err, IsNil)
+
+		err = rpr.Run()
+		c.Assert(err, IsNil)
+		c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, `#!/bin/sh
+env | grep SNAP_SYSTEM_MODE
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0`)
+
+		c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.done"), testutil.FileEquals, fmt.Sprintf(`repair: canonical-1
+revision: 0
+summary: repair one
+output:
+SNAP_SYSTEM_MODE=%s
+`, mode))
+		// ensure correct permissions
+		fi, err := os.Stat(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.done"))
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode(), Equals, os.FileMode(0600))
+	}
+}
+
 func (s *runnerSuite) TestRepairModesAndBases(c *C) {
 	repairTempl := `type: repair
 authority-id: canonical

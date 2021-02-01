@@ -39,6 +39,9 @@ type LayoutConstraints struct {
 	NonMBRStartOffset quantity.Offset
 	// SectorSize is the size of the sector to be used for calculations
 	SectorSize quantity.Size
+	// SkipResolveContent will skip resolving content paths
+	// and `$kernel:` style references
+	SkipResolveContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -211,13 +214,17 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
 func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+	var err error
 
-	// Note that the kernelRootDir may reference the running
-	// kernel if there is a gadget update or the new kernel if
-	// there is a kernel update.
-	kernelInfo, err := kernel.ReadInfo(kernelRootDir)
-	if err != nil {
-		return nil, err
+	var kernelInfo *kernel.Info
+	if !constraints.SkipResolveContent {
+		// Note that the kernelRootDir may reference the running
+		// kernel if there is a gadget update or the new kernel if
+		// there is a kernel update.
+		kernelInfo, err = kernel.ReadInfo(kernelRootDir)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	structures, byName, err := layoutVolumeStructures(volume, constraints)
@@ -251,11 +258,13 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		structures[idx].LaidOutContent = content
 
 		// resolve filesystem content
-		resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx])
-		if err != nil {
-			return nil, err
+		if !constraints.SkipResolveContent {
+			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx])
+			if err != nil {
+				return nil, err
+			}
+			structures[idx].ResolvedContent = resolvedContent
 		}
-		structures[idx].ResolvedContent = resolvedContent
 	}
 
 	volumeSize := quantity.Size(farthestEnd)
@@ -309,19 +318,6 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 	// content may refer to "$kernel:<name>/<content>"
 	var resolvedSource string
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
-		if kernelRootDir == "" {
-			// Do not try to validate/resolve further without
-			// a kernel source. This can happen when the gadget
-			// is validated in ValidateContent(). Then it is
-			// not clear what kernel will be used with that
-			// gadget.
-			//
-			// XXX: shouldwe pass a "IgnoreKernelRefs"
-			// flag or similar instead of using this
-			// implicit way to skip resolving?
-			return pathOrRef, nil
-		}
-
 		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
 		if err != nil {
 			return "", fmt.Errorf("cannot parse kernel ref: %v", err)

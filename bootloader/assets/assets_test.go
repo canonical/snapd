@@ -78,7 +78,7 @@ func (s *assetsTestSuite) TestRegisterSnippetPanics(c *C) {
 			{FirstEdition: 2, Snippet: []byte("two")},
 			{FirstEdition: 1, Snippet: []byte("one")},
 		})
-	}, PanicMatches, `edition snippets "unsorted" must be sorted in ascending edition number order`)
+	}, PanicMatches, `cannot validate snippets "unsorted": snippets must be sorted in ascending edition number order`)
 	// panics when edition is repeated
 	c.Assert(func() {
 		assets.RegisterSnippetForEditions("doubled edition", []assets.ForEditions{
@@ -88,7 +88,7 @@ func (s *assetsTestSuite) TestRegisterSnippetPanics(c *C) {
 			{FirstEdition: 3, Snippet: []byte("more tree")},
 			{FirstEdition: 4, Snippet: []byte("four")},
 		})
-	}, PanicMatches, `first edition 3 repeated in edition snippets "doubled edition"`)
+	}, PanicMatches, `cannot validate snippets "doubled edition": first edition 3 repeated`)
 	// mix unsorted with duplicate edition
 	c.Assert(func() {
 		assets.RegisterSnippetForEditions("unsorted and doubled edition", []assets.ForEditions{
@@ -98,7 +98,7 @@ func (s *assetsTestSuite) TestRegisterSnippetPanics(c *C) {
 			{FirstEdition: 3, Snippet: []byte("more tree")},
 			{FirstEdition: 4, Snippet: []byte("four")},
 		})
-	}, PanicMatches, `edition snippets "unsorted and doubled edition" must be sorted in ascending edition number order`)
+	}, PanicMatches, `cannot validate snippets "unsorted and doubled edition": snippets must be sorted in ascending edition number order`)
 }
 
 func (s *assetsTestSuite) TestEditionSnippets(c *C) {

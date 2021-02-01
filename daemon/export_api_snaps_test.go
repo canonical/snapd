@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,17 @@
  *
  */
 
-package osutil_test
+package daemon
 
 import (
-	"os"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
 )
 
-func (s *cpSuite) TestCpMulti(c *C) {
-	r := osutil.MockMaxCp(2)
-	defer r()
-
-	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagDefault), IsNil)
-	c.Check(s.f2, testutil.FileEquals, s.data)
+func MakeAboutSnap(info *snap.Info, snapst *snapstate.SnapState) aboutSnap {
+	return aboutSnap{info: info, snapst: snapst}
 }
 
-func (s *cpSuite) TestDoCpErr(c *C) {
-	f1, err := os.Open(s.f1)
-	c.Assert(err, IsNil)
-	st, err := f1.Stat()
-	c.Assert(err, IsNil)
-	// force an error by asking it to write to a readonly stream
-	c.Check(osutil.DoCopyFile(f1, os.Stdin, st), NotNil)
-}
+var (
+	MapLocal = mapLocal
+)
