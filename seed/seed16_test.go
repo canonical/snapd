@@ -1082,9 +1082,6 @@ version: other-base
 	otherBaseGadgetFname, obgDecl, obgRev := s.MakeAssertedSnap(c, otherBaseGadget, snapFiles["pc"], snap.R(3), "canonical")
 	s.WriteAssertions("other-gadget.asserts", obgDecl, obgRev)
 
-	err = s.seed16.LoadAssertions(s.db, s.commitTo)
-	c.Assert(err, IsNil)
-
 	omit := func(which int) func([]*seed.InternalSnap16) []*seed.InternalSnap16 {
 		return func(snaps []*seed.InternalSnap16) []*seed.InternalSnap16 {
 			broken := make([]*seed.InternalSnap16, 0, len(snaps)-1)
@@ -1127,12 +1124,117 @@ version: other-base
 	}
 
 	for _, t := range tests {
+		seed16, err := seed.Open(s.SeedDir, "")
+		c.Assert(err, IsNil)
+
+		err = seed16.LoadAssertions(s.db, s.commitTo)
+		c.Assert(err, IsNil)
+
 		testSeedSnap16s := make([]*seed.InternalSnap16, 5)
 		copy(testSeedSnap16s, seedSnap16s)
 
 		testSeedSnap16s = t.breakSeed(testSeedSnap16s)
 		s.writeSeed(c, testSeedSnap16s)
 
-		c.Check(s.seed16.LoadMeta(s.perfTimings), ErrorMatches, t.err)
+		c.Check(seed16.LoadMeta(s.perfTimings), ErrorMatches, t.err)
+	}
+}
+
+func (s *seed16Suite) TestLoadEssentialMetaCore18(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSeed(c, map[string]interface{}{
+		"base":           "core18",
+		"kernel":         "pc-kernel=18",
+		"gadget":         "pc=18",
+		"required-snaps": []interface{}{"core", "required", "required18"},
+	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, requiredSeed, coreSeed, required18Seed)
+
+	snapdSnap := &seed.Snap{
+		Path:          s.expectedPath("snapd"),
+		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+		EssentialType: snap.TypeSnapd,
+		Essential:     true,
+		Required:      true,
+		Channel:       "stable",
+	}
+	core18Snap := &seed.Snap{
+		Path:          s.expectedPath("core18"),
+		SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+		EssentialType: snap.TypeBase,
+		Essential:     true,
+		Required:      true,
+		Channel:       "stable",
+	}
+	pcKernelSnap := &seed.Snap{
+		Path:          s.expectedPath("pc-kernel"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18",
+	}
+	pcSnap := &seed.Snap{
+		Path:          s.expectedPath("pc"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18",
+	}
+	coreSnap := &seed.Snap{
+		Path: s.expectedPath("core"),
+	}
+	requiredSnap := &seed.Snap{
+		Path: s.expectedPath("required"),
+	}
+	required18Snap := &seed.Snap{
+		Path: s.expectedPath("required18"),
+	}
+
+	all := []*seed.Snap{snapdSnap, pcKernelSnap, pcSnap, core18Snap, coreSnap, requiredSnap, required18Snap}
+
+	tests := []struct {
+		onlyTypes []snap.Type
+		expected  []*seed.Snap
+	}{
+		{[]snap.Type{snap.TypeSnapd}, []*seed.Snap{snapdSnap}},
+		{[]snap.Type{snap.TypeKernel}, []*seed.Snap{pcKernelSnap}},
+		{[]snap.Type{snap.TypeBase}, []*seed.Snap{core18Snap}},
+		{[]snap.Type{snap.TypeGadget}, []*seed.Snap{pcSnap}},
+		// the order in essentialTypes is not relevant
+		{[]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase}, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap}},
+		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
+		// degenerate case
+		{[]snap.Type{}, []*seed.Snap(nil)},
+	}
+
+	for _, t := range tests {
+		// hide the non-requested snaps to make sure they are not
+		// accessed
+		unhide := hideSnaps(c, all, t.onlyTypes)
+
+		seed16, err := seed.Open(s.SeedDir, "")
+		c.Assert(err, IsNil)
+
+		err = seed16.LoadAssertions(nil, nil)
+		c.Assert(err, IsNil)
+
+		err = seed16.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
+		c.Assert(err, IsNil)
+
+		c.Check(seed16.UsesSnapdSnap(), Equals, true)
+
+		essSnaps := seed16.EssentialSnaps()
+		c.Check(essSnaps, HasLen, len(t.expected))
+
+		c.Check(essSnaps, DeepEquals, t.expected)
+
+		runSnaps, err := seed16.ModeSnaps("run")
+		c.Assert(err, IsNil)
+		c.Check(runSnaps, HasLen, 0)
+
+		unhide()
 	}
 }

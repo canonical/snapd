@@ -50,6 +50,8 @@ type seed16 struct {
 
 	model *asserts.Model
 
+	yamlSnaps []*internal.Snap16
+
 	snaps             []*Snap
 	essentialSnapsNum int
 
@@ -169,8 +171,10 @@ func (e *essentialSnapMissingError) Error() string {
 	return fmt.Sprintf("essential snap %q required by the model is missing in the seed", e.SnapName)
 }
 
-func (s *seed16) LoadMeta(tm timings.Measurer) error {
-	model := s.Model()
+func (s *seed16) loadYaml() error {
+	if s.yamlSnaps != nil {
+		return nil
+	}
 
 	seedYamlFile := filepath.Join(s.seedDir, "seed.yaml")
 	if !osutil.FileExists(seedYamlFile) {
@@ -181,14 +185,24 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	if err != nil {
 		return err
 	}
-	yamlSnaps := seedYaml.Snaps
+	s.yamlSnaps = seedYaml.Snaps
 
-	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
-	seeding := make(map[string]*internal.Snap16, len(yamlSnaps))
-	for _, sn := range yamlSnaps {
+	return nil
+}
+
+func (s *seed16) reset() {
+	s.snaps = nil
+	s.essentialSnapsNum = 0
+}
+
+func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.SnapSet, added map[string]bool, tm timings.Measurer) error {
+	model := s.Model()
+
+	seeding := make(map[string]*internal.Snap16, len(s.yamlSnaps))
+	for _, sn := range s.yamlSnaps {
 		seeding[sn.Name] = sn
 	}
-	added := make(map[string]bool, 3)
+
 	classic := model.Classic()
 	_, usesSnapdSnap := seeding["snapd"]
 	usesSnapdSnap = usesSnapdSnap || required.Contains(naming.Snap("snapd"))
@@ -212,6 +226,21 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if added[snapName] {
 			return nil, nil
 		}
+
+		// filter if required
+		if essentialTypes != nil {
+			skip := true
+			for _, t := range essentialTypes {
+				if t == essType {
+					skip = false
+					break
+				}
+			}
+			if skip {
+				return nil, nil
+			}
+		}
+
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
 			return nil, &essentialSnapMissingError{SnapName: snapName}
@@ -235,7 +264,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	}
 
 	// if there are snaps to seed, core/base needs to be seeded too
-	if len(yamlSnaps) != 0 {
+	if len(s.yamlSnaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" || classicWithSnapd {
 			if _, err := addEssential("snapd", "", snap.TypeSnapd); err != nil {
@@ -260,31 +289,68 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if err != nil {
 			return err
 		}
+		// not skipped
+		if gadget != nil {
 
-		// always make sure the base of gadget is installed first
-		info, err := readInfo(gadget.Path, gadget.SideInfo)
-		if err != nil {
-			return err
-		}
-		gadgetBase := info.Base
-		if gadgetBase == "" {
-			gadgetBase = "core"
-		}
-		// Sanity check
-		// TODO: do we want to relax this? the new logic would allow
-		// but it might just be confusing for now
-		if baseSnap != "" && gadgetBase != baseSnap {
-			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
-		}
-		if _, err = addEssential(gadgetBase, "", snap.TypeBase); err != nil {
-			return err
+			// always make sure the base of gadget is installed first
+			info, err := readInfo(gadget.Path, gadget.SideInfo)
+			if err != nil {
+				return err
+			}
+			gadgetBase := info.Base
+			if gadgetBase == "" {
+				gadgetBase = "core"
+			}
+			// Sanity check
+			// TODO: do we want to relax this? the new logic would allow
+			// but it might just be confusing for now
+			if baseSnap != "" && gadgetBase != baseSnap {
+				return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
+			}
+			if _, err = addEssential(gadgetBase, "", snap.TypeBase); err != nil {
+				return err
+			}
 		}
 	}
 
 	s.essentialSnapsNum = len(s.snaps)
 
+	return nil
+}
+
+func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	model := s.Model()
+
+	if err := s.loadYaml(); err != nil {
+		return err
+	}
+
+	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+	added := make(map[string]bool, 3)
+
+	s.reset()
+
+	return s.loadEssentialMeta(essentialTypes, required, added, tm)
+}
+
+func (s *seed16) LoadMeta(tm timings.Measurer) error {
+	model := s.Model()
+
+	if err := s.loadYaml(); err != nil {
+		return err
+	}
+
+	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+	added := make(map[string]bool, 3)
+
+	s.reset()
+
+	if err := s.loadEssentialMeta(nil, required, added, tm); err != nil {
+		return err
+	}
+
 	// the rest of the snaps
-	for _, sn := range yamlSnaps {
+	for _, sn := range s.yamlSnaps {
 		if added[sn.Name] {
 			continue
 		}
