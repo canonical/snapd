@@ -249,7 +249,7 @@ func (s *themesSuite) TestThemeStatusForPrefixReturnsErrors(c *C) {
 	c.Check(toInstall, HasLen, 0)
 }
 
-func (s *themesSuite) TestThemeStatusAndMissingSnaps(c *C) {
+func (s *themesSuite) TestThemeStatusAndCandidateSnaps(c *C) {
 	s.daemon(c)
 	s.mockSnap(c, `name: snap1
 version: 42
@@ -294,7 +294,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, missingSnaps, err := daemon.ThemeStatusAndMissingSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]daemon.ThemeStatus{
 		"Foo-gtk": daemon.ThemeInstalled,
@@ -311,7 +311,7 @@ slots:
 		"Bar-sounds": daemon.ThemeAvailable,
 		"Baz-sounds": daemon.ThemeUnavailable,
 	})
-	c.Check(missingSnaps, DeepEquals, map[string]bool{
+	c.Check(candidateSnaps, DeepEquals, map[string]bool{
 		"gtk-theme-bar":   true,
 		"icon-theme-bar":  true,
 		"sound-theme-bar": true,
