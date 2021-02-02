@@ -17,11 +17,13 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"os"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -38,19 +40,19 @@ func (ts *ExitCodeTestSuite) TestExitCode(c *C) {
 	cmd = exec.Command("false")
 	err = cmd.Run()
 	c.Assert(err, NotNil)
-	e, err := ExitCode(err)
+	e, err := osutil.ExitCode(err)
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, 1)
 
 	cmd = exec.Command("sh", "-c", "exit 7")
 	err = cmd.Run()
-	e, err = ExitCode(err)
+	e, err = osutil.ExitCode(err)
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, 7)
 
 	// ensure that non exec.ExitError values give a error
 	_, err = os.Stat("/random/file/that/is/not/there")
 	c.Assert(err, NotNil)
-	_, err = ExitCode(err)
+	_, err = osutil.ExitCode(err)
 	c.Assert(err, NotNil)
 }

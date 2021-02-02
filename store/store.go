@@ -416,7 +416,7 @@ const (
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
 
-	assertionsPath = "api/v1/snaps/assertions"
+	assertionsPath = "v2/assertions"
 )
 
 func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {

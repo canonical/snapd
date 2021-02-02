@@ -30,4 +30,8 @@ typedef enum sc_distro {
 
 sc_distro sc_classify_distro(void);
 
+// Returns true if it's a Debian-like distro as determined via /etc/os-release
+// and the "ID_LIKE" key in there.
+bool sc_is_debian_like(void);
+
 #endif

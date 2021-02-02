@@ -113,6 +113,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
+	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -168,7 +169,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, "", bopts, installObserver)
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
