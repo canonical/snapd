@@ -26,6 +26,10 @@ import (
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
+
+	// for SanitizePlugsSlots
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 )
 
 const (
@@ -68,6 +72,10 @@ func main() {
 }
 
 func run(parser *flags.Parser, args []string) error {
+	// real validation of plugs and slots; needs to be set
+	// for processing of seeds with gadget because of readInfo().
+	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
+
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
 	}

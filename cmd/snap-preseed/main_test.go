@@ -680,3 +680,26 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	}
 
 }
+
+func (s *startPreseedSuite) TestReadInfoSanity(c *C) {
+	var called bool
+	inf := &snap.Info{
+		BadInterfaces: make(map[string]string),
+		Plugs: map[string]*snap.PlugInfo{
+			"foo": {
+				Interface: "bad"},
+		},
+	}
+
+	// set a dummy sanitize method.
+	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
+
+	parser := testParser(c)
+	tmpDir := c.MkDir()
+	_ = main.Run(parser, []string{tmpDir})
+
+	// real sanitize method should be set after Run()
+	snap.SanitizePlugsSlots(inf)
+	c.Assert(called, Equals, false)
+	c.Assert(inf.BadInterfaces, HasLen, 1)
+}
