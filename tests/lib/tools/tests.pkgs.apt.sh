@@ -3,14 +3,14 @@
 remap_one() {
     case "$1" in
         man)
-            if [ "$(cat /etc/os-release && echo "$ID")" = debian ]; then
+            if os.query is-debian; then
                 echo "man-db"
             else
                 echo "$1"
             fi
             ;;
         printer-driver-cups-pdf)
-            if [ "$(cat /etc/os-release && echo "$ID")" = debian ] || [ "$(cat /etc/os-release && echo "$ID/$ID_VERSION")" = ubuntu/14.04 ]; then
+            if os.query is-debian || os.query is-trusty; then
                 echo "cups-pdf"
             else
                 echo "$1"

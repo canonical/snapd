@@ -22,7 +22,6 @@ package spdx
 import (
 	"fmt"
 	"io"
-	"strings"
 )
 
 const (
@@ -40,9 +39,6 @@ type licenseID string
 
 func newLicenseID(s string) (licenseID, error) {
 	needle := s
-	if strings.HasSuffix(s, "+") {
-		needle = s[:len(s)-1]
-	}
 	for _, known := range allLicenses {
 		if needle == known {
 			return licenseID(s), nil

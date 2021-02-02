@@ -52,6 +52,7 @@ type StoreService interface {
 	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (r io.ReadCloser, status int, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+	SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
 	DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error
 
 	SuggestedCurrency() string

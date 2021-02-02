@@ -100,7 +100,7 @@ is_pc_i386() {
 }
 
 is_arm() {
-    uname -m | grep -qx '^arm.*'
+    uname -m | grep -Eq '(^arm.*|^aarch*)'
 }
 
 is_armhf() {

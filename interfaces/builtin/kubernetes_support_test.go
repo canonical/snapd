@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -251,7 +254,7 @@ func (s *KubernetesSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# kubernetes-support
 KERNEL=="kmsg", TAG+="snap_kubernetes-support_default"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_kubernetes-support_default", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_kubernetes-support_default $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_kubernetes-support_default", RUN+="%v/snap-device-helper $env{ACTION} snap_kubernetes-support_default $devpath $major:$minor"`, dirs.DistroLibExecDir))
 
 	// kubeproxy should not have any rules
 	spec = &udev.Specification{}
@@ -266,7 +269,7 @@ KERNEL=="kmsg", TAG+="snap_kubernetes-support_default"`)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# kubernetes-support
 KERNEL=="kmsg", TAG+="snap_kubernetes-support_kubelet"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_kubernetes-support_kubelet", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_kubernetes-support_kubelet $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_kubernetes-support_kubelet", RUN+="%v/snap-device-helper $env{ACTION} snap_kubernetes-support_kubelet $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {

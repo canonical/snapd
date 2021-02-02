@@ -49,15 +49,15 @@ type Specification struct {
 }
 
 // SetControlsDeviceCgroup marks a specification as needing to control
-// it's own device cgroup which prevents generation of any udev tagging rules
+// its own device cgroup which prevents generation of any udev tagging rules
 // for this snap name
 func (spec *Specification) SetControlsDeviceCgroup() {
 	spec.controlsDeviceCgroup = true
 }
 
-// ControlsDeviceCgroup marks a specification as needing to control
-// it's own device cgroup which prevents generation of any udev tagging rules
-// for this snap name
+// ControlsDeviceCgroup returns whether a specification was marked as needing to
+// control its own device cgroup which prevents generation of any udev tagging
+// rules for this snap name.
 func (spec *Specification) ControlsDeviceCgroup() bool {
 	return spec.controlsDeviceCgroup
 }
@@ -191,7 +191,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	return nil
 }
 
-// Informs ReloadRules() to also do 'udevadm trigger <subsystem specific>'.
+// TriggerSubsystem informs ReloadRules() to also do
+// 'udevadm trigger <subsystem specific>'.
 // IMPORTANT: because there is currently no way to call TriggerSubsystem during
 // interface disconnect, TriggerSubsystem() should typically only by used in
 // UDevPermanentSlot since the rules are permanent until the snap is removed.

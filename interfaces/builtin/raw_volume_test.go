@@ -20,9 +20,12 @@
 package builtin_test
 
 import (
-	. "gopkg.in/check.v1"
+	"fmt"
 	"strings"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -64,20 +67,6 @@ type rawVolumeInterfaceSuite struct {
 var _ = Suite(&rawVolumeInterfaceSuite{
 	iface: builtin.MustInterface("raw-volume"),
 })
-
-const rawVolumeConsumerYaml = `name: consumer
-version: 0
-apps:
- app:
-  plugs: [raw-volume]
-`
-
-const rawVolumeCoreYaml = `name: core
-version: 0
-type: os
-slots:
-  raw-volume:
-`
 
 func (s *rawVolumeInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS snap
@@ -309,7 +298,7 @@ func (s *rawVolumeInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="vda1", TAG+="snap_client-snap_app-accessing-1-part"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-part", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-part", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`, dirs.DistroLibExecDir))
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart2, s.testUDev2), IsNil)

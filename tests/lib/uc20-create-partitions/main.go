@@ -39,6 +39,7 @@ type cmdCreatePartitions struct {
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
+		KernelRoot string `positional-arg-name:"<kernel-root>"`
 		Device     string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
@@ -58,8 +59,8 @@ func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
 
 type uc20Constraints struct{}
 
-func (c uc20Constraints) Classic() bool  { return false }
-func (c uc20Constraints) Grade() asserts.ModelGrade  { return asserts.ModelSigned }
+func (c uc20Constraints) Classic() bool             { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
 	args := &cmdCreatePartitions{}
@@ -74,7 +75,7 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}
