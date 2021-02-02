@@ -21,7 +21,7 @@ package builtin
 
 // https://www.xilinx.com/support/documentation/ip_documentation/vcu/v1_2/pg252-vcu.pdf
 // https://github.com/Xilinx/vcu-modules/
-const allegroVcuSummary = `allows access to Xilinx Allegro Video Code Unit`
+const allegroVcuSummary = `allows access to Allegro Video Code Unit`
 
 // Xilinx offers IP for their devices to decode/encode video streams, by
 // using /dev/allegroDecodeIP and /dev/allegroIP devices.
@@ -36,7 +36,7 @@ const allegroVcuBaseDeclarationSlots = `
 `
 
 const allegroVcuConnectedPlugAppArmor = `
-# Description: Can access the Xilinx Allegro Video Core Unit, using a kernel
+# Description: Can access the Allegro Video Core Unit, using a kernel
 # module which directly controls hardware on the device.
 
 /dev/allegroDecodeIP rw,

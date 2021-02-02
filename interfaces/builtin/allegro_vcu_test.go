@@ -99,7 +99,7 @@ func (s *AllegroVcuInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to Xilinx Allegro Video Code Unit`)
+	c.Assert(si.Summary, Equals, `allows access to Allegro Video Code Unit`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
