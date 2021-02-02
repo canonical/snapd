@@ -221,12 +221,12 @@ func (s *DesktopInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
 
-func (s *DesktopInterfaceSuite) TestDisableMountFontCache(c *C) {
+func (s *DesktopInterfaceSuite) TestDisableMountHostFontCache(c *C) {
 	const mockSnapYaml = `name: desktop-snap
 version: 1.0
 plugs:
   desktop:
-    mount-font-cache: false
+    mount-host-font-cache: false
 `
 	plug, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
 	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
@@ -274,12 +274,12 @@ plugs:
 	c.Check(mounts, testutil.Contains, "/var/cache/fontconfig")
 }
 
-func (s *DesktopInterfaceSuite) TestMountFontCacheNotBool(c *C) {
+func (s *DesktopInterfaceSuite) TestMountHostFontCacheNotBool(c *C) {
 	const mockSnapYamlTemplate = `name: desktop-snap
 version: 1.0
 plugs:
   desktop:
-    mount-font-cache: %s
+    mount-host-font-cache: %s
 `
 	for _, value := range []string{
 		`"hello world"`,
@@ -289,6 +289,6 @@ plugs:
 		`{"foo":"bar"}`,
 	} {
 		_, plugInfo := MockConnectedPlug(c, fmt.Sprintf(mockSnapYamlTemplate, value), nil, "desktop")
-		c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "desktop plug requires bool with 'mount-font-cache'", Commentf(value))
+		c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "desktop plug requires bool with 'mount-host-font-cache'", Commentf(value))
 	}
 }

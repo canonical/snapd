@@ -303,15 +303,15 @@ type desktopInterface struct {
 	commonInterface
 }
 
-func (iface *desktopInterface) shouldMountFontCache(attribs interfaces.Attrer) (bool, error) {
-	value, ok := attribs.Lookup("mount-font-cache")
+func (iface *desktopInterface) shouldMountHostFontCache(attribs interfaces.Attrer) (bool, error) {
+	value, ok := attribs.Lookup("mount-host-font-cache")
 	if !ok {
 		// If the attribute is not present, we mount the font cache
 		return true, nil
 	}
 	shouldMount, ok := value.(bool)
 	if !ok {
-		return false, fmt.Errorf("desktop plug requires bool with 'mount-font-cache'")
+		return false, fmt.Errorf("desktop plug requires bool with 'mount-host-font-cache'")
 	}
 	return shouldMount, nil
 }
@@ -322,11 +322,11 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 		dirs.SystemLocalFontsDir,
 	}
 
-	shouldMountFontCache, err := iface.shouldMountFontCache(plug)
+	shouldMountHostFontCache, err := iface.shouldMountHostFontCache(plug)
 	if err != nil {
 		return nil, err
 	}
-	if shouldMountFontCache {
+	if shouldMountHostFontCache {
 		fontDirs = append(fontDirs, dirs.SystemFontconfigCacheDirs...)
 	}
 
@@ -413,7 +413,7 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 }
 
 func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	_, err := iface.shouldMountFontCache(plug)
+	_, err := iface.shouldMountHostFontCache(plug)
 	return err
 }
 
