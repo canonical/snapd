@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -139,4 +141,18 @@ func RemapSnapToResponse(snapName string) string {
 		return "system"
 	}
 	return snapName
+}
+
+func delayedCrossMgrInit() {
+	devicestate.EarlyConfig = EarlyConfig
+}
+
+// EarlyConfig performs any needed early configuration handling during
+// managers' startup, it is exposed as a hook to devicestate for invocation.
+func EarlyConfig(st *state.State) error {
+	tr := config.NewTransaction(st)
+	if err := configcoreExportExperimentalFlags(tr); err != nil {
+		return fmt.Errorf("cannot export experimental config flags: %v", err)
+	}
+	return nil
 }

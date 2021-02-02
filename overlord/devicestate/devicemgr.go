@@ -60,6 +60,10 @@ var (
 	restrictCloudInit = sysconfig.RestrictCloudInit
 )
 
+// EarlyConfig is a hook set by configstate that can process early configuration
+// during managers' startup.
+var EarlyConfig func(*state.State) error
+
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
@@ -174,7 +178,11 @@ func (m *DeviceManager) StartUp() error {
 		}
 	}
 
-	return nil
+	// TODO: setup proper timings measurements for this
+
+	m.state.Lock()
+	defer m.state.Unlock()
+	return EarlyConfig(m.state)
 }
 
 func (m *DeviceManager) maybeSetupUbuntuSave() error {
