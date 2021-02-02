@@ -145,8 +145,8 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 			if info.Channel == "stable" {
 				status[theme] = themeAvailable
 				candidateSnaps[name] = true
+				break
 			}
-			break
 		}
 	}
 	return nil
