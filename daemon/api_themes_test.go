@@ -22,7 +22,6 @@ package daemon_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http/httptest"
 
@@ -318,13 +317,7 @@ slots:
 	})
 }
 
-func (s *themesSuite) TestThemesCmd(c *C) {
-	c.Check(daemon.ThemesCmd.GET, NotNil)
-	c.Check(daemon.ThemesCmd.POST, NotNil)
-	c.Check(daemon.ThemesCmd.PUT, IsNil)
-
-	c.Check(daemon.ThemesCmd.Path, Equals, "/v2/accessories/themes")
-
+func (s *themesSuite) TestThemesCmdGet(c *C) {
 	s.daemon(c)
 	s.available = map[string]*snap.Info{
 		"gtk-theme-foo": {
@@ -348,29 +341,22 @@ func (s *themesSuite) TestThemesCmd(c *C) {
 	}
 
 	req := httptest.NewRequest("GET", "/v2/accessories/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
-	rec := httptest.NewRecorder()
-	daemon.ThemesCmd.GET(daemon.ThemesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, Equals, 200)
+	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(ok, Equals, true)
 
-	var body map[string]interface{}
-	err := json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Assert(err, IsNil)
-	c.Check(body, DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"gtk-themes": map[string]interface{}{
-				"Foo-gtk": "available",
-				"Bar":     "unavailable",
-			},
-			"icon-themes": map[string]interface{}{
-				"Foo-icons": "available",
-			},
-			"sound-themes": map[string]interface{}{
-				"Foo-sounds": "available",
-			},
+	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Status, Equals, 200)
+	c.Check(rsp.Result, DeepEquals, daemon.ThemeStatusResponse{
+		GtkThemes: map[string]daemon.ThemeStatus{
+			"Foo-gtk": daemon.ThemeAvailable,
+			"Bar":     daemon.ThemeUnavailable,
 		},
-		"status":      "OK",
-		"status-code": 200.0,
-		"type":        "sync",
+		IconThemes: map[string]daemon.ThemeStatus{
+			"Foo-icons": daemon.ThemeAvailable,
+		},
+		SoundThemes: map[string]daemon.ThemeStatus{
+			"Foo-sounds": daemon.ThemeAvailable,
+		},
 	})
 }
 
@@ -426,14 +412,11 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 
 	buf := bytes.NewBufferString(`{"gtk-themes":["Foo-gtk"],"icon-themes":["Foo-icons"],"sound-themes":["Foo-sounds"]}`)
 	req := httptest.NewRequest("POST", "/v2/accessories/themes", buf)
-	rec := httptest.NewRecorder()
-	daemon.ThemesCmd.POST(daemon.ThemesCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, Equals, 202)
+	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(ok, Equals, true)
 
-	var rsp daemon.Resp
-	err := json.Unmarshal(rec.Body.Bytes(), &rsp)
-	c.Assert(err, IsNil)
 	c.Check(rsp.Type, Equals, daemon.ResponseTypeAsync)
+	c.Check(rsp.Status, Equals, 202)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -442,7 +425,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 	c.Check(chg.Kind(), Equals, "install-themes")
 	c.Check(chg.Summary(), Equals, `Install snaps "gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"`)
 	var names []string
-	err = chg.Get("snap-names", &names)
+	err := chg.Get("snap-names", &names)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"gtk-theme-foo", "icon-theme-foo", "sound-theme-foo"})
 }

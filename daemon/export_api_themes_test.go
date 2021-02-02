@@ -19,7 +19,10 @@
 
 package daemon
 
-type ThemeStatus = themeStatus
+type (
+	ThemeStatus         = themeStatus
+	ThemeStatusResponse = themeStatusResponse
+)
 
 var (
 	ThemesCmd                    = themesCmd
