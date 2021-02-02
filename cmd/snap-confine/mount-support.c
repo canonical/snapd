@@ -322,16 +322,32 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
 		const char *dirs_from_core[] = {
-			"/etc/alternatives", "/etc/ssl", "/etc/nsswitch.conf",
-			// Some specifc and privileged interfaces (e.g docker-support) give
+			"/etc/alternatives", "/etc/nsswitch.conf",
+			// Some specific and privileged interfaces (e.g docker-support) give
 			// access to apparmor_parser from the base snap which at a minimum
 			// needs to use matching configuration from the base snap instead
 			// of from the users host system.
 			"/etc/apparmor", "/etc/apparmor.d",
+			// Use ssl certs from the base by default unless
+			// using Debian/Ubuntu classic (see below)
+			"/etc/ssl",
 			NULL
 		};
+
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
+
+			// Special case for ubuntu/debian based
+			// classic distros that use the core* snap:
+			// here we use the host /etc/ssl
+			// to support custom ca-cert setups
+			if (sc_streq(dir, "/etc/ssl") &&
+			    config->distro == SC_DISTRO_CLASSIC &&
+			    sc_is_debian_like() &&
+			    sc_startswith(config->base_snap_name, "core")) {
+				continue;
+			}
+
 			if (access(dir, F_OK) != 0) {
 				continue;
 			}

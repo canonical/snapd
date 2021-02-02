@@ -120,6 +120,7 @@ func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
+			KeyName: "ubuntu-data",
 			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		},
 	}
@@ -129,10 +130,12 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
+			KeyName: "ubuntu-data",
 			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		},
 		{
 			Key:     saveKey,
+			KeyName: "ubuntu-save",
 			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		},
 	}
@@ -143,10 +146,9 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
 		params := &FDESetupHookParams{
-			Key: skr.Key,
-			// TODO: decide what the right KeyName is
-			// KeyName: filepath.Base(skr.KeyFile),
-			Models: []*asserts.Model{model},
+			Key:     skr.Key,
+			KeyName: skr.KeyName,
+			Models:  []*asserts.Model{model},
 		}
 		sealedKey, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {
@@ -192,7 +194,9 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *ass
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
 
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string(modeenv.CurrentKernelCommandLines))
+	// kernel command lines are filled during install
+	cmdlines := modeenv.CurrentKernelCommandLines
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdlines)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -377,12 +381,11 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	cmdline, err := ComposeCommandLine(model)
+	cmdlines, err := kernelCommandLinesForResealWithFallback(model, modeenv)
 	if err != nil {
-		return fmt.Errorf("cannot compose the run mode command line: %v", err)
+		return err
 	}
-
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, []string{cmdline})
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdlines)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -548,7 +551,6 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
-
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
 	for _, k := range modeenv.CurrentKernels {
 		info, err := snap.ParsePlaceInfoFromSnapFileName(k)

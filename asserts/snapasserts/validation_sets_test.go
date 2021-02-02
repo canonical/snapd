@@ -21,6 +21,7 @@ package snapasserts_test
 
 import (
 	"fmt"
+	"sort"
 
 	. "gopkg.in/check.v1"
 
@@ -643,4 +644,11 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 		c.Assert(err, NotNil, Commentf("#%d", i))
 		c.Assert(err, ErrorMatches, tc.errorMsg, Commentf("#%d: ", i))
 	}
+}
+
+func (s *validationSetsSuite) TestSortByRevision(c *C) {
+	revs := []snap.Revision{snap.R(10), snap.R(4), snap.R(5), snap.R(-1)}
+
+	sort.Sort(snapasserts.ByRevision(revs))
+	c.Assert(revs, DeepEquals, []snap.Revision{snap.R(-1), snap.R(4), snap.R(5), snap.R(10)})
 }

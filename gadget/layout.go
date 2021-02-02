@@ -24,8 +24,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -36,6 +39,9 @@ type LayoutConstraints struct {
 	NonMBRStartOffset quantity.Offset
 	// SectorSize is the size of the sector to be used for calculations
 	SectorSize quantity.Size
+	// SkipResolveContent will skip resolving content paths
+	// and `$kernel:` style references
+	SkipResolveContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -78,6 +84,9 @@ type LaidOutStructure struct {
 	Index int
 	// LaidOutContent is a list of raw content inside the structure
 	LaidOutContent []LaidOutContent
+	// ResolvedContent is a list of filesystem content that has all
+	// relative paths or references resolved
+	ResolvedContent []ResolvedContent
 }
 
 func (p LaidOutStructure) String() string {
@@ -92,6 +101,9 @@ func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].Star
 
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
+//
+// TODO: this can't have "$kernel:" refs at this point, fail in validate
+//       for bare structures with "$kernel:" refs
 type LaidOutContent struct {
 	*VolumeContent
 
@@ -111,6 +123,14 @@ func (p LaidOutContent) String() string {
 		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
 	return fmt.Sprintf("#%v (source:%q)", p.Index, p.UnresolvedSource)
+}
+
+type ResolvedContent struct {
+	*VolumeContent
+
+	// ResolvedSource is the absolute path of the Source after resolving
+	// any references (e.g. to a "$kernel:" snap).
+	ResolvedSource string
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -193,7 +213,19 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
-func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+	var err error
+
+	var kernelInfo *kernel.Info
+	if !constraints.SkipResolveContent {
+		// Note that the kernelRootDir may reference the running
+		// kernel if there is a gadget update or the new kernel if
+		// there is a kernel update.
+		kernelInfo, err = kernel.ReadInfo(kernelRootDir)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	structures, byName, err := layoutVolumeStructures(volume, constraints)
 	if err != nil {
@@ -211,6 +243,7 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 			farthestEnd = end
 		}
 
+		// lay out raw content
 		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], byName)
 		if err != nil {
 			return nil, err
@@ -223,6 +256,15 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		}
 
 		structures[idx].LaidOutContent = content
+
+		// resolve filesystem content
+		if !constraints.SkipResolveContent {
+			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx])
+			if err != nil {
+				return nil, err
+			}
+			structures[idx].ResolvedContent = resolvedContent
+		}
 	}
 
 	volumeSize := quantity.Size(farthestEnd)
@@ -238,6 +280,61 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 		RootDir:          gadgetRootDir,
 	}
 	return vol, nil
+}
+
+func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure) ([]ResolvedContent, error) {
+	if !ps.HasFilesystem() {
+		// structures without a file system are not resolved here
+		return nil, nil
+	}
+	if len(ps.Content) == 0 {
+		return nil, nil
+	}
+
+	content := make([]ResolvedContent, len(ps.Content))
+	for idx := range ps.Content {
+		resolvedSource, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
+		if err != nil {
+			return nil, err
+		}
+		content[idx] = ResolvedContent{
+			VolumeContent:  &ps.Content[idx],
+			ResolvedSource: resolvedSource,
+		}
+	}
+
+	return content, nil
+}
+
+// resolveContentPathOrRef resolves any "$kernel:" refs in the gadget
+// content and populates VolumeContent.resolvedSource with absolute
+// paths.
+func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+	// content may refer to "$kernel:<name>/<content>"
+	var resolvedSource string
+	if strings.HasPrefix(pathOrRef, "$kernel:") {
+		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
+		if err != nil {
+			return "", fmt.Errorf("cannot parse kernel ref: %v", err)
+		}
+		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
+		if !ok {
+			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
+		}
+		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
+			return "", fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
+		}
+		resolvedSource = filepath.Join(kernelRootDir, wantedContent)
+	} else {
+		resolvedSource = filepath.Join(gadgetRootDir, pathOrRef)
+	}
+
+	// restore trailing / if one was there
+	if strings.HasSuffix(pathOrRef, "/") {
+		resolvedSource += "/"
+	}
+
+	return resolvedSource, nil
 }
 
 type byContentStartOffset []LaidOutContent

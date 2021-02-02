@@ -724,7 +724,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// all URLS are /api/v1/snaps/... or /v2/snaps/... so
+		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
 		// check the url is sane and discard the common prefix
 		// to simplify indexing into the comps slice.
 		comps := strings.Split(r.URL.Path, "/")
@@ -743,7 +743,13 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			if len(comps) <= 3 {
 				panic("unexpected url path: " + r.URL.Path)
 			}
-			comps = comps[3:]
+			if comps[2] == "assertions" {
+				// preserve "assertions" component
+				comps = comps[2:]
+			} else {
+				// drop common "snap" component
+				comps = comps[3:]
+			}
 			comps[0] = "v2:" + comps[0]
 		}
 
@@ -763,16 +769,16 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{"macaroon": "%s"}`, s.sessionMacaroon)))
 			return
-		case "assertions":
+		case "v2:assertions":
 			ref := &asserts.Ref{
 				Type:       asserts.Type(comps[1]),
 				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(s.storeSigning.Find)
 			if asserts.IsNotFound(err) {
-				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(404)
-				w.Write([]byte(`{"status": 404}`))
+				w.Write([]byte(`{"error-list":[{"code":"not-found","message":"..."}]}`))
 				return
 			}
 			if err != nil {
@@ -856,7 +862,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 						if err != nil {
 							panic("missing assertions not supported")
 						}
-						urls = append(urls, fmt.Sprintf("%s/api/v1/snaps/assertions/%s", baseURL.String(), ref.Unique()))
+						urls = append(urls, fmt.Sprintf("%s/v2/assertions/%s", baseURL.String(), ref.Unique()))
 
 					}
 					results = append(results, resultJSON{

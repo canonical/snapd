@@ -41,7 +41,6 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 	c.Addr = syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
 		Groups: uint32(mode),
-		Pid:    uint32(os.Getpid()),
 	}
 
 	if err = syscall.Bind(c.Fd, &c.Addr); err != nil {

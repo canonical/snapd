@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -139,7 +140,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Check(params.TPMLockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
@@ -147,7 +148,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
-				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyFile: dataKeyFile}, {Key: myKey2, KeyFile: saveKeyFile}})
+				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
@@ -347,6 +348,10 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap", "pc-kernel_600.snap"},
+
+			CurrentKernelCommandLines: boot.BootCommandLines{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			},
 		}
 
 		if tc.prevPbc {
@@ -591,6 +596,148 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		})
 		prevPbc = pbc
 	}
+}
+
+func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	model := boottest.MakeMockUC20Model()
+
+	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		CurrentRecoverySystems: []string{"20200825"},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		// as if it is unset yet
+		CurrentKernelCommandLines: nil,
+	}
+
+	err = boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
+	c.Assert(err, IsNil)
+	// mock asset cache
+	err = os.MkdirAll(filepath.Join(rootdir, "var/lib/snapd/boot-assets/trusted"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/trusted/asset-asset-hash-1"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// match one of current kernels
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode)
+	// match the seed kernel
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+
+	bootdir := c.MkDir()
+	mtbl := bootloadertest.Mock("trusted", bootdir).WithTrustedAssets()
+	mtbl.TrustedAssetsList = []string{"asset-1"}
+	mtbl.StaticCommandLine = "static cmdline"
+	mtbl.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	mtbl.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		recoveryKernelBf,
+	}
+	bootloader.Force(mtbl)
+	defer bootloader.Force(nil)
+
+	// set a mock recovery kernel
+	readSystemEssentialCalls := 0
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		readSystemEssentialCalls++
+		kernelSnap := &seed.Snap{
+			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+			SideInfo: &snap.SideInfo{
+				RealName: "pc-kernel",
+				Revision: snap.Revision{N: 1},
+			},
+		}
+		return model, []*seed.Snap{kernelSnap}, nil
+	})
+	defer restore()
+
+	// set mock key resealing
+	resealKeysCalls := 0
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealKeysCalls++
+		c.Assert(params.ModelParams, HasLen, 1)
+		c.Logf("reseal: %+v", params)
+		switch resealKeysCalls {
+		case 1:
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=run static cmdline",
+			})
+		case 2:
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			})
+		default:
+			c.Fatalf("unexpected number of reseal calls, %v", params)
+		}
+		return nil
+	})
+	defer restore()
+
+	const expectReseal = false
+	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	c.Assert(err, IsNil)
+	c.Assert(resealKeysCalls, Equals, 2)
+
+	// verify the boot chains data file
+	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
+	c.Assert(err, IsNil)
+	c.Assert(cnt, Equals, 10)
+	c.Check(pbc, DeepEquals, boot.PredictableBootChains{
+		boot.BootChain{
+			BrandID:        "my-brand",
+			Model:          "my-model-uc20",
+			Grade:          "dangerous",
+			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+			AssetChain: []boot.BootAsset{
+				{
+					Role:   "recovery",
+					Name:   "asset",
+					Hashes: []string{"asset-hash-1"},
+				},
+			},
+			Kernel:         "pc-kernel",
+			KernelRevision: "1",
+			KernelCmdlines: []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			},
+		},
+		boot.BootChain{
+			BrandID:        "my-brand",
+			Model:          "my-model-uc20",
+			Grade:          "dangerous",
+			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+			AssetChain: []boot.BootAsset{
+				{
+					Role:   "run-mode",
+					Name:   "asset",
+					Hashes: []string{"asset-hash-1"},
+				},
+			},
+			Kernel:         "pc-kernel",
+			KernelRevision: "500",
+			KernelCmdlines: []string{
+				"snapd_recovery_mode=run static cmdline",
+			},
+		},
+	})
 }
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
@@ -937,9 +1084,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{Key: secboot.EncryptionKey{1, 2, 3, 4}, Models: []*asserts.Model{model}},
-		{Key: secboot.EncryptionKey{5, 6, 7, 8}, Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, KeyName: "ubuntu-data", Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{1, 2, 3, 4}, KeyName: "ubuntu-data", Models: []*asserts.Model{model}},
+		{Key: secboot.EncryptionKey{5, 6, 7, 8}, KeyName: "ubuntu-save", Models: []*asserts.Model{model}},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
