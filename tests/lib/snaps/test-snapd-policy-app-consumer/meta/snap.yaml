@@ -242,6 +242,9 @@ apps:
   maliit:
     command: bin/run
     plugs: [ maliit ]
+  media-control:
+    command: bin/run
+    plugs: [ media-control ]
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
