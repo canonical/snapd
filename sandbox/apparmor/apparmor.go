@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -130,7 +131,7 @@ func ParserMtime() int64 {
 	var mtime int64
 	mtime = 0
 
-	if path, err := findAppArmorParser(); err == nil {
+	if path, _, err := FindAppArmorParser(); err == nil {
 		if fi, err := os.Stat(path); err == nil {
 			mtime = fi.ModTime().Unix()
 		}
@@ -316,7 +317,7 @@ func probeKernelFeatures() ([]string, error) {
 }
 
 func probeParserFeatures() ([]string, error) {
-	parser, err := findAppArmorParser()
+	parser, internal, err := FindAppArmorParser()
 	if err != nil {
 		return []string{}, err
 	}
@@ -331,15 +332,23 @@ func probeParserFeatures() ([]string, error) {
 	return features, nil
 }
 
-// findAppArmorParser returns the path of the apparmor_parser binary if one is found.
-func findAppArmorParser() (string, error) {
+// FindAppArmorParser returns the path of the apparmor_parser binary if one is found.
+func FindAppArmorParser() (string, bool, error) {
+	// first see if we have our own internal copy
+	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
+		if _, err := os.Stat(path); err == nil {
+			return path, true, nil
+		}
+	}
+
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
-			return path, nil
+			return path, false, nil
 		}
 	}
-	return "", os.ErrNotExist
+
+	return "", false, os.ErrNotExist
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.

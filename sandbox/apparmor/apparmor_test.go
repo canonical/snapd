@@ -41,6 +41,18 @@ type apparmorSuite struct{}
 
 var _ = Suite(&apparmorSuite{})
 
+func (*apparmorSuite) TestAppArmorFindAppArmorParser(c *C) {
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	path, internal, err := apparmor.FindAppArmorParser()
+	c.Check(path, Equals, mockParserCmd.Exe())
+	c.Check(internal, Equals, false)
+	c.Check(err, Equals, nil)
+}
+
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(apparmor.Unknown.String(), Equals, "unknown")
 	c.Check(apparmor.Unsupported.String(), Equals, "none")
