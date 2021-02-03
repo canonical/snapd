@@ -157,7 +157,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 
 	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
 	//   install mode
-	modeEnv, err := mst.ModeenvFromModel(model, snaps)
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
 	if err != nil {
 		return err
 	}
@@ -1046,7 +1046,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}
 	}
 
-	modeEnv, err := mst.ModeenvFromModel(model, snaps)
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
 	if err != nil {
 		return err
 	}

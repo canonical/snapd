@@ -81,9 +81,9 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 	return ma.(*asserts.Model), nil
 }
 
-// ModeenvFromModel generates a modeenv given the model and the snaps for the
+// EphemeralModeenvForModel generates a modeenv given the model and the snaps for the
 // current mode and recovery system of the initramfsMountsState.
-func (mst *initramfsMountsState) ModeenvFromModel(model *asserts.Model, snaps map[snap.Type]snap.PlaceInfo) (*boot.Modeenv, error) {
+func (mst *initramfsMountsState) EphemeralModeenvForModel(model *asserts.Model, snaps map[snap.Type]snap.PlaceInfo) (*boot.Modeenv, error) {
 	if mst.mode == "run" {
 		return nil, fmt.Errorf("internal error: initramfs should not write modeenv in run mode")
 	}
