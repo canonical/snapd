@@ -25,10 +25,12 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -76,6 +78,105 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(clientAppInfos, nil)
+}
+
+type appInfoOptions struct {
+	service bool
+}
+
+func (opts appInfoOptions) String() string {
+	if opts.service {
+		return "service"
+	}
+
+	return "app"
+}
+
+// appInfosFor returns a sorted list apps described by names.
+//
+// * If names is empty, returns all apps of the wanted kinds (which
+//   could be an empty list).
+// * An element of names can be a snap name, in which case all apps
+//   from the snap of the wanted kind are included in the result (and
+//   it's an error if the snap has no apps of the wanted kind).
+// * An element of names can instead be snap.app, in which case that app is
+//   included in the result (and it's an error if the snap and app don't
+//   both exist, or if the app is not a wanted kind)
+// On error an appropriate error Response is returned; a nil Response means
+// no error.
+//
+// It's a programming error to call this with wanted having neither
+// services nor commands set.
+func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
+	snapNames := make(map[string]bool)
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+		name, _ = splitAppName(name)
+		snapNames[name] = true
+	}
+
+	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	if err != nil {
+		return nil, InternalError("cannot list local snaps! %v", err)
+	}
+
+	found := make(map[string]bool)
+	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	for _, snp := range snaps {
+		snapName := snp.info.InstanceName()
+		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
+		for _, app := range snp.info.Apps {
+			if !opts.service || app.IsService() {
+				apps = append(apps, app)
+			}
+		}
+
+		if len(apps) == 0 && requested[snapName] {
+			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
+		}
+
+		includeAll := len(requested) == 0 || requested[snapName]
+		if includeAll {
+			// want all services in a snap
+			found[snapName] = true
+		}
+
+		for _, app := range apps {
+			appName := snapName + "." + app.Name
+			if includeAll || requested[appName] {
+				appInfos = append(appInfos, app)
+				found[appName] = true
+			}
+		}
+	}
+
+	for k := range requested {
+		if !found[k] {
+			if snapNames[k] {
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
+			} else {
+				snap, app := splitAppName(k)
+				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
+			}
+		}
+	}
+
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
+
+	return appInfos, nil
+}
+
+// this differs from snap.SplitSnapApp in the handling of the
+// snap-only case:
+//   snap.SplitSnapApp("foo") is ("foo", "foo"),
+//   splitAppName("foo") is ("foo", "").
+func splitAppName(s string) (snap, app string) {
+	if idx := strings.IndexByte(s, '.'); idx > -1 {
+		return s[:idx], s[idx+1:]
+	}
+
+	return s, ""
 }
 
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {

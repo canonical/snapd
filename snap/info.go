@@ -1318,12 +1318,16 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 
 	for _, app := range apps {
 		for _, other := range app.After {
-			predecessors[app.Name]++
-			successors[other] = append(successors[other], app)
+			if _, ok := nameToApp[other]; ok {
+				predecessors[app.Name]++
+				successors[other] = append(successors[other], app)
+			}
 		}
 		for _, other := range app.Before {
-			predecessors[other]++
-			successors[app.Name] = append(successors[app.Name], nameToApp[other])
+			if _, ok := nameToApp[other]; ok {
+				predecessors[other]++
+				successors[app.Name] = append(successors[app.Name], nameToApp[other])
+			}
 		}
 	}
 

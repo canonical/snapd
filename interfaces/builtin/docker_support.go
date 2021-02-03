@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
-	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -74,10 +73,11 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/runc/**     mrwklix,
 
 # Allow sockets/etc for containerd
-/{,var/}run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
+/{,var/}run/containerd/{,s/,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
 /{,var/}run/containerd/runc/k8s.io/*/** rwk,
 /{,var/}run/containerd/{io.containerd*/,io.containerd*/k8s.io/,io.containerd*/k8s.io/*/} rw,
 /{,var/}run/containerd/io.containerd*/*/** rwk,
+/{,var/}run/containerd/s/** rwk,
 
 # Limit ipam-state to k8s
 /run/ipam-state/k8s-** rw,
@@ -653,10 +653,6 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
 	}
 }
-
-var (
-	parserFeatures = apparmor_sandbox.ParserFeatures
-)
 
 func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.SetControlsDeviceCgroup()

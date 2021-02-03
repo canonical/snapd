@@ -22,12 +22,14 @@ package secboot
 
 import (
 	"io"
+	"time"
 
 	sb "github.com/snapcore/secboot"
 )
 
 var (
 	EFIImageFromBootFile = efiImageFromBootFile
+	LockTPMSealedKeys    = lockTPMSealedKeys
 )
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
@@ -184,5 +186,28 @@ func MockFDEHasRevealKey(f func() bool) (restore func()) {
 	return func() {
 		FDEHasRevealKey = old
 	}
+}
 
+func MockFdeRevealKeyCommandExtra(args []string) (restore func()) {
+	oldFdeRevealKeyCommandExtra := fdeRevealKeyCommandExtra
+	fdeRevealKeyCommandExtra = args
+	return func() {
+		fdeRevealKeyCommandExtra = oldFdeRevealKeyCommandExtra
+	}
+}
+
+func MockFdeRevealKeyRuntimeMax(d time.Duration) (restore func()) {
+	oldFdeRevealKeyRuntimeMax := fdeRevealKeyRuntimeMax
+	fdeRevealKeyRuntimeMax = d
+	return func() {
+		fdeRevealKeyRuntimeMax = oldFdeRevealKeyRuntimeMax
+	}
+}
+
+func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
+	oldFdeRevealKeyPollWaitParanoiaFactor := fdeRevealKeyPollWaitParanoiaFactor
+	fdeRevealKeyPollWaitParanoiaFactor = n
+	return func() {
+		fdeRevealKeyPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
+	}
 }

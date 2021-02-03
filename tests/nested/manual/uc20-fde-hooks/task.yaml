@@ -1,0 +1,42 @@
+summary: Check that the fde-setup hooks work
+
+# this is a UC20 specific test
+systems: [ubuntu-20.04-64]
+
+environment:
+    NESTED_IMAGE_ID: core20-fde-setup
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_ENABLE_OVMF: true
+    GO111MODULE: off
+
+prepare: |
+  echo "Build a kernel snap with the fde-setup hook"
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  mkdir ./extra-snaps
+  # build fde-reveal-key hook into the "extra-initrd" dir so that the
+  # nested_create_core_vm picks this up
+  mkdir -p ./extra-initrd/usr/bin/
+  go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+
+  # create fde-setup hook inside the kernel
+  mkdir -p ./extra-kernel-snap/meta/hooks
+  go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
+  nested_create_core_vm
+  # start it
+  nested_start_core_vm
+
+execute: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  # check that we have an encrypted system
+  nested_exec "find /dev/mapper" | MATCH ubuntu-data-[0-9a-f-]+
+  nested_exec "test -e /var/lib/snapd/device/fde/recovery.key"
+  nested_exec "test -e /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"
+  nested_exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
+  nested_exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"

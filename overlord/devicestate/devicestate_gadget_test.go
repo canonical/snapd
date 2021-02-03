@@ -755,9 +755,10 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 				},
 			},
 		},
@@ -789,9 +790,10 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
-			Volumes: map[string]gadget.Volume{
+			Volumes: map[string]*gadget.Volume{
 				"pc": {
 					Bootloader: "grub",
+					Schema:     "gpt",
 					ID:         "123",
 				},
 			},
@@ -896,15 +898,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridShouldWork(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWork(c *C) {
-	// TODO: this test will need to be changed once the current issue is fixed
-	// swapping current and new yaml could work for example
-
 	encryption := false
-	// XXX this is not gadget yaml that we should support, by the UC16/18
+	// this is not gadget yaml that we should support, by the UC16/18
 	// rules it actually has two system-boot role partitions,
-	// the gadget package just fails to see that ATM
-	hybridGadgetYamlNext := hybridGadgetYaml + `
+	hybridGadgetYamlBroken := hybridGadgetYaml + `
         role: system-boot
 `
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYaml, hybridGadgetYamlNext)
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
 }

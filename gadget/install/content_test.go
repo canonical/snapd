@@ -111,8 +111,8 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
 		},
@@ -241,8 +241,8 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		m.LaidOutContent = []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
 		}

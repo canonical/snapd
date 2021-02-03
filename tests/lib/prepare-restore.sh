@@ -216,7 +216,7 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+    if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
@@ -279,7 +279,7 @@ prepare_project() {
 
     distro_update_package_db
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
         if [[ "$SPREAD_REBOOT" == 0 ]]; then
@@ -338,7 +338,7 @@ prepare_project() {
     fi
 
     # so is ubuntu-14.04
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
             echo "broken test setup"

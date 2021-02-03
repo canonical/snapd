@@ -46,7 +46,7 @@ func init() {
 		return secboot.UnlockResult{}, errNotImplemented
 	}
 
-	secbootLockTPMSealedKeys = func() error {
+	secbootLockSealedKeys = func() error {
 		return errNotImplemented
 	}
 }

@@ -46,20 +46,18 @@ var _ = check.Suite(&userSuite{})
 // TODO: also pull login/logout tests into this.
 
 type userSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 
 	userInfoResult        *store.User
 	userInfoExpectedEmail string
 	err                   error
-
-	d *daemon.Daemon
 
 	mockUserHome      string
 	trivialUserLookup func(username string) (*user.User, error)
 }
 
 func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
-	s.PokeStateLock()
+	s.pokeStateLock()
 
 	if s.userInfoExpectedEmail != email {
 		panic(fmt.Sprintf("%q != %q", s.userInfoExpectedEmail, email))
@@ -68,11 +66,11 @@ func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
 }
 
 func (s *userSuite) SetUpTest(c *check.C) {
-	s.APIBaseSuite.SetUpTest(c)
+	s.apiBaseSuite.SetUpTest(c)
 
 	s.AddCleanup(release.MockOnClassic(false))
 
-	s.d = s.DaemonWithStore(c, s)
+	s.daemonWithStore(c, s)
 
 	s.mockUserHome = c.MkDir()
 	s.trivialUserLookup = mkUserLookup(s.mockUserHome)
@@ -110,7 +108,7 @@ func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
@@ -161,7 +159,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 		expected = []daemon.UserResponseData{expectedItem}
 	}
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
@@ -193,7 +191,7 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	req, err := http.NewRequest("POST", endpoint, buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil)
+	rsp := s.req(c, req, nil)
 
 	const noUserAdmin = "system user administration via snapd is not allowed on this system"
 	switch endpoint {
@@ -211,7 +209,7 @@ func (s *userSuite) TestPostUserBadBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode user action data from request body: .*")
 }
@@ -221,7 +219,7 @@ func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
 }
 
@@ -230,7 +228,7 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp, check.DeepEquals, daemon.BadRequest("missing user action"))
 }
 
@@ -239,7 +237,7 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
 }
 
@@ -248,7 +246,7 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp, check.DeepEquals, daemon.BadRequest("need a username to remove"))
 }
 
@@ -270,7 +268,7 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "wat")
 	c.Check(called, check.Equals, 1)
@@ -292,7 +290,7 @@ func (s *userSuite) TestPostUserActionRemoveStateErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
 	c.Check(called, check.Equals, 0)
@@ -310,7 +308,7 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
 	c.Check(called, check.Equals, 0)
 }
@@ -332,7 +330,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Status, check.Equals, 200)
 	expected := []daemon.UserResponseData{
 		{ID: user.ID, Username: user.Username, Email: user.Email},
@@ -376,7 +374,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 
-	s.setupSigner("my-brand", daemon.BrandPrivKey)
+	s.setupSigner("my-brand", brandPrivKey)
 	s.setupSigner("partner", partnerPrivKey)
 	s.setupSigner("unknown", unknownPrivKey)
 
@@ -546,7 +544,7 @@ func (s *userSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	expected := &daemon.UserResponseData{
 		Username: "guy",
@@ -589,7 +587,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChange(c *ch
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	expected := &daemon.UserResponseData{
 		Username: "guy",
@@ -653,7 +651,7 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	// note that we get a list here instead of a single
@@ -690,7 +688,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device is a classic system`)
@@ -710,7 +708,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device already managed`)
@@ -730,7 +728,7 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// expecting an empty reply
 	expected := []daemon.UserResponseData{}
@@ -755,7 +753,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
@@ -789,7 +787,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
@@ -827,7 +825,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) 
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// note that we get a list here instead of a single
 	// userResponseData item
@@ -843,7 +841,7 @@ func (s *userSuite) TestUsersEmpty(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	expected := []daemon.UserResponseData{}
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -861,7 +859,7 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	expected := []daemon.UserResponseData{
 		{ID: u.ID, Username: u.Username, Email: u.Email},

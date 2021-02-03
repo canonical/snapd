@@ -20,8 +20,10 @@
 package devicestate
 
 import (
+	"compress/gzip"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
@@ -90,6 +92,37 @@ func writeModel(model *asserts.Model, where string) error {
 	return asserts.NewEncoder(f).Encode(model)
 }
 
+func writeLogs(rootdir string) error {
+	// XXX: would be great to use native journal format but it's tied
+	//      to machine-id, we could journal -o export but there
+	//      is no systemd-journal-remote on core{,18,20}
+	//
+	// XXX: or only log if persistent journal is enabled?
+	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	cmd := exec.Command("journalctl", "-b", "0")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect journal output: %v", err)
+	}
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush compressed log output: %v", err)
+	}
+	return nil
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -113,6 +146,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
+	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -126,24 +160,30 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := checkEncryption(st, deviceCtx)
+	useEncryption, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
 	bopts.Encrypt = useEncryption
 
+	model := deviceCtx.Model()
+
 	// make sure that gadget is usable for the set up we want to use it in
-	gadgetContaints := gadget.ValidationConstraints{
+	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+	ginfo, err := gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(ginfo, gadgetDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset install observer: %v", err)
 	}
@@ -162,7 +202,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(gadgetDir, "", bopts, installObserver)
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
@@ -197,7 +237,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -205,7 +245,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
+	setSysconfigCloudOptions(opts, gadgetDir, model)
 	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}
@@ -228,6 +268,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
 	}
 
 	// request a restart as the last action after a successful install
@@ -303,7 +348,7 @@ var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -330,7 +375,7 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = checkFDEFeatures(st, kernelInfo)
+			checkEncryptionErr = m.checkFDEFeatures(st)
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
@@ -346,6 +391,12 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 		}
 		if encrypted {
 			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+		}
+
+		if hasFDESetupHook {
+			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		} else {
+			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		}
 
 		// not required, go without

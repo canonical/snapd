@@ -63,7 +63,7 @@ reset_classic() {
         systemctl reset-failed "$unit" || true
     done
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         systemctl start snap.mount.service
     fi
 

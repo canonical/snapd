@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -38,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -68,7 +71,8 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	state *state.State
+	state   *state.State
+	hookMgr *hookstate.HookManager
 
 	cachedKeypairMgr asserts.KeypairManager
 
@@ -100,6 +104,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	m := &DeviceManager{
 		state:    s,
+		hookMgr:  hookManager,
 		newStore: newStore,
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
@@ -145,6 +150,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
+	boot.RunFDESetupHook = m.runFDESetupHook
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
 }
@@ -667,6 +674,9 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// already been permanently disabled, nothing to do
 			m.cloudInitAlreadyRestricted = true
 			return nil
+		case sysconfig.CloudInitNotFound:
+			// no cloud init at all
+			statusMsg = "not found"
 		case sysconfig.CloudInitUntriggered:
 			// hasn't been used
 			statusMsg = "reported to be in disabled state"
@@ -1359,6 +1369,7 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
 	st := m.state
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
@@ -1373,15 +1384,112 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
 
+func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+	// TODO:UC20: when this runs on refresh we need to be very careful
+	// that we never run this when the kernel is not fully configured
+	// i.e. when there are no security profiles for the hook
+
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
+	hooksup := &hookstate.HookSetup{
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
+		Hook:     "fde-setup",
+		// XXX: should this be configurable somehow?
+		Timeout: 5 * time.Minute,
+	}
+	req := &fde.SetupRequest{
+		Op:      op,
+		Key:     &params.Key,
+		KeyName: params.KeyName,
+		// TODO: include boot chains
+	}
+	for _, model := range params.Models {
+		req.Models = append(req.Models, map[string]string{
+			"series":     model.Series(),
+			"brand-id":   model.BrandID(),
+			"model":      model.Model(),
+			"grade":      string(model.Grade()),
+			"signkey-id": model.SignKeyID(),
+		})
+	}
+	contextData := map[string]interface{}{
+		"fde-setup-request": req,
+	}
+	st.Unlock()
+	defer st.Lock()
+	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
+	}
+	// the hook is expected to call "snapctl fde-setup-result" which
+	// wil set the "fde-setup-result" value on the task
+	var hookResult []byte
+	context.Lock()
+	err = context.Get("fde-setup-result", &hookResult)
+	context.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
+	}
+
+	return hookResult, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return nil
+}
+
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
 	_, ok := kernelInfo.Hooks["fde-setup"]
 	return ok
 }
 
-func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
-	// TODO: run the fde-setup hook with "op":"features".  If the
-	//       hooks returns any {"features":} reply we consider the
-	//       hardware supported. If the hook errors or if it
-	//       returns {"error":"hardware-unsupported"} we don't.
+type fdeSetupHandler struct {
+	context *hookstate.Context
+}
+
+func newFdeSetupHandler(ctx *hookstate.Context) hookstate.Handler {
+	return fdeSetupHandler{context: ctx}
+}
+
+func (h fdeSetupHandler) Before() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Done() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Error(err error) error {
 	return nil
 }

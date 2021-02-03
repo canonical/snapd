@@ -167,7 +167,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshotsRunsRegularly(c *check.C) {
 	c.Check(backendIterCalls, check.Equals, 2)
 }
 
-func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskKind string) {
+func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp string) {
 	removeCalled := 0
 	restoreOsRemove := snapshotstate.MockOsRemove(func(string) error {
 		removeCalled++
@@ -190,11 +190,18 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 		1: map[string]interface{}{"expiry-time": "2001-03-11T11:24:00Z"},
 	})
 
-	chg := st.NewChange("snapshot-change", "...")
-	tsk := st.NewTask(snapshotTaskKind, "...")
-	tsk.SetStatus(state.DoingStatus)
-	tsk.Set("snapshot-setup", map[string]int{"set-id": 1})
-	chg.AddTask(tsk)
+	var tsk *state.Task
+
+	switch snapshotOp {
+	case "export-snapshot":
+		snapshotstate.SetSnapshotOpInProgress(st, 1, snapshotOp)
+	default:
+		chg := st.NewChange("snapshot-change", "...")
+		tsk = st.NewTask(snapshotOp, "...")
+		tsk.SetStatus(state.DoingStatus)
+		tsk.Set("snapshot-setup", map[string]int{"set-id": 1})
+		chg.AddTask(tsk)
+	}
 
 	st.Unlock()
 	c.Assert(mgr.Ensure(), check.IsNil)
@@ -207,8 +214,12 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotTaskK
 	})
 	c.Check(removeCalled, check.Equals, 0)
 
-	// sanity check of the test setup: snapshot gets removed once conflict goes away
-	tsk.SetStatus(state.DoneStatus)
+	if tsk != nil {
+		// sanity check of the test setup: snapshot gets removed once conflict goes away
+		tsk.SetStatus(state.DoneStatus)
+	} else {
+		c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, snapshotOp)
+	}
 
 	// pretend we haven't run for a while
 	t, err := time.Parse(time.RFC3339, "2002-03-11T11:24:00Z")
@@ -231,6 +242,10 @@ func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithCheckSnapshot(c *ch
 
 func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithRestoreSnapshot(c *check.C) {
 	s.testEnsureForgetSnapshotsConflict(c, "restore-snapshot")
+}
+
+func (s *snapshotSuite) TestEnsureForgetSnapshotsConflictWithExportSnapshot(c *check.C) {
+	s.testEnsureForgetSnapshotsConflict(c, "export-snapshot")
 }
 
 func (snapshotSuite) TestFilename(c *check.C) {
@@ -263,12 +278,11 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
 		c.Check(usernames, check.DeepEquals, []string{"a-user", "b-user"})
-		c.Check(flags.Auto, check.Equals, false)
 		return nil, nil
 	})()
 
@@ -290,7 +304,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {
 		return nil, errors.New("bzzt")
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -317,7 +331,7 @@ func (snapshotSuite) TestDoSaveFailsWithNoSnapshot(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -341,7 +355,7 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -370,7 +384,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
 		return nil, errors.New("bzzt")
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -401,7 +415,7 @@ func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
 		buf := json.RawMessage(`"hello-there"`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		return nil, nil
 	})()
 
@@ -434,7 +448,7 @@ func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
 	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
 		return nil, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *backend.Flags) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 		var expirations map[uint64]interface{}
 		st.Lock()
 		defer st.Unlock()

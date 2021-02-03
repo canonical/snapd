@@ -223,7 +223,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	for _, seedSnap := range essentialSeedSnaps {
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		flags := snapstate.Flags{
+			SkipConfigure: true,
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +262,14 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
-		var flags snapstate.Flags
+		flags := snapstate.Flags{
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err

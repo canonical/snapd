@@ -53,7 +53,7 @@ import (
 var _ = check.Suite(&systemsSuite{})
 
 type systemsSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
@@ -121,7 +121,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -142,7 +142,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -197,7 +197,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -207,7 +207,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -223,7 +223,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -299,7 +299,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := s.Req(c, req, nil).(*daemon.Resp)
+		rsp := s.req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 		c.Check(rsp.Status, check.Equals, tc.status)
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
@@ -427,7 +427,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		}
 		err := m.WriteTo("")
 		c.Assert(err, check.IsNil)
-		d := s.Daemon(c)
+		d := s.daemon(c)
 		st := d.Overlord().State()
 		st.Lock()
 		// devicemgr needs boot id to request a reboot
@@ -435,7 +435,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		// device model
 		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-		s.MockModel(c, st, model)
+		s.mockModel(c, st, model)
 		if tc.currentMode == "run" {
 			// only set in run mode
 			st.Set("seeded-systems", currentSystem)
@@ -456,7 +456,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		// as root
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 		rec := httptest.NewRecorder()
-		s.ServeHTTP(c, rec, req)
+		s.serveHTTP(c, rec, req)
 		if tc.expUnsupported {
 			c.Check(rec.Code, check.Equals, 400, check.Commentf(tc.comment))
 		} else {
@@ -506,7 +506,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
 		cmd.ForgetCalls()
-		s.ResetDaemon()
+		s.resetDaemon()
 	}
 
 }
@@ -518,7 +518,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -540,13 +540,13 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
-	d := s.DaemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -562,7 +562,7 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	req.RemoteAddr = "pid=100;uid=1234;socket=;"
 
 	rec := httptest.NewRecorder()
-	s.ServeHTTP(c, rec, req)
+	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, check.Equals, 401)
 
 	var rspBody map[string]interface{}
@@ -580,7 +580,7 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 		c.Fatalf("request reboot should not get called")
@@ -595,12 +595,12 @@ func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 
 	rec := httptest.NewRecorder()
-	s.ServeHTTP(c, rec, req)
+	s.serveHTTP(c, rec, req)
 	c.Check(rec.Code, check.Equals, 401)
 }
 
 func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	for _, tc := range []struct {
 		systemLabel, mode string
@@ -632,14 +632,14 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 		rec := httptest.NewRecorder()
-		s.ServeHTTP(c, rec, req)
+		s.serveHTTP(c, rec, req)
 		c.Check(rec.Code, check.Equals, 200)
 		c.Check(called, check.Equals, 1)
 	}
 }
 
 func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	for _, tc := range []struct {
 		rebootErr        error
@@ -664,7 +664,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 		rec := httptest.NewRecorder()
-		s.ServeHTTP(c, rec, req)
+		s.serveHTTP(c, rec, req)
 		c.Check(rec.Code, check.Equals, tc.expectedHttpCode)
 		c.Check(called, check.Equals, 1)
 

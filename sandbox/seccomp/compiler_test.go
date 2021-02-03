@@ -273,3 +273,27 @@ func (s *compilerSuite) TestSupportsRobustArgumentFiltering(c *C) {
 		}
 	}
 }
+
+func (s *compilerSuite) TestCompilerStdoutOnly(c *C) {
+	const vi = "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog"
+	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`
+echo "this goes to stderr" >&2
+# this goes to stdout
+echo "%s"
+`, vi))
+
+	vi1, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	c.Check(err, IsNil)
+	c.Check(vi1, Equals, seccomp.VersionInfo(vi))
+}
+
+func (s *compilerSuite) TestCompilerStderrErr(c *C) {
+	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`
+echo "this goes to stderr" >&2
+# this goes to stdout
+echo "this goes to stdout"
+exit 1`))
+
+	_, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	c.Assert(err, ErrorMatches, "this goes to stderr")
+}

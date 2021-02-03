@@ -468,6 +468,22 @@ dbus (receive)
     member={ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label=unconfined),
 
+# KDE Plasma's Inhibited property indicating "do not disturb" mode
+# https://invent.kde.org/plasma/plasma-workspace/-/blob/master/libnotificationmanager/dbus/org.freedesktop.Notifications.xml#L42
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+
 dbus (send)
     bus=session
     path=/org/ayatana/NotificationItem/*

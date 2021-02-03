@@ -46,20 +46,20 @@ import (
 var _ = check.Suite(&generalSuite{})
 
 type generalSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *generalSuite) TestRoot(c *check.C) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	c.Assert(err, check.IsNil)
 
 	// check it only does GET
-	s.CheckGetOnly(c, req)
+	s.checkGetOnly(c, req)
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -74,11 +74,11 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	d.Version = "42b1"
 
 	// check it only does GET
-	s.CheckGetOnly(c, req)
+	s.checkGetOnly(c, req)
 
 	// set both legacy and new refresh schedules. new one takes priority
 	st := d.Overlord().State()
@@ -105,7 +105,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	defer restore()
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -148,7 +148,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	d.Version = "42b1"
 
 	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
@@ -183,7 +183,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -248,7 +248,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	}
 	c.Assert(m.WriteTo(""), check.IsNil)
 
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	d.Version = "42b1"
 
 	// add a test security backend
@@ -263,7 +263,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	defer restore()
 
 	rec := httptest.NewRecorder()
-	s.Req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -313,7 +313,7 @@ func (s *generalSuite) TestSysInfoSystemModeInstall(c *check.C) {
 	s.testSysInfoSystemMode(c, "install")
 }
 func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	st := d.Overlord().State()
 	st.Lock()
@@ -324,21 +324,21 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
-	d := s.Daemon(c)
+	d := s.daemon(c)
 
 	d.SetDegradedMode(fmt.Errorf("some error"))
 
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(rsp.Status, check.Equals, 200)
 }
 
@@ -364,7 +364,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	setupChanges(st)
@@ -373,7 +373,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -391,7 +391,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	setupChanges(st)
@@ -400,7 +400,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -418,7 +418,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	setupChanges(st)
@@ -427,7 +427,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -445,7 +445,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	setupChanges(st)
@@ -454,7 +454,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -471,7 +471,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	setupChanges(st)
@@ -480,7 +480,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -500,7 +500,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	chg1 := st.NewChange("service-control", "install...")
@@ -515,7 +515,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 
 	// Verify
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -535,7 +535,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	ids := setupChanges(st)
@@ -546,7 +546,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
@@ -602,7 +602,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	ids := setupChanges(st)
@@ -613,7 +613,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
@@ -666,7 +666,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	defer restore()
 
 	// Setup
-	d := s.Daemon(c)
+	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
 	ids := setupChanges(st)
@@ -678,7 +678,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
@@ -697,7 +697,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 }
 
 func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
-	s.Daemon(c)
+	s.daemon(c)
 
 	okayWarns := func(*state.State, time.Time) int { calls += "ok"; return 0 }
 	allWarns := func(*state.State) []*state.Warning { calls += "all"; return nil }
@@ -706,10 +706,8 @@ func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls
 	defer restore()
 
 	method := "GET"
-	f := s.Req
 	if body != nil {
 		method = "POST"
-		f = s.Req
 	}
 	q := url.Values{}
 	if all {
@@ -718,7 +716,7 @@ func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls
 	req, err := http.NewRequest(method, "/v2/warnings?"+q.Encode(), body)
 	c.Assert(err, check.IsNil)
 
-	rsp, ok := f(c, req, nil).(*daemon.Resp)
+	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
 	c.Assert(ok, check.Equals, true)
 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)

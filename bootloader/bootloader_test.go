@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -56,6 +57,8 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 type bootenvTestSuite struct {
@@ -114,7 +117,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 			opts:       &bootloader.Options{Role: bootloader.RoleRecovery},
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
-		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
+		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin", opts: &bootloader.Options{PrepareImageTime: true}},
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()

@@ -38,7 +38,7 @@ import (
 var _ = Suite(&recoveryKeysSuite{})
 
 type recoveryKeysSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 }
 
 func mockSystemRecoveryKeys(c *C) {
@@ -63,13 +63,13 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 		c.Skip("needs working secboot recovery key")
 	}
 
-	s.Daemon(c)
+	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
@@ -79,7 +79,7 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 }
 
 func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
-	s.Daemon(c)
+	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
@@ -87,6 +87,6 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rec := httptest.NewRecorder()
-	s.ServeHTTP(c, rec, req)
+	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, Equals, 401)
 }

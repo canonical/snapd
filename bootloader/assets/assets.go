@@ -59,6 +59,21 @@ func (b byFirstEdition) Len() int           { return len(b) }
 func (b byFirstEdition) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b byFirstEdition) Less(i, j int) bool { return b[i].FirstEdition < b[j].FirstEdition }
 
+func sanitizeSnippets(snippets []ForEditions) error {
+	if !sort.IsSorted(byFirstEdition(snippets)) {
+		return fmt.Errorf("snippets must be sorted in ascending edition number order")
+	}
+	for i := range snippets {
+		if i == 0 {
+			continue
+		}
+		if snippets[i-1].FirstEdition == snippets[i].FirstEdition {
+			return fmt.Errorf(`first edition %v repeated`, snippets[i].FirstEdition)
+		}
+	}
+	return nil
+}
+
 // registerSnippetForEditions register a set of snippets, each carrying the
 // first edition number it applies to, under a given key.
 func registerSnippetForEditions(name string, snippets []ForEditions) {
@@ -66,17 +81,8 @@ func registerSnippetForEditions(name string, snippets []ForEditions) {
 		panic(fmt.Sprintf("edition snippets %q are already registered", name))
 	}
 
-	if !sort.IsSorted(byFirstEdition(snippets)) {
-		panic(fmt.Sprintf("edition snippets %q must be sorted in ascending edition number order", name))
-	}
-	for i := range snippets {
-		if i == 0 {
-			continue
-		}
-		if snippets[i-1].FirstEdition == snippets[i].FirstEdition {
-			panic(fmt.Sprintf(`first edition %v repeated in edition snippets %q`,
-				snippets[i].FirstEdition, name))
-		}
+	if err := sanitizeSnippets(snippets); err != nil {
+		panic(fmt.Errorf("cannot validate snippets %q: %v", name, err))
 	}
 	registeredEditionSnippets[name] = snippets
 }

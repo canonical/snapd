@@ -26,6 +26,8 @@ import (
 	"hash/crc32"
 	"os"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -232,13 +234,45 @@ func (l *Env) Load() error {
 	return nil
 }
 
+type compatErrNotExist struct {
+	err error
+}
+
+func (e compatErrNotExist) Error() string {
+	return e.err.Error()
+}
+
+func (e compatErrNotExist) Unwrap() error {
+	// for go 1.9 (and 1.10) xerrors compatibility, we check if os.PathError
+	// implements Unwrap(), and if not return os.ErrNotExist directly
+	if _, ok := e.err.(interface {
+		Unwrap() error
+	}); !ok {
+		return os.ErrNotExist
+	}
+	return e.err
+}
+
 // LoadEnv loads the lk bootloader environment from the specified file. The
 // bootloader environment in the referenced file must be of the same version
 // that the Env object was created with using NewEnv.
+// The returned error may wrap os.ErrNotExist, so instead of using
+// os.IsNotExist, callers should use xerrors.Is(err,os.ErrNotExist) instead.
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("cannot open LK env file: %v", err)
+		// TODO: when we drop support for Go 1.9, this code can go away, in Go
+		//       1.9 *os.PathError does not implement Unwrap(), and so callers
+		//       that try to call xerrors.Is(err,os.ErrNotExist) will fail, so
+		//       instead we do our own wrapping first such that when Unwrap() is
+		//       called by xerrors.Is() it will see os.ErrNotExist directly when
+		//       compiled with a version of Go that does not implement Unwrap()
+		//       on os.PathError
+		if os.IsNotExist(err) {
+			err = compatErrNotExist{err: err}
+		}
+		fmtStr := "cannot open LK env file: %w"
+		return xerrors.Errorf(fmtStr, err)
 	}
 
 	if err := binary.Read(f, binary.LittleEndian, l.variant); err != nil {
@@ -271,7 +305,7 @@ func (l *Env) LoadEnv(path string) error {
 	if crc != l.variant.currentCrc32() {
 		return fmt.Errorf("cannot validate %s: expected checksum 0x%X, got 0x%X", path, crc, l.variant.currentCrc32())
 	}
-	logger.Debugf("Load: validated crc32 (0x%X)", l.variant.currentCrc32())
+	logger.Debugf("validated crc32 as 0x%X for lkenv loaded from file %s", l.variant.currentCrc32(), path)
 
 	return nil
 }
@@ -289,7 +323,7 @@ func (l *Env) Save() error {
 
 	// calculate crc32
 	newCrc32 := crc32.ChecksumIEEE(buf.Bytes()[:ss-4])
-	logger.Debugf("calculated lk bootloader environment crc32: 0x%X", newCrc32)
+	logger.Debugf("calculated lk bootloader environment crc32 as 0x%X to save", newCrc32)
 	// note for efficiency's sake to avoid re-writing the whole structure, we
 	// re-write _just_ the crc32 to w as little-endian
 	buf.Truncate(ss - 4)

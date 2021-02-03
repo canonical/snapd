@@ -1,10 +1,11 @@
 summary: Ensure that snap-repair is available
 
 # snap-repair is not shipped on non-ubuntu
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
+systems: [ubuntu-*]
+
 
 execute: |
-    if ! grep -q "ID=ubuntu-core" /etc/os-release; then
+    if os.query is-classic; then
         echo "Ensure snap-repair is disabled on classic"
         snapd.tool exec snap-repair 2>&1 | MATCH "cannot use snap-repair on a classic system"
         exit 0
