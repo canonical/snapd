@@ -118,7 +118,8 @@ var regularFileExists = osutil.RegularFileExists
 func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	desktopFile := filepath.Join(baseDir, strings.Join(splitFileId, "-"))
 
-	if regularFileExists(desktopFile) {
+	exists, isReg, _ := regularFileExists(desktopFile)
+	if exists && isReg {
 		return desktopFile, nil
 	}
 

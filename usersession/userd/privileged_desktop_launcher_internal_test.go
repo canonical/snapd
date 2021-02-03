@@ -349,8 +349,9 @@ Name[zh_TW]=以暫時性個人身分開啟新視窗
 Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --temp-profile
 `
 
-func existsOnMockFileSystem(desktop_file string) bool {
-	return strutil.ListContains(mockFileSystem, desktop_file)
+func existsOnMockFileSystem(desktop_file string) (bool, bool, error) {
+	existsOnMockFileSystem := strutil.ListContains(mockFileSystem, desktop_file)
+	return existsOnMockFileSystem, existsOnMockFileSystem, nil
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {

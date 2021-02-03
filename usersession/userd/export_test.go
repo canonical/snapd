@@ -37,7 +37,7 @@ var (
 	ReadExecCommandFromDesktopFile = readExecCommandFromDesktopFile
 )
 
-func MockRegularFileExists(f func(string) bool) func() {
+func MockRegularFileExists(f func(string) (bool, bool, error)) func() {
 	old := regularFileExists
 	regularFileExists = f
 	return func() {
