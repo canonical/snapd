@@ -23,12 +23,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/http"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -41,7 +39,7 @@ func MockSnapshotSave(newSave func(*state.State, []string, []string) (uint64, []
 	}
 }
 
-func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
+func MockSnapshotList(newList func(context.Context, *state.State, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
 	oldList := snapshotList
 	snapshotList = newList
 	return func() {
@@ -49,7 +47,7 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	}
 }
 
-func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+func MockSnapshotExport(newExport func(context.Context, *state.State, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
 	oldExport := snapshotExport
 	snapshotExport = newExport
 	return func() {
@@ -107,18 +105,6 @@ func MustUnmarshalSnapshotAction(c *check.C, jact string) *snapshotAction {
 
 func (rsp *resp) ErrorResult() *errorResult {
 	return rsp.Result.(*errorResult)
-}
-
-func ListSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return listSnapshots(c, r, user).(*resp)
-}
-
-func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return changeSnapshots(c, r, user).(*resp)
-}
-
-func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) interface{} {
-	return getSnapshotExport(c, r, user)
 }
 
 var (

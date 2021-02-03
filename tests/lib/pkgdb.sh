@@ -5,7 +5,7 @@
 
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -13,7 +13,7 @@ debian_name_package() {
 
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -21,7 +21,7 @@ ubuntu_14_04_name_package() {
 
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -29,7 +29,7 @@ fedora_name_package() {
 
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -37,7 +37,7 @@ amazon_name_package() {
 
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
-    . "$TESTSLIB/tools/tests.pkg.zypper.sh"
+    . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -45,7 +45,7 @@ opensuse_name_package() {
 
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
-    . "$TESTSLIB/tools/tests.pkg.pacman.sh"
+    . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -133,7 +133,7 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if os.query is-fedora; then
         # Fedora images we use come with a number of preinstalled package, among
         # them gtk3. Those packages are needed to run the tests. The
         # xdg-desktop-portal-gtk package uses this in the spec:
@@ -380,7 +380,7 @@ distro_install_build_snapd(){
 
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
+        if os.query is-trusty && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
     elif [ -n "$PPA_VALIDATION_NAME" ]; then
@@ -440,7 +440,7 @@ distro_install_build_snapd(){
                 ;;
         esac
 
-        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        if os.query is-arch-linux; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload

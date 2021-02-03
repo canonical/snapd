@@ -112,7 +112,8 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		// forget needs to conflict with check and restore
-		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
+		if err := checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
+			"check-snapshot", "restore-snapshot"); err != nil {
 			// there is a conflict, do nothing and we will retry this set on next Ensure().
 			return nil
 		}
@@ -224,7 +225,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
 	if err != nil {
 		st := task.State()
 		st.Lock()
@@ -413,7 +414,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

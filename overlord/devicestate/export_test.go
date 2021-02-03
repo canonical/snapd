@@ -214,8 +214,6 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
-
-	CheckEncryption = checkEncryption
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
@@ -266,7 +264,7 @@ func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -296,4 +294,12 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 
 func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	return mgr.runFDESetupHook(op, params)
+}
+
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	return mgr.checkEncryption(st, deviceCtx)
+}
+
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
+	return mgr.checkFDEFeatures(st)
 }

@@ -898,8 +898,6 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridShouldWork(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWork(c *C) {
-	// FIXME
-	c.Skip("this should pass again once we don't fully validate already installed gadgets")
 	encryption := false
 	// this is not gadget yaml that we should support, by the UC16/18
 	// rules it actually has two system-boot role partitions,

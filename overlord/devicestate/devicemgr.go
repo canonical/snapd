@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -673,6 +674,9 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// already been permanently disabled, nothing to do
 			m.cloudInitAlreadyRestricted = true
 			return nil
+		case sysconfig.CloudInitNotFound:
+			// no cloud init at all
+			statusMsg = "not found"
 		case sysconfig.CloudInitUntriggered:
 			// hasn't been used
 			statusMsg = "reported to be in disabled state"
@@ -1380,19 +1384,6 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
 
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
-}
-
-func checkFDEFeatures(st *state.State, kernelInfo *snap.Info) error {
-	// TODO: run the fde-setup hook with "op":"features".  If the
-	//       hooks returns any {"features":} reply we consider the
-	//       hardware supported. If the hook errors or if it
-	//       returns {"error":"hardware-unsupported"} we don't.
-	return nil
-}
-
 func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	// TODO:UC20: when this runs on refresh we need to be very careful
 	// that we never run this when the kernel is not fully configured
@@ -1451,6 +1442,36 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 
 	return hookResult, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
 }
 
 type fdeSetupHandler struct {

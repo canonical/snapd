@@ -29,7 +29,7 @@ restore: |
     apt --quiet -o Dpkg::Progress-Fancy=false update
 
 prepare: |
-    source /etc/os-release
+    . /etc/os-release
     mkdir -p /tmp/cross-build/src/github.com/snapcore
     cp -ar "$PROJECT_PATH" /tmp/cross-build/src/github.com/snapcore
     chown -R test:12345 /tmp/cross-build

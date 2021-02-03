@@ -65,7 +65,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
-	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -87,7 +86,6 @@ type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
 	Usernames    []string
-	Flags        *snapshotbackend.Flags
 }
 
 type baseMgrsSuite struct {
@@ -168,8 +166,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *snapshotbackend.Flags) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Flags: flags})
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -574,7 +572,7 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// automatic snapshot was created
-	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil, &snapshotbackend.Flags{Auto: true}}})
+	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]interface{}{"key": "value"}, nil}})
 }
 
 func fakeSnapID(name string) string {
@@ -726,7 +724,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// all URLS are /api/v1/snaps/... or /v2/snaps/... so
+		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
 		// check the url is sane and discard the common prefix
 		// to simplify indexing into the comps slice.
 		comps := strings.Split(r.URL.Path, "/")
@@ -745,7 +743,13 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			if len(comps) <= 3 {
 				panic("unexpected url path: " + r.URL.Path)
 			}
-			comps = comps[3:]
+			if comps[2] == "assertions" {
+				// preserve "assertions" component
+				comps = comps[2:]
+			} else {
+				// drop common "snap" component
+				comps = comps[3:]
+			}
 			comps[0] = "v2:" + comps[0]
 		}
 
@@ -765,16 +769,16 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{"macaroon": "%s"}`, s.sessionMacaroon)))
 			return
-		case "assertions":
+		case "v2:assertions":
 			ref := &asserts.Ref{
 				Type:       asserts.Type(comps[1]),
 				PrimaryKey: comps[2:],
 			}
 			a, err := ref.Resolve(s.storeSigning.Find)
 			if asserts.IsNotFound(err) {
-				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(404)
-				w.Write([]byte(`{"status": 404}`))
+				w.Write([]byte(`{"error-list":[{"code":"not-found","message":"..."}]}`))
 				return
 			}
 			if err != nil {
@@ -858,7 +862,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 						if err != nil {
 							panic("missing assertions not supported")
 						}
-						urls = append(urls, fmt.Sprintf("%s/api/v1/snaps/assertions/%s", baseURL.String(), ref.Unique()))
+						urls = append(urls, fmt.Sprintf("%s/v2/assertions/%s", baseURL.String(), ref.Unique()))
 
 					}
 					results = append(results, resultJSON{

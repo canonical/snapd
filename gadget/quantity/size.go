@@ -46,12 +46,12 @@ func (s *Size) String() string {
 	return fmt.Sprintf("%d", *s)
 }
 
-// IECString formats the size using multiples from IEC units (i.e. kibibytes,
-// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
-// decimal points.
-func (s *Size) IECString() string {
+// iecSizeString formats the size using multiples from IEC units (i.e.
+// kibibytes, mebibytes), that is as multiples of 1024. Printed values are
+// truncated to 2 decimal points.
+func iecSizeString(sz int64) string {
 	maxFloat := float64(1023.5)
-	r := float64(*s)
+	r := float64(sz)
 	unit := "B"
 	for _, rangeUnit := range []string{"KiB", "MiB", "GiB", "TiB", "PiB"} {
 		if r < maxFloat {
@@ -65,6 +65,13 @@ func (s *Size) IECString() string {
 		precision = 2
 	}
 	return fmt.Sprintf("%.*f %s", precision, r, unit)
+}
+
+// IECString formats the size using multiples from IEC units (i.e. kibibytes,
+// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
+// decimal points.
+func (s *Size) IECString() string {
+	return iecSizeString(int64(*s))
 }
 
 func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -81,29 +88,35 @@ func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-// ParseSize parses a string expressing size in a gadget specific format. The
-// accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
-func ParseSize(gs string) (Size, error) {
-	number, unit, err := strutil.SplitUnit(gs)
+// parseSizeOrOffset parses a string expressing size or offset in a gadget
+// specific format.
+func parseSizeOrOffset(szOrOffs string) (int64, error) {
+	number, unit, err := strutil.SplitUnit(szOrOffs)
 	if err != nil {
 		return 0, err
 	}
-	if number < 0 {
-		return 0, errors.New("size cannot be negative")
-	}
-	var size Size
 	switch unit {
 	case "M":
 		// MiB
-		size = Size(number) * SizeMiB
+		number = number * int64(SizeMiB)
 	case "G":
 		// GiB
-		size = Size(number) * SizeGiB
+		number = number * int64(SizeGiB)
 	case "":
 		// straight bytes
-		size = Size(number)
+
 	default:
 		return 0, fmt.Errorf("invalid suffix %q", unit)
 	}
-	return size, nil
+	return number, nil
+}
+
+// ParseSize parses a string expressing size in a gadget specific format. The
+// accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
+func ParseSize(gs string) (Size, error) {
+	sz, err := parseSizeOrOffset(gs)
+	if sz < 0 {
+		return 0, errors.New("size cannot be negative")
+	}
+	return Size(sz), err
 }

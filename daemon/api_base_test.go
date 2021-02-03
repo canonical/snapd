@@ -301,6 +301,16 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	}
 
 	o := overlord.Mock()
+	s.d = daemon.NewWithOverlord(o)
+	return s.d
+}
+
+func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
+	if s.d != nil {
+		panic("called Daemon*() twice")
+	}
+
+	o := overlord.Mock()
 	d := daemon.NewWithOverlord(o)
 
 	st := d.Overlord().State()
@@ -335,7 +345,7 @@ func (m *fakeSnapManager) Ensure() error {
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 	st := d.Overlord().State()
 	runner := d.Overlord().TaskRunner()
 	d.Overlord().AddManager(newFakeSnapManager(st, runner))

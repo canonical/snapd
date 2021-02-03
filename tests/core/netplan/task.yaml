@@ -14,7 +14,13 @@ environment:
 #            defined for gid 103 (which on core is messagebus, but on classic is
 #            systemd-network), and thus the dbus daemon thinks it has the wrong
 #            permissions (well basically speaking it does)
-systems: [ubuntu-core-1*]
+
+# TODO: re-enable this on ubuntu-core-16-* when network-setup-control is updated
+# to allow running netplan directly from the base snap and we can update this
+# test to just using a simple shell script snap instead of building netplan from
+# source, as currently that is broken on xenial with test-snapd-netplan-apply
+# for some reason, see https://github.com/anonymouse64/test-snapd-netplan-apply/issues/1
+systems: [ubuntu-core-18-*]
 
 prepare: |
     # build the netplan snap for this system

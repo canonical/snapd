@@ -29,6 +29,7 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -148,12 +149,31 @@ var (
 	cloudInitSnapdRestrictFile = "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 	cloudInitDisabledFile      = "/etc/cloud/cloud-init.disabled"
 
+	// for NoCloud datasource, we need to specify "manual_cache_clean: true"
+	// because the default is false, and this key being true essentially informs
+	// cloud-init that it should always trust the instance-id it has cached in
+	// the image, and shouldn't assume that there is a new one on every boot, as
+	// otherwise we have bugs like https://bugs.launchpad.net/snapd/+bug/1905983
+	// where subsequent boots after cloud-init runs and gets restricted it will
+	// try to detect the instance_id by reading from the NoCloud datasource
+	// fs_label, but we set that to "null" so it fails to read anything and thus
+	// can't detect the effective instance_id and assumes it is different and
+	// applies default config which can overwrite valid config from the initial
+	// boot if that is not the default config
+	// see also https://cloudinit.readthedocs.io/en/latest/topics/boot.html?highlight=manual_cache_clean#first-boot-determination
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`)
+    fs_label: null
+manual_cache_clean: true
+`)
 
-	genericCloudRestrictYamlPattern = `datasource_list: [%s]`
+	// don't use manual_cache_clean for real cloud datasources, the setting is
+	// used with ubuntu core only for sources where we can only get the
+	// instance_id through the fs_label for NoCloud and None (since we disable
+	// importing using the fs_label after the initial run).
+	genericCloudRestrictYamlPattern = `datasource_list: [%s]
+`
 
 	localDatasources = []string{"NoCloud", "None"}
 )
@@ -176,6 +196,9 @@ const (
 	// states, as we are conservative in assuming that cloud-init is doing
 	// something.
 	CloudInitEnabled
+	// CloudInitNotFound is when there is no cloud-init executable on the
+	// device.
+	CloudInitNotFound
 	// CloudInitErrored is when cloud-init tried to run, but failed or had invalid
 	// configuration.
 	CloudInitErrored
@@ -202,7 +225,13 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
-	out, err := exec.Command("cloud-init", "status").CombinedOutput()
+	ciBinary, err := exec.LookPath("cloud-init")
+	if err != nil {
+		logger.Noticef("cannot locate cloud-init executable: %v", err)
+		return CloudInitNotFound, nil
+	}
+
+	out, err := exec.Command(ciBinary, "status").CombinedOutput()
 	if err != nil {
 		return CloudInitErrored, osutil.OutputErr(out, err)
 	}
@@ -296,7 +325,7 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 			return res, fmt.Errorf("cannot restrict cloud-init in error or enabled state")
 		}
 		fallthrough
-	case CloudInitUntriggered:
+	case CloudInitUntriggered, CloudInitNotFound:
 		fallthrough
 	default:
 		res.Action = "disable"
