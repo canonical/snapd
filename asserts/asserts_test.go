@@ -981,21 +981,30 @@ func (as *assertsSuite) TestAtSequenceString(c *C) {
 		Sequence:    8,
 		Revision:    2,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (foo; series:16 account-id:canonical name:foo sequence:8) at revision 2")
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo/8 at revision 2")
 
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical", "foo"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (foo; series:16 account-id:canonical name:foo)")
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo/?")
+
+	atSeq = asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical", "foo"},
+		Sequence:    8,
+		Pinned:      true,
+		Revision:    2,
+	}
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo=8 at revision 2")
 
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical"},
 		Revision:    2,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (???) at revision 2")
+	c.Check(atSeq.String(), Equals, "validation-set ??? at revision 2")
 }
 
 func (as *assertsSuite) TestAtSequenceUnique(c *C) {
