@@ -29,21 +29,12 @@ import (
 )
 
 var configcoreRun = configcore.Run
-var configcoreExportExperimentalFlags = configcore.ExportExperimentalFlags
 
 func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
 	configcoreRun = f
 	return func() {
 		configcoreRun = origConfigcoreRun
-	}
-}
-
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error) (restore func()) {
-	old := configcoreExportExperimentalFlags
-	configcoreExportExperimentalFlags = mock
-	return func() {
-		configcoreExportExperimentalFlags = old
 	}
 }
 
