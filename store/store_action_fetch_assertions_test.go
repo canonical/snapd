@@ -41,9 +41,9 @@ type storeActionFetchAssertionsSuite struct {
 var _ = Suite(&storeActionFetchAssertionsSuite{})
 
 type testAssertQuery struct {
-	toResolve map[asserts.Grouping][]*asserts.AtRevision
+	toResolve    map[asserts.Grouping][]*asserts.AtRevision
 	toResolveSeq map[asserts.Grouping][]*asserts.AtSequence
-	errors    map[string]error
+	errors       map[string]error
 }
 
 func (q *testAssertQuery) ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, map[asserts.Grouping][]*asserts.AtSequence, error) {
@@ -484,7 +484,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 						"account-1/name-2",
 					},
 					"if-sequence-equal-or-newer-than": float64(5),
-					"if-newer-than": float64(10),
+					"if-newer-than":                   float64(10),
 				},
 			},
 		}
@@ -545,7 +545,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 						"account-1/name-1",
 					},
 					Sequence: 3,
-					Pinned: true,
+					Pinned:   true,
 					Revision: asserts.RevisionNotKnown,
 				},
 				&asserts.AtSequence{
