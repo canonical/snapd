@@ -69,6 +69,12 @@ execute: |
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
         exit 0
     fi
+    # We also skip Ubuntu 14.04, since it does not allow us track
+    # classic confined snap processes (there is no systemd based
+    # tracking, and they aren't added to a freezer cgroup).
+    if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
+        exit 0
+    fi
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
