@@ -284,7 +284,7 @@ var validationSetAssertion = []byte("type: validation-set\n" +
 	"  -\n" +
 	"    id: yOqKhntON3vR7kwEbVPsILm7bUViPDzz\n" +
 	"    name: snap-b\n" +
-	"    presence: optional\n" +
+	"    presence: required\n" +
 	"    revision: 1\n" +
 	"timestamp: 2020-11-06T09:16:26Z\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
@@ -299,6 +299,8 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 		c.Assert(sequence, check.Equals, 0)
 		as, err := asserts.Decode(validationSetAssertion)
 		c.Assert(err, check.IsNil)
+		// sanity
+		c.Assert(as.Type().Name, check.Equals, "validation-set")
 		return as, nil
 	}
 
@@ -374,6 +376,47 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteValidationF
 		Sequence:  2,
 		Valid:     false,
 	})
+}
+
+func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteRealValidation(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+		as, err := asserts.Decode(validationSetAssertion)
+		c.Assert(err, check.IsNil)
+		return as, nil
+	}
+
+	st := s.d.Overlord().State()
+
+	for _, tc := range []struct {
+		revision                 snap.Revision
+		expectedValidationStatus bool
+	}{
+		// required at revision 1 per validationSetAssertion, so it's valid
+		{snap.R(1), true},
+		// but revision 2 is not valid
+		{snap.R(2), false},
+	} {
+		st.Lock()
+		snapstate.Set(st, "snap-b", &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: tc.revision, SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+			Current:  tc.revision,
+		})
+		st.Unlock()
+
+		req, err := http.NewRequest("GET", "/v2/validation-sets/foo/other", nil)
+		c.Assert(err, check.IsNil)
+		rsp := s.req(c, req, nil).(*daemon.Resp)
+		c.Assert(rsp.Status, check.Equals, 200)
+
+		res := rsp.Result.(daemon.ValidationSetResult)
+		c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+			AccountID: "foo",
+			Name:      "other",
+			Sequence:  2,
+			Valid:     tc.expectedValidationStatus,
+		})
+	}
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(c *check.C) {
