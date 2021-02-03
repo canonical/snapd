@@ -334,7 +334,7 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 // Conversely, the remaining unresolved assertions originally added
 // via AddToUpdate will be assumed to still be at their current
 // revisions.
-func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, error) {
+func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, map[Grouping][]*AtSequence, error) {
 	if p.curPhase == poolPhaseAdd {
 		p.unresolvedBookkeeping()
 	} else {
@@ -345,7 +345,7 @@ func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, error) {
 		if u.at.Revision == RevisionNotKnown {
 			rev, err := p.curRevision(&u.at.Ref)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if rev != RevisionNotKnown {
 				u.at.Revision = rev
@@ -353,7 +353,7 @@ func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, error) {
 		}
 		u.exportTo(r, p.groupings)
 	}
-	return r, nil
+	return r, nil, nil
 }
 
 func (p *Pool) addPrerequisite(pref *Ref, g *internal.Grouping) error {
