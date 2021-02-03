@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -201,7 +202,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
 	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
 		// not available locally, try to find in the store.
-		return validateAgainstStore(st, c, accountID, name, sequence, user)
+		return validateAgainstStore(st, accountID, name, sequence, user)
 	}
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)
@@ -314,9 +315,9 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	return SyncResponse(nil, nil)
 }
 
-func validateAgainstStore(st *state.State, c *Command, accountID, name string, sequence int, user *auth.UserState) Response {
+func validateAgainstStore(st *state.State, accountID, name string, sequence int, user *auth.UserState) Response {
 	// not available locally, try to find in the store.
-	as, err := getSingleSeqFormingAssertion(c, accountID, name, sequence, user)
+	as, err := getSingleSeqFormingAssertion(st, accountID, name, sequence, user)
 	if _, ok := err.(*asserts.NotFoundError); ok {
 		return validationSetNotFound(accountID, name, sequence)
 	}
@@ -338,26 +339,21 @@ func validateAgainstStore(st *state.State, c *Command, accountID, name string, s
 		AccountID: vset.AccountID(),
 		Name:      vset.Name(),
 		Sequence:  vset.Sequence(),
-		// XXX: pass actual err details and implement "verbose" mode
+		// TODO: pass actual err details and implement "verbose" mode
 		// for the client?
 		Valid: validErr == nil,
 	}
 	return SyncResponse(res, nil)
 }
 
-func getSingleSeqFormingAssertion(c *Command, accountID, name string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
-	sto := snapstate.Store(c.d.overlord.State(), nil)
+func getSingleSeqFormingAssertion(st *state.State, accountID, name string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	sto := snapstate.Store(st, nil)
 	at := asserts.Type("validation-set")
 	if at == nil {
-		return nil, fmt.Errorf("internal error: validation-set assert type not found")
+		panic("validation-set assert type not found")
 	}
 
-	model, err := c.d.overlord.DeviceManager().Model()
-	if err != nil {
-		return nil, err
-	}
-
-	sequenceKey := []string{model.Series(), accountID, name}
+	sequenceKey := []string{release.Series, accountID, name}
 	as, err := sto.SeqFormingAssertion(at, sequenceKey, sequence, user)
 	if err != nil {
 		return nil, err
