@@ -135,7 +135,7 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 		// environment during the build (with dh-golang).
 		//
 		// Not reproducible outside of dpkg-buildpackage.
-		c.Skip("This `go build` fails inside the dpkg-buildpackage environemnt with `loadinternal: cannot find runtime/cgo`")
+		c.Skip("This `go build` fails inside the dpkg-buildpackage environment with `loadinternal: cannot find runtime/cgo`")
 	}
 
 	tmpdir := c.MkDir()
