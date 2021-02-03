@@ -74,6 +74,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		st.RequestRestart(state.RestartSystem)
 	}
 
+	// minimize wasteful redos
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
