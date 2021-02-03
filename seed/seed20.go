@@ -63,6 +63,10 @@ type seed20 struct {
 
 	auxInfos map[string]*internal.AuxInfo20
 
+	metaFilesLoaded bool
+
+	essCache map[string]*Snap
+
 	snaps []*Snap
 	// modes holds a matching applicable modes set for each snap in snaps
 	modes             [][]string
@@ -305,7 +309,13 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes []string, channel string, snapsDir string, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, channel string, snapsDir string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
+	snapKey := fmt.Sprintf("%s:%s", snapRef.ID(), snapRef.SnapName())
+	seedSnap := cache[snapKey]
+	if seedSnap != nil {
+		return seedSnap, nil
+	}
+
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
@@ -343,12 +353,25 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 		sideInfo.Contact = auxInfo.Contact
 	}
 
-	seedSnap := &Snap{
+	seedSnap = &Snap{
 		Path: path,
 
 		SideInfo: sideInfo,
 
 		Channel: channel,
+	}
+
+	if cache != nil {
+		cache[snapKey] = seedSnap
+	}
+
+	return seedSnap, nil
+}
+
+func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes []string, channel string, snapsDir string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
+	seedSnap, err := s.lookupSnap(snapRef, optSnap, channel, snapsDir, cache, tm)
+	if err != nil {
+		return nil, err
 	}
 
 	s.snaps = append(s.snaps, seedSnap)
@@ -359,12 +382,12 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 
 var errFiltered = errors.New("filtered out")
 
-func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filter func(*asserts.ModelSnap) bool, tm timings.Measurer) (*Snap, error) {
+func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filter func(*asserts.ModelSnap) bool, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	optSnap, _ := s.nextOptSnap(modelSnap)
 	if filter != nil && !filter(modelSnap) {
 		return nil, errFiltered
 	}
-	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.Modes, modelSnap.DefaultChannel, "../../snaps", tm)
+	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.Modes, modelSnap.DefaultChannel, "../../snaps", cache, tm)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +418,7 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 			break
 		}
 
-		_, err := s.addSnap(optSnap, optSnap, runMode, "latest/stable", "snaps", tm)
+		_, err := s.addSnap(optSnap, optSnap, runMode, "latest/stable", "snaps", nil, tm)
 		if err != nil {
 			return err
 		}
@@ -419,8 +442,10 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return nil
 }
 
-func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
-	model := s.Model()
+func (s *seed20) loadMetaFiles() error {
+	if s.metaFilesLoaded {
+		return nil
+	}
 
 	if err := s.loadOptions(); err != nil {
 		return err
@@ -430,19 +455,45 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 		return err
 	}
 
+	s.metaFilesLoaded = true
+	return nil
+}
+
+func (s *seed20) resetSnaps() {
+	// setup essential snaps cache
+	if s.essCache == nil {
+		// 4 = snapd+base+kernel+gadget
+		s.essCache = make(map[string]*Snap, 4)
+	}
+
+	s.optSnapsIdx = 0
+	s.snaps = nil
+	s.modes = nil
+	s.essentialSnapsNum = 0
+}
+
+func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
+	model := s.Model()
+
+	if err := s.loadMetaFiles(); err != nil {
+		return err
+	}
+
+	s.resetSnaps()
+
 	essSnaps := model.EssentialSnaps()
 	const essential = true
 
 	// an explicit snapd is the first of all of snaps
 	if essSnaps[0].SnapType != "snapd" {
 		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-		if _, err := s.addModelSnap(snapdSnap, essential, filterEssential, tm); err != nil && err != errFiltered {
+		if _, err := s.addModelSnap(snapdSnap, essential, filterEssential, s.essCache, tm); err != nil && err != errFiltered {
 			return err
 		}
 	}
 
 	for _, modelSnap := range essSnaps {
-		seedSnap, err := s.addModelSnap(modelSnap, essential, filterEssential, tm)
+		seedSnap, err := s.addModelSnap(modelSnap, essential, filterEssential, s.essCache, tm)
 		if err != nil {
 			if err == errFiltered {
 				continue
@@ -471,7 +522,7 @@ func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
 
 	const notEssential = false
 	for _, modelSnap := range model.SnapsWithoutEssential() {
-		_, err := s.addModelSnap(modelSnap, notEssential, nil, tm)
+		_, err := s.addModelSnap(modelSnap, notEssential, nil, nil, tm)
 		if err != nil {
 			if _, ok := err.(*noSnapDeclarationError); ok && modelSnap.Presence == "optional" {
 				// skipped optional snap is ok

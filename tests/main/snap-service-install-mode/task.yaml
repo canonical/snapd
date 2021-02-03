@@ -1,4 +1,4 @@
-summary: "Check that snap services with 'instal-mode: disable'"
+summary: "Check that snap services with 'install-mode: disable'"
 
 restore: |
     snap remove svc
