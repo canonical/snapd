@@ -23,7 +23,9 @@ package builtin
 const mediaControlSummary = `allows access to media control devices`
 
 // The kernel media controller allows connecting and configuring
-// media hardware subsystems
+// media hardware subsystems.
+// These operations should be considered privileged since the driver
+// assumes trusted input, therefore require manual connection.
 const mediaControlBaseDeclarationSlots = `
   media-control:
     allow-installation:
