@@ -5850,7 +5850,7 @@ type: kernel`
 	})
 }
 
-func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si *snap.SideInfo, bl bootloader.Bootloader) {
+func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si *snap.SideInfo, bl bootloader.Bootloader, updated bool) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -5947,20 +5947,32 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 		c.Assert(chg.Status(), Equals, state.DoneStatus)
 		c.Assert(chg.Err(), IsNil)
 	} else {
+		// boot config is updated after link-snap, so first comes the
+		// daemon restart
 		c.Check(chg.Status(), Equals, state.DoingStatus)
-		restarting, _ := st.Restarting()
+		restarting, kind := st.Restarting()
 		c.Check(restarting, Equals, true)
+		c.Assert(kind, Equals, state.RestartDaemon)
 
-		// simulate successful restart happened
+		// simulate successful daemon restart happened
 		state.MockRestarting(st, state.RestartUnset)
 
+		// let the change run its course
 		st.Unlock()
 		err = s.o.Settle(settleTimeout)
 		st.Lock()
 		c.Assert(err, IsNil)
 
 		c.Check(chg.Status(), Equals, state.DoneStatus)
-		c.Assert(chg.Err(), IsNil)
+		restarting, kind = st.Restarting()
+		if updated {
+			// boot config updated, thus a system restart was
+			// requested
+			c.Check(restarting, Equals, true)
+			c.Assert(kind, Equals, state.RestartSystem)
+		} else {
+			c.Check(restarting, Equals, false)
+		}
 	}
 }
 
@@ -5969,6 +5981,8 @@ func (s *mgrsSuite) TestUC20SnapdUpdatesManagedBootConfig(c *C) {
 	bootloader.Force(mabloader)
 	defer bootloader.Force(nil)
 
+	mabloader.Updated = true
+
 	const snapdSnap = `
 name: snapd
 version: 1.0
@@ -5976,7 +5990,29 @@ type: snapd`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
 	si := &snap.SideInfo{RealName: "snapd"}
 
-	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
+	const updated = true
+	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader, updated)
+
+	c.Check(mabloader.UpdateCalls, Equals, 1)
+}
+
+func (s *mgrsSuite) TestUC20SnapdUpdateManagedBootNotNeededConfig(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	// nothing was updated, eg. boot config editions are the same
+	mabloader.Updated = false
+
+	const snapdSnap = `
+name: snapd
+version: 1.0
+type: snapd`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
+	si := &snap.SideInfo{RealName: "snapd"}
+
+	const updated = false
+	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader, updated)
 
 	c.Check(mabloader.UpdateCalls, Equals, 1)
 }
@@ -5993,7 +6029,8 @@ type: base`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnap, nil)
 	si := &snap.SideInfo{RealName: "core"}
 
-	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
+	const updated = false
+	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader, updated)
 	c.Check(mabloader.UpdateCalls, Equals, 0)
 }
 
