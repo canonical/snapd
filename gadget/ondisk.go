@@ -30,10 +30,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const (
-	sectorSize quantity.Size = 512
-)
-
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
 type sfdiskDeviceDump struct {
 	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
@@ -130,19 +126,29 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockDeviceSizeInSectors(devpath string) (quantity.Size, error) {
-	// the size is reported in 512-byte sectors
-	// XXX: consider using /sys/block/<dev>/size directly
-	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
+func blockdevCmd(cmd, devpath string) (quantity.Size, error) {
+	out, err := exec.Command("blockdev", cmd, devpath).CombinedOutput()
 	if err != nil {
 		return 0, osutil.OutputErr(out, err)
 	}
 	nospace := strings.TrimSpace(string(out))
 	sz, err := strconv.Atoi(nospace)
 	if err != nil {
-		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
+		return 0, fmt.Errorf("cannot parse blockdev size %q: %v", nospace, err)
 	}
 	return quantity.Size(sz), nil
+}
+
+func blockDeviceSizeInSectors(devpath string) (quantity.Size, error) {
+	// the size is always reported in 512-byte sectors, even if the device does
+	// not have a physical sector size of 512
+	// XXX: consider using /sys/block/<dev>/size directly
+	return blockdevCmd("--getsz", devpath)
+}
+
+func blockDeviceSectorSize(devpath string) (quantity.Size, error) {
+	// the size is reported in raw bytes
+	return blockdevCmd("--getss", devpath)
 }
 
 // onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
@@ -154,6 +160,11 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 
 	structure := make([]VolumeStructure, len(ptable.Partitions))
 	ds := make([]OnDiskStructure, len(ptable.Partitions))
+
+	sectorSize, err := blockDeviceSectorSize(ptable.Device)
+	if err != nil {
+		return nil, err
+	}
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -203,7 +214,16 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain the size of device %q: %v", ptable.Device, err)
 		}
-		numSectors = sz
+
+		// since blockdev always reports the size in 512-byte sectors, if for
+		// some reason we are on a disk that does not 512-byte sectors, we will
+		// get confused, so in this case, multiply the number of 512-byte
+		// sectors by 512, then divide by the actual sector size to get the
+		// number of sectors
+
+		// note this assumes that the real sector size is a multiple of 512
+
+		numSectors = sz * 512 / sectorSize
 	}
 
 	dl := &OnDiskVolume{
