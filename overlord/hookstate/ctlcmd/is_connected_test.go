@@ -77,11 +77,11 @@ var isConnectedTests = []struct {
 	args: []string{"is-connected", "foo"},
 	err:  `snap "snap1" has no plug or slot named "foo"`,
 }, {
-	// snap1:plug1 does not use a whitelisted interface
+	// snap1:plug1 does not use an allowed interface
 	args: []string{"is-connected", "--pid", "1002", "plug1"},
 	err:  `cannot use --pid check with snap1:plug1`,
 }, {
-	// snap1:slot1 does not use a whitelisted interface
+	// snap1:slot1 does not use an allowed interface
 	args: []string{"is-connected", "--pid", "1002", "slot1"},
 	err:  `cannot use --pid check with snap1:slot1`,
 }, {
@@ -105,11 +105,11 @@ var isConnectedTests = []struct {
 	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
 	exitCode: ctlcmd.ClassicSnapCode,
 }, {
-	// snap1:plug1 does not use a whitelisted interface
+	// snap1:plug1 does not use an allowed interface
 	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
 	err:  `cannot use --apparmor-label check with snap1:plug1`,
 }, {
-	// snap1:slot1 does not use a whitelisted interface
+	// snap1:slot1 does not use an allowed interface
 	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "slot1"},
 	err:  `cannot use --apparmor-label check with snap1:slot1`,
 }, {
