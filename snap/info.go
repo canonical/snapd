@@ -1316,6 +1316,10 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 	// count of predecessors (i.e. incoming edges) of given app
 	predecessors := make(map[string]int, len(apps))
 
+	// identify the successors and predecessors of each app, input data set may
+	// be a subset of all apps in the snap (eg. when restarting only few select
+	// apps), thus make sure to look only at those after/before apps that are
+	// listed in the input
 	for _, app := range apps {
 		for _, other := range app.After {
 			if _, ok := nameToApp[other]; ok {
