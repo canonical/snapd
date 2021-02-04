@@ -112,15 +112,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
-	if err != nil {
-		return nil, err
-	}
-
-	var model *asserts.Model
+	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
-		model, err = importAssertionsFromSeed(st, deviceSeed)
+		deviceSeed, err = importAssertionsFromSeed(st, sysLabel)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -141,6 +136,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	if err != nil {
 		return nil, err
 	}
+
+	model := deviceSeed.Model()
 
 	essentialSeedSnaps := deviceSeed.EssentialSnaps()
 	seedSnaps, err := deviceSeed.ModeSnaps(mode)
@@ -319,7 +316,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.Model, error) {
+func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -328,11 +325,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 
 	// collect and
 	// set device,model from the model assertion
-	commitTo := func(batch *asserts.Batch) error {
-		return assertstate.AddBatch(st, batch, nil)
-	}
-
-	err = deviceSeed.LoadAssertions(assertstate.DB(st), commitTo)
+	deviceSeed, err := loadDeviceSeed(st, sysLabel)
 	if err == seed.ErrNoAssertions && release.OnClassic {
 		// on classic seeding is optional
 		// set the fallback model
@@ -363,7 +356,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 		return nil, err
 	}
 
-	return modelAssertion, nil
+	return deviceSeed, nil
 }
 
 // loadDeviceSeed loads and caches the device seed based on sysLabel,
