@@ -295,6 +295,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	if !release.OnClassic && snapsup.Type == snap.TypeSnapd {
+		// only run for core devices and the snapd snap, run late enough
+		// so that the task is executed by the new snapd
+		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(bootConfigUpdate)
+		prev = bootConfigUpdate
+	}
+
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
 		addTask(postRefreshHook)
