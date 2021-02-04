@@ -850,6 +850,21 @@ func (p *Pool) AddError(e error, ref *Ref) error {
 	return nil
 }
 
+// AddSequenceError associates error e with the unresolved sequence-forming
+// assertion.
+// The error will be propagated to all the affected groups at
+// the next ToResolve.
+func (p *Pool) AddSequenceError(e error, atSeq *AtSequence) error {
+	if err := p.phase(poolPhaseAdd); err != nil {
+		return err
+	}
+	uniq := atSeq.Unique()
+	if u := p.unresolvedSequences[uniq]; u != nil && u.(*unresolvedSeqRec).err == nil {
+		u.(*unresolvedSeqRec).err = e
+	}
+	return nil
+}
+
 // AddGroupingError puts all the groups of grouping in error, with error e.
 func (p *Pool) AddGroupingError(e error, grouping Grouping) error {
 	if err := p.phase(poolPhaseAdd); err != nil {

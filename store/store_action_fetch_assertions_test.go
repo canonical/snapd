@@ -62,6 +62,11 @@ func (q *testAssertQuery) AddError(e error, ref *asserts.Ref) error {
 	return nil
 }
 
+func (q *testAssertQuery)  AddSequenceError(e error, atSeq *asserts.AtSequence) error {
+	q.addError(e, atSeq.Unique())
+	return nil
+}
+
 func (q *testAssertQuery) AddGroupingError(e error, grouping asserts.Grouping) error {
 	q.addError(e, fmt.Sprintf("{%s}", grouping))
 	return nil
