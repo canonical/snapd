@@ -310,9 +310,10 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 	return content, nil
 }
 
-// resolveContentPathOrRef resolves any "$kernel:" refs in the gadget
-// content and populates VolumeContent.resolvedSource with absolute
-// paths.
+// resolveContentPathOrRef resolves the relative path from gadget
+// assets and any "$kernel:" references from "pathOrRef" using the
+// provided gadget/kernel directories and the kernel info. It returns
+// an absolute path or an error.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// TODO: what to here? we could error instead?
 	if pathOrRef == "" {
