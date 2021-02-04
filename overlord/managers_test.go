@@ -6239,6 +6239,12 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 //
 // This is needed because settle() will not converge with the re-refresh
 // task because re-refresh will always be in doing state.
+//
+// TODO: have variant of Settle() that ends if ensure next time is
+// stable or in the future by a value larger than some threshold, and
+// then we would mock the rerefresh interval to something large and
+// distinct from practical wait time even on slow systems. Once that
+// is done this function can be removed.
 func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
 	refreshIdx := len(ts.Tasks()) - 1
 	c.Assert(ts.Tasks()[refreshIdx].Kind(), Equals, "check-rerefresh")
