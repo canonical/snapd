@@ -193,6 +193,8 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
+	LoadDeviceSeed               = loadDeviceSeed
+	UnloadDeviceSeed             = unloadDeviceSeed
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid

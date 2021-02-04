@@ -365,3 +365,58 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 
 	return modelAssertion, nil
 }
+
+// loadDeviceSeed loads and caches the device seed based on sysLabel,
+// it is meant to be used before and during seeding.
+// It is an error to call it with different sysLabel values once one
+// seed has been loaded and cached.
+func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
+	cached := st.Cached(loadedDeviceSeedKey{})
+	if cached != nil {
+		loaded := cached.(*loadedDeviceSeed)
+		if loaded.sysLabel != sysLabel {
+			return nil, fmt.Errorf("internal error: requested inconsistent device seed: %s (was %s)", sysLabel, loaded.sysLabel)
+		}
+		return loaded.seed, loaded.err
+	}
+
+	// cache the outcome, both success and errors
+	defer func() {
+		st.Cache(loadedDeviceSeedKey{}, &loadedDeviceSeed{
+			sysLabel: sysLabel,
+			seed:     deviceSeed,
+			err:      err,
+		})
+	}()
+
+	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
+	if err != nil {
+		return nil, err
+	}
+
+	// collect and
+	// set device,model from the model assertion
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+
+	if err := deviceSeed.LoadAssertions(assertstate.DB(st), commitTo); err != nil {
+		return nil, err
+	}
+
+	return deviceSeed, nil
+}
+
+// unloadDeviceSeed forgets the cached outcomes of loadDeviceSeed.
+// Its main reason is to avoid using memory past the point where the deviceSeed
+// isn't needed anymore.
+func unloadDeviceSeed(st *state.State) {
+	st.Cache(loadedDeviceSeedKey{}, nil)
+}
+
+type loadedDeviceSeedKey struct{}
+type loadedDeviceSeed struct {
+	sysLabel string
+	seed     seed.Seed
+	err      error
+}
