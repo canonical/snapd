@@ -123,8 +123,8 @@ type snapActionJSON struct {
 	// nil epoch is not an empty interface{}, you'll get the null in the json.
 	Epoch interface{} `json:"epoch,omitempty"`
 	// For assertions
-	Key        string         `json:"key,omitempty"`
-	Assertions []interface{}  `json:"assertions,omitempty"`
+	Key        string        `json:"key,omitempty"`
+	Assertions []interface{} `json:"assertions,omitempty"`
 }
 
 type assertAtJSON struct {
@@ -134,13 +134,13 @@ type assertAtJSON struct {
 }
 
 type assertSeqAtJSON struct {
-	Type        string   `json:"type"`
-	SequenceKey  []string `json:"sequence-key"`
-	IfNewerThan *int     `json:"if-newer-than,omitempty"`
-	IfSequenceNewerThan *int `json:"if-sequence-newer-than,omitempty"`
+	Type                string   `json:"type"`
+	SequenceKey         []string `json:"sequence-key"`
+	IfNewerThan         *int     `json:"if-newer-than,omitempty"`
+	IfSequenceNewerThan *int     `json:"if-sequence-newer-than,omitempty"`
 	// if-sequence-equal-or-newer-than and sequence are mutually exclusive
 	IfSequenceEqualOrNewerThan *int `json:"if-sequence-equal-or-newer-than,omitempty"`
-	Sequence int `json:"sequence,omitempty"`
+	Sequence                   int  `json:"sequence,omitempty"`
 }
 
 type snapRelease struct {
@@ -152,9 +152,9 @@ type errorListEntry struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	// for assertions
-	Type       string   `json:"type"`
+	Type string `json:"type"`
 	// either primary-key or sequence-key is expected (but not both)
-	PrimaryKey []string `json:"primary-key,omitempty"`
+	PrimaryKey  []string `json:"primary-key,omitempty"`
 	SequenceKey []string `json:"sequence-key,omitempty"`
 }
 
@@ -415,7 +415,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			aJSON.Assertions = make([]interface{}, len(ats))
 			for j, at := range ats {
 				aj := &assertAtJSON{
-					Type: at.Type.Name,
+					Type:       at.Type.Name,
 					PrimaryKey: at.PrimaryKey,
 				}
 				rev := at.Revision
@@ -438,7 +438,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			aJSON.Assertions = make([]interface{}, len(ats))
 			for j, at := range ats {
 				aj := assertSeqAtJSON{
-					Type: at.Type.Name,
+					Type:        at.Type.Name,
 					SequenceKey: at.SequenceKey,
 				}
 				// for pinned we request the assertion ​by the sequence point <sequence-number>​, i.e.
@@ -652,14 +652,14 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	errl := res.ErrorList
 	carryingRef := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)
-		return aType != nil && !aType.SequenceForming() && len(ent.PrimaryKey) == len(aType.PrimaryKey)
+		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
 	}
 	carryingSeqKey := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)
-		return aType != nil && aType.SequenceForming() && len(ent.SequenceKey) == len(aType.PrimaryKey) - 1
+		return aType != nil && aType.SequenceForming() && len(ent.SequenceKey) == len(aType.PrimaryKey)-1
 	}
 	prio := func(ent *errorListEntry) int {
-		if !carryingRef(ent) {
+		if !carryingRef(ent) && !carryingSeqKey(ent) {
 			return 2
 		}
 		if ent.Code != "not-found" {
