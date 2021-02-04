@@ -219,7 +219,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 	var kernelInfo *kernel.Info
 	if !constraints.SkipResolveContent {
 		// TODO:UC20: check and error if kernelRootDir == "" here
-		// This needs the upper layer of gagdge updates to be
+		// This needs the upper layer of gadget updates to be
 		// updated to pass the kernel root first.
 		//
 		// Note that the kernelRootDir may reference the running
