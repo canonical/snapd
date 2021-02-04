@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -236,9 +238,6 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 	r := bloader.SetEnabledKernel(kernel)
 	s.AddCleanup(r)
 
-	// restart overlord to pick up the modeenv
-	s.startOverlord(c)
-
 	return model, bloader
 }
 
@@ -251,6 +250,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	defer systemctlRestorer()
 
 	model, bloader := s.earlySetup(c, m, modelGrade, "", extraDevModeSnaps...)
+	// create overlord and pick up the modeenv
+	s.startOverlord(c)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
@@ -462,6 +463,44 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 	}
 }
 
+func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	s.earlySetup(c, &m, "signed", "")
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	st := o.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
+	c.Assert(err, IsNil)
+
+	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+	c.Check(deviceSeed.Model().Base(), Equals, "core20")
+
+	// verify that the model was added
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "my-brand",
+		"model":    "my-model",
+	})
+	c.Assert(err, IsNil)
+	c.Check(as, DeepEquals, deviceSeed.Model())
+
+	// inconsistent seed request
+	_, err = devicestate.LoadDeviceSeed(st, "20210201")
+	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
+}
+
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
 	s.extraSnapYaml["user-daemons1"] = `name: user-daemons1
 version: 1.0
@@ -487,6 +526,9 @@ defaults:
 `
 
 	s.earlySetup(c, &m, "signed", defaultsGadgetYaml, "user-daemons1")
+
+	// create overlord and pick up the modeenv
+	s.startOverlord(c)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
