@@ -120,6 +120,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
+func PreloadGadget(m *DeviceManager) (*gadget.Info, error) {
+	return m.preloadGadget()
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label

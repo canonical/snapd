@@ -228,6 +228,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
+	_, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
+	c.Check(err, Equals, state.ErrNoState)
+
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
@@ -265,6 +268,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
+
+	_, err = devicestate.PreloadGadget(ovld.DeviceManager())
+	c.Check(err, Equals, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -831,6 +837,11 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	gi, err := devicestate.PreloadGadget(s.overlord.DeviceManager())
+	c.Assert(err, IsNil)
+	c.Check(gi.Defaults, HasLen, 4)
+
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
