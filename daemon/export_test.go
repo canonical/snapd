@@ -167,6 +167,6 @@ func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
 
-func (inst *snapInstruction) DispatchForMany() snapsActionFunc {
+func (inst *snapInstruction) DispatchForMany() snapManyActionFunc {
 	return inst.dispatchForMany()
 }

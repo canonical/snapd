@@ -89,6 +89,9 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
+
+	fakeJournalctl := testutil.MockCommand(c, "journalctl", "")
+	s.AddCleanup(fakeJournalctl.Restore)
 }
 
 const (
@@ -194,7 +197,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brOpts install.Options
 	var installRunCalled int
 	var installSealingObserver gadget.ContentObserver
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, obs gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -341,7 +344,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -519,7 +522,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		c.Check(options.Encrypt, Equals, true)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
@@ -530,7 +533,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		c.Check(options.Encrypt, Equals, true)
 		// no keys set
 		return &install.InstalledSystemSideData{
@@ -547,7 +550,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -761,7 +764,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -786,7 +789,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()

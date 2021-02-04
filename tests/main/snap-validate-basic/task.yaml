@@ -3,6 +3,10 @@ summary: Ensure `snap validate` commands work.
 # XXX: this functionality doesn't rely on store yet and as such this test
 # doesn't do much. Extend once all the functionality is available.
 
+systems:
+  # go-flags panics when showing --help for a hidden command on Fedora 32/33
+  - -fedora-*
+
 execute: |
   snap validate --help | MATCH "The validate command lists or applies validations sets"
   snap validate > list.txt

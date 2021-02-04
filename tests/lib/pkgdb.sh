@@ -5,7 +5,7 @@
 
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -13,7 +13,7 @@ debian_name_package() {
 
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -21,7 +21,7 @@ ubuntu_14_04_name_package() {
 
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -29,7 +29,7 @@ fedora_name_package() {
 
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -37,7 +37,7 @@ amazon_name_package() {
 
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
-    . "$TESTSLIB/tools/tests.pkg.zypper.sh"
+    . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -45,7 +45,7 @@ opensuse_name_package() {
 
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
-    . "$TESTSLIB/tools/tests.pkg.pacman.sh"
+    . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
     for i in "$@"; do
         remap_one "$i"
     done

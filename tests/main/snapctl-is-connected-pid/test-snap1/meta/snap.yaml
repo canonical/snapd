@@ -1,0 +1,12 @@
+name: test-snap1
+version: 1
+summary: First test snap
+
+plugs:
+  foo-plug:
+    interface: cups-control
+
+apps:
+  svc:
+    command: bin/service.sh
+    daemon: simple

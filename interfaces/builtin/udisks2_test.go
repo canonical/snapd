@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -241,7 +244,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_producer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {

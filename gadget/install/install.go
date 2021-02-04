@@ -53,7 +53,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(model gadget.Model, gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	if options.Encrypt {
@@ -63,10 +63,11 @@ func Run(model gadget.Model, gadgetRoot, device string, options Options, observe
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
+	// TODO: resolve content paths from gadget here
 
 	// XXX: the only situation where auto-detect is not desired is
 	//      in (spread) testing - consider to remove forcing a device
@@ -160,8 +161,8 @@ func Run(model gadget.Model, gadgetRoot, device string, options Options, observe
 			logger.Noticef("encrypted device %v", part.Node)
 		}
 
-		if err := makeFilesystem(&part); err != nil {
-			return nil, err
+		if err := makeFilesystem(&part, lv.SectorSize); err != nil {
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
 		}
 
 		if err := writeContent(&part, gadgetRoot, observer); err != nil {

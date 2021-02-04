@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -235,7 +238,7 @@ func (s *NetworkManagerInterfaceSuite) TestUDevPermanentSlot(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-manager
 KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_network-manager_nm", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_network-manager_nm $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_network-manager_nm", RUN+="%v/snap-device-helper $env{ACTION} snap_network-manager_nm $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {
