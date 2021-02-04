@@ -62,6 +62,11 @@ func (q *testAssertQuery) AddError(e error, ref *asserts.Ref) error {
 	return nil
 }
 
+func (q *testAssertQuery) AddSequenceError(e error, atSeq *asserts.AtSequence) error {
+	q.addError(e, atSeq.Unique())
+	return nil
+}
+
 func (q *testAssertQuery) AddGroupingError(e error, grouping asserts.Grouping) error {
 	q.addError(e, fmt.Sprintf("{%s}", grouping))
 	return nil
@@ -378,6 +383,104 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 		"snap-declaration/16/xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5": &asserts.NotFoundError{
 			Type:    asserts.SnapDeclarationType,
 			Headers: map[string]string{"series": "16", "snap-id": "xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5"}},
+	})
+}
+
+func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		expectedAction := map[string]interface{}{
+			"action": "fetch-assertions",
+			"key":    "g1",
+			"assertions": []interface{}{
+				map[string]interface{}{
+					"type": "validation-set",
+					"sequence-key": []interface{}{
+						"16",
+						"foo",
+						"bar",
+					},
+				},
+			},
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
+
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "fetch-assertions",
+     "key": "g1",
+     "assertion-stream-urls": [],
+     "error-list": [
+		{
+			"code": "not-found",
+			"message": "not found: no assertion with type \"validation-set\" and sequence key {\"account-id\":\"foo\",\"name\":\"bar\",\"series\":\"16\"}",
+			"sequence-key": [
+			  "16",
+			  "foo",
+			  "bar"
+			],
+			"type": "validation-set"
+		}
+     ]
+     }
+   ]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	assertq := &testAssertQuery{
+		toResolveSeq: map[asserts.Grouping][]*asserts.AtSequence{
+			asserts.Grouping("g1"): {
+				&asserts.AtSequence{
+					Type: asserts.ValidationSetType,
+					SequenceKey: []string{
+						"16",
+						"foo",
+						"bar",
+					},
+					Revision: asserts.RevisionNotKnown,
+				},
+			},
+		},
+	}
+
+	results, aresults, err := sto.SnapAction(s.ctx, nil,
+		nil, assertq, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(results, HasLen, 0)
+	c.Check(aresults, HasLen, 0)
+
+	c.Check(assertq.errors, DeepEquals, map[string]error{
+		"validation-set/16/foo/bar": &asserts.NotFoundError{
+			Type:    asserts.ValidationSetType,
+			Headers: map[string]string{"series": "16", "account-id": "foo", "name": "bar"}},
 	})
 }
 

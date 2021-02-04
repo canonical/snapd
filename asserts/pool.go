@@ -657,6 +657,11 @@ func (p *Pool) AddError(e error, ref *Ref) error {
 	return nil
 }
 
+func (p *Pool) AddSequenceError(e error, atSeq *AtSequence) error {
+	// TODO
+	return nil
+}
+
 // AddGroupingError puts all the groups of grouping in error, with error e.
 func (p *Pool) AddGroupingError(e error, grouping Grouping) error {
 	if err := p.phase(poolPhaseAdd); err != nil {

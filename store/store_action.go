@@ -62,6 +62,7 @@ type AssertionQuery interface {
 	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, map[asserts.Grouping][]*asserts.AtSequence, error)
 
 	AddError(e error, ref *asserts.Ref) error
+	AddSequenceError(e error, atSeq *asserts.AtSequence) error
 	AddGroupingError(e error, grouping asserts.Grouping) error
 }
 
@@ -151,8 +152,10 @@ type errorListEntry struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	// for assertions
-	Type       string   `json:"type"`
-	PrimaryKey []string `json:"primary-key"`
+	Type string `json:"type"`
+	// either primary-key or sequence-key is expected (but not both)
+	PrimaryKey  []string `json:"primary-key,omitempty"`
+	SequenceKey []string `json:"sequence-key,omitempty"`
 }
 
 type snapActionResult struct {
@@ -651,8 +654,12 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 		aType := asserts.Type(ent.Type)
 		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
 	}
+	carryingSeqKey := func(ent *errorListEntry) bool {
+		aType := asserts.Type(ent.Type)
+		return aType != nil && aType.SequenceForming() && len(ent.SequenceKey) == len(aType.PrimaryKey)-1
+	}
 	prio := func(ent *errorListEntry) int {
-		if !carryingRef(ent) {
+		if !carryingRef(ent) && !carryingSeqKey(ent) {
 			return 2
 		}
 		if ent.Code != "not-found" {
@@ -672,20 +679,34 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 		}
 	}
 	rep := errl[errIdx]
-	if carryingRef(&rep) {
+	notFound := rep.Code == "not-found"
+	switch {
+	case carryingRef(&rep):
 		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
 		var err error
-		if rep.Code == "not-found" {
+		if notFound {
 			headers, _ := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
 			err = &asserts.NotFoundError{
 				Type:    ref.Type,
 				Headers: headers,
 			}
-
 		} else {
 			err = fmt.Errorf("%s", rep.Message)
 		}
 		return assertq.AddError(err, ref)
+	case carryingSeqKey(&rep):
+		var err error
+		atSeq := &asserts.AtSequence{Type: asserts.Type(rep.Type), SequenceKey: rep.SequenceKey}
+		if notFound {
+			headers, _ := asserts.HeadersFromSequenceKey(atSeq.Type, atSeq.SequenceKey)
+			err = &asserts.NotFoundError{
+				Type:    atSeq.Type,
+				Headers: headers,
+			}
+		} else {
+			err = fmt.Errorf("%s", rep.Message)
+		}
+		return assertq.AddSequenceError(err, atSeq)
 	}
 
 	return assertq.AddGroupingError(fmt.Errorf("%s", rep.Message), asserts.Grouping(res.Key))
