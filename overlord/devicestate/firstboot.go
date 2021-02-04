@@ -145,6 +145,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
+	// optimistically forget the deviceSeed here
+	unloadDeviceSeed(st)
+
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
