@@ -1684,6 +1684,28 @@ func (s *infoSuite) TestSortApps(c *C) {
 	}{{
 		apps: []*snap.AppInfo{
 			{Name: "bar", Before: []string{"baz"}},
+			{Name: "foo"},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "foo", Before: []string{"baz"}},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", After: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"baz"}},
 			{Name: "baz", After: []string{"bar", "foo"}},
 			{Name: "foo"},
 		},

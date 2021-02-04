@@ -55,6 +55,8 @@ var (
 	ParseRelativeOffset = parseRelativeOffset
 
 	SplitKernelRef = splitKernelRef
+
+	ResolveVolumeContent = resolveVolumeContent
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
