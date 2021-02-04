@@ -111,7 +111,7 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, obser
 			err = errUnmount
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(gadgetRoot, &ds.LaidOutStructure, observer)
+	fs, err := gadget.NewMountedFilesystemWriter(&ds.LaidOutStructure, observer)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}

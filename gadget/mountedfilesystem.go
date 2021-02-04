@@ -46,8 +46,8 @@ func checkSourceIsDir(src string) error {
 	return nil
 }
 
-func checkContent(content *VolumeContent) error {
-	if content.ResolvedSource() == "" {
+func checkContent(content *ResolvedContent) error {
+	if content.ResolvedSource == "" {
 		return fmt.Errorf("internal error: source cannot be unset")
 	}
 	if content.Target == "" {
@@ -77,27 +77,22 @@ func observe(observer ContentObserver, op ContentOperation, ps *LaidOutStructure
 // MountedFilesystemWriter assists in writing contents of a structure to a
 // mounted filesystem.
 type MountedFilesystemWriter struct {
-	contentDir string
-	ps         *LaidOutStructure
-	observer   ContentObserver
+	ps       *LaidOutStructure
+	observer ContentObserver
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
 	if !ps.HasFilesystem() {
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
-	if contentDir == "" {
-		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
-	}
 	fw := &MountedFilesystemWriter{
-		contentDir: contentDir,
-		ps:         ps,
-		observer:   observer,
+		ps:       ps,
+		observer: observer,
 	}
 	return fw, nil
 }
@@ -133,7 +128,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 		return fmt.Errorf("cannot map preserve entries for destination %q: %v", whereDir, err)
 	}
 
-	for _, c := range m.ps.Content {
+	for _, c := range m.ps.ResolvedContent {
 		if err := m.writeVolumeContent(whereDir, &c, preserveInDst); err != nil {
 			return fmt.Errorf("cannot write filesystem content of %s: %v", c, err)
 		}
@@ -246,23 +241,22 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string) error {
+func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content *ResolvedContent, preserveInDst []string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
-	// TODO: ResolvedSource() will already have resolved m.contentDir
-	realSource := filepath.Join(m.contentDir, content.ResolvedSource())
+	realSource := content.ResolvedSource
 	realTarget := filepath.Join(volumeRoot, content.Target)
 
 	// filepath trims the trailing /, restore if needed
 	if strings.HasSuffix(content.Target, "/") {
 		realTarget += "/"
 	}
-	if strings.HasSuffix(content.ResolvedSource(), "/") {
+	if strings.HasSuffix(content.ResolvedSource, "/") {
 		realSource += "/"
 	}
 
-	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.ResolvedSource(), "/") {
+	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.ResolvedSource, "/") {
 		// write a directory
 		return m.writeDirectory(volumeRoot, realSource, realTarget, preserveInDst)
 	} else {
@@ -313,9 +307,9 @@ type mountedFilesystemUpdater struct {
 // structure, with structure content coming from provided root directory. The
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
-func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
+func newMountedFilesystemUpdater(ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc, observer ContentObserver) (*mountedFilesystemUpdater, error) {
 	// avoid passing observer, writes will not be observed
-	fw, err := NewMountedFilesystemWriter(rootDir, ps, nil)
+	fw, err := NewMountedFilesystemWriter(ps, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -361,16 +355,9 @@ func (f *mountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backu
 	return dstPath, backupPath
 }
 
-// entrySourcePath returns the path of given source entry within the root
-// directory provided during initialization.
+// TODO: remove
 func (f *mountedFilesystemUpdater) entrySourcePath(source string) string {
-	srcPath := filepath.Join(f.contentDir, source)
-
-	if strings.HasSuffix(source, "/") {
-		// restore trailing / if one was there
-		srcPath += "/"
-	}
-	return srcPath
+	return source
 }
 
 // Update applies an update to a mounted filesystem. The caller must have
@@ -384,7 +371,7 @@ func (f *mountedFilesystemUpdater) Update() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	skipped := 0
-	for _, c := range f.ps.Content {
+	for _, c := range f.ps.ResolvedContent {
 		if err := f.updateVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			if err == ErrNoUpdate {
 				skipped++
@@ -394,7 +381,7 @@ func (f *mountedFilesystemUpdater) Update() error {
 		}
 	}
 
-	if skipped == len(f.ps.Content) {
+	if skipped == len(f.ps.ResolvedContent) {
 		return ErrNoUpdate
 	}
 
@@ -508,20 +495,20 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	return writeFileOrSymlink(srcPath, dstPath, preserveInDst)
 }
 
-func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *ResolvedContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	// TODO: ResolvedSource() will already have resolved f.entrySourcePath
-	srcPath := f.entrySourcePath(content.ResolvedSource())
+	// TODO: ResolvedSource will already have resolved f.entrySourcePath
+	srcPath := f.entrySourcePath(content.ResolvedSource)
 
-	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource, "/") {
 		// TODO: pass both Unresolved and resolved Source (unresolved for better error reporting)
-		return f.updateDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.updateDirectory(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	} else {
 		// TODO: pass both Unresolved and resolved Source (unresolved for better error reporting)
-		return f.updateOrSkipFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.updateOrSkipFile(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -569,7 +556,7 @@ func (f *mountedFilesystemUpdater) Backup() error {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
-	for _, c := range f.ps.Content {
+	for _, c := range f.ps.ResolvedContent {
 		if err := f.backupVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
 		}
@@ -797,24 +784,24 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	return changeWithBackup, nil
 }
 
-func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, content *ResolvedContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	// TODO: ResolvedSource() will already have resolved f.entrySourcePath
-	srcPath := f.entrySourcePath(content.ResolvedSource())
+	// TODO: ResolvedSource will already have resolved f.entrySourcePath
+	srcPath := f.entrySourcePath(content.ResolvedSource)
 
 	if err := f.checkpointPrefix(volumeRoot, content.Target, backupDir); err != nil {
 		return err
 	}
-	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource, "/") {
 		// backup directory contents
 		// TODO: pass both Unresolved and resolved Source (unresolved for better error reporting)
-		return f.backupOrCheckpointDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.backupOrCheckpointDirectory(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	} else {
 		// backup a file
-		return f.observedBackupOrCheckpointFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		return f.observedBackupOrCheckpointFile(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	}
 }
 
@@ -830,7 +817,7 @@ func (f *mountedFilesystemUpdater) Rollback() error {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
-	for _, c := range f.ps.Content {
+	for _, c := range f.ps.ResolvedContent {
 		if err := f.rollbackVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot rollback content: %v", err)
 		}
@@ -934,21 +921,21 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
+func (f *mountedFilesystemUpdater) rollbackVolumeContent(volumeRoot string, content *ResolvedContent, preserveInDst []string, backupDir string) error {
 	if err := checkContent(content); err != nil {
 		return err
 	}
 
-	// TODO: ResolvedSource() will already have resolved f.entrySourcePath
-	srcPath := f.entrySourcePath(content.ResolvedSource())
+	// TODO: ResolvedSource will already have resolved f.entrySourcePath
+	srcPath := f.entrySourcePath(content.ResolvedSource)
 
 	var err error
-	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource(), "/") {
+	if osutil.IsDirectory(srcPath) || strings.HasSuffix(content.ResolvedSource, "/") {
 		// rollback directory
-		err = f.rollbackDirectory(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		err = f.rollbackDirectory(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	} else {
 		// rollback file
-		err = f.rollbackFile(volumeRoot, content.ResolvedSource(), content.Target, preserveInDst, backupDir)
+		err = f.rollbackFile(volumeRoot, content.ResolvedSource, content.Target, preserveInDst, backupDir)
 	}
 	if err != nil {
 		return err
