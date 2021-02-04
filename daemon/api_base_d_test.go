@@ -295,9 +295,13 @@ func (s *APIBaseSuite) DaemonWithStore(c *check.C, sto snapstate.StoreService) *
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
+	st := d.overlord.State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	c.Assert(d.overlord.StartUp(), check.IsNil)
 
-	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)

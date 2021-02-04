@@ -32,9 +32,11 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -502,6 +504,11 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
+	// check that this is test is still valid
+	// TODO: have a test for an early config option that is not an
+	// experimental flag
+	c.Assert(features.UserDaemons.IsEnabledWhenUnset(), Equals, false, Commentf("user-daemons is not experimental anymore, this test is not useful anymore"))
+
 	s.extraSnapYaml["user-daemons1"] = `name: user-daemons1
 version: 1.0
 type: app
@@ -527,18 +534,27 @@ defaults:
 
 	s.earlySetup(c, &m, "signed", defaultsGadgetYaml, "user-daemons1")
 
-	// create overlord and pick up the modeenv
-	s.startOverlord(c)
+	// create a new overlord and pick up the modeenv
+	// this overlord will use the proper EarlyConfig implementation
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
+	c.Assert(o.StartUp(), IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// early config set the flag to enabled
+	tr := config.NewTransaction(st)
+	enabled, _ := features.Flag(tr, features.UserDaemons)
+	c.Check(enabled, Equals, true)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
 		Mode:  m.Mode,
 	}
 
-	st := s.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	_, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
-
 }

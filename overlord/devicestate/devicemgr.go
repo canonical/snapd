@@ -49,7 +49,9 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -186,8 +188,7 @@ func (m *DeviceManager) StartUp() error {
 
 	m.state.Lock()
 	defer m.state.Unlock()
-	// XXX preloadGadget
-	return EarlyConfig(m.state, nil)
+	return EarlyConfig(m.state, m.preloadGadget)
 }
 
 func (m *DeviceManager) maybeSetupUbuntuSave() error {
@@ -530,6 +531,50 @@ func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	}
 	m.state.Set(name, t)
 	return nil
+}
+
+func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
+	var sysLabel string
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return nil, err
+	}
+	if modeEnv != nil {
+		sysLabel = modeEnv.RecoverySystem
+	}
+
+	deviceSeed, err := loadDeviceSeed(m.state, sysLabel)
+	if err == seed.ErrNoAssertions {
+		// later code will decide if this is a valid state,
+		// here just report there is no gadget
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+	model := deviceSeed.Model()
+	if model.Gadget() == "" {
+		// no gadget
+		return nil, state.ErrNoState
+	}
+	// XXX proper timings
+	tm := timings.New(nil)
+	if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, tm); err != nil {
+		return nil, err
+	}
+	essGadget := deviceSeed.EssentialSnaps()
+	if len(essGadget) != 1 {
+		return nil, fmt.Errorf("internal error: gadget defined in model but not loaded")
+	}
+	snapf, err := snapfile.Open(essGadget[0].Path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot preload gadget metadata: %v", err)
+	}
+	gi, err := gadget.ReadInfoFromSnapFile(snapf, model)
+	if err != nil {
+		return nil, fmt.Errorf("cannot preload gadget metadata: %v", err)
+	}
+	return gi, nil
 }
 
 var populateStateFromSeed = populateStateFromSeedImpl

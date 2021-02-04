@@ -267,14 +267,16 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	d, err := daemon.NewAndAddRoutes()
 	c.Assert(err, check.IsNil)
 
+	st := d.Overlord().State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	c.Assert(d.Overlord().StartUp(), check.IsNil)
 
-	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
-	// mark as already seeded
-	st.Set("seeded", true)
 	// registered
 	s.mockModel(c, st, nil)
 

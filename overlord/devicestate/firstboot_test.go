@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -125,6 +126,12 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
+	// avoid gadget preload in the general tests cases
+	// it requires a proper seed to be available
+	devicestate.EarlyConfig = func(st *state.State, preloadGadget func() (*gadget.Info, error)) error {
+		return nil
+	}
+	t.AddCleanup(func() { devicestate.EarlyConfig = nil })
 	t.overlord = ovld
 	c.Assert(ovld.StartUp(), IsNil)
 

@@ -214,14 +214,17 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	err = o.StartUp()
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
-	st := s.o.State()
+
 	st.Lock()
 	defer st.Unlock()
-	st.Set("seeded", true)
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
