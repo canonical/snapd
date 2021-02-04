@@ -6207,8 +6207,11 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// makeMockDev puts a mock mount point under /run/mnt/{structureName}
-// that can then be used from mocked gadget.yaml
+// makeMockDev mocks /dev/disk/by-label/{structureName} and
+// /dev/disk/by-label/{structureName} under the test rootdir and for
+// osutil.LoadMountInfo for use by gadget code for test gadgets using
+// structureNam. This is useful for e.g. end-to-end testing of gadget
+// assets installs/updates.
 func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// mock /dev/disk/by-label/{structureName}
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
