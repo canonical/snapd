@@ -974,6 +974,18 @@ func (as *assertsSuite) TestSequenceForming(c *C) {
 	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
 }
 
+func (as *assertsSuite) TestHeadersFromSequenceKey(c *C) {
+	headers, err := asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one"})
+	c.Assert(err, IsNil)
+	c.Check(headers, DeepEquals, map[string]string{"n": "one"})
+
+	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{})
+	c.Check(err, ErrorMatches, `sequence key has wrong length for "test-only-seq" assertion`)
+
+	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{""})
+	c.Check(err, ErrorMatches, `sequence key "n" header cannot be empty`)
+}
+
 func (as *assertsSuite) TestAtSequenceString(c *C) {
 	atSeq := asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
@@ -981,21 +993,31 @@ func (as *assertsSuite) TestAtSequenceString(c *C) {
 		Sequence:    8,
 		Revision:    2,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (foo; series:16 account-id:canonical name:foo sequence:8) at revision 2")
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo/8 at revision 2")
 
+	// Sequence number not set
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical", "foo"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (foo; series:16 account-id:canonical name:foo)")
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo")
+
+	atSeq = asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical", "foo"},
+		Sequence:    8,
+		Pinned:      true,
+		Revision:    2,
+	}
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo=8 at revision 2")
 
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical"},
 		Revision:    2,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set (???) at revision 2")
+	c.Check(atSeq.String(), Equals, "validation-set ??? at revision 2")
 }
 
 func (as *assertsSuite) TestAtSequenceUnique(c *C) {
@@ -1016,6 +1038,20 @@ func (as *assertsSuite) TestAtSequenceResolveError(c *C) {
 	}
 	_, err := atSeq.Resolve(nil)
 	c.Check(err, ErrorMatches, `"validation-set" assertion reference primary key has the wrong length \(expected \[series account-id name sequence\]\): \[abc 1\]`)
+
+	atSeq = asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical", "foo"},
+	}
+	_, err = atSeq.Resolve(nil)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.ValidationSetType,
+		Headers: map[string]string{
+			"series":     "16",
+			"account-id": "canonical",
+			"name":       "foo",
+		},
+	})
 }
 
 func (as *assertsSuite) TestAtSequenceResolve(c *C) {
