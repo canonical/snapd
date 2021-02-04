@@ -320,7 +320,7 @@ func (at *AtRevision) String() string {
 // (RevisionNotKnown).
 // Setting Pinned = true means pinning at the given sequence point (which must be
 // set, i.e. > 0). Pinned sequence forming assertion will be updated to the
-// latest revision within same sequence.
+// latest revision at the specified sequence point.
 type AtSequence struct {
 	Type        *AssertionType
 	SequenceKey []string
@@ -352,8 +352,6 @@ func (at *AtSequence) String() string {
 				sep = "="
 			}
 			pkStr = fmt.Sprintf("%s%s%d", pkStr, sep, at.Sequence)
-		} else {
-			pkStr = fmt.Sprintf("%s/?", pkStr)
 		}
 	}
 	sk := fmt.Sprintf("%s %s", at.Type.Name, pkStr)

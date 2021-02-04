@@ -995,12 +995,13 @@ func (as *assertsSuite) TestAtSequenceString(c *C) {
 	}
 	c.Check(atSeq.String(), Equals, "validation-set canonical/foo/8 at revision 2")
 
+	// Sequence number not set
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{"16", "canonical", "foo"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	c.Check(atSeq.String(), Equals, "validation-set canonical/foo/?")
+	c.Check(atSeq.String(), Equals, "validation-set canonical/foo")
 
 	atSeq = asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
