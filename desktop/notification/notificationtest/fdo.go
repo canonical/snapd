@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,9 +61,10 @@ func NewFdoServer() (*FdoServer, error) {
 		return nil, err
 	}
 
-	server := new(FdoServer)
-	server.conn = conn
-	server.notifications = make(map[uint32]*FdoNotification)
+	server := &FdoServer{
+		conn:          conn,
+		notifications: make(map[uint32]*FdoNotification),
+	}
 	conn.Export(fdoApi{server}, fdoObjectPath, fdoInterface)
 
 	reply, err := conn.RequestName(fdoBusName, dbus.NameFlagDoNotQueue)
@@ -86,6 +87,10 @@ func (server *FdoServer) Stop() error {
 	return server.conn.Close()
 }
 
+// SetError sets an error to be returned by the D-Bus interface.
+//
+// If not nil, all the fdoApi methods will return the provided error
+// in place of performing their usual task.
 func (server *FdoServer) SetError(err *dbus.Error) {
 	server.err = err
 }
@@ -171,6 +176,7 @@ func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
 	}
 
 	// close reason 3 is "closed by a call to CloseNotification"
+	// https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html#signal-notification-closed
 	if err := a.server.Close(id, 3); err != nil {
 		return &dbus.Error{
 			Name: "org.freedesktop.DBus.Error.Failed",
