@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -543,14 +542,21 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 		sysLabel = modeEnv.RecoverySystem
 	}
 
+	// Here we behave as if there was no gadget if we encounter
+	// errors, under the assumption that those will be resurfaced
+	// in ensureSeed. This preserves having a failing to seed
+	// snapd continuing running.
+	//
+	// TODO: consider changing that again but we need consider the
+	// effect of the different failure mode.
+	//
+	// We also assume that anything sentive will not be guarded
+	// just by option flags. For example automatic user creation
+	// also requires the model to be known/set. Otherwise ignoring
+	// errors here would be problematic.
 	deviceSeed, err := loadDeviceSeed(m.state, sysLabel)
-	if err == seed.ErrNoAssertions {
-		// later code will decide if this is a valid state,
-		// here just report there is no gadget
-		return nil, state.ErrNoState
-	}
 	if err != nil {
-		return nil, err
+		return nil, state.ErrNoState
 	}
 	model := deviceSeed.Model()
 	if model.Gadget() == "" {
@@ -560,19 +566,19 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	// XXX proper timings
 	tm := timings.New(nil)
 	if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, tm); err != nil {
-		return nil, err
+		return nil, state.ErrNoState
 	}
 	essGadget := deviceSeed.EssentialSnaps()
 	if len(essGadget) != 1 {
-		return nil, fmt.Errorf("internal error: gadget defined in model but not loaded")
+		return nil, state.ErrNoState
 	}
 	snapf, err := snapfile.Open(essGadget[0].Path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot preload gadget metadata: %v", err)
+		return nil, state.ErrNoState
 	}
 	gi, err := gadget.ReadInfoFromSnapFile(snapf, model)
 	if err != nil {
-		return nil, fmt.Errorf("cannot preload gadget metadata: %v", err)
+		return nil, state.ErrNoState
 	}
 	return gi, nil
 }
