@@ -289,6 +289,11 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		if err := slot.Attr("name", &busName); err != nil {
 			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
 		}
+		// D-Bus activators do not correspond to systemd
+		// units, so don't have the concept of being disabled
+		// or deactivated.  As the service activation file is
+		// created when the snap is installed, report as
+		// enabled/active.
 		appInfo.Activators = append(appInfo.Activators, client.AppActivator{
 			Name:    busName,
 			Enabled: true,
