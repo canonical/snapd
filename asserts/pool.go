@@ -71,9 +71,9 @@ type Pool struct {
 	numbering map[string]uint16
 	groupings *internal.Groupings
 
-	unresolved    map[string]unresolvedAssertRecord
-	unresolvedSequences  map[string]unresolvedAssertRecord
-	prerequisites map[string]unresolvedAssertRecord
+	unresolved          map[string]unresolvedAssertRecord
+	unresolvedSequences map[string]unresolvedAssertRecord
+	prerequisites       map[string]unresolvedAssertRecord
 
 	bs        Backstore
 	unchanged map[string]bool
@@ -93,15 +93,15 @@ func NewPool(groundDB RODatabase, n int) *Pool {
 		panic(fmt.Sprintf("NewPool: %v", err))
 	}
 	return &Pool{
-		groundDB:      groundDB,
-		numbering:     make(map[string]uint16),
-		groupings:     groupings,
-		unresolved:    make(map[string]unresolvedAssertRecord),
-		unresolvedSequences:    make(map[string]unresolvedAssertRecord),
-		prerequisites: make(map[string]unresolvedAssertRecord),
-		bs:            NewMemoryBackstore(),
-		unchanged:     make(map[string]bool),
-		groups:        make(map[uint16]*groupRec),
+		groundDB:            groundDB,
+		numbering:           make(map[string]uint16),
+		groupings:           groupings,
+		unresolved:          make(map[string]unresolvedAssertRecord),
+		unresolvedSequences: make(map[string]unresolvedAssertRecord),
+		prerequisites:       make(map[string]unresolvedAssertRecord),
+		bs:                  NewMemoryBackstore(),
+		unchanged:           make(map[string]bool),
+		groups:              make(map[uint16]*groupRec),
 	}
 }
 
@@ -252,10 +252,9 @@ func (gRec *groupRec) markResolved(ref *Ref) (marked bool) {
 	return true
 }
 
-
 func (gRec *groupRec) markResolvedSeq(atseq *AtSequence, sequence int) (marked bool) {
 	ref := &Ref{
-		Type: atseq.Type,
+		Type:       atseq.Type,
 		PrimaryKey: append(atseq.SequenceKey, fmt.Sprintf("%d", sequence)),
 	}
 	return gRec.markResolved(ref)
@@ -645,7 +644,7 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 	// deal with sequence key
 	if ref.Type.SequenceForming() {
 		atseq := AtSequence{
-			Type: ref.Type,
+			Type:        ref.Type,
 			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
 		}
 		uniq = atseq.Unique()
@@ -663,7 +662,7 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 			at := a.At()
 			rec := &unresolvedSeqRec{
 				at: &AtSequence{
-					Type: a.Type(),
+					Type:        a.Type(),
 					SequenceKey: at.PrimaryKey[:len(at.PrimaryKey)-1],
 				},
 			}

@@ -112,10 +112,10 @@ func (s *poolSuite) SetUpTest(c *C) {
 	// sequence-forming
 
 	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
-		"n":      "1111",
+		"n":        "1111",
 		"sequence": "2",
-		"id":     "one",
-		"dev-id": "developer1",
+		"id":       "one",
+		"dev-id":   "developer1",
 		"revision": "5",
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -254,10 +254,10 @@ func (s *poolSuite) TestFetchSequenceFormingNotPinned(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	atseq := &asserts.AtSequence{
-		Type: asserts.TestOnlySeqType,
+		Type:        asserts.TestOnlySeqType,
 		SequenceKey: []string{"1111"},
-		Revision: asserts.RevisionNotKnown,
-		Pinned: false,
+		Revision:    asserts.RevisionNotKnown,
+		Pinned:      false,
 	}
 	err := pool.AddUnresolvedSequence(atseq, "for_one")
 	c.Assert(err, IsNil)
@@ -746,11 +746,11 @@ func (s *poolSuite) TestUpdateSeqForming(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 
 	atseq := &asserts.AtSequence{
-		Type: s.seq1_rev1111.Type(),
+		Type:        s.seq1_rev1111.Type(),
 		SequenceKey: []string{"1111"},
-		Revision: 1,
-		Sequence: 1,
-		Pinned: false,
+		Revision:    1,
+		Sequence:    1,
+		Pinned:      false,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -777,11 +777,11 @@ func (s *poolSuite) TestUpdateSeqForming(c *C) {
 	c.Check(toResolveSeq, HasLen, 0)
 
 	atseq2 := &asserts.AtSequence{
-		Type: s.seq1_rev1111.Type(),
+		Type:        s.seq1_rev1111.Type(),
 		SequenceKey: []string{"2222"},
-		Revision: asserts.RevisionNotKnown,
-		Sequence: 2,
-		Pinned: true,
+		Revision:    asserts.RevisionNotKnown,
+		Sequence:    2,
+		Pinned:      true,
 	}
 	err = pool.AddUnresolvedSequence(atseq2, "for_two")
 	c.Assert(err, IsNil)
