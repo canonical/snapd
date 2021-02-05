@@ -20,6 +20,8 @@
 package ctlcmd_test
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -74,6 +76,62 @@ var isConnectedTests = []struct {
 }, {
 	args: []string{"is-connected", "foo"},
 	err:  `snap "snap1" has no plug or slot named "foo"`,
+}, {
+	// snap1:plug1 does not use an allowed interface
+	args: []string{"is-connected", "--pid", "1002", "plug1"},
+	err:  `cannot use --pid check with snap1:plug1`,
+}, {
+	// snap1:slot1 does not use an allowed interface
+	args: []string{"is-connected", "--pid", "1002", "slot1"},
+	err:  `cannot use --pid check with snap1:slot1`,
+}, {
+	// snap1:cc slot is not connected to snap2
+	args:     []string{"is-connected", "--pid", "1002", "cc"},
+	exitCode: 1,
+}, {
+	// snap1:cc slot is connected to snap3
+	args:     []string{"is-connected", "--pid", "1003", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:cc slot is not connected to a non-snap pid
+	args:     []string{"is-connected", "--pid", "42", "cc"},
+	exitCode: ctlcmd.NotASnapCode,
+}, {
+	// snap1:cc slot is connected to a classic snap5
+	args:     []string{"is-connected", "--pid", "1005", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:audio-record slot is not connected to classic snap5
+	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
+	exitCode: ctlcmd.ClassicSnapCode,
+}, {
+	// snap1:plug1 does not use an allowed interface
+	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
+	err:  `cannot use --apparmor-label check with snap1:plug1`,
+}, {
+	// snap1:slot1 does not use an allowed interface
+	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "slot1"},
+	err:  `cannot use --apparmor-label check with snap1:slot1`,
+}, {
+	// snap1:cc slot is not connected to snap2
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap2.app", "cc"},
+	exitCode: 1,
+}, {
+	// snap1:cc slot is connected to snap3
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap3.app", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:cc slot is not connected to a non-snap pid
+	args:     []string{"is-connected", "--apparmor-label", "/usr/bin/evince", "cc"},
+	exitCode: ctlcmd.NotASnapCode,
+}, {
+	// snap1:cc slot is connected to a classic snap5
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "cc"},
+	exitCode: 0,
+}, {
+	// snap1:audio-record slot is not connected to classic snap5
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "audio-record"},
+	exitCode: ctlcmd.ClassicSnapCode,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
@@ -102,13 +160,50 @@ plugs:
     interface: x11
 slots:
   slot1:
+    interface: x11
+  cc:
+    interface: cups-control
+  audio-record:
+    interface: audio-record`)
+	mockInstalledSnap(c, s.st, `name: snap2
+slots:
+  slot2:
     interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap3
+plugs:
+  plug4:
+    interface: x11
+  cc:
+    interface: cups-control
+slots:
+  slot3:
+    interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap4
+slots:
+  slot4:
+    interface: x11`)
+	mockInstalledSnap(c, s.st, `name: snap5
+confinement: classic
+plugs:
+  cc:
+    interface: cups-control`)
+	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch {
+		case 1000 < pid && pid < 1100:
+			return fmt.Sprintf("snap%d", pid-1000), nil
+		default:
+			return "", fmt.Errorf("Not a snap")
+		}
+	})
+	defer restore()
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},
 		"snap1:plug2 snap3:slot3": map[string]interface{}{"undesired": true},
 		"snap1:plug3 snap4:slot4": map[string]interface{}{"hotplug-gone": true},
 		"snap3:plug4 snap1:slot1": map[string]interface{}{},
+		"snap3:cc snap1:cc":       map[string]interface{}{},
+		"snap5:cc snap1:cc":       map[string]interface{}{},
 	})
 
 	s.st.Unlock()
