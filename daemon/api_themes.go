@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -62,8 +63,8 @@ type themeStatusResponse struct {
 	SoundThemes map[string]themeStatus `json:"sound-themes"`
 }
 
-func installedThemes(c *Command) (gtkThemes, iconThemes, soundThemes []string, err error) {
-	infos := c.d.overlord.InterfaceManager().Repository().Info(&interfaces.InfoOptions{
+func installedThemes(overlord *overlord.Overlord) (gtkThemes, iconThemes, soundThemes []string, err error) {
+	infos := overlord.InterfaceManager().Repository().Info(&interfaces.InfoOptions{
 		Names: []string{"content"},
 		Slots: true,
 	})
@@ -153,7 +154,7 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 }
 
 func themeStatusAndCandidateSnaps(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[string]bool, err error) {
-	installedGtk, installedIcon, installedSound, err := installedThemes(c)
+	installedGtk, installedIcon, installedSound, err := installedThemes(c.d.overlord)
 	if err != nil {
 		return themeStatusResponse{}, nil, err
 	}

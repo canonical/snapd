@@ -66,7 +66,7 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) TestInstalledThemes(c *C) {
-	s.daemon(c)
+	d := s.daemon(c)
 	s.mockSnap(c, `name: snap1
 version: 42
 slots:
@@ -118,7 +118,7 @@ slots:
     content: foo
     read: $SNAP/foo`)
 
-	gtkThemes, iconThemes, soundThemes, err := daemon.InstalledThemes(daemon.ThemesCmd)
+	gtkThemes, iconThemes, soundThemes, err := daemon.InstalledThemes(d.Overlord())
 	c.Check(err, IsNil)
 	c.Check(gtkThemes, DeepEquals, []string{"Bar-gtk", "Foo-gtk", "Foo-gtk-dark"})
 	c.Check(iconThemes, DeepEquals, []string{"Bar-icons", "Foo-icons"})
