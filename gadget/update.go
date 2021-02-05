@@ -312,6 +312,21 @@ func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
 	return true
 }
 
+// KernelUpdatePolicy implements the update policy for kernel asset updates
+func KernelUpdatePolicy(from, to *LaidOutStructure) bool {
+	for _, rn := range to.ResolvedContent {
+		if rn.KernelUpdateFlag {
+			// XXX: if there is a structure that has mixed
+			// content from $kernel: or gadget then this will
+			// also update the gadget data. So we will need
+			// a per ResolvedContent predicator?
+			return true
+		}
+	}
+
+	return false
+}
+
 func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
