@@ -40,6 +40,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -403,4 +404,26 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 		return nil, err
 	}
 	return tsto.sto.Assertion(at, pk, tsto.user)
+}
+
+// var so that it can be mocked for tests
+var writeResolvedContent = writeResolvedContentImpl
+
+// XXX: move to gadget?
+func writeResolvedContentImpl(targetdir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetUnpackDir, kernelUnpackDir, model)
+	if err != nil {
+		return err
+	}
+	for _, ps := range lv.LaidOutStructure {
+		mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+		if err != nil {
+			return err
+		}
+		dst := filepath.Join(targetdir, ps.Name)
+		if err := mw.Write(dst, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }

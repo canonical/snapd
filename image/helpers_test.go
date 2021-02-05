@@ -21,6 +21,7 @@ package image_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
@@ -129,4 +131,44 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 	c.Check(redirectChannel, check.Equals, "")
 
 	c.Check(logbuf.String(), check.Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
+}
+
+var validGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: structure-name
+        role: system-boot
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+        content:
+         - source: grubx64.efi
+           target: EFI/boot/grubx64.efi
+`
+
+func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
+	dst := c.MkDir()
+	gadgetRoot := c.MkDir()
+	snaptest.PopulateDir(gadgetRoot, [][]string{
+		{"meta/snap.yaml", packageGadget},
+		{"meta/gadget.yaml", validGadgetYaml},
+		{"grubx64.efi", "content of grubx64.efi"},
+	})
+	kernelRoot := c.MkDir()
+	err := image.WriteResolvedContent(dst, gadgetRoot, kernelRoot, s.model)
+	c.Assert(err, check.IsNil)
+
+	// XXX: add testutil.DirEquals([][]string)
+	cmd := exec.Command("find", ".", "-printf", "%P\n")
+	cmd.Dir = dst
+	tree, err := cmd.CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(tree), check.Equals, `
+structure-name
+structure-name/EFI
+structure-name/EFI/boot
+structure-name/EFI/boot/grubx64.efi
+`)
 }

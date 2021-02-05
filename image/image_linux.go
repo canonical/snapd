@@ -130,6 +130,13 @@ func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
 	return snap.Unpack("*", gadgetUnpackDir)
 }
 
+func unpackKernel(kernelFname, kernelUnpackDir string) error {
+	// FIXME: jumping through layers here, we need to make
+	//        unpack part of the container interface (again)
+	snap := squashfs.New(kernelFname)
+	return snap.Unpack("*", kernelUnpackDir)
+}
+
 func installCloudConfig(rootDir, gadgetDir string) error {
 	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
 	if !osutil.FileExists(cloudConfig) {
@@ -239,12 +246,15 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	var gadgetUnpackDir string
+	var gadgetUnpackDir, kernelUnpackDir string
 	// create directory for later unpacking the gadget in
 	if !opts.Classic {
 		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
-		if err := os.MkdirAll(gadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", gadgetUnpackDir, err)
+		kernelUnpackDir = filepath.Join(opts.PrepareDir, "kernel")
+		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
+			if err := os.MkdirAll(unpackDir, 0755); err != nil {
+				return fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
+			}
 		}
 	}
 
@@ -396,6 +406,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// find the snap.Info/path for kernel/os/base so
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
+	kernelFname := ""
 	for _, sn := range bootSnaps {
 		switch sn.Info.Type() {
 		case snap.TypeGadget:
@@ -406,6 +417,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		case snap.TypeKernel:
 			bootWith.Kernel = sn.Info
 			bootWith.KernelPath = sn.Path
+			kernelFname = sn.Path
 		}
 	}
 
@@ -413,9 +425,20 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
 		return err
 	}
+	if err := unpackKernel(kernelFname, kernelUnpackDir); err != nil {
+		return err
+	}
 
 	if err := boot.MakeBootable(model, bootRootDir, bootWith, nil); err != nil {
 		return err
+	}
+
+	// write resolved content to structure root
+	// XXX: move to gadget?
+	if !opts.Classic {
+		if err := writeResolvedContent(filepath.Join(opts.PrepareDir, "resolved-content"), gadgetUnpackDir, kernelUnpackDir, model); err != nil {
+			return err
+		}
 	}
 
 	// early config & cloud-init config (done at install for Core 20)

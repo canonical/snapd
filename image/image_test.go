@@ -118,6 +118,11 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.AddCleanup(c1.Restore)
 	c2 := testutil.MockCommand(c, "umount", "")
 	s.AddCleanup(c2.Restore)
+
+	restore := image.MockWriteResolvedContent(func(_, _, _ string, _ *asserts.Model) error {
+		return nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -576,15 +581,27 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	preparedir := c.MkDir()
+	rootdir := filepath.Join(preparedir, "image")
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	}, "")
 
+	gadgetWriteResolvedContentCalled := 0
+	restore = image.MockWriteResolvedContent(func(dst, gadgetRoot, kernelRoot string, model *asserts.Model) error {
+		c.Check(model, DeepEquals, s.model)
+		c.Check(dst, Equals, filepath.Join(preparedir, "resolved-content"))
+		c.Check(gadgetRoot, Equals, filepath.Join(preparedir, "gadget"))
+		c.Check(kernelRoot, Equals, filepath.Join(preparedir, "kernel"))
+		gadgetWriteResolvedContentCalled++
+		return nil
+	})
+	defer restore()
+
 	opts := &image.Options{
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: preparedir,
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -691,6 +708,9 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		InstanceName: "pc",
 		Channel:      stableChannel,
 	})
+
+	// content was resolved and written for ubuntu-image
+	c.Check(gadgetWriteResolvedContentCalled, Equals, 1)
 }
 
 func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
@@ -1515,7 +1535,7 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 		Channel:    "stable",
 		PrepareDir: "/no-where",
 	})
-	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "/no-where/gadget": mkdir .*`)
+	c.Assert(err, ErrorMatches, `cannot create unpack dir "/no-where/gadget": mkdir .*`)
 }
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
