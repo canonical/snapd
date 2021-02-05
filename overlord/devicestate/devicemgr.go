@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -87,6 +88,8 @@ type DeviceManager struct {
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
+
+	seedTimings *timings.Timings
 
 	ensureSeedInConfigRan bool
 
@@ -532,6 +535,28 @@ func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	return nil
 }
 
+func (m *DeviceManager) seedStart() (*timings.Timings, error) {
+	if m.seedTimings != nil {
+		// reuse the early cached one
+		return m.seedTimings, nil
+	}
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return nil, err
+	}
+	return perfTimings, nil
+}
+
 func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	var sysLabel string
 	modeEnv, err := maybeReadModeenv()
@@ -541,6 +566,15 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	if modeEnv != nil {
 		sysLabel = modeEnv.RecoverySystem
 	}
+
+	// we time preloadGadget + first ensureSeeded together
+	// under --ensure=seed
+	tm, err := m.seedStart()
+	if err != nil {
+		return nil, err
+	}
+	// cached for first ensureSeeded
+	m.seedTimings = tm
 
 	// Here we behave as if there was no gadget if we encounter
 	// errors, under the assumption that those will be resurfaced
@@ -554,7 +588,10 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
-	deviceSeed, err := loadDeviceSeed(m.state, sysLabel)
+	var deviceSeed seed.Seed
+	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+	})
 	if err != nil {
 		return nil, state.ErrNoState
 	}
@@ -563,21 +600,27 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 		// no gadget
 		return nil, state.ErrNoState
 	}
-	// XXX proper timings
-	tm := timings.New(nil)
-	if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, tm); err != nil {
-		return nil, state.ErrNoState
-	}
-	essGadget := deviceSeed.EssentialSnaps()
-	if len(essGadget) != 1 {
-		return nil, state.ErrNoState
-	}
-	snapf, err := snapfile.Open(essGadget[0].Path)
-	if err != nil {
-		return nil, state.ErrNoState
-	}
-	gi, err := gadget.ReadInfoFromSnapFile(snapf, model)
-	if err != nil {
+	var gi *gadget.Info
+	success := false
+	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
+		if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
+			return
+		}
+		essGadget := deviceSeed.EssentialSnaps()
+		if len(essGadget) != 1 {
+			return
+		}
+		snapf, err := snapfile.Open(essGadget[0].Path)
+		if err != nil {
+			return
+		}
+		gi, err = gadget.ReadInfoFromSnapFile(snapf, model)
+		if err != nil {
+			return
+		}
+		success = true
+	})
+	if !success {
 		return nil, state.ErrNoState
 	}
 	return gi, nil
@@ -600,24 +643,17 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	var recordedStart string
-	var start time.Time
-	if m.preseed {
-		recordedStart = "preseed-start-time"
-		start = timeNow()
-	} else {
-		recordedStart = "seed-start-time"
-		start = startTime
-	}
-	if err := m.setTimeOnce(recordedStart, start); err != nil {
+	perfTimings, err := m.seedStart()
+	if err != nil {
 		return err
 	}
+	// we time preloadGadget + first ensureSeeded together
+	// succcessive ensureSeeded should be timed separately
+	m.seedTimings = nil
 
 	var opts *populateStateFromSeedOptions
 	if m.preseed {

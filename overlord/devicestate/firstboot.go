@@ -114,7 +114,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	var deviceSeed seed.Seed
 	// ack all initial assertions
-	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
+	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		deviceSeed, err = importAssertionsFromSeed(st, sysLabel)
 	})
 	if err != nil && err != errNothingToDo {
@@ -125,7 +125,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return trivialSeeding(st), nil
 	}
 
-	err = deviceSeed.LoadMeta(tm)
+	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
+		err = deviceSeed.LoadMeta(nested)
+	})
 	if release.OnClassic && err == seed.ErrNoMeta {
 		if preseed {
 			return nil, fmt.Errorf("no snaps to preseed")
