@@ -979,6 +979,9 @@ func (as *assertsSuite) TestHeadersFromSequenceKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(headers, DeepEquals, map[string]string{"n": "one"})
 
+	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{"one", "two"})
+	c.Check(err, ErrorMatches, `sequence key has wrong length for "test-only-seq" assertion`)
+
 	_, err = asserts.HeadersFromSequenceKey(asserts.TestOnlySeqType, []string{})
 	c.Check(err, ErrorMatches, `sequence key has wrong length for "test-only-seq" assertion`)
 
@@ -1028,6 +1031,13 @@ func (as *assertsSuite) TestAtSequenceUnique(c *C) {
 		Revision:    2,
 	}
 	c.Check(atSeq.Unique(), Equals, "validation-set/16/canonical/foo")
+
+	// not a valid sequence-key (but Unique() doesn't care).
+	atSeq = asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{"16", "canonical"},
+	}
+	c.Check(atSeq.Unique(), Equals, "validation-set/16/canonical")
 }
 
 func (as *assertsSuite) TestAtSequenceResolveError(c *C) {
