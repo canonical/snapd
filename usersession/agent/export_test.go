@@ -50,3 +50,12 @@ func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
 		sysGetsockoptUcred = old
 	}
 }
+
+// MockNoBus temporarily unsets the D-Bus connection of a SessionAgent
+func MockNoBus(agent *SessionAgent) (restore func()) {
+	bus := agent.bus
+	agent.bus = nil
+	return func() {
+		agent.bus = bus
+	}
+}
