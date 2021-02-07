@@ -9,8 +9,8 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service
 
     snap services test-snapd-timer-service > timer-service.out
-    MATCH '^test-snapd-timer-service.random-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
-    MATCH '^test-snapd-timer-service.regular-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
+    MATCH '^test-snapd-timer-service.random-timer\s+ enabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
+    MATCH '^test-snapd-timer-service.regular-timer\s+ enabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
 
     snap services socket-activation > socket-activation.out
     MATCH '^socket-activation.sleep-daemon\s+ enabled\s+ inactive\s+ socket-activated$' < socket-activation.out
