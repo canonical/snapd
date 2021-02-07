@@ -29,5 +29,5 @@ execute: |
         # activation on the D-Bus system bus
         snap install --edge test-snapd-dbus-service
         snap services test-snapd-dbus-service > dbus-service.out
-        MATCH '^test-snapd-dbus-service.system\s+ disabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
+        MATCH '^test-snapd-dbus-service.system\s+ enabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
     fi
