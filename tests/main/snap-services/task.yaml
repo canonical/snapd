@@ -1,7 +1,13 @@
 summary: verify the output of 'snap services' command
 
+prepare: |
+    snap set system experimental.user-daemons=true
+    snap set system experimental.dbus-activation=true
+
 restore: |
     rm -f ./*.out
+    snap unset system experimental.dbus-activation
+    snap unset system experimental.user-daemons
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
@@ -17,3 +23,11 @@ execute: |
 
     snap services test-snapd-service > test-snapd-service.out
     MATCH '^test-snapd-service.test-snapd-service\s+ enabled\s+ active\s+ -$' < test-snapd-service.out
+
+    if tests.session has-system-systemd-and-dbus; then
+        # Only run this part of the test on systems supporting systemd
+        # activation on the D-Bus system bus
+        snap install --edge test-snapd-dbus-service
+        snap services test-snapd-dbus-service > dbus-service.out
+        MATCH '^test-snapd-dbus-service.system\s+ disabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
+    fi

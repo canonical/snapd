@@ -452,6 +452,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
@@ -506,6 +509,9 @@ defaults:
 	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
@@ -550,6 +556,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
@@ -2315,6 +2324,9 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 	for _, p := range mockUnrelatedFiles {
 		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
@@ -3478,6 +3490,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
@@ -3675,6 +3690,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataS
 	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
@@ -4022,6 +4040,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
@@ -4216,6 +4237,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	modeEnv := filepath.Join(boot.InitramfsRunMntDir, "data/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
@@ -4387,6 +4411,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 
 	checkDegradedJSON(c, map[string]interface{}{
@@ -4670,6 +4697,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		modeEnv := filepath.Join(boot.InitramfsDataDir, "/system-data/var/lib/snapd/modeenv")
 		c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
 `)
 	}
 
