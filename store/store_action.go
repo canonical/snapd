@@ -331,7 +331,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve)+len(toResolveSeq))
+	// do not include toResolveSeq len in the initial size since it may have
+	// group keys overlapping with toResolve; the loop over toResolveSeq simply
+	// appends to actionJSONs.
+	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve))
 	var actionIndex int
 
 	// snaps
@@ -404,6 +407,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		actionIndex++
 	}
 
+	groupingsAssertions := make(map[string]*snapActionJSON)
+
 	// assertions
 	var assertMaxFormats map[string]int
 	if len(toResolve) > 0 {
@@ -413,6 +418,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				Key:    string(grp),
 			}
 			aJSON.Assertions = make([]interface{}, len(ats))
+			groupingsAssertions[aJSON.Key] = aJSON
+
 			for j, at := range ats {
 				aj := &assertAtJSON{
 					Type:       at.Type.Name,
@@ -431,12 +438,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	if len(toResolveSeq) > 0 {
 		for grp, ats := range toResolveSeq {
-			aJSON := &snapActionJSON{
-				Action: "fetch-assertions",
-				Key:    string(grp),
+			key := string(grp)
+			// append to existing grouping if applicable
+			aJSON := groupingsAssertions[key]
+			existingGroup := aJSON != nil
+			if !existingGroup {
+				aJSON = &snapActionJSON{
+					Action: "fetch-assertions",
+					Key:    key,
+				}
+				aJSON.Assertions = make([]interface{}, 0, len(ats))
 			}
-			aJSON.Assertions = make([]interface{}, len(ats))
-			for j, at := range ats {
+			for _, at := range ats {
 				aj := assertSeqAtJSON{
 					Type:        at.Type.Name,
 					SequenceKey: at.SequenceKey,
@@ -462,10 +475,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				if rev != asserts.RevisionNotKnown {
 					aj.IfNewerThan = &rev
 				}
-				aJSON.Assertions[j] = aj
+				aJSON.Assertions = append(aJSON.Assertions, aj)
 			}
-			actionJSONs[actionIndex] = aJSON
-			actionIndex++
+			if !existingGroup {
+				actionJSONs = append(actionJSONs, aJSON)
+			}
 		}
 	}
 

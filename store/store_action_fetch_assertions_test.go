@@ -694,3 +694,168 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 	}
 	c.Check(seen, Equals, 2)
 }
+
+func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupings(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+
+			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 2)
+
+		expectedAction1 := map[string]interface{}{
+			"action": "fetch-assertions",
+			"key":    "g1",
+			"assertions": []interface{}{
+				map[string]interface{}{
+					"type": "snap-declaration",
+					"primary-key": []interface{}{
+						"16",
+						"iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+					},
+					"if-newer-than": float64(0),
+				},
+				map[string]interface{}{
+					"type": "validation-set",
+					"sequence-key": []interface{}{
+						"16",
+						"account-1/name-1",
+					},
+					"sequence": float64(3),
+				},
+				map[string]interface{}{
+					"type": "validation-set",
+					"sequence-key": []interface{}{
+						"16",
+						"account-1/name-2",
+					},
+					"if-sequence-equal-or-newer-than": float64(5),
+					"if-newer-than":                   float64(10),
+				},
+			},
+		}
+		expectedAction2 := map[string]interface{}{
+			"action": "fetch-assertions",
+			"key":    "g2",
+			"assertions": []interface{}{
+				map[string]interface{}{
+					"type": "snap-declaration",
+					"primary-key": []interface{}{
+						"16",
+						"CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
+					},
+					"if-newer-than": float64(1),
+				},
+				map[string]interface{}{
+					"type": "validation-set",
+					"sequence-key": []interface{}{
+						"16",
+						"account-2/name",
+					},
+				},
+			},
+		}
+
+		expectedActions := []map[string]interface{}{expectedAction1, expectedAction2}
+		if req.Actions[0]["key"] != "g1" {
+			expectedActions = []map[string]interface{}{expectedAction2, expectedAction1}
+		}
+		c.Assert(req.Actions, DeepEquals, expectedActions)
+		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
+
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "fetch-assertions", "key": "g1", "assertion-stream-urls": []
+     }, {
+     "result": "fetch-assertions", "key": "g2", "assertion-stream-urls": []
+     }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	assertq := &testAssertQuery{
+		toResolve: map[asserts.Grouping][]*asserts.AtRevision{
+			asserts.Grouping("g1"): {{
+				Ref: asserts.Ref{
+					Type: asserts.SnapDeclarationType,
+					PrimaryKey: []string{
+						"16",
+						"iEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5",
+					},
+				},
+				Revision: 0,
+			}},
+			asserts.Grouping("g2"): {{
+				Ref: asserts.Ref{
+					Type: asserts.SnapDeclarationType,
+					PrimaryKey: []string{
+						"16",
+						"CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
+					},
+				},
+				Revision: 1,
+			}},
+		},
+		toResolveSeq: map[asserts.Grouping][]*asserts.AtSequence{
+			asserts.Grouping("g1"): {
+				&asserts.AtSequence{
+					Type: asserts.ValidationSetType,
+					SequenceKey: []string{
+						"16",
+						"account-1/name-1",
+					},
+					Sequence: 3,
+					Pinned:   true,
+					Revision: asserts.RevisionNotKnown,
+				},
+				&asserts.AtSequence{
+					Type: asserts.ValidationSetType,
+					SequenceKey: []string{
+						"16",
+						"account-1/name-2",
+					},
+					Sequence: 5,
+					Revision: 10,
+				},
+			},
+			asserts.Grouping("g2"): {
+				&asserts.AtSequence{
+					Type: asserts.ValidationSetType,
+					SequenceKey: []string{
+						"16",
+						"account-2/name",
+					},
+					Revision: asserts.RevisionNotKnown,
+				},
+			},
+		},
+	}
+
+	_, _, err := sto.SnapAction(s.ctx, nil, nil, assertq, nil, nil)
+	c.Assert(err, IsNil)
+}
