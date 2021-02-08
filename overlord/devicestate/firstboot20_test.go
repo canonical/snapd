@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -80,6 +81,9 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 
 	// mock the snap mapper as snapd here
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
+
+	r := release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	s.AddCleanup(r)
 }
 
 func (s *firstBoot20Suite) snapYaml(snp string) string {
