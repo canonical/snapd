@@ -219,6 +219,28 @@ func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (head
 	return headers, nil
 }
 
+// HeadersFromSequenceKey constructs a headers mapping from the
+// sequenceKey values and the sequence forming assertion type,
+// it errors if sequenceKey has the wrong length; the length must be
+// one less than the primary key of the given assertion type.
+func HeadersFromSequenceKey(assertType *AssertionType, sequenceKey []string) (headers map[string]string, err error) {
+	if !assertType.SequenceForming() {
+		return nil, fmt.Errorf("internal error: HeadersFromSequenceKey should only be used for sequence forming assertion types, got: %s", assertType.Name)
+	}
+	if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
+		return nil, fmt.Errorf("sequence key has wrong length for %q assertion", assertType.Name)
+	}
+	headers = make(map[string]string, len(sequenceKey))
+	for i, val := range sequenceKey {
+		key := assertType.PrimaryKey[i]
+		if val == "" {
+			return nil, fmt.Errorf("sequence key %q header cannot be empty", key)
+		}
+		headers[key] = val
+	}
+	return headers, nil
+}
+
 // PrimaryKeyFromHeaders extracts the tuple of values from headers
 // corresponding to a primary key under the assertion type, it errors
 // if there are missing primary key headers.
@@ -291,6 +313,72 @@ func (at *AtRevision) String() string {
 		return s
 	}
 	return fmt.Sprintf("%s at revision %d", s, at.Revision)
+}
+
+// AtSequence references a sequence forming assertion at a given sequence point,
+// possibly <=0 (meaning not specified) and revision, possibly not known
+// (RevisionNotKnown).
+// Setting Pinned = true means pinning at the given sequence point (which must be
+// set, i.e. > 0). Pinned sequence forming assertion will be updated to the
+// latest revision at the specified sequence point.
+type AtSequence struct {
+	Type        *AssertionType
+	SequenceKey []string
+	Sequence    int
+	Pinned      bool
+	Revision    int
+}
+
+// Unique returns a unique string representing the sequence by its sequence key
+// that can be used as a key in maps.
+func (at *AtSequence) Unique() string {
+	return fmt.Sprintf("%s/%s", at.Type.Name, strings.Join(at.SequenceKey, "/"))
+}
+
+func (at *AtSequence) String() string {
+	var pkStr string
+	if len(at.SequenceKey) != len(at.Type.PrimaryKey)-1 {
+		pkStr = "???"
+	} else {
+		n := 0
+		// omit series if present in the primary key
+		if at.Type.PrimaryKey[0] == "series" {
+			n++
+		}
+		pkStr = strings.Join(at.SequenceKey[n:], "/")
+		if at.Sequence > 0 {
+			sep := "/"
+			if at.Pinned {
+				sep = "="
+			}
+			pkStr = fmt.Sprintf("%s%s%d", pkStr, sep, at.Sequence)
+		}
+	}
+	sk := fmt.Sprintf("%s %s", at.Type.Name, pkStr)
+	if at.Revision == RevisionNotKnown {
+		return sk
+	}
+	return fmt.Sprintf("%s at revision %d", sk, at.Revision)
+}
+
+// Resolve resolves the sequence with known sequence number using the given find function.
+func (at *AtSequence) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
+	if at.Sequence <= 0 {
+		hdrs, err := HeadersFromSequenceKey(at.Type, at.SequenceKey)
+		if err != nil {
+			return nil, fmt.Errorf("%q assertion reference sequence key %v is invalid: %v", at.Type.Name, at.SequenceKey, err)
+		}
+		return nil, &NotFoundError{
+			Type:    at.Type,
+			Headers: hdrs,
+		}
+	}
+	pkey := append(at.SequenceKey, fmt.Sprintf("%d", at.Sequence))
+	headers, err := HeadersFromPrimaryKey(at.Type, pkey)
+	if err != nil {
+		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", at.Type.Name, at.Type.PrimaryKey, pkey)
+	}
+	return find(at.Type, headers)
 }
 
 // Assertion represents an assertion through its general elements.

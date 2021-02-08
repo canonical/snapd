@@ -2021,7 +2021,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C)
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
@@ -2037,7 +2037,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, coreMod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", coreMod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
@@ -2054,7 +2054,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) 
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, nil)
+	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
@@ -2066,7 +2066,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data

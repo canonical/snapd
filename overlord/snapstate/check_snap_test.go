@@ -134,6 +134,9 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.16",
 }, {
+	assumes: "[snapd2.15.1]",
+	version: "2.15.1",
+}, {
 	assumes: "[snapd2.15.2]",
 	version: "2.16.1",
 }, {

@@ -2305,6 +2305,27 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	c.Assert(err, ErrorMatches, "cannot calculate the digest of existing trusted asset: .*/asset: permission denied")
 }
 
+func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	m := &boot.Modeenv{
+		Mode: "recover",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"hash-1", "hash-2"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"hash-3", "hash-4"},
+		},
+	}
+
+	// if we were in run mode, this would error out because the assets don't
+	// exist, but we are not in run mode
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, DeepEquals, m)
+	c.Assert(drop, IsNil)
+}
+
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
 	newRoot := c.MkDir()
 	// does not fail when dir does not exist
