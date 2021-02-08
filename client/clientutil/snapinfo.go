@@ -139,6 +139,7 @@ func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecora
 		}
 
 		appInfo.Daemon = app.Daemon
+		appInfo.DaemonScope = app.DaemonScope
 		if !app.IsService() || decorator == nil || !app.Snap.IsActive() {
 			out = append(out, appInfo)
 			continue
