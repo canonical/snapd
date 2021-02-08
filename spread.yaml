@@ -236,6 +236,9 @@ backends:
             - ubuntu-20.10-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-21.04-64:
+                  username: ubuntu
+                  password: ubuntu
             - debian-sid-64:
                   username: debian
                   password: debian
