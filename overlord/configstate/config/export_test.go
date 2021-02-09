@@ -28,3 +28,5 @@ var PurgeNulls = purgeNulls
 func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
 	return t.pristine
 }
+
+var SortPatchKeysByDepth = sortPatchKeysByDepth

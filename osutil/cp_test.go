@@ -17,7 +17,7 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"errors"
@@ -31,10 +31,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type cpSuite struct {
+	testutil.BaseTest
+
 	dir  string
 	f1   string
 	f2   string
@@ -46,11 +49,11 @@ type cpSuite struct {
 
 var _ = Suite(&cpSuite{})
 
-func (s *cpSuite) mockCopyFile(fin, fout fileish, fi os.FileInfo) error {
+func (s *cpSuite) mockCopyFile(fin, fout osutil.Fileish, fi os.FileInfo) error {
 	return s.µ("copyfile")
 }
 
-func (s *cpSuite) mockOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
+func (s *cpSuite) mockOpenFile(name string, flag int, perm os.FileMode) (osutil.Fileish, error) {
 	return &mockfile{s}, s.µ("open")
 }
 
@@ -77,46 +80,41 @@ func (s *cpSuite) SetUpTest(c *C) {
 }
 
 func (s *cpSuite) mock() {
-	copyfile = s.mockCopyFile
-	openfile = s.mockOpenFile
-}
-
-func (s *cpSuite) TearDownTest(c *C) {
-	copyfile = doCopyFile
-	openfile = doOpenFile
+	s.AddCleanup(osutil.MockCopyFile(s.mockCopyFile))
+	s.AddCleanup(osutil.MockOpenFile(s.mockOpenFile))
 }
 
 func (s *cpSuite) TestCp(c *C) {
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagDefault), IsNil)
 	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpNoOverwrite(c *C) {
 	_, err := os.Create(s.f2)
 	c.Assert(err, IsNil)
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), NotNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagDefault), NotNil)
 }
 
 func (s *cpSuite) TestCpOverwrite(c *C) {
 	_, err := os.Create(s.f2)
 	c.Assert(err, IsNil)
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagOverwrite), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagOverwrite), IsNil)
 	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpOverwriteTruncates(c *C) {
 	c.Assert(ioutil.WriteFile(s.f2, []byte("xxxxxxxxxxxxxxxx"), 0644), IsNil)
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagOverwrite), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagOverwrite), IsNil)
 	c.Check(s.f2, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestCpSync(c *C) {
 	s.mock()
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagDefault), IsNil)
 	c.Check(strings.Join(s.log, ":"), Not(Matches), `.*:sync(:.*)?`)
 
 	s.log = nil
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), IsNil)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), IsNil)
 	c.Check(strings.Join(s.log, ":"), Matches, `(.*:)?sync(:.*)?`)
 }
 
@@ -124,49 +122,49 @@ func (s *cpSuite) TestCpCantOpen(c *C) {
 	s.mock()
 	s.errs = []error{errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to open \S+/f1: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `unable to open \S+/f1: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantStat(c *C) {
 	s.mock()
 	s.errs = []error{nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to stat \S+/f1: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `unable to stat \S+/f1: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantCreate(c *C) {
 	s.mock()
 	s.errs = []error{nil, nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to create \S+/f2: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `unable to create \S+/f2: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantCopy(c *C) {
 	s.mock()
 	s.errs = []error{nil, nil, nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to copy \S+/f1 to \S+/f2: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `unable to copy \S+/f1 to \S+/f2: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantSync(c *C) {
 	s.mock()
 	s.errs = []error{nil, nil, nil, nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to sync \S+/f2: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `unable to sync \S+/f2: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantStop2(c *C) {
 	s.mock()
 	s.errs = []error{nil, nil, nil, nil, nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `when closing \S+/f2: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `when closing \S+/f2: xyzzy`)
 }
 
 func (s *cpSuite) TestCpCantStop1(c *C) {
 	s.mock()
 	s.errs = []error{nil, nil, nil, nil, nil, nil, errors.New("xyzzy"), nil}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `when closing \S+/f1: xyzzy`)
+	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagSync), ErrorMatches, `when closing \S+/f1: xyzzy`)
 }
 
 type mockfile struct {
@@ -201,7 +199,7 @@ func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
 	dir := c.MkDir()
 	dst := filepath.Join(dir, "copied-fifo")
 
-	err = CopySpecialFile(src, dst)
+	err = osutil.CopySpecialFile(src, dst)
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(dst)
@@ -211,7 +209,7 @@ func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
 }
 
 func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
-	err := CopySpecialFile("no-such-file", "no-such-target")
+	err := osutil.CopySpecialFile("no-such-file", "no-such-target")
 	c.Assert(err, ErrorMatches, "failed to copy device node:.*cp:.*stat.*no-such-file.*")
 }
 
@@ -232,7 +230,7 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	err = exec.Command("touch", src, "-d", "2007-08-23 08:21:42").Run()
 	c.Assert(err, IsNil)
 
-	err = CopyFile(src, dst, CopyFlagPreserveAll)
+	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll)
 	c.Assert(err, IsNil)
 
 	// ensure that the mtime got preserved
@@ -254,7 +252,7 @@ func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
 	err := ioutil.WriteFile(src, []byte(nil), 0644)
 	c.Assert(err, IsNil)
 
-	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 	c.Assert(err, IsNil)
 
 	c.Check(mocked.Calls(), DeepEquals, [][]string{
@@ -274,7 +272,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncCpFailure(c *C) {
 	err := ioutil.WriteFile(src, []byte(nil), 0644)
 	c.Assert(err, IsNil)
 
-	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 	c.Assert(err, ErrorMatches, `failed to copy all: "OUCH: cp failed." \(42\)`)
 	c.Check(mocked.Calls(), DeepEquals, [][]string{
 		{"cp", "-av", src, dst},
@@ -292,7 +290,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 	err := ioutil.WriteFile(src, []byte(nil), 0644)
 	c.Assert(err, IsNil)
 
-	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 	c.Assert(err, ErrorMatches, `failed to sync: "OUCH: sync failed." \(42\)`)
 
 	c.Check(mocked.Calls(), DeepEquals, [][]string{
@@ -302,7 +300,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopySimple(c *C) {
-	err := AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 
@@ -312,7 +310,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyOverwrites(c *C) {
 	err := ioutil.WriteFile(s.f2, []byte("this is f2 content"), 0644)
 	c.Assert(err, IsNil)
 
-	err = AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 }
@@ -327,31 +325,31 @@ func (s *cpSuite) TestAtomicWriteFileCopySymlinks(c *C) {
 	c.Assert(err, IsNil)
 
 	// follows symlink, dst is f2
-	err = AtomicWriteFileCopy(f2Symlink, s.f1, AtomicWriteFollow)
+	err = osutil.AtomicWriteFileCopy(f2Symlink, s.f1, osutil.AtomicWriteFollow)
 	c.Assert(err, IsNil)
-	c.Check(IsSymlink(f2Symlink), Equals, true, Commentf("%q is not a symlink", f2Symlink))
+	c.Check(osutil.IsSymlink(f2Symlink), Equals, true, Commentf("%q is not a symlink", f2Symlink))
 	c.Check(s.f2, testutil.FileEquals, s.data)
 	c.Check(f2SymlinkNoFollow, testutil.FileEquals, s.data)
 
 	// when not following, copy overwrites the symlink
-	err = AtomicWriteFileCopy(f2SymlinkNoFollow, s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(f2SymlinkNoFollow, s.f1, 0)
 	c.Assert(err, IsNil)
-	c.Check(IsSymlink(f2SymlinkNoFollow), Equals, false, Commentf("%q is not a file", f2SymlinkNoFollow))
+	c.Check(osutil.IsSymlink(f2SymlinkNoFollow), Equals, false, Commentf("%q is not a file", f2SymlinkNoFollow))
 	c.Check(f2SymlinkNoFollow, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopyErrReal(c *C) {
-	err := AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"), 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"), 0)
 	c.Assert(err, ErrorMatches, "unable to open source file .*/random-file: open .* no such file or directory")
 
 	dir := c.MkDir()
 
-	err = AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/random-dir/f3\.[a-zA-Z0-9]+~: no such file or directory`)
 
 	err = os.MkdirAll(filepath.Join(dir, "read-only"), 0000)
 	c.Assert(err, IsNil)
-	err = AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/read-only/f3\.[a-zA-Z0-9]+~: permission denied`)
 }
 
@@ -363,7 +361,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyErrMockedCopy(c *C) {
 		errors.New("copy fail"),
 	}
 
-	err := AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, ErrorMatches, `unable to copy .*/f1 to .*/f2\.[a-zA-Z0-9]+~: copy fail`)
 	entries, err := filepath.Glob(filepath.Join(s.dir, "*"))
 	c.Assert(err, IsNil)

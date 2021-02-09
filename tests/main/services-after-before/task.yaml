@@ -45,3 +45,22 @@ execute: |
     snap restart test-snapd-after-before-service
 
     check_order
+
+    echo "Restarting a single service works even when there are before/after directives for the single service"
+    snap restart test-snapd-after-before-service.before-middle
+    snap restart test-snapd-after-before-service.middle
+    snap restart test-snapd-after-before-service.after-middle
+
+    check_order
+
+    echo "Restarting a subset of services that have before/after works and orders them properly"
+    snap restart test-snapd-after-before-service.before-middle test-snapd-after-before-service.middle
+    # this one is just to keep the check_order helper simple
+    snap restart test-snapd-after-before-service.after-middle
+
+    check_order
+
+    echo "Restarting all of services that have before/after works and orders them properly"
+    snap restart test-snapd-after-before-service.after-middle test-snapd-after-before-service.before-middle test-snapd-after-before-service.middle
+
+    check_order
