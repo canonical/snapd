@@ -25,8 +25,10 @@ execute: |
     snap services test-snapd-service > test-snapd-service.out
     MATCH '^test-snapd-service.test-snapd-service\s+ enabled\s+ active\s+ -$' < test-snapd-service.out
 
-    snap services test-snapd-user-service > test-snapd-user-service.out
-    MATCH '^test-snapd-user-service.test-snapd-user-service\s+ enabled\s+ inactive\s+ -$' < test-snapd-user-service.out
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        snap services test-snapd-user-service > test-snapd-user-service.out
+        MATCH '^test-snapd-user-service.test-snapd-user-service\s+ enabled\s+ inactive\s+ -$' < test-snapd-user-service.out
+    fi
 
     if tests.session has-system-systemd-and-dbus; then
         # Only run this part of the test on systems supporting systemd
