@@ -1133,6 +1133,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	// An error is returned if the wrong number of statuses are returned
 	sts, err = sysd.Status("one")
 	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
+	c.Check(sts, IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
 }
 
