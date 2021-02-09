@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -59,6 +60,10 @@ var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
 )
+
+// EarlyConfig is a hook set by configstate that can process early configuration
+// during managers' startup.
+var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)) error
 
 // DeviceManager is responsible for managing the device identity and device
 // policies.
@@ -177,7 +182,12 @@ func (m *DeviceManager) StartUp() error {
 		}
 	}
 
-	return nil
+	// TODO: setup proper timings measurements for this
+
+	m.state.Lock()
+	defer m.state.Unlock()
+	// XXX preloadGadget
+	return EarlyConfig(m.state, nil)
 }
 
 func (m *DeviceManager) maybeSetupUbuntuSave() error {

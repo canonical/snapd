@@ -20,7 +20,6 @@
 package configstate
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -30,7 +29,6 @@ import (
 )
 
 var configcoreRun = configcore.Run
-var configcoreExportExperimentalFlags = configcore.ExportExperimentalFlags
 
 func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
@@ -40,15 +38,9 @@ func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	}
 }
 
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error) (restore func()) {
-	old := configcoreExportExperimentalFlags
-	configcoreExportExperimentalFlags = mock
-	return func() {
-		configcoreExportExperimentalFlags = old
-	}
-}
-
 func Init(st *state.State, hookManager *hookstate.HookManager) error {
+	delayedCrossMgrInit()
+
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
@@ -62,11 +54,5 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 		return configcoreRun(tr)
 	})
 
-	st.Lock()
-	defer st.Unlock()
-	tr := config.NewTransaction(st)
-	if err := configcoreExportExperimentalFlags(tr); err != nil {
-		return fmt.Errorf("cannot export experimental config flags: %v", err)
-	}
 	return nil
 }
