@@ -192,13 +192,14 @@ UnitFileState=enabled
 	c.Assert(apps, check.HasLen, 6)
 
 	for _, name := range svcNames {
-		snap, app := daemon.SplitAppName(name)
+		snapName, app := daemon.SplitAppName(name)
 		needle := client.AppInfo{
-			Snap:   snap,
-			Name:   app,
-			Daemon: "simple",
+			Snap:        snapName,
+			Name:        app,
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
-		if snap != "snap-b" {
+		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
 			needle.Active = true
 			needle.Enabled = true
@@ -270,13 +271,14 @@ UnitFileState=enabled
 	c.Assert(svcs, check.HasLen, 3)
 
 	for _, name := range svcNames {
-		snap, app := daemon.SplitAppName(name)
+		snapName, app := daemon.SplitAppName(name)
 		needle := client.AppInfo{
-			Snap:   snap,
-			Name:   app,
-			Daemon: "simple",
+			Snap:        snapName,
+			Name:        app,
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
-		if snap != "snap-b" {
+		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
 			needle.Active = true
 			needle.Enabled = true
