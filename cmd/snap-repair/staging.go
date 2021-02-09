@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -77,12 +76,6 @@ func init() {
 		panic(fmt.Sprintf("cannot decode trusted account-key: %v", err))
 	}
 	if snapdenv.UseStagingStore() {
-		trustedRepairRootKeys = append(trustedRepairRootKeys, repairRootAccountKey.(*asserts.AccountKey), systestkeys.TestStoreAccountKey.(*asserts.AccountKey))
-
+		trustedRepairRootKeys = append(trustedRepairRootKeys, repairRootAccountKey.(*asserts.AccountKey))
 	}
-
-	trustedRepairRootKeys = append(trustedRepairRootKeys, systestkeys.TestStoreAccountKey.(*asserts.AccountKey))
-
-	// also check for repair assertions signed by the testrootorg
-	rootBrandIDs = append(rootBrandIDs, "testrootorg")
 }
