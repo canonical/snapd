@@ -33,6 +33,7 @@ import (
 )
 
 const storeGroup = "store assertion"
+const validationSetsGroup = "validation set assertions"
 
 // maxGroups is the maximum number of assertion groups we set with the
 // asserts.Pool used to refresh snap assertions, it corresponds
@@ -137,6 +138,62 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	}
 
 	return nil
+}
+
+func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, userID int, deviceCtx snapstate.DeviceContext) error {
+	db := cachedDB(s)
+	pool := asserts.NewPool(db, maxGroups)
+
+	ignoreNotFound := make(map[string]bool)
+
+	for _, vs := range vsets {
+		var atSeq *asserts.AtSequence
+		if vs.PinnedAt > 0 {
+			// pinned to specific sequence, update to latest revision for same
+			// sequence.
+			atSeq = &asserts.AtSequence{
+				Type:        asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, vs.AccountID, vs.Name},
+				Sequence:    vs.PinnedAt,
+				Pinned:      true,
+			}
+		} else {
+			// not pinned, update to latest sequence
+			atSeq = &asserts.AtSequence{
+				Type:        asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, vs.AccountID, vs.Name},
+				Sequence:    vs.Current,
+			}
+		}
+		// every sequence to resolve has own group
+		grouping := atSeq.Unique()
+		if vs.LocalOnly {
+			ignoreNotFound[grouping] = true
+		}
+		if err := pool.AddSequenceToUpdate(atSeq, grouping); err != nil {
+			return err
+		}
+	}
+
+	err := resolvePool(s, pool, userID, deviceCtx)
+	if err == nil {
+		return nil
+	}
+
+	if rerr, ok := err.(*resolvePoolError); ok {
+		// ignore resolving errors for validation sets that are local only (no
+		// assertion in the store).
+		for grouping := range ignoreNotFound {
+			if e := rerr.errors[grouping]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
+				delete(rerr.errors, grouping)
+			}
+		}
+		if len(rerr.errors) == 0 {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("cannot refresh validation set assertions: %v", err)
 }
 
 // marker error to request falling back to the old implemention for assertion
