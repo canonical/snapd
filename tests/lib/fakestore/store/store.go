@@ -28,6 +28,8 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -284,14 +286,33 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// handle If-None-Match caching
+	revNumString := req.Header.Get("If-None-Match")
+	if revNumString != "" {
+		revRegexp := regexp.MustCompile(`^"[0-9]+"$`)
+		match := revRegexp.FindStringSubmatch(revNumString)
+		if match == nil || len(match) != 0 {
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
+			return
+		}
+		revNum, err := strconv.Atoi(match[0])
+		if err != nil {
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
+			return
+		}
+
+		if revNum == a.Revision() {
+			// if the If-None-Match header is the assertion revision verbatim
+			// then return 304 (Not Modified) and stop
+			w.WriteHeader(304)
+			return
+		}
+	}
+
 	// there are two cases, one where we are asked for the full assertion, and
 	// one where we are asked for JSON headers of the assertion, so check which
 	// one we were asked for by inspecting the Accept header
-
-	// TODO: what about the If-None-Match header?
-
-	accept := req.Header.Get("Accept")
-	switch accept {
+	switch accept := req.Header.Get("Accept"); accept {
 	case "application/json":
 		// headers only
 		headers := a.Headers()
@@ -313,6 +334,8 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", asserts.MediaType)
 		w.WriteHeader(200)
 		w.Write(asserts.Encode(a))
+	default:
+		http.Error(w, fmt.Sprintf("unsupported Accept format (%q): only application/json and application/x.ubuntu.assertion is support", accept), 400)
 	}
 }
 
