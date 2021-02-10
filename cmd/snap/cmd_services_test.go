@@ -182,19 +182,39 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 			enc.Encode(map[string]interface{}{
 				"type": "sync",
 				"result": []map[string]interface{}{
-					{"snap": "foo", "name": "bar", "daemon": "oneshot",
-						"active": false, "enabled": true,
+					{
+						"snap":         "foo",
+						"name":         "bar",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
 						"activators": []map[string]interface{}{
 							{"name": "bar", "type": "timer", "active": true, "enabled": true},
 						},
-					}, {"snap": "foo", "name": "baz", "daemon": "oneshot",
-						"active": false, "enabled": true,
+					}, {
+						"snap":         "foo",
+						"name":         "baz",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
 						"activators": []map[string]interface{}{
 							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
 							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
 						},
-					}, {"snap": "foo", "name": "zed",
-						"active": true, "enabled": true,
+					}, {
+						"snap":         "foo",
+						"name":         "qux",
+						"daemon":       "simple",
+						"daemon-scope": "user",
+						"active":       false,
+						"enabled":      true,
+					}, {
+						"snap":    "foo",
+						"name":    "zed",
+						"active":  true,
+						"enabled": true,
 					},
 				},
 				"status":      "OK",
@@ -210,10 +230,11 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
-foo.bar  enabled  inactive  timer-activated
-foo.baz  enabled  inactive  socket-activated
-foo.zed  enabled  active    -
+	c.Check(s.Stdout(), check.Equals, `Service  Scope   Startup  Current   Notes
+foo.bar  system  enabled  inactive  timer-activated
+foo.baz  system  enabled  inactive  socket-activated
+foo.qux  user    enabled  inactive  -
+foo.zed  system  enabled  active    -
 `)
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
