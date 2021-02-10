@@ -65,7 +65,10 @@ func init() {
 type cmdInitramfsMounts struct{}
 
 func (c *cmdInitramfsMounts) Execute(args []string) error {
-	return generateInitramfsMounts()
+	if err := generateInitramfsMounts(); err != nil {
+		return err
+	}
+	return maybeHandleTryRecovery()
 }
 
 var (
@@ -1408,5 +1411,52 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), nil)
 	}
 
+	return nil
+}
+
+func maybeHandleTryRecovery() (err error) {
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return err
+	}
+
+	if mode != "recover" {
+		return nil
+	}
+
+	isTryRecovery, err := boot.MaybeMarkTryRecoverySystemSuccessful(recoverySystem, func() error {
+		// check that writable is accessible by checking whether the
+		// state file exists
+		if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir)) {
+			return fmt.Errorf("host state file is not accessible")
+		}
+		return nil
+	})
+	if !isTryRecovery {
+		if err != nil {
+			// we don't care much if it is impossible to tell if the
+			// try system is set or it does not much the current
+			// system, but regardless, log for posterity
+			logger.Noticef("cannot determine the state of a try recovery system: %v", err)
+		}
+		return nil
+	}
+	// from this point on, we must finish with a system reboot
+	defer func() {
+		if rebootErr := boot.InitramfsReboot(); rebootErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%v (cannot reboot to run system: %v)", err, rebootErr)
+			} else {
+				err = fmt.Errorf("cannot reboot to run system: %v", rebootErr)
+			}
+		}
+	}()
+	// that's it, we've tried booting a new recovery system to this point,
+	// whether things are looking good or bad we will reboot back to run
+	// mode
+	if err != nil {
+		logger.Noticef("cannot update the try recovery system state: %v", err)
+		return fmt.Errorf("cannot mark recovery system %q successful: %v", recoverySystem, err)
+	}
 	return nil
 }

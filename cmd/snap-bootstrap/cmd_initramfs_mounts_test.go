@@ -4726,3 +4726,288 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeMeasure(c *C) {
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "recover")
 }
+
+func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C) error {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover  snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsHostUbuntuDataDir,
+			nil,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			boot.InitramfsUbuntuSaveDir,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	return err
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappy(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    s.sysLabel,
+	}
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
+	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c)
+	c.Assert(err, IsNil)
+
+	// modeenv is unmodif
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=recover
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	c.Check(bl.BootVars, DeepEquals, map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    s.sysLabel,
+		"snapd_recovery_mode":    "run",
+		"snapd_recovery_system":  s.sysLabel,
+	})
+	c.Check(rebootCalls, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		// a different system is expected to be tried
+		"try_recovery_system": "1234",
+	}
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
+	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c)
+	c.Assert(err, IsNil)
+
+	// modeenv is unmodif
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=recover
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	c.Check(bl.BootVars, DeepEquals, map[string]string{
+		// variables not modified since they were set up for a different
+		// system
+		"recovery_system_status": "try",
+		"try_recovery_system":    "1234",
+		// system is set up to go into run more if rebooted
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": s.sysLabel,
+	})
+	// no reboot requests
+	c.Check(rebootCalls, Equals, 0)
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expectedErr string) {
+	// unlocking data and save failed, thus we consider this candidate
+	// recovery system unusable
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    s.sysLabel,
+	}
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		// no ubuntu-data mountpoint is mocked, but there is an
+		// ubuntu-data-enc partition in the disk we find
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultEncBootDisk,
+			{
+				Mountpoint:        boot.InitramfsUbuntuSaveDir,
+				IsDecryptedDevice: true,
+			}: defaultEncBootDisk,
+		},
+	)
+	defer restore()
+	unlockVolumeWithSealedKeyCalls := 0
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		unlockVolumeWithSealedKeyCalls++
+		switch unlockVolumeWithSealedKeyCalls {
+
+		case 1:
+			// ubuntu data can't be unlocked with run key
+			c.Assert(name, Equals, "ubuntu-data")
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
+
+		case 2:
+			// nor can it be unlocked with fallback key
+			c.Assert(name, Equals, "ubuntu-data")
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with fallback object")
+
+		case 3:
+			// we also fail to unlock save
+
+			// no attempts to activate ubuntu-save yet
+			c.Assert(name, Equals, "ubuntu-save")
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+			return foundEncrypted("ubuntu-save"), fmt.Errorf("failed to unlock ubuntu-save with fallback object")
+
+		default:
+			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
+			return secboot.UnlockResult{}, fmt.Errorf("broken test")
+		}
+	})
+	defer restore()
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		// nothing can call this function in the tested scenario
+		c.Fatalf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error { return nil })
+	defer restore()
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			boot.InitramfsUbuntuBootDir,
+			needsFsckDiskMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	restore = main.MockSecbootLockSealedKeys(func() error {
+		return nil
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, expectedErr)
+
+	modeEnv := filepath.Join(boot.InitramfsRunMntDir, "data/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=recover
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	// a degraded file was written out
+	c.Check(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FilePresent)
+
+	c.Check(bl.BootVars, DeepEquals, map[string]string{
+		// variables not modified since the system is unsuccessful
+		"recovery_system_status": "try",
+		"try_recovery_system":    s.sysLabel,
+		// system is set up to go into run more if rebooted
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": s.sysLabel,
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegraded(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	expectedErr := fmt.Sprintf(`cannot mark recovery system %q successful: system health check failed: host state file is not accessible`,
+		s.sysLabel)
+	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr)
+
+	// reboot was requested
+	c.Check(rebootCalls, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedRebootFails(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return fmt.Errorf("reboot fails")
+	})
+	defer restore()
+
+	expectedErr := fmt.Sprintf(`cannot mark recovery system %q successful: system health check failed: host state file is not accessible \(cannot reboot to run system: reboot fails\)`,
+		s.sysLabel)
+	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr)
+
+	// reboot was requested
+	c.Check(rebootCalls, Equals, 1)
+}
