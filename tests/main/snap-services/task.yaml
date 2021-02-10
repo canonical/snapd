@@ -13,7 +13,6 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     "$TESTSTOOLS"/snaps-state install-local socket-activation
     "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
 
     snap services test-snapd-timer-service > timer-service.out
     MATCH '^test-snapd-timer-service.random-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
@@ -26,6 +25,7 @@ execute: |
     MATCH '^test-snapd-service.test-snapd-service\s+ enabled\s+ active\s+ -$' < test-snapd-service.out
 
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
         snap services test-snapd-user-service > test-snapd-user-service.out
         MATCH '^test-snapd-user-service.test-snapd-user-service\s+ enabled\s+ inactive\s+ -$' < test-snapd-user-service.out
     fi
