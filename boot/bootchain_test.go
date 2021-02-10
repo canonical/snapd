@@ -1094,15 +1094,15 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 	}
 
 	// mock relevant files in cache
-	mockAssetsCache(c, s.rootDir, "recovery-bl", [][]string{
-		{"shim-hash0"},
-		{"shim-hash1"},
-		{"loader-recovery-hash0"},
-		{"loader-recovery-hash1"},
+	mockAssetsCache(c, s.rootDir, "recovery-bl", []string{
+		"shim-hash0",
+		"shim-hash1",
+		"loader-recovery-hash0",
+		"loader-recovery-hash1",
 	})
-	mockAssetsCache(c, s.rootDir, "run-bl", [][]string{
-		{"loader-run-hash0"},
-		{"loader-run-hash1"},
+	mockAssetsCache(c, s.rootDir, "run-bl", []string{
+		"loader-run-hash0",
+		"loader-run-hash1",
 	})
 
 	blNames := map[bootloader.Role]string{

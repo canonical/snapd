@@ -94,10 +94,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		mockAssetsCache(c, rootdir, "grub", [][]string{
-			{"bootx64.efi-shim-hash-1"},
-			{"grubx64.efi-grub-hash-1"},
-			{"grubx64.efi-run-grub-hash-1"},
+		mockAssetsCache(c, rootdir, "grub", []string{
+			"bootx64.efi-shim-hash-1",
+			"grubx64.efi-grub-hash-1",
+			"grubx64.efi-run-grub-hash-1",
 		})
 
 		// set encryption key
@@ -356,12 +356,12 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		mockAssetsCache(c, rootdir, "grub", [][]string{
-			{"bootx64.efi-shim-hash-1"},
-			{"bootx64.efi-shim-hash-2"},
-			{"grubx64.efi-grub-hash-1"},
-			{"grubx64.efi-run-grub-hash-1"},
-			{"grubx64.efi-run-grub-hash-2"},
+		mockAssetsCache(c, rootdir, "grub", []string{
+			"bootx64.efi-shim-hash-1",
+			"bootx64.efi-shim-hash-2",
+			"grubx64.efi-grub-hash-1",
+			"grubx64.efi-run-grub-hash-1",
+			"grubx64.efi-run-grub-hash-2",
 		})
 
 		model := boottest.MakeMockUC20Model()
@@ -618,8 +618,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	err = boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
 	c.Assert(err, IsNil)
 	// mock asset cache
-	mockAssetsCache(c, rootdir, "trusted", [][]string{
-		{"asset-asset-hash-1"},
+	mockAssetsCache(c, rootdir, "trusted", []string{
+		"asset-asset-hash-1",
 	})
 
 	// match one of current kernels
@@ -861,10 +861,10 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		bootloader.RoleRunMode:  "grub",
 	}
 	// mock asset cache
-	mockAssetsCache(c, rootdir, "grub", [][]string{
-		{"shim-shim-hash"},
-		{"loader-loader-hash1"},
-		{"loader-loader-hash2"},
+	mockAssetsCache(c, rootdir, "grub", []string{
+		"shim-shim-hash",
+		"loader-loader-hash1",
+		"loader-loader-hash2",
 	})
 
 	oldmodel := boottest.MakeMockUC20Model(map[string]interface{}{
