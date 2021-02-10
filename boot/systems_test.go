@@ -36,8 +36,16 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-type systemsSuite struct {
+type baseSystemsSuite struct {
 	baseBootenvSuite
+}
+
+func (s *baseSystemsSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+}
+
+type systemsSuite struct {
+	baseSystemsSuite
 
 	uc20dev boot.Device
 
@@ -68,7 +76,7 @@ func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf
 }
 
 func (s *systemsSuite) SetUpTest(c *C) {
-	s.baseBootenvSuite.SetUpTest(c)
+	s.baseSystemsSuite.SetUpTest(c)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
@@ -532,4 +540,115 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
+}
+
+type markRecoverySystemSuite struct {
+	baseSystemsSuite
+
+	bl *bootloadertest.MockBootloader
+}
+
+var _ = Suite(&markRecoverySystemSuite{})
+
+func (s *markRecoverySystemSuite) SetUpTest(c *C) {
+	s.baseSystemsSuite.SetUpTest(c)
+
+	s.bl = bootloadertest.Mock("bootloader", s.bootdir)
+	bootloader.Force(s.bl)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+}
+
+var uncalledCheck = func() error { return fmt.Errorf("unexpected call") }
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessHappyUnsetVars(c *C) {
+	isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", uncalledCheck)
+	c.Assert(err, IsNil)
+	c.Check(isTry, Equals, false)
+
+	s.bl.BootVars = map[string]string{
+		"recovery_system_status": "",
+	}
+	isTry, err = boot.MaybeMarkTryRecoverySystemSuccessful("foobar", uncalledCheck)
+	c.Assert(err, IsNil)
+	c.Check(isTry, Equals, false)
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessDifferent(c *C) {
+	for _, systemStatus := range []string{"try", "tried"} {
+		s.bl.BootVars = map[string]string{
+			"recovery_system_status": systemStatus,
+			"try_recovery_system":    "1234",
+		}
+		isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", uncalledCheck)
+		c.Assert(err, IsNil)
+		c.Check(isTry, Equals, false)
+		c.Check(s.bl.SetBootVarsCalls, Equals, 0)
+	}
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessHappyUnsetSystem(c *C) {
+	s.bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		// system is unset
+		"try_recovery_system": "",
+	}
+	isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", uncalledCheck)
+	c.Assert(err, ErrorMatches, "try recovery system is unset")
+	c.Check(isTry, Equals, false)
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessHappyAlreadyTried(c *C) {
+	s.bl.BootVars = map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    "foobar",
+	}
+	isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", uncalledCheck)
+	c.Assert(err, IsNil)
+	c.Check(isTry, Equals, true)
+	// untouched
+	c.Check(s.bl.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *markRecoverySystemSuite) testRecoverySystemSuccessHappyTryCurrentWithCheck(c *C, checkErr error) {
+	s.bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    "foobar",
+	}
+
+	check := func() error { return checkErr }
+	isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", check)
+	if checkErr == nil {
+		c.Assert(err, IsNil)
+		c.Check(isTry, Equals, true)
+		c.Check(s.bl.SetBootVarsCalls, Equals, 1)
+		c.Check(s.bl.BootVars, DeepEquals, map[string]string{
+			"recovery_system_status": "tried",
+			"try_recovery_system":    "foobar",
+		})
+	} else {
+		c.Assert(err, ErrorMatches, fmt.Sprintf("system health check failed: %s", checkErr.Error()))
+		c.Check(isTry, Equals, true)
+		// bootloader variables were not modified
+		c.Check(s.bl.SetBootVarsCalls, Equals, 0)
+	}
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessHappyTryCurrentHappy(c *C) {
+	s.testRecoverySystemSuccessHappyTryCurrentWithCheck(c, fmt.Errorf("check fails"))
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessHappyTryCurrentCheckFail(c *C) {
+	s.testRecoverySystemSuccessHappyTryCurrentWithCheck(c, nil)
+}
+
+func (s *markRecoverySystemSuite) TestRecoverySystemSuccessErrBootVarsSet(c *C) {
+	s.bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    "foobar",
+	}
+	s.bl.SetErr = fmt.Errorf("cannot set boot vars")
+	isTry, err := boot.MaybeMarkTryRecoverySystemSuccessful("foobar", func() error { return nil })
+	c.Assert(err, ErrorMatches, "cannot set boot vars")
+	c.Check(isTry, Equals, true)
+	c.Check(s.bl.SetBootVarsCalls, Equals, 1)
 }

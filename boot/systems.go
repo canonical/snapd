@@ -131,3 +131,61 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	}
 	return bl.SetBootVars(vars)
 }
+
+// MaybeMarkTryRecoverySystemSuccessful updates the boot environment to indicate
+// that the candidate recovery system of a matching label has successfully
+// booted up to a point that this code can be called and the health check
+// executed inside the system indicated no errors. Returns true if the candidate
+// recovery system is the same as current, false when otherwise or when the
+// state cannot be determined due to errors. Note, it is possible to get true
+// and an error, if the health check of the current system failed or bootloader
+// variables cannot be updated.
+func MaybeMarkTryRecoverySystemSuccessful(currentSystemLabel string, healthCheck func() error) (isCurrentTryRecovery bool, err error) {
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return false, err
+	}
+
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	if err != nil {
+		return false, err
+	}
+
+	status := vars["recovery_system_status"]
+	if status == "" {
+		// not trying any recovery systems right now
+		return false, nil
+	}
+
+	trySystem := vars["try_recovery_system"]
+	if trySystem == "" {
+		// XXX: could we end up with one variable set and the other not?
+		return false, fmt.Errorf("try recovery system is unset")
+	}
+
+	if trySystem != currentSystemLabel {
+		// this may still be ok, eg. if we're running the actual recovery system
+		return false, nil
+	}
+
+	if status == "tried" {
+		// the current recovery system has already been tried and worked
+		return true, nil
+	}
+
+	if healthCheck != nil {
+		if err := healthCheck(); err != nil {
+			return true, fmt.Errorf("system health check failed: %v", err)
+		}
+	}
+
+	tried := map[string]string{
+		"recovery_system_status": "tried",
+	}
+	return true, bl.SetBootVars(tried)
+}
