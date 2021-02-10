@@ -510,6 +510,16 @@ func (s *storeActionFetchAssertionsSuite) TestReportFetchAssertionsError(c *C) {
 		},
 		Message: "other ref error",
 	}
+	otherSeqKeyError := store.ErrorListEntryJSON{
+		Code: "other-seq-error",
+		Type: "validation-set",
+		SequenceKey: []string{
+			"16",
+			"foo",
+			"bar",
+		},
+		Message: "other sequence key error",
+	}
 
 	tests := []struct {
 		errorList []store.ErrorListEntryJSON
@@ -520,6 +530,8 @@ func (s *storeActionFetchAssertionsSuite) TestReportFetchAssertionsError(c *C) {
 		{[]store.ErrorListEntryJSON{otherRefError}, "snap-declaration/16/xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5", "other ref error"},
 		{[]store.ErrorListEntryJSON{otherRefError, notFound}, "snap-declaration/16/xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5", "other ref error"},
 		{[]store.ErrorListEntryJSON{notFound, otherRefError}, "snap-declaration/16/xEr2EpvaIaqrXxoM2JyHOmuXQYvSzUt5", "other ref error"},
+		{[]store.ErrorListEntryJSON{otherSeqKeyError}, "validation-set/16/foo/bar", "other sequence key error"},
+		{[]store.ErrorListEntryJSON{notFound, otherSeqKeyError}, "validation-set/16/foo/bar", "other sequence key error"},
 		{[]store.ErrorListEntryJSON{invalidRequest}, "{g1}", "invalid request: invalid key.*"},
 		{[]store.ErrorListEntryJSON{invalidRequest, otherRefError}, "{g1}", "invalid request: invalid key.*"},
 		{[]store.ErrorListEntryJSON{invalidRequest, notFound}, "{g1}", "invalid request: invalid key.*"},

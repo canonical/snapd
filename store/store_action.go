@@ -134,13 +134,13 @@ type assertAtJSON struct {
 }
 
 type assertSeqAtJSON struct {
-	Type                string   `json:"type"`
-	SequenceKey         []string `json:"sequence-key"`
-	IfNewerThan         *int     `json:"if-newer-than,omitempty"`
-	IfSequenceNewerThan *int     `json:"if-sequence-newer-than,omitempty"`
+	Type        string   `json:"type"`
+	SequenceKey []string `json:"sequence-key"`
+	Sequence    int      `json:"sequence,omitempty"`
 	// if-sequence-equal-or-newer-than and sequence are mutually exclusive
 	IfSequenceEqualOrNewerThan *int `json:"if-sequence-equal-or-newer-than,omitempty"`
-	Sequence                   int  `json:"sequence,omitempty"`
+	IfSequenceNewerThan        *int `json:"if-sequence-newer-than,omitempty"`
+	IfNewerThan                *int `json:"if-newer-than,omitempty"`
 }
 
 type snapRelease struct {
@@ -335,7 +335,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	// group keys overlapping with toResolve; the loop over toResolveSeq simply
 	// appends to actionJSONs.
 	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve))
-	var actionIndex int
+	actionIndex := 0
 
 	// snaps
 	downloadNum := 0
@@ -448,6 +448,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					Key:    key,
 				}
 				aJSON.Assertions = make([]interface{}, 0, len(ats))
+				actionJSONs = append(actionJSONs, aJSON)
 			}
 			for _, at := range ats {
 				aj := assertSeqAtJSON{
@@ -468,7 +469,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					// use it for "if-sequence-equal-or-newer-than": <sequence-number>
 					if at.Sequence > 0 {
 						aj.IfSequenceEqualOrNewerThan = &at.Sequence
-					}
+					} // else - get the latest
 				}
 				rev := at.Revision
 				// revision (if set) goes to "if-newer-than": <assert-revision>
@@ -476,9 +477,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					aj.IfNewerThan = &rev
 				}
 				aJSON.Assertions = append(aJSON.Assertions, aj)
-			}
-			if !existingGroup {
-				actionJSONs = append(actionJSONs, aJSON)
 			}
 		}
 	}
