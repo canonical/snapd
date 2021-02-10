@@ -474,6 +474,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				rev := at.Revision
 				// revision (if set) goes to "if-newer-than": <assert-revision>
 				if rev != asserts.RevisionNotKnown {
+					if at.Sequence <= 0 {
+						return nil, nil, fmt.Errorf("internal error: sequence not set while revision is known for %s, %v", at.Type.Name, at.SequenceKey)
+					}
 					aj.IfNewerThan = &rev
 				}
 				aJSON.Assertions = append(aJSON.Assertions, aj)
