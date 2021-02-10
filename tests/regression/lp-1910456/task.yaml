@@ -69,8 +69,8 @@ execute: |
 
             serviceFile="/etc/systemd/system/snap.$snapName.$svc.service"
 
-            cat "$serviceFile" | MATCH "Delegate=true"
-            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+            MATCH "Delegate=true" < "$serviceFile"
+            test "$(grep -c "Delegate=true" "$serviceFile")" = 1
 
             # connect and disconnect the interfaces to ensure that 
             # connection/disconnection does not effect the presence of Delegate=true
@@ -84,8 +84,8 @@ execute: |
                 snap connect "$snapName:$svc"
             fi
 
-            cat "$serviceFile" | MATCH "Delegate=true"
-            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+            MATCH "Delegate=true" < "$serviceFile"
+            test "$(grep -c "Delegate=true" "$serviceFile")" = 1
 
             if [ "$svc" = "multiple-plugs" ]; then
                 snap disconnect "$snapName:docker-support"
@@ -96,15 +96,15 @@ execute: |
                 snap disconnect "$snapName:$svc"
             fi
 
-            cat "$serviceFile" | MATCH "Delegate=true"
-            test "$(cat "$serviceFile" | grep "Delegate=true" | wc -l)" = 1
+            MATCH "Delegate=true" < "$serviceFile"
+            test "$(grep -c "Delegate=true" "$serviceFile")" = 1
         done
 
         echo "Check that the non-container manager services do not have Delegate=true in their service units"
 
         for svc in bare "autobind-unix" "greengrass-no-cont"; do 
             serviceFile="/etc/systemd/system/snap.$snapName.$svc.service"
-            cat "$serviceFile" | NOMATCH "Delegate=true"
+            NOMATCH "Delegate=true" < "$serviceFile"
         done
     done
 
@@ -129,13 +129,13 @@ execute: |
     # get the pid of that docker container
     containerPID=$(docker top test | grep "sleep infinity" | awk '{print $2}')
 
-    containerCgroupBefore=$(cat "/proc/$containerPID/cgroup" | grep devices)
+    containerCgroupBefore=$(grep devices "/proc/$containerPID/cgroup")
 
     # reload systemd 
     systemctl daemon-reload
 
     # check the container cgroup again
-    containerCgroupAfter=$(cat "/proc/$containerPID/cgroup" | grep devices)
+    containerCgroupAfter=$(grep devices "/proc/$containerPID/cgroup")
 
     if [ "$containerCgroupBefore" != "$containerCgroupAfter" ]; then
         echo "test broken, container was moved from cgroup \"$containerCgroupBefore\" to \"$containerCgroupAfter\""
