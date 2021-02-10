@@ -239,6 +239,10 @@ plugs:
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 	restore := release.MockOnClassic(true)
 	defer restore()
+	// mock a distribution where the fontconfig cache would always be
+	// mounted
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.coreSlot), IsNil)
@@ -263,6 +267,10 @@ plugs:
 	dirs.SetRootDir(tmpdir)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 	restore := release.MockOnClassic(true)
+	defer restore()
+	// mock a distribution where the fontconfig cache would always be
+	// mounted
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
 
 	spec := &mount.Specification{}

@@ -25,6 +25,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -39,8 +42,12 @@ type tasksetsSuite struct {
 	state *state.State
 }
 
-var _ = Suite(&tasksetsSuite{})
-var _ = Suite(&configcoreHijackSuite{})
+var (
+	_ = Suite(&tasksetsSuite{})
+	_ = Suite(&configcoreHijackSuite{})
+	_ = Suite(&miscSuite{})
+	_ = Suite(&earlyConfigSuite{})
+)
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
@@ -306,8 +313,6 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 
 type miscSuite struct{}
 
-var _ = Suite(&miscSuite{})
-
 func (s *miscSuite) TestRemappingFuncs(c *C) {
 	// We don't change those.
 	c.Assert(configstate.RemapSnapFromRequest("foo"), Equals, "foo")
@@ -321,51 +326,150 @@ func (s *miscSuite) TestRemappingFuncs(c *C) {
 	c.Assert(configstate.RemapSnapToResponse("core"), Equals, "system")
 }
 
-type configcoreExportSuite struct {
-	o       *overlord.Overlord
+type earlyConfigSuite struct {
+	testutil.BaseTest
+
 	state   *state.State
-	hookMgr *hookstate.HookManager
+	rootdir string
 }
 
-func (s *configcoreExportSuite) SetUpTest(c *C) {
-	s.o = overlord.Mock()
-	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+func (s *earlyConfigSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.state = state.New(nil)
+
+	s.rootdir = c.MkDir()
+
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
+
+func (s *earlyConfigSuite) sysConfig(c *C) {
+	t := config.NewTransaction(s.state)
+	err := t.Set("core", "experimental.parallel-instances", true)
 	c.Assert(err, IsNil)
-	s.o.AddManager(hookMgr)
-	s.hookMgr = hookMgr
-}
-
-func (s *configcoreExportSuite) TestExportHappy(c *C) {
-	var calls int
-	var val string
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.key", "foobar")
-	tr.Commit()
-
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter) error {
-		calls++
-		err := conf.Get("core", "experimental.keys", &val)
-		c.Assert(err, IsNil)
-		return nil
-	})
-	defer r()
-	err := configstate.Init(s.state, s.hookMgr)
+	err = t.Set("core", "experimental.user-daemons", true)
 	c.Assert(err, IsNil)
-	c.Assert(calls, Equals, 1)
-	c.Assert(val, Equals, "foobar")
+	t.Commit()
 }
 
-func (s *configcoreExportSuite) TestExportErr(c *C) {
-	var calls int
+func (s *earlyConfigSuite) TestEarlyConfigSeeded(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.sysConfig(c)
+	s.state.Set("seeded", true)
 
+	err := configstate.EarlyConfig(s.state, nil)
+	c.Assert(err, IsNil)
+	// parallel-instances was exported
+	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigSeededErr(c *C) {
 	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter) error {
-		calls++
 		return fmt.Errorf("bad bad")
 	})
 	defer r()
-	err := configstate.Init(s.state, s.hookMgr)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	err := configstate.EarlyConfig(s.state, nil)
 	c.Assert(err, ErrorMatches, "cannot export experimental config flags: bad bad")
-	c.Assert(calls, Equals, 1)
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigSysConfigured(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.sysConfig(c)
+
+	preloadGadget := func() (*gadget.Info, error) {
+		panic("unexpected")
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
+	// parallel-instances was exported
+	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
+}
+
+const preloadedGadgetYaml = `
+defaults:
+   system:
+     experimental:
+       parallel-instances: true
+       user-daemons: true
+     services:
+       ssh.disable
+`
+
+func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (*gadget.Info, error) {
+		return gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
+
+	// parallel-instances was exported
+	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
+	tr := config.NewTransaction(s.state)
+	ok, err := features.Flag(tr, features.ParallelInstances)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	ok, err = features.Flag(tr, features.UserDaemons)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	var serviceCfg map[string]interface{}
+	err = tr.Get("core", "services", &serviceCfg)
+	// nothing of this was set
+	c.Assert(config.IsNoOption(err), Equals, true)
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
+	defer configstate.MockConfigcoreEarly(func(config.Conf, map[string]interface{}) error {
+		return fmt.Errorf("boom")
+	})()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (*gadget.Info, error) {
+		return gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, ErrorMatches, "boom")
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (*gadget.Info, error) {
+		return nil, fmt.Errorf("cannot load gadget")
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, ErrorMatches, "cannot load gadget")
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (*gadget.Info, error) {
+		return nil, state.ErrNoState
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
+
+	sysCfg, err := config.GetSnapConfig(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Check(sysCfg, IsNil)
 }
