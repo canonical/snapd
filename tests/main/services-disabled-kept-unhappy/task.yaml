@@ -93,7 +93,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  retry -n 10 --wait 1 sh -c 'snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"'
+  retry -n 10 --wait 1 sh -c 'snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"'
 
   echo "Trigger a failing configure hook"
   touch /root/disabled-svcs-kept-fail
@@ -108,7 +108,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -132,7 +132,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -160,7 +160,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -187,7 +187,7 @@ execute: |
   check_state_json_no_disabled_svcs
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
 
   ########################################
   ############### CASE 5 #################
@@ -206,7 +206,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc2
 
   echo "Check that the renamed service is now disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
 
   echo "Try a revert (which should fail)"
   if snap revert disabled-svcs-kept --revision=x2; then
@@ -218,7 +218,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that the renamed service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
 
   echo "Check that state.json still contains the old service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc
@@ -242,7 +242,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that the original renamed service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
 
   echo "Check that state.json still contains the old service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc
@@ -266,4 +266,4 @@ execute: |
   check_state_json_specific_disabled_svc svc
 
   echo "Check that the new service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"

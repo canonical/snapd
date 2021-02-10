@@ -36,5 +36,5 @@ execute: |
         snap install --edge test-snapd-dbus-service
         snap services test-snapd-dbus-service > dbus-service.out
         MATCH '^test-snapd-dbus-service.system\s+ system\s+ disabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
-        MATCH '^test-snapd-dbus-service.session\s+ user\s+ disabled\s+ active\s+ dbus-activated$' < dbus-service.out
+        MATCH '^test-snapd-dbus-service.session\s+ user\s+ disabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
     fi
