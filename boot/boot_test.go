@@ -86,7 +86,7 @@ func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
 	c.Assert(ioutil.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
 }
 
-// mockAssetsCache mock boot assets in cache, a list of (path, data) tuples,
+// mockAssetsCache mocks boot assets in cache, a list of (path, data) tuples,
 // where if data is omitted an empty files gets created.
 func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets [][]string) {
 	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
@@ -95,6 +95,7 @@ func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets [][]stri
 	for _, cachedAsset := range cachedAssets {
 		var content []byte
 		if len(cachedAsset) == 2 {
+			// we have a (path, data) tuple
 			content = []byte(cachedAsset[1])
 		}
 		err = ioutil.WriteFile(filepath.Join(p, cachedAsset[0]), content, 0644)
