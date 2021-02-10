@@ -87,7 +87,7 @@ func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
 }
 
 // mockAssetsCache mocks the listed assets in the boot assets cache by creating
-// an empty file each.
+// an empty file for each.
 func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets []string) {
 	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
 	err := os.MkdirAll(p, 0755)
