@@ -36,6 +36,7 @@ type MockBootloader struct {
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
+	SetErrFunc       func() error
 	GetErr           error
 
 	name    string
@@ -82,6 +83,9 @@ func (b *MockBootloader) SetBootVars(values map[string]string) error {
 	b.SetBootVarsCalls++
 	for k, v := range values {
 		b.BootVars[k] = v
+	}
+	if b.SetErrFunc != nil {
+		return b.SetErrFunc()
 	}
 	return b.SetErr
 }
