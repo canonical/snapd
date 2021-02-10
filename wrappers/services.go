@@ -727,7 +727,7 @@ KillSignal={{.KillSignal}}
 {{- if .OOMAdjustScore }}
 OOMScoreAdjust={{.OOMAdjustScore}}
 {{- end}}
-{{- if not .App.Sockets}}
+{{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
 WantedBy={{.ServicesTarget}}
