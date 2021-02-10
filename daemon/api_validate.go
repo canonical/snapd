@@ -159,9 +159,10 @@ func installedSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
 		if err != nil {
 			return nil, err
 		}
-		snaps = append(snaps, snapasserts.NewInstalledSnap(
-			snapState.InstanceName(), snapState.CurrentSideInfo().SnapID,
-			cur.Revision))
+		snaps = append(snaps,
+			snapasserts.NewInstalledSnap(snapState.InstanceName(),
+				snapState.CurrentSideInfo().SnapID,
+				cur.Revision))
 	}
 	return snaps, nil
 }
