@@ -54,7 +54,7 @@ func init() {
 		baseurl = "https://api.snapcraft.io/v2/"
 	}
 
-	// allow overwriting the SAS url too
+	// allow redirecting assertion requests under a different base url
 	if forcedURL := os.Getenv("SNAPPY_FORCE_SAS_URL"); forcedURL != "" {
 		baseurl = forcedURL
 	}
