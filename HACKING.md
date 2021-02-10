@@ -205,6 +205,29 @@ For quick reuse you can use:
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
+#### Running UC20 spread with QEMU
+
+Ubuntu Core 20 on amd64 has a requirement to use UEFI, so there are a few 
+additional steps needed to run spread with the ubuntu-core-20-64 systems locally
+using QEMU. For one, upstream spread currently does not support specifying what
+kind of BIOS to use with the VM, so you have to build spread from this PR:
+https://github.com/snapcore/spread/pull/95, and then use the environment 
+variable `SPREAD_QEMU_BIOS` to specify an UEFI BIOS to use with the VM, for 
+example the one from the OVMF package. To get OVMF on Ubuntu, you can just 
+install the `ovmf` package via `apt`. After installing OVMF, you can then run 
+spread like so:
+
+    $ SPREAD_QEMU_BIOS=/usr/share/OVMF/OVMF_CODE.fd spread -v qemu:ubuntu-core-20-64
+
+This will enable testing UC20 with the spread, albeit without secure boot 
+support. None of the native UC20 tests currently require secure boot however, 
+all tests around secure boot are nested, see the section below about running the
+nested tests.
+
+Also, due to the in-flux state of spread support for booting UEFI VM's like 
+this, you can test ubuntu-core-20-64 only by themselves and not with any other
+system concurrently since the environment variable is global for all systems in
+the spread run. This will be fixed in a future release of spread.
 
 ### Testing snapd
 
