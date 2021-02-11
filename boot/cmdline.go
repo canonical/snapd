@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -241,4 +242,60 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 	}
 	newM.CurrentKernelCommandLines = bootCommandLines{cmdlineExpected}
 	return newM, nil
+}
+
+// observeCommandLineUpdate observes a pending kernel command line change caused
+// by an update of boot config. When needed, the modeenv is updated with a
+// candidate command line and the encryption keys are resealed. This helper
+// should be called right before updating the managed boot config.
+func observeCommandLineUpdate(model *asserts.Model) error {
+	// TODO:UC20: consider updating a recovery system command line
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if len(m.CurrentKernelCommandLines) == 0 {
+		return fmt.Errorf("internal error: current kernel command lines is unset")
+	}
+	// this is the current expected command line which was recorded by
+	// bootstate
+	cmdline := m.CurrentKernelCommandLines[0]
+	// this is the new expected command line
+	candidateCmdline, err := ComposeCandidateCommandLine(model)
+	if err != nil {
+		return err
+	}
+	if cmdline == candidateCmdline {
+		// no change in command line contents, nothing to do
+		return nil
+	}
+	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
+
+	if err := m.Write(); err != nil {
+		return err
+	}
+
+	expectReseal := true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, model, m, expectReseal); err != nil {
+		return err
+	}
+	return nil
+}
+
+// kernelCommandLinesForResealWithFallback provides the list of kernel command
+// lines for use during reseal. During normal operation, the command lines will
+// be listed in the modeenv.
+func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Modeenv) (cmdlines []string, err error) {
+	if len(modeenv.CurrentKernelCommandLines) > 0 {
+		return modeenv.CurrentKernelCommandLines, nil
+	}
+	// fallback for when reseal is called before mark boot successful set a
+	// default during snapd update
+	cmdline, err := ComposeCommandLine(model)
+	if err != nil {
+		return nil, err
+	}
+	return []string{cmdline}, nil
 }

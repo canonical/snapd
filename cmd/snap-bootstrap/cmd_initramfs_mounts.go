@@ -709,7 +709,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		//       ubuntu-data and ubuntu-save unlockable and have matching marker
 		//       files in order to use the files from ubuntu-data to log-in,
 		//       etc.
-		trustData, _ := checkDataAndSavaPairing(boot.InitramfsHostWritableDir)
+		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir)
 		if !trustData {
 			part.MountState = partitionMountedUntrusted
 			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
@@ -1067,9 +1067,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	return nil
 }
 
-// checkDataAndSavaPairing make sure that ubuntu-data and ubuntu-save
+// checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
 // come from the same install by comparing secret markers in them
-func checkDataAndSavaPairing(rootdir string) (bool, error) {
+func checkDataAndSavePairing(rootdir string) (bool, error) {
 	// read the secret marker file from ubuntu-data
 	markerFile1 := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "marker")
 	marker1, err := ioutil.ReadFile(markerFile1)
@@ -1355,7 +1355,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			// be locked.
 			// for symmetry with recover code and extra paranoia
 			// though also check that the markers match.
-			paired, err := checkDataAndSavaPairing(boot.InitramfsWritableDir)
+			paired, err := checkDataAndSavePairing(boot.InitramfsWritableDir)
 			if err != nil {
 				return err
 			}

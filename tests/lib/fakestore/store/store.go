@@ -98,8 +98,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
-	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
 	// v2
+	mux.HandleFunc("/v2/assertions/", store.assertionsEndpoint)
 	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
 	return store
@@ -650,7 +650,7 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	assertPath := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/assertions/")
+	assertPath := strings.TrimPrefix(req.URL.Path, "/v2/assertions/")
 
 	bs, err := s.collectAssertions()
 	if err != nil {
@@ -681,7 +681,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	if asserts.IsNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
-		w.Write([]byte(`{"status": 404}`))
+		w.Write([]byte(`{"error-list":[{"code":"not-found","message":"not found"}]}`))
 		return
 	}
 	if err != nil {

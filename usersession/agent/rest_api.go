@@ -31,7 +31,6 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -242,22 +241,20 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
 
-	// TODO: use c.a.bus once https://github.com/snapcore/snapd/pull/9497 is merged.
-	conn, err := dbusutil.SessionBus()
 	// Note that since the connection is shared, we are not closing it.
-	if err != nil {
+	if c.s.bus == nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot connect to the session bus: %v", err),
+				Message: fmt.Sprintf("cannot connect to the session bus"),
 			},
 		})
 	}
 
 	// TODO: support desktop-specific notification APIs if they provide a better
 	// experience. For example, the GNOME notification API.
-	notifySrv := notification.New(conn)
+	notifySrv := notification.New(c.s.bus)
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)

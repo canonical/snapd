@@ -86,6 +86,10 @@ func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
 
+func (run *Runner) BaseMode() (base, mode string) {
+	return run.state.Device.Base, run.state.Device.Mode
+}
+
 func (run *Runner) SetStateModified(modified bool) {
 	run.stateModified = modified
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,17 @@
  *
  */
 
-package configstate
+package daemon
 
 import (
-	"sort"
-	"strings"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
 )
 
-func sortPatchKeysByDepth(patch map[string]interface{}) []string {
-	if len(patch) == 0 {
-		return nil
-	}
-	depths := make(map[string]int, len(patch))
-	keys := make([]string, 0, len(patch))
-	for k := range patch {
-		depths[k] = strings.Count(k, ".")
-		keys = append(keys, k)
-	}
-
-	sort.Slice(keys, func(i, j int) bool {
-		return depths[keys[i]] < depths[keys[j]]
-	})
-	return keys
+func MakeAboutSnap(info *snap.Info, snapst *snapstate.SnapState) aboutSnap {
+	return aboutSnap{info: info, snapst: snapst}
 }
+
+var (
+	MapLocal = mapLocal
+)

@@ -55,7 +55,7 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	sys, err := install.Run(nil, "", "", install.Options{}, nil)
+	sys, err := install.Run(nil, "", "", "", install.Options{}, nil)
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
 }
@@ -377,7 +377,7 @@ func layoutFromYaml(c *C, gadgetYaml string, model gadget.Model) *gadget.LaidOut
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(gadgetRoot, model)
+	pv, err := mustLayOutVolumeFromGadget(c, gadgetRoot, "", model)
 	c.Assert(err, IsNil)
 	return pv
 }
@@ -399,6 +399,11 @@ const mockUC20GadgetYaml = `volumes:
         filesystem: vfat
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1200M
       - name: ubuntu-data
         role: system-data
