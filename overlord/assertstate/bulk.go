@@ -140,9 +140,8 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	return nil
 }
 
-func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, deviceCtx snapstate.DeviceContext) error {
+func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, userID int, deviceCtx snapstate.DeviceContext) error {
 	db := cachedDB(s)
-
 	pool := asserts.NewPool(db, maxGroups)
 
 	for _, vs := range vsets {
@@ -168,6 +167,11 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 			return err
 		}
 	}
+
+	if err := resolvePool(s, pool, userID, deviceCtx); err != nil {
+		return err
+	}
+
 	return nil
 }
 

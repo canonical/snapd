@@ -910,9 +910,6 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 	return nil
 }
 
-// update pinned vs not pinned?
-// what is the exact behavior here for unpinned?
-// for pinned is really like AddToUpdate but different key/unresolved map
 func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
