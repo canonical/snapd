@@ -148,7 +148,6 @@ type unresolvedAssertRecord interface {
 	isAssertionNewer(a Assertion) bool
 	groupingPtr() *internal.Grouping
 	label() Grouping
-	//merge(at *AtRevision, gnum uint16, gr *internal.Groupings)
 }
 
 // An unresolvedRec tracks a single unresolved assertion until it is
