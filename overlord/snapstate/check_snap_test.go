@@ -119,6 +119,10 @@ var assumesTests = []struct {
 	version: "unknown",
 	error:   `.* unsupported features: snapd2.15nono .*`,
 }, {
+	assumes: "[snapd2.15~pre1]",
+	version: "unknown",
+	error:   `.* unsupported features: snapd2.15~pre1 .*`,
+}, {
 	assumes: "[snapd2.15]",
 	version: "2.15",
 }, {
@@ -156,8 +160,18 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.2]",
 	version: "2.16.1",
 }, {
+	assumes: "[snapd2.1000]",
+	version: "3.1",
+}, {
 	assumes: "[snapd3]",
 	version: "3.1",
+}, {
+	assumes: "[snapd2]",
+	version: "3.1",
+}, {
+	assumes: "[snapd3]",
+	version: "2.48",
+	error:   `.* unsupported features: snapd3 .*`,
 }, {
 	assumes: "[snapd2.15.1.2]",
 	version: "2.15.1.1",

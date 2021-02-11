@@ -196,12 +196,22 @@ func checkAssumes(si *snap.Info) error {
 	return nil
 }
 
+// regular expression which matches a version expressed as groups of digits
+// separated with dots, with optional non-numbers afterwards
 var versionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
 
 func checkVersion(version string) bool {
 	// double check that the input looks like a snapd version
 	reqVersionNumMatch := versionExp.FindStringSubmatch(version)
-	if reqVersionNumMatch == nil || reqVersionNumMatch[0] != version {
+	if reqVersionNumMatch == nil {
+		return false
+	}
+	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
+	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
+	// to be relied on for snaps via assumes, however the check against the real
+	// snapd version number below allows such non-numeric modifiers since real
+	// snapds do have versions like that (for example debian pkg of snapd)
+	if reqVersionNumMatch[0] != version {
 		return false
 	}
 
@@ -221,7 +231,7 @@ func checkVersion(version string) bool {
 	}
 	cur := strings.Split(curVersionNumMatch[0], ".")
 
-	for i := 1; i < len(req); i++ {
+	for i := range req {
 		if i == len(cur) {
 			// we hit the end of the elements of the current version number and have
 			// more required version numbers left, so this doesn't match, if the
