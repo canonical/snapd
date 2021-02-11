@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// clearTryRecoverySystem removes a given candidate recovery system from the
+// modeenv state file, reseals and clears related bootloader variables.
 func clearTryRecoverySystem(dev Device, systemLabel string) error {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
