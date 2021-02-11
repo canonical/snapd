@@ -108,6 +108,9 @@ close
 # needed by ls -l
 connect
 
+# efficient file copying, used by libuv/nodejs and others
+copy_file_range
+
 chroot
 
 creat
