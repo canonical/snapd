@@ -38,8 +38,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func newAssertsDB() (*asserts.Database, error) {
-	storePrivKey, _ := assertstest.ReadPrivKey(systestkeys.TestStorePrivKey)
+func newAssertsDB(privKey string) (*asserts.Database, error) {
+	storePrivKey, _ := assertstest.ReadPrivKey(privKey)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
@@ -55,7 +55,7 @@ func newAssertsDB() (*asserts.Database, error) {
 }
 
 func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
-	db, err := newAssertsDB()
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func snapNameFromPath(snapPath string) string {
 // TODO: also support reading/copying form a store snap
 
 func NewSnapRevision(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB()
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return "", err
 	}
@@ -69,7 +69,7 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 }
 
 func NewSnapDeclaration(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB()
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +98,8 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 // NewRepair signs a repair assertion, including the specified script as the
 // body of the assertion.
 func NewRepair(targetDir string, scriptFilename string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB()
+	// use the separate root of trust for signing repair assertions
+	db, err := newAssertsDB(systestkeys.TestRepairRootPrivKey)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +125,7 @@ func NewRepair(targetDir string, scriptFilename string, headers map[string]inter
 	headers["series"] = []interface{}{"16"}
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
-	a, err := db.Sign(asserts.RepairType, headers, scriptBodyBytes, systestkeys.TestStoreKeyID)
+	a, err := db.Sign(asserts.RepairType, headers, scriptBodyBytes, systestkeys.TestRepairKeyID)
 	if err != nil {
 		return "", err
 	}
