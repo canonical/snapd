@@ -26,8 +26,8 @@ import (
 )
 
 func init() {
-	// when built with testkeys enabled, trust the TestStoreAccountKey
-	trustedRepairRootKeys = append(trustedRepairRootKeys, systestkeys.TestStoreAccountKey.(*asserts.AccountKey))
+	// when built with testkeys enabled, trust the TestRepairRootAccountKey
+	trustedRepairRootKeys = append(trustedRepairRootKeys, systestkeys.TestRepairRootAccountKey.(*asserts.AccountKey))
 
 	// also check for root brand ID
 	rootBrandIDs = append(rootBrandIDs, "testrootorg")
