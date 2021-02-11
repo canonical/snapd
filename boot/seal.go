@@ -594,7 +594,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
 	if len(bootFiles) == 0 {
 		// useful in testing, when mocking is insufficient
-		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: no boot files")
+		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: cannot build boot assets without boot files")
 	}
 	assets = make([]bootAsset, len(bootFiles)-1)
 
