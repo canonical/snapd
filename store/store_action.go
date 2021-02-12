@@ -134,13 +134,13 @@ type assertAtJSON struct {
 }
 
 type assertSeqAtJSON struct {
-	Type                string   `json:"type"`
-	SequenceKey         []string `json:"sequence-key"`
-	IfNewerThan         *int     `json:"if-newer-than,omitempty"`
-	IfSequenceNewerThan *int     `json:"if-sequence-newer-than,omitempty"`
+	Type        string   `json:"type"`
+	SequenceKey []string `json:"sequence-key"`
+	Sequence    int      `json:"sequence,omitempty"`
 	// if-sequence-equal-or-newer-than and sequence are mutually exclusive
 	IfSequenceEqualOrNewerThan *int `json:"if-sequence-equal-or-newer-than,omitempty"`
-	Sequence                   int  `json:"sequence,omitempty"`
+	IfSequenceNewerThan        *int `json:"if-sequence-newer-than,omitempty"`
+	IfNewerThan                *int `json:"if-newer-than,omitempty"`
 }
 
 type snapRelease struct {
@@ -331,8 +331,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve)+len(toResolveSeq))
-	var actionIndex int
+	// do not include toResolveSeq len in the initial size since it may have
+	// group keys overlapping with toResolve; the loop over toResolveSeq simply
+	// appends to actionJSONs.
+	actionJSONs := make([]*snapActionJSON, len(actions)+len(toResolve))
+	actionIndex := 0
 
 	// snaps
 	downloadNum := 0
@@ -404,6 +407,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		actionIndex++
 	}
 
+	groupingsAssertions := make(map[string]*snapActionJSON)
+
 	// assertions
 	var assertMaxFormats map[string]int
 	if len(toResolve) > 0 {
@@ -413,6 +418,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				Key:    string(grp),
 			}
 			aJSON.Assertions = make([]interface{}, len(ats))
+			groupingsAssertions[aJSON.Key] = aJSON
+
 			for j, at := range ats {
 				aj := &assertAtJSON{
 					Type:       at.Type.Name,
@@ -431,12 +438,19 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	if len(toResolveSeq) > 0 {
 		for grp, ats := range toResolveSeq {
-			aJSON := &snapActionJSON{
-				Action: "fetch-assertions",
-				Key:    string(grp),
+			key := string(grp)
+			// append to existing grouping if applicable
+			aJSON := groupingsAssertions[key]
+			existingGroup := aJSON != nil
+			if !existingGroup {
+				aJSON = &snapActionJSON{
+					Action: "fetch-assertions",
+					Key:    key,
+				}
+				aJSON.Assertions = make([]interface{}, 0, len(ats))
+				actionJSONs = append(actionJSONs, aJSON)
 			}
-			aJSON.Assertions = make([]interface{}, len(ats))
-			for j, at := range ats {
+			for _, at := range ats {
 				aj := assertSeqAtJSON{
 					Type:        at.Type.Name,
 					SequenceKey: at.SequenceKey,
@@ -455,17 +469,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					// use it for "if-sequence-equal-or-newer-than": <sequence-number>
 					if at.Sequence > 0 {
 						aj.IfSequenceEqualOrNewerThan = &at.Sequence
-					}
+					} // else - get the latest
 				}
 				rev := at.Revision
 				// revision (if set) goes to "if-newer-than": <assert-revision>
 				if rev != asserts.RevisionNotKnown {
+					if at.Sequence <= 0 {
+						return nil, nil, fmt.Errorf("internal error: sequence not set while revision is known for %s, %v", at.Type.Name, at.SequenceKey)
+					}
 					aj.IfNewerThan = &rev
 				}
-				aJSON.Assertions[j] = aj
+				aJSON.Assertions = append(aJSON.Assertions, aj)
 			}
-			actionJSONs[actionIndex] = aJSON
-			actionIndex++
 		}
 	}
 

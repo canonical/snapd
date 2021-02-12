@@ -139,11 +139,12 @@ func (s *poolSuite) TestAddUnresolved(c *C) {
 	err := pool.AddUnresolved(at1, "for_one") // group num: 0
 	c.Assert(err, IsNil)
 
-	toResolve, _, err := pool.ToResolve()
+	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {at1},
 	})
+	c.Check(toResolveSeq, HasLen, 0)
 }
 
 func (s *poolSuite) TestAddUnresolvedPredefined(c *C) {
@@ -155,9 +156,10 @@ func (s *poolSuite) TestAddUnresolvedPredefined(c *C) {
 	c.Assert(err, IsNil)
 
 	// nothing to resolve
-	toResolve, _, err := pool.ToResolve()
+	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
 	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolveSeq, HasLen, 0)
 }
 
 func (s *poolSuite) TestAddUnresolvedGrouping(c *C) {
