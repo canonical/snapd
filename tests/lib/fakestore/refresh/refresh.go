@@ -38,8 +38,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func newAssertsDB(privKey string) (*asserts.Database, error) {
-	storePrivKey, _ := assertstest.ReadPrivKey(privKey)
+func newAssertsDB(signingPrivKey string) (*asserts.Database, error) {
+	storePrivKey, _ := assertstest.ReadPrivKey(signingPrivKey)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
