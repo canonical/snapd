@@ -153,7 +153,6 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		for _, at := range ats {
 			reqTypes[at.Type.Name] = true
 			var a asserts.Assertion
-			//a, err := at.Resolve(sto.db.Find)
 			headers, err := asserts.HeadersFromSequenceKey(at.Type, at.SequenceKey)
 			if err != nil {
 				return nil, nil, err
@@ -161,7 +160,7 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 			if !at.Pinned {
 				a, err = sto.db.FindSequence(at.Type, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
 			} else {
-				panic("pinning not implemented")
+				a, err = at.Resolve(sto.db.Find)
 			}
 			if err != nil {
 				assertQuery.AddSequenceError(err, at)

@@ -408,7 +408,6 @@ func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
 }
 
 func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
-	fmt.Printf("!!addUnresolved %v\n", unresolved.PrimaryKey)
 	ok, err := p.isResolved(&unresolved.Ref)
 	if err != nil {
 		return err
