@@ -193,7 +193,18 @@ type RODatabase interface {
 	// (trusted or not) based on arbitrary headers.  It returns a
 	// NotFoundError if no assertion can be found.
 	FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
-	// XXX
+	// FindSequence finds an assertion for the given headers and after for
+	// a sequence-forming type.
+	// The provided headers must contain a sequence key, i.e. a prefix of
+	// the primary key for the assertion type except for the sequence
+	// number header.
+	// The assertion is the first in the sequence under the sequence key
+	// with sequence number > after.
+	// If after is -1 it returns instead the assertion with the largest
+	// sequence number.
+	// It will constraint itself to assertions with format <= maxFormat
+	// unless maxFormat is -1.
+	// It returns a NotFoundError if the assertion cannot be found.
 	FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
