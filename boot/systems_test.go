@@ -131,11 +131,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	resealCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
-		c.Logf("params.ModelParams: %+q", params.ModelParams[0])
-		c.Logf("key files: %q", params.KeyFiles)
-
 		// bootloader variables have not been modified yet
-		c.Check(mtbl.BootVars, HasLen, 0)
+		c.Check(mtbl.SetBootVarsCalls, Equals, 0)
 		return nil
 	})
 	defer restore()
@@ -143,7 +140,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
 	c.Assert(err, IsNil)
 
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
@@ -178,7 +177,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 	err := boot.SetTryRecoverySystem(s.uc20dev, "1234")
 	c.Assert(err, IsNil)
 
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "1234",
 		"recovery_system_status": "try",
 	})
@@ -227,7 +228,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 	c.Assert(err, ErrorMatches, "set boot vars fails")
 
 	// cleared
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
@@ -330,7 +333,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		"20200825",
 	})
 	// bootloader variables have been cleared
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
@@ -433,7 +438,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		"20200825",
 	})
 	// bootloader variables have been cleared
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})
@@ -528,7 +535,9 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		"20200825",
 	})
 	// bootloader variables have been cleared regardless of reseal failing
-	c.Check(mtbl.BootVars, DeepEquals, map[string]string{
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    "",
 		"recovery_system_status": "",
 	})

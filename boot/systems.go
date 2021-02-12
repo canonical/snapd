@@ -56,9 +56,9 @@ func clearTryRecoverySystem(dev Device, systemLabel string) error {
 			break
 		}
 	}
+	// we may be repeating the cleanup, in which case the system was already
+	// removed from the modeenv and we don't need to rewrite the modeenv
 	if found {
-		// we may be repeating the cleanup, in which case the system may
-		// not be present in modeenv already
 		if err := m.Write(); err != nil {
 			return err
 		}
