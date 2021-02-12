@@ -336,3 +336,23 @@ func delayedCrossMgrInit() {
 func AutoRefreshAssertions(s *state.State, userID int) error {
 	return RefreshSnapDeclarations(s, userID)
 }
+
+// RefreshValidationSetAssertions tries to refresh all validation set
+// assertions.
+func RefreshValidationSetAssertions(s *state.State, userID int) error {
+	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
+	if err != nil {
+		return err
+	}
+
+	vsets, err := ValidationSets(s)
+	if err != nil {
+		return err
+	}
+	if len(vsets) == 0 {
+		return nil
+	}
+
+	// XXX: do we need one-by-one fetch fallback?
+	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
+}

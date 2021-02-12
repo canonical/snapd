@@ -231,6 +231,7 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 		s.Unlock()
 		_, aresults, err := sto.SnapAction(context.TODO(), nil, nil, pool, user, nil)
 		s.Lock()
+
 		if err != nil {
 			// request fallback on
 			//  * unexpected SnapActionErrors or

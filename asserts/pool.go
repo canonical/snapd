@@ -368,7 +368,7 @@ func (p *Pool) phase(ph poolPhase) error {
 	return nil
 }
 
-func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
+func (p *Pool) AddSequenceToUpdate(unresolved *AtSequence, group string) error {
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
@@ -408,6 +408,7 @@ func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
 }
 
 func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
+	fmt.Printf("!!addUnresolved %v\n", unresolved.PrimaryKey)
 	ok, err := p.isResolved(&unresolved.Ref)
 	if err != nil {
 		return err
@@ -908,17 +909,6 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 		return err
 	}
 	return nil
-}
-
-func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
-	return p.addUnresolvedSeq(toUpdate, gnum)
 }
 
 // CommitTo adds the assertions from groups without errors to the

@@ -259,7 +259,7 @@ func (s *poolSuite) TestFetchSequenceFormingNotPinned(c *C) {
 		Revision:    asserts.RevisionNotKnown,
 		Pinned:      false,
 	}
-	err := pool.AddUnresolvedSequence(atseq, "for_one")
+	err := pool.AddSequenceToUpdate(atseq, "for_one")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
@@ -783,7 +783,7 @@ func (s *poolSuite) TestUpdateSeqForming(c *C) {
 		Sequence:    2,
 		Pinned:      true,
 	}
-	err = pool.AddUnresolvedSequence(atseq2, "for_two")
+	err = pool.AddSequenceToUpdate(atseq2, "for_two")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err = pool.ToResolve()
