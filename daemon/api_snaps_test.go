@@ -1549,7 +1549,6 @@ func (s *snapsSuite) TestInstallUserAgentContextCreated(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
-	s.vars = map[string]string{"name": "some-snap"}
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
@@ -1563,7 +1562,6 @@ func (s *snapsSuite) TestInstallFails(c *check.C) {
 	})()
 
 	d := s.daemonWithFakeSnapManager(c)
-	s.vars = map[string]string{"name": "hello-world"}
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
