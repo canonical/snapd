@@ -77,9 +77,10 @@ var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
 	storetest.Store
-	state                  *state.State
-	db                     asserts.RODatabase
-	maxDeclSupportedFormat int
+	state                           *state.State
+	db                              asserts.RODatabase
+	maxDeclSupportedFormat          int
+	maxValidationSetSupportedFormat int
 
 	requestedTypes [][]string
 
@@ -111,8 +112,7 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		panic("only assertion query supported")
 	}
 
-	// TODO: sequence-forming
-	toResolve, _, err := assertQuery.ToResolve()
+	toResolve, toResolveSeq, err := assertQuery.ToResolve()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -124,8 +124,11 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
 	defer restore()
 
+	restoreSeq := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, sto.maxValidationSetSupportedFormat)
+	defer restoreSeq()
+
 	reqTypes := make(map[string]bool)
-	ares := make([]store.AssertionResult, 0, len(toResolve))
+	ares := make([]store.AssertionResult, 0, len(toResolve)+len(toResolveSeq))
 	for g, ats := range toResolve {
 		urls := make([]string, 0, len(ats))
 		for _, at := range ats {
@@ -144,6 +147,35 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 			StreamURLs: urls,
 		})
 	}
+
+	for g, ats := range toResolveSeq {
+		urls := make([]string, 0, len(ats))
+		for _, at := range ats {
+			reqTypes[at.Type.Name] = true
+			var a asserts.Assertion
+			headers, err := asserts.HeadersFromSequenceKey(at.Type, at.SequenceKey)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !at.Pinned {
+				a, err = sto.db.FindSequence(at.Type, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			} else {
+				a, err = at.Resolve(sto.db.Find)
+			}
+			if err != nil {
+				assertQuery.AddSequenceError(err, at)
+				continue
+			}
+			if a.Revision() > at.Revision {
+				urls = append(urls, fmt.Sprintf("/assertions/%s/%s", a.Type().Name, strings.Join(a.At().PrimaryKey, "/")))
+			}
+		}
+		ares = append(ares, store.AssertionResult{
+			Grouping:   asserts.Grouping(g),
+			StreamURLs: urls,
+		})
+	}
+
 	// behave like the actual SnapAction if there are no results
 	if len(ares) == 0 {
 		return nil, ares, &store.SnapActionError{
@@ -171,6 +203,9 @@ func (sto *fakeStore) DownloadAssertions(urls []string, b *asserts.Batch, user *
 	resolve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
 		defer restore()
+
+		restoreSeq := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, sto.maxValidationSetSupportedFormat)
+		defer restoreSeq()
 		return ref.Resolve(sto.db.Find)
 	}
 
@@ -230,7 +265,8 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
-		maxDeclSupportedFormat: asserts.SnapDeclarationType.MaxSupportedFormat(),
+		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
+		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
 	}
 	s.trivialDeviceCtx = &snapstatetest.TrivialDeviceContext{
 		CtxStore: s.fakeStore,
@@ -840,6 +876,29 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
+}
+
+func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision string) *asserts.ValidationSet {
+	snaps := []interface{}{map[string]interface{}{
+		"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+		"name":     "foo",
+		"presence": "required",
+		"revision": "1",
+	}}
+	headers := map[string]interface{}{
+		"series":       "16",
+		"account-id":   s.dev1Acct.AccountID(),
+		"authority-id": s.dev1Acct.AccountID(),
+		"publisher-id": s.dev1Acct.AccountID(),
+		"name":         name,
+		"sequence":     sequence,
+		"snaps":        snaps,
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     revision,
+	}
+	a, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	return a.(*asserts.ValidationSet)
 }
 
 func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
@@ -2076,4 +2135,206 @@ func (s *assertMgrSuite) TestStore(c *C) {
 	store, err := assertstate.Store(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(store.Store(), Equals, "foo")
+}
+
+// validation-sets related tests
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsNop(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, ErrorMatches, `unsuccessful bulk assertion refresh, fallback: cannot : got unexpected HTTP status code 400.*`)
+}
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// store key already present
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	// previous state
+	/*vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	err = assertstate.Add(s.state, vsetAs1)
+	c.Assert(err, IsNil)*/
+
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "1")
+	err = s.storeSigning.Add(vsetAs2)
+	c.Assert(err, IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+
+	// XXX: why do we get account keys?
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"validation-set"},
+		{"account-key"},
+		{"account", "account-key"},
+	})
+
+	// sequence changed in the store to 4
+	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3")
+	err = s.storeSigning.Add(vsetAs3)
+	c.Assert(err, IsNil)
+
+	// sanity check - sequence 4 not available locally yet
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "4",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	s.fakeStore.(*fakeStore).requestedTypes = nil
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	// XXX: why account-key again?
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"validation-set"},
+		{"account-key"},
+	})
+
+	// new sequence is available in the db
+	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "4",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+}
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// store key already present
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5")
+	err = s.storeSigning.Add(vsetAs2)
+	c.Assert(err, IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   2,
+		PinnedAt:  2,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	// XXX: we should have respective assertion already in the local db
+	// rather than have it retrieved below.
+
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+
+	// XXX: why do we get account keys?
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"validation-set"},
+		{"account-key"},
+		{"account", "account-key"},
+	})
+
+	// sequence changed in the store to 7
+	vsetAs3 := s.validationSetAssert(c, "bar", "7", "8")
+	err = s.storeSigning.Add(vsetAs3)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.(*fakeStore).requestedTypes = nil
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	// XXX: why account-key again?
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"validation-set"},
+		{"account-key"},
+	})
+
+	// new sequence is available in the db
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "7",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 }

@@ -45,6 +45,8 @@ type poolSuite struct {
 	decl2     *asserts.TestOnlyDecl
 	rev2_2222 *asserts.TestOnlyRev
 
+	seq1_rev1111 *asserts.TestOnlySeq
+
 	db *asserts.Database
 }
 
@@ -106,6 +108,18 @@ func (s *poolSuite) SetUpTest(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.rev2_2222 = a.(*asserts.TestOnlyRev)
+
+	// sequence-forming
+
+	a, err = s.hub.Sign(asserts.TestOnlySeqType, map[string]interface{}{
+		"n":        "1111",
+		"sequence": "2",
+		"id":       "one",
+		"dev-id":   "developer1",
+		"revision": "5",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.seq1_rev1111 = a.(*asserts.TestOnlySeq)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -234,6 +248,43 @@ func (s *poolSuite) TestFetch(c *C) {
 		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt, decl1At},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
+
+	c.Check(pool.Err("for_one"), IsNil)
+}
+
+func (s *poolSuite) TestFetchSequenceFormingNotPinned(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        asserts.TestOnlySeqType,
+		SequenceKey: []string{"1111"},
+		Revision:    asserts.RevisionNotKnown,
+		Pinned:      false,
+	}
+	err := pool.AddSequenceToUpdate(atseq, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
+		asserts.MakePoolGrouping(0): {atseq},
+	})
+
+	ok, err := pool.Add(s.seq1_rev1111, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, toResolveSeq, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+	c.Check(toResolveSeq, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt},
+	})
 
 	c.Check(pool.Err("for_one"), IsNil)
 }
@@ -689,6 +740,62 @@ func (s *poolSuite) TestUpdate(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 	c.Check(pool.Err("for_two"), IsNil)
+}
+
+func (s *poolSuite) TestUpdateSeqForming(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_rev1111)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        s.seq1_rev1111.Type(),
+		SequenceKey: []string{"1111"},
+		Revision:    1,
+		Sequence:    1,
+		Pinned:      false,
+	}
+	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
+	c.Assert(err, IsNil)
+
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+
+	toResolve, toResolveSeq, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
+		asserts.MakePoolGrouping(0): {atseq},
+	})
+
+	ok, err := pool.Add(s.seq1_rev1111, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	toResolve, toResolveSeq, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt},
+	})
+	c.Check(toResolveSeq, HasLen, 0)
+
+	atseq2 := &asserts.AtSequence{
+		Type:        s.seq1_rev1111.Type(),
+		SequenceKey: []string{"2222"},
+		Revision:    asserts.RevisionNotKnown,
+		Sequence:    2,
+		Pinned:      true,
+	}
+	err = pool.AddSequenceToUpdate(atseq2, "for_two")
+	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
+		asserts.MakePoolGrouping(1): {atseq2},
+	})
+
+	c.Check(pool.Err("for_one"), IsNil)
 }
 
 var errBoom = errors.New("boom")
