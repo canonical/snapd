@@ -1185,6 +1185,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	c.Check(checked, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
 }
 
 func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
@@ -1201,7 +1202,7 @@ func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
-func (s *snapsSuite) TestPostSnapCohortRandoAction(c *check.C) {
+func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
 
@@ -1218,7 +1219,7 @@ func (s *snapsSuite) TestPostSnapCohortRandoAction(c *check.C) {
 	}
 }
 
-func (s *snapsSuite) TestPostSnapLeaveCohortRandoAction(c *check.C) {
+func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 	const expectedErr = "leave-cohort can only be specified for refresh or switch"
 
