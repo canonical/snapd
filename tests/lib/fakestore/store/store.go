@@ -289,13 +289,13 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 	// handle If-None-Match caching
 	revNumString := req.Header.Get("If-None-Match")
 	if revNumString != "" {
-		revRegexp := regexp.MustCompile(`^"[0-9]+"$`)
+		revRegexp := regexp.MustCompile(`^"([0-9]+)"$`)
 		match := revRegexp.FindStringSubmatch(revNumString)
-		if match == nil || len(match) != 0 {
-			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
+		if match == nil || len(match) != 2 {
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): must be snap revision number in quotes", revNumString), 400)
 			return
 		}
-		revNum, err := strconv.Atoi(match[0])
+		revNum, err := strconv.Atoi(match[1])
 		if err != nil {
 			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
 			return
