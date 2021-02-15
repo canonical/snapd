@@ -994,7 +994,7 @@ EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=tty1 console=ttyS0
 initrd $DEVPREFIX/initrd.img
 }
 EOF

@@ -94,15 +94,11 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
-		err = os.MkdirAll(filepath.Dir(p), 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(p, nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
-		c.Assert(err, IsNil)
+		mockAssetsCache(c, rootdir, "grub", []string{
+			"bootx64.efi-shim-hash-1",
+			"grubx64.efi-grub-hash-1",
+			"grubx64.efi-run-grub-hash-1",
+		})
 
 		// set encryption key
 		myKey := secboot.EncryptionKey{}
@@ -360,19 +356,13 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 		}
 
 		// mock asset cache
-		p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1")
-		err = os.MkdirAll(filepath.Dir(p), 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(p, nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), nil, 0644)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), nil, 0644)
-		c.Assert(err, IsNil)
+		mockAssetsCache(c, rootdir, "grub", []string{
+			"bootx64.efi-shim-hash-1",
+			"bootx64.efi-shim-hash-2",
+			"grubx64.efi-grub-hash-1",
+			"grubx64.efi-run-grub-hash-1",
+			"grubx64.efi-run-grub-hash-2",
+		})
 
 		model := boottest.MakeMockUC20Model()
 
@@ -628,10 +618,9 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	err = boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
 	c.Assert(err, IsNil)
 	// mock asset cache
-	err = os.MkdirAll(filepath.Join(rootdir, "var/lib/snapd/boot-assets/trusted"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/trusted/asset-asset-hash-1"), nil, 0644)
-	c.Assert(err, IsNil)
+	mockAssetsCache(c, rootdir, "trusted", []string{
+		"asset-asset-hash-1",
+	})
 
 	// match one of current kernels
 	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_500.snap", "kernel.efi", bootloader.RoleRunMode)
@@ -872,15 +861,11 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		bootloader.RoleRunMode:  "grub",
 	}
 	// mock asset cache
-	p := filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/shim-shim-hash")
-	err := os.MkdirAll(filepath.Dir(p), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(p, nil, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash1"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/loader-loader-hash2"), nil, 0644)
-	c.Assert(err, IsNil)
+	mockAssetsCache(c, rootdir, "grub", []string{
+		"shim-shim-hash",
+		"loader-loader-hash1",
+		"loader-loader-hash2",
+	})
 
 	oldmodel := boottest.MakeMockUC20Model(map[string]interface{}{
 		"model":     "old-model-uc20",

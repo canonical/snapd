@@ -112,7 +112,6 @@ and environment.
 			"gdb": i18n.G("Run the command with gdb (deprecated, use --gdbserver instead)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdbserver": i18n.G("Run the command with gdbserver"),
-			// TRANSLATORS: This should not start with a lowercase letter.
 			"experimental-gdbserver": "",
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),

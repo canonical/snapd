@@ -266,21 +266,31 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 	}
 	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "socket-activated")
 
+	ai = client.AppInfo{
+		Daemon: "oneshot",
+		Activators: []client.AppActivator{
+			{Type: "dbus"},
+		},
+	}
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "dbus-activated")
+
 	// check that the output is stable regardless of the order of activators
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 		Activators: []client.AppActivator{
 			{Type: "timer"},
 			{Type: "socket"},
+			{Type: "dbus"},
 		},
 	}
-	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated,dbus-activated")
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 		Activators: []client.AppActivator{
+			{Type: "dbus"},
 			{Type: "socket"},
 			{Type: "timer"},
 		},
 	}
-	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated,dbus-activated")
 }
