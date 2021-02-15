@@ -292,7 +292,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 		revRegexp := regexp.MustCompile(`^"([0-9]+)"$`)
 		match := revRegexp.FindStringSubmatch(revNumString)
 		if match == nil || len(match) != 2 {
-			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): must be snap revision number in quotes", revNumString), 400)
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): must be repair revision number in quotes", revNumString), 400)
 			return
 		}
 		revNum, err := strconv.Atoi(match[1])
