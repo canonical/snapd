@@ -25,7 +25,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
+	// TODO: eliminate this import and just use interfaces import directly
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -143,6 +146,98 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 	_, err = ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+}
+
+type simpleIface struct {
+	name string
+}
+
+func (si simpleIface) Name() string                                              { return si.name }
+func (si simpleIface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool { return false }
+
+func (s *CoreSuite) TestByName(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	r := builtin.MockInterface(simpleIface{name: "mock-network"})
+	defer r()
+
+	_, err := interfaces.ByName("no-such-interface")
+	c.Assert(err, ErrorMatches, "interface \"no-such-interface\" not found")
+
+	iface, err := interfaces.ByName("mock-network")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "mock-network")
+}
+
+type serviceSnippetIface struct {
+	simpleIface
+
+	sanitizerErr error
+
+	snips []string
+}
+
+func (ssi serviceSnippetIface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	return ssi.sanitizerErr
+}
+
+func (ssi serviceSnippetIface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	return ssi.snips
+}
+
+func (s *CoreSuite) TestPermanentPlugServiceSnippets(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	ssi := serviceSnippetIface{
+		simpleIface: simpleIface{name: "mock-service-snippets"},
+		snips:       []string{"foo1", "foo2"},
+	}
+	r := builtin.MockInterface(ssi)
+	defer r()
+
+	iface, err := interfaces.ByName("mock-service-snippets")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "mock-service-snippets")
+
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 0
+plugs:
+  plug:
+    interface: mock-service-snippets
+`, nil)
+	plug := info.Plugs["plug"]
+
+	snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
+	c.Assert(err, IsNil)
+	c.Assert(snips, DeepEquals, []string{"foo1", "foo2"})
+}
+
+func (s *CoreSuite) TestPermanentPlugServiceSnippetsSanitizesPlugs(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	ssi := serviceSnippetIface{
+		simpleIface:  simpleIface{name: "unclean-service-snippets"},
+		sanitizerErr: fmt.Errorf("cannot sanitize: foo"),
+	}
+	r := builtin.MockInterface(ssi)
+	defer r()
+
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 0
+plugs:
+  plug:
+    interface: unclean-service-snippets
+`, nil)
+	plug := info.Plugs["plug"]
+
+	iface, err := interfaces.ByName("unclean-service-snippets")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "unclean-service-snippets")
+
+	_, err = interfaces.PermanentPlugServiceSnippets(iface, plug)
+	c.Assert(err, ErrorMatches, "cannot sanitize: foo")
 }
 
 func (s *CoreSuite) TestSanitizePlug(c *C) {

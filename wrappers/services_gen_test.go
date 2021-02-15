@@ -63,7 +63,9 @@ ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
+%s`
 
+const expectedInstallSection = `
 [Install]
 WantedBy=multi-user.target
 `
@@ -94,9 +96,9 @@ var (
 )
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple", expectedInstallSection)
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", "")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes", expectedInstallSection)
 	expectedUserAppService = fmt.Sprintf(expectedUserServiceFmt, "on-failure", "simple")
 )
 
@@ -121,7 +123,7 @@ ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
 %s`
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", expectedInstallSection)
 )
 
 func (s *servicesWrapperGenSuite) SetUpTest(c *C) {
@@ -249,7 +251,6 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 }
 
 func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
-
 	yamlText := `
 name: snap
 version: 1.0
@@ -305,6 +306,7 @@ apps:
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 
+	expectedDbusService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", expectedInstallSection)
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
@@ -437,7 +439,7 @@ WantedBy=sockets.target
 		Command:     "bin/foo start",
 		Daemon:      "simple",
 		DaemonScope: snap.SystemDaemon,
-		Plugs:       map[string]*snap.PlugInfo{"network-bind": {}},
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
@@ -646,9 +648,6 @@ Restart=%s
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=%s
-
-[Install]
-WantedBy=multi-user.target
 `
 
 	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
