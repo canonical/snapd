@@ -1,0 +1,40 @@
+summary: Verify that the theme REST API endpoints function correctly
+
+prepare: |
+    # Always use the curl snap, since 14.04 does not support --unix-socket
+    snap install --devmode --edge test-snapd-curl
+    snap install --edge jq
+
+restore: |
+    rm -f response.txt
+
+execute: |
+    echo "Install the gtk-common-themes snap"
+    snap install gtk-common-themes
+
+    echo "Check for presence of a collection of themes"
+    test-snapd-curl.curl -sSf -o response.txt --unix-socket /run/snapd.socket 'http://localhost/v2/accessories/themes?gtk-theme=Yaru&gtk-theme=TraditionalHumanized&icon-theme=Yaru&icon-theme=Adwaita&sound-theme=Yaru&sound-theme=No-Such-Theme'
+    jq . < response.txt
+
+    jq -r '.result."gtk-themes".Yaru' < response.txt | MATCH '^installed'
+    jq -r '.result."gtk-themes".TraditionalHumanized' < response.txt | MATCH '^available'
+    jq -r '.result."icon-themes".Yaru' < response.txt | MATCH '^installed'
+    jq -r '.result."icon-themes".Adwaita' < response.txt | MATCH '^installed'
+    jq -r '.result."sound-themes".Yaru' < response.txt | MATCH '^installed'
+    jq -r '.result."sound-themes"."No-Such-Theme"' < response.txt | MATCH '^unavailable'
+
+    echo "We can request installation of a snap to satisfy a theme"
+    test-snapd-curl.curl -sSf -o response.txt --unix-socket /run/snapd.socket -d '{"gtk-themes":["TraditionalHumanized"]}' http://localhost/v2/accessories/themes
+    jq . < response.txt
+
+    echo "Wait for change to complete"
+    change_id="$(jq -r .change < response.txt)"
+    snap watch "$change_id"
+
+    echo "The snap providing the theme is now installed"
+    snap list | grep gtk-theme-traditionalhumanized
+
+    echo "The theme now reports as installed"
+    test-snapd-curl.curl -sSf -o response.txt --unix-socket /run/snapd.socket 'http://localhost/v2/accessories/themes?gtk-theme=TraditionalHumanized'
+    jq -r '.result."gtk-themes".TraditionalHumanized' < response.txt | MATCH '^installed'
+
