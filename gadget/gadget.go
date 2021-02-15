@@ -792,8 +792,11 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
-		return fmt.Errorf("missing source or target")
+	if vc.UnresolvedSource == "" {
+		return fmt.Errorf("missing source")
+	}
+	if vc.Target == "" {
+		return fmt.Errorf("missing target")
 	}
 	return nil
 }

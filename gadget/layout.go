@@ -299,7 +299,7 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 	for idx := range ps.Content {
 		resolvedSource, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		content[idx] = ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
@@ -315,9 +315,15 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 // provided gadget/kernel directories and the kernel info. It returns
 // an absolute path or an error.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
-	// TODO: what to here? we could error instead?
-	if pathOrRef == "" {
-		return "", nil
+
+	// TODO: add kernelRootDir == "" error too once all the higher
+	//       layers in devicestate call gadget.Update() with a
+	//       kernel dir set
+	switch {
+	case gadgetRootDir == "":
+		return "", fmt.Errorf("internal error: gadget root dir cannot beempty")
+	case pathOrRef == "":
+		return "", fmt.Errorf("cannot use empty source")
 	}
 
 	// content may refer to "$kernel:<name>/<content>"
