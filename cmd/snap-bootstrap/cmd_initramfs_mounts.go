@@ -150,15 +150,16 @@ func generateInitramfsMounts() (err error) {
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with recover mode
-	if _, err := generateMountsCommonInstallRecover(mst); err != nil {
+	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	if err != nil {
 		return err
 	}
 
 	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
 	//   install mode
-	modeEnv := &boot.Modeenv{
-		Mode:           "install",
-		RecoverySystem: mst.recoverySystem,
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+	if err != nil {
+		return err
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
@@ -708,7 +709,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		//       ubuntu-data and ubuntu-save unlockable and have matching marker
 		//       files in order to use the files from ubuntu-data to log-in,
 		//       etc.
-		trustData, _ := checkDataAndSavaPairing(boot.InitramfsHostWritableDir)
+		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir)
 		if !trustData {
 			part.MountState = partitionMountedUntrusted
 			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
@@ -957,7 +958,7 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	model, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsCommonInstallRecover(mst)
 	if err != nil {
 		return err
 	}
@@ -1045,9 +1046,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		}
 	}
 
-	modeEnv := &boot.Modeenv{
-		Mode:           "recover",
-		RecoverySystem: mst.recoverySystem,
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+	if err != nil {
+		return err
 	}
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
@@ -1066,9 +1067,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	return nil
 }
 
-// checkDataAndSavaPairing make sure that ubuntu-data and ubuntu-save
+// checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
 // come from the same install by comparing secret markers in them
-func checkDataAndSavaPairing(rootdir string) (bool, error) {
+func checkDataAndSavePairing(rootdir string) (bool, error) {
 	// read the secret marker file from ubuntu-data
 	markerFile1 := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "marker")
 	marker1, err := ioutil.ReadFile(markerFile1)
@@ -1108,18 +1109,18 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	return doSystemdMount(partSrc, dir, opts)
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Model, error) {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]snap.PlaceInfo, err error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// load model and verified essential snaps metadata
 	typs := []snap.Type{snap.TypeBase, snap.TypeKernel, snap.TypeSnapd, snap.TypeGadget}
 	model, essSnaps, err := mst.ReadEssential("", typs)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
+		return nil, nil, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", typs, err)
 	}
 
 	// 2.1. measure model
@@ -1129,7 +1130,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 		})
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// at this point on a system with TPM-based encryption
 	// data can be open only if the measured model matches the actual
@@ -1140,16 +1141,21 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 
 	// 2.2. (auto) select recovery system and mount seed snaps
 	// TODO:UC20: do we need more cross checks here?
+
+	systemSnaps := make(map[snap.Type]snap.PlaceInfo)
+
 	for _, essentialSnap := range essSnaps {
 		if essentialSnap.EssentialType == snap.TypeGadget {
 			// don't need to mount the gadget anywhere, but we use the snap
 			// later hence it is loaded
 			continue
 		}
+		systemSnaps[essentialSnap.EssentialType] = essentialSnap.PlaceInfo()
+
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -1172,7 +1178,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// finally get the gadget snap from the essential snaps and use it to
@@ -1199,10 +1205,10 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (*asserts.Mod
 		GadgetSnap:     gadgetSnap,
 	}
 	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return model, err
+	return model, systemSnaps, err
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
@@ -1349,7 +1355,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			// be locked.
 			// for symmetry with recover code and extra paranoia
 			// though also check that the markers match.
-			paired, err := checkDataAndSavaPairing(boot.InitramfsWritableDir)
+			paired, err := checkDataAndSavePairing(boot.InitramfsWritableDir)
 			if err != nil {
 				return err
 			}
