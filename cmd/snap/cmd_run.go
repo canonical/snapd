@@ -1175,6 +1175,16 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useGdbserver() {
+		if _, err := exec.LookPath("gdbserver"); err != nil {
+			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+			// we moved off from go-1.9
+			if execErr, ok := err.(*exec.Error); ok {
+				if execErr.Err == exec.ErrNotFound {
+					return fmt.Errorf("please install gdbserver on your system")
+				}
+			}
+			return err
+		}
 		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)
