@@ -48,13 +48,30 @@ func validateSystemSwapConfiguration(tr config.ConfGetter) error {
 		return nil
 	}
 
-	// valid option for swap is any quantity unit that is larger than or equal
-	// to 1 MB
-	sz, err := quantity.ParseSize(output)
-	if sz < quantity.SizeMiB {
-		return fmt.Errorf("swap size of %s too small", output)
-	}
+	// valid option for swap size is any integer multiple of a megabyte that is
+	// larger than or equal to 1 MB, or 0 for no swap enabled.
+	_, err = parseAndValidateSwapSize(output)
 	return err
+}
+
+func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
+	sz, err := quantity.ParseSize(szString)
+	if err != nil {
+		return 0, err
+	}
+
+	switch {
+	case sz < 0:
+		// negative doesn't make sense
+		return 0, fmt.Errorf("swap size setting must be positive size in megabytes")
+	case sz > 0 && sz < quantity.SizeMiB:
+		// too small
+		return 0, fmt.Errorf("swap size setting must be at least one megabyte")
+	case sz%quantity.SizeMiB != 0:
+		// must be even number of megabytes
+		return 0, fmt.Errorf("swap size setting must be an integer number of megabytes")
+	}
+	return sz, nil
 }
 
 func handlesystemSwapConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
@@ -75,7 +92,7 @@ func handlesystemSwapConfiguration(tr config.ConfGetter, opts *fsOnlyContext) er
 		newSwapSize = "0"
 	}
 
-	szBytes, err := quantity.ParseSize(newSwapSize)
+	szBytes, err := parseAndValidateSwapSize(newSwapSize)
 	if err != nil {
 		return err
 	}
