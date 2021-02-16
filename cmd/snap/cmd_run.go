@@ -37,7 +37,6 @@ import (
 
 	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dbusutil"
@@ -1176,8 +1175,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useGdbserver() {
 		if _, err := exec.LookPath("gdbserver"); err != nil {
-			if xerrors.Is(err, exec.ErrNotFound) {
-				return fmt.Errorf("please install gdbserver on your system")
+			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+			// we moved off from go-1.9
+			if execErr, ok := err.(*exec.Error); ok {
+				if execErr.Err == exec.ErrNotFound {
+					return fmt.Errorf("please install gdbserver on your system")
+				}
 			}
 			return err
 		}
