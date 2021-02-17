@@ -1,5 +1,10 @@
 summary: Ensure snap userd autostart fixes up directory permissions of ~/snap
 
+# don't run on trusty, tests.session does not work on trusty due to the
+# lack of user session support there
+systems:
+  - -ubuntu-14.04-64
+
 environment:
   USER/root: root
   USER/test: test
