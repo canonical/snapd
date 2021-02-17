@@ -1398,6 +1398,14 @@ size: 1M
 content:
   - source: foo
 `
+	sourceEmpty := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: ext4
+size: 1M
+content:
+  - source:
+    target: /
+`
 
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
@@ -1409,7 +1417,8 @@ content:
 		{mustParseStructure(c, bareMissing), nil, `invalid content #0: missing image file name`},
 		{mustParseStructure(c, fsOk), nil, ""},
 		{mustParseStructure(c, fsMixed), nil, `invalid content #1: cannot use image content for non-bare file system`},
-		{mustParseStructure(c, fsMissing), nil, `invalid content #0: missing source or target`},
+		{mustParseStructure(c, fsMissing), nil, `invalid content #0: missing target`},
+		{mustParseStructure(c, sourceEmpty), nil, `invalid content #0: missing source`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
@@ -1720,6 +1729,29 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	c.Assert(giRead, DeepEquals, giMeta)
 }
 
+func (s *gadgetYamlTestSuite) TestReadInfoValidatesEmptySource(c *C) {
+	var gadgetYamlContent = `
+volumes:
+  missing:
+    bootloader: grub
+    structure:
+      - name: missing-content-source
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+        content:
+          - source: foo
+            target: /
+          - source:
+            target: /
+
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	_, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, ErrorMatches, `invalid volume "missing": invalid structure #0 \("missing-content-source"\): invalid content #1: missing source`)
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetImplicitSchema(c *C) {
 	var minimal = []byte(`
 volumes:
@@ -2021,7 +2053,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C)
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
@@ -2037,7 +2069,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, coreMod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", coreMod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
@@ -2054,7 +2086,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) 
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, nil)
+	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
@@ -2066,7 +2098,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data

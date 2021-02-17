@@ -830,6 +830,11 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 // after a successful boot. Returns a modified modeenv reflecting a new state,
 // and a list of assets that can be dropped from the cache.
 func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	// TODO:UC20 only care about run mode for now
+	if m.Mode != "run" {
+		return m, nil, nil
+	}
+
 	newM, err = m.Copy()
 	if err != nil {
 		return nil, nil, err

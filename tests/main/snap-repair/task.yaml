@@ -1,7 +1,8 @@
 summary: Ensure that snap-repair is available
 
 # snap-repair is not shipped on non-ubuntu
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
+systems: [ubuntu-*]
+
 
 execute: |
     if os.query is-classic; then

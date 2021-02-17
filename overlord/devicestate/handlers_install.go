@@ -20,8 +20,10 @@
 package devicestate
 
 import (
+	"compress/gzip"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
@@ -88,6 +90,37 @@ func writeModel(model *asserts.Model, where string) error {
 	}
 	defer f.Close()
 	return asserts.NewEncoder(f).Encode(model)
+}
+
+func writeLogs(rootdir string) error {
+	// XXX: would be great to use native journal format but it's tied
+	//      to machine-id, we could journal -o export but there
+	//      is no systemd-journal-remote on core{,18,20}
+	//
+	// XXX: or only log if persistent journal is enabled?
+	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	cmd := exec.Command("journalctl", "-b", "0")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect journal output: %v", err)
+	}
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush compressed log output: %v", err)
+	}
+	return nil
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -235,6 +268,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
 	}
 
 	// request a restart as the last action after a successful install

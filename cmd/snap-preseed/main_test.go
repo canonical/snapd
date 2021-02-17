@@ -328,6 +328,10 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
 }
 
+func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	panic("unexpected")
+}
+
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
@@ -679,4 +683,27 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 	}
 
+}
+
+func (s *startPreseedSuite) TestReadInfoSanity(c *C) {
+	var called bool
+	inf := &snap.Info{
+		BadInterfaces: make(map[string]string),
+		Plugs: map[string]*snap.PlugInfo{
+			"foo": {
+				Interface: "bad"},
+		},
+	}
+
+	// set a dummy sanitize method.
+	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
+
+	parser := testParser(c)
+	tmpDir := c.MkDir()
+	_ = main.Run(parser, []string{tmpDir})
+
+	// real sanitize method should be set after Run()
+	snap.SanitizePlugsSlots(inf)
+	c.Assert(called, Equals, false)
+	c.Assert(inf.BadInterfaces, HasLen, 1)
 }

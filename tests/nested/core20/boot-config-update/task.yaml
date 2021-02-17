@@ -1,0 +1,67 @@
+summary: Check that the boot config is correctly updated when snapd is refreshed
+
+systems: [ubuntu-20.04-64]
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB/snaps.sh"
+
+  repack_snapd_deb_into_snapd_snap "$PWD"
+  # repack the snapd snap with a marker file
+  unsquashfs -d snapd-snap snapd-from-deb.snap
+
+  # leave a marker file that triggers boot config assets to be injected
+  echo 'bootassetstesting' > snapd-snap/usr/lib/snapd/bootassetstesting
+
+  snap pack snapd-snap --filename=snapd-boot-config-update.snap
+  rm -rf snapd-snap
+  nested_copy snapd-boot-config-update.snap
+
+debug: |
+  cat boot-chains-before.json || true
+  cat boot-chains-after.json || true
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
+  SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | not MATCH ' bootassetstesting'
+
+  # Install new (unasserted) snapd and wait for reboot/change finishing
+  boot_id="$( nested_get_boot_id )"
+  REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
+  nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+  # reboot is automatically requested by snapd
+  nested_wait_for_reboot "${boot_id}"
+  # boot assets have been updated
+  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
+
+  nested_exec "cat /proc/cmdline" | MATCH bootassetstesting
+
+  # ensure ubuntu-data.sealed-key mtime is newer
+  SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+
+  # check that we have boot chains
+  nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
+
+  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
+  RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
+  test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-after.json | MATCH ' bootassetstesting'

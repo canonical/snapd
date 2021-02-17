@@ -380,6 +380,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	updatesBootConfig
 	noConfigure
 )
 
