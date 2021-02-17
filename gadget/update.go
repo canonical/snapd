@@ -52,8 +52,9 @@ type GadgetData struct {
 }
 
 // UpdatePolicyFunc is a callback that evaluates the provided pair of structures
-// and returns true when the pair should be part of an update.
-type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
+// and returns true and the returned pair that should be part of an update
+// or false if no update is needed.
+type UpdatePolicyFunc func(from, to *LaidOutStructure) (needsUpdate bool, newFrom *LaidOutStructure, newTo *LaidOutStructure)
 
 // ContentChange carries paths to files containing the content data being
 // modified by the operation.
@@ -299,32 +300,34 @@ type updatePair struct {
 	to   *LaidOutStructure
 }
 
-func defaultPolicy(from, to *LaidOutStructure) bool {
-	return to.Update.Edition > from.Update.Edition
+func defaultPolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
+	return to.Update.Edition > from.Update.Edition, from, to
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
-func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
+func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
 	if from.Role == schemaMBR {
-		return false
+		return false, from, to
 	}
-	return true
+	return true, from, to
 }
 
 // KernelUpdatePolicy implements the update policy for kernel asset updates
-func KernelUpdatePolicy(from, to *LaidOutStructure) bool {
+func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
+	var kernelContent []ResolvedContent
 	for _, rn := range to.ResolvedContent {
 		if rn.KernelUpdateFlag {
-			// XXX: if there is a structure that has mixed
-			// content from $kernel: or gadget then this will
-			// also update the gadget data. So we will need
-			// a per ResolvedContent predicator?
-			return true
+			kernelContent = append(kernelContent, rn)
 		}
 	}
+	if len(kernelContent) > 0 {
+		newTo := *to
+		newTo.ResolvedContent = kernelContent
+		return true, from, &newTo
+	}
 
-	return false
+	return false, nil, nil
 }
 
 func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
@@ -337,11 +340,9 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
-		if policy(&oldStruct, &newStruct) {
-			updates = append(updates, updatePair{
-				from: &oldVol.LaidOutStructure[j],
-				to:   &newVol.LaidOutStructure[j],
-			})
+		needsUpdate, from, to := policy(&oldStruct, &newStruct)
+		if needsUpdate {
+			updates = append(updates, updatePair{from, to})
 		}
 	}
 	return updates, nil

@@ -6253,6 +6253,7 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// and mock the mount point
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0755)
 	c.Assert(err, IsNil)
+
 }
 
 // tsWithoutReRefresh removes the re-refresh task from the given taskset.
@@ -6387,6 +6388,8 @@ volumes:
             type: 0C
             size: 1200M
             content:
+              - source: boot-assets/
+                target: /
               - source: $kernel:pidtbs/dtbs/broadcom/
                 target: /
               - source: $kernel:pidtbs/dtbs/overlays/
@@ -6408,6 +6411,7 @@ volumes:
 	})
 	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
 	})
 	// we have an installed kernel with kernel.yaml
 	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
@@ -6470,6 +6474,8 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+	// BUT the gadget content is ignored and not copied again
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileAbsent)
 }
 
 func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefGadgetRefresh(c *C) {
@@ -6493,6 +6499,8 @@ volumes:
             type: 0C
             size: 1200M
             content:
+              - source: boot-assets/
+                target: /
               - source: $kernel:pidtbs/dtbs/broadcom/
                 target: /
               - source: $kernel:pidtbs/dtbs/overlays/
@@ -6544,6 +6552,7 @@ volumes:
 	})
 	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev2"},
 	})
 	ms.serveSnap(snapPath, "2")
 
@@ -6581,4 +6590,5 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev2")
 }
