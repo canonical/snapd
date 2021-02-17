@@ -584,7 +584,7 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	// TODO: consider changing that again but we need consider the
 	// effect of the different failure mode.
 	//
-	// We also assume that anything sentive will not be guarded
+	// We also assume that anything sensitive will not be guarded
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
