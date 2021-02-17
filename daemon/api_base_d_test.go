@@ -123,11 +123,11 @@ func (s *APIBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 func (s *APIBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.PokeStateLock()
 	if assertQuery != nil {
-		toResolve, err := assertQuery.ToResolve()
+		toResolve, toResolveSeq, err := assertQuery.ToResolve()
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(toResolve) != 0 {
+		if len(toResolve) != 0 || len(toResolveSeq) != 0 {
 			panic("no assertion query support")
 		}
 	}

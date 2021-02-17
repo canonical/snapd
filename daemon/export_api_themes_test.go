@@ -19,18 +19,20 @@
 
 package daemon
 
-import (
-	"github.com/snapcore/snapd/asserts/snapasserts"
-)
-
 type (
-	ValidationSetResult = validationSetResult
+	ThemeStatus         = themeStatus
+	ThemeStatusResponse = themeStatusResponse
 )
 
-func MockCheckInstalledSnaps(f func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error) func() {
-	old := checkInstalledSnaps
-	checkInstalledSnaps = f
-	return func() {
-		checkInstalledSnaps = old
-	}
-}
+var (
+	// XXX it would be nice to not export this
+	ThemesCmd                    = themesCmd
+	InstalledThemes              = installedThemes
+	ThemePackageCandidates       = themePackageCandidates
+	ThemeStatusAndCandidateSnaps = themeStatusAndCandidateSnaps
+	CollectThemeStatusForPrefix  = collectThemeStatusForPrefix
+
+	ThemeInstalled   = themeInstalled
+	ThemeAvailable   = themeAvailable
+	ThemeUnavailable = themeUnavailable
+)

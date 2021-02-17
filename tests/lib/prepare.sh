@@ -967,22 +967,36 @@ EOF
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
     cat > "$IMAGE_HOME/reflash.sh" << EOF
-#!/bin/sh -ex
-mount -t tmpfs none /tmp
-cp /bin/busybox /tmp
-cp $IMAGE_HOME/$IMAGE /tmp
-sync
+#!/tmp/busybox sh
+set -e
+set -x
+
 # blow away everything
 OF=/dev/sda
 if [ -e /dev/vda ]; then
     OF=/dev/vda
 fi
-/tmp/busybox dd if=/tmp/$IMAGE of=\$OF bs=4M
+dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
-/tmp/busybox sync
-/tmp/busybox echo b > /proc/sysrq-trigger
+sync
+echo b > /proc/sysrq-trigger
+
+EOF
+
+    cat > "$IMAGE_HOME/prep-reflash.sh" << EOF
+#!/bin/sh -ex
+mount -t tmpfs none /tmp
+cp /bin/busybox /tmp
+cp $IMAGE_HOME/reflash.sh /tmp
+cp $IMAGE_HOME/$IMAGE /tmp
+sync
+
+# re-exec using busybox from /tmp
+exec /tmp/reflash.sh
+
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
+    chmod +x "$IMAGE_HOME/prep-reflash.sh"
 
     DEVPREFIX=""
     if os.query is-core20; then
@@ -994,7 +1008,7 @@ EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=tty1 console=ttyS0
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/prep-reflash.sh console=tty1 console=ttyS0
 initrd $DEVPREFIX/initrd.img
 }
 EOF
