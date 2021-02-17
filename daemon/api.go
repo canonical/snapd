@@ -190,20 +190,6 @@ func getStore(c *Command) snapstate.StoreService {
 	return snapstate.Store(st, nil)
 }
 
-// licenseData holds details about the snap license, and may be
-// marshaled back as an error when the license agreement is pending,
-// and is expected as input to accept (or not) that license
-// agreement. As such, its field names are part of the API.
-type licenseData struct {
-	Intro   string `json:"intro"`
-	License string `json:"license"`
-	Agreed  bool   `json:"agreed"`
-}
-
-func (*licenseData) Error() string {
-	return "license agreement required"
-}
-
 type snapRevisionOptions struct {
 	Channel  string        `json:"channel"`
 	Revision snap.Revision `json:"revision"`
@@ -237,19 +223,15 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode          bool `json:"devmode"`
-	JailMode         bool `json:"jailmode"`
-	Classic          bool `json:"classic"`
-	IgnoreValidation bool `json:"ignore-validation"`
-	IgnoreRunning    bool `json:"ignore-running"`
-	Unaliased        bool `json:"unaliased"`
-	Purge            bool `json:"purge,omitempty"`
-	// dropping support temporarely until flag confusion is sorted,
-	// this isn't supported by client atm anyway
-	LeaveOld bool         `json:"temp-dropped-leave-old"`
-	License  *licenseData `json:"license"`
-	Snaps    []string     `json:"snaps"`
-	Users    []string     `json:"users"`
+	DevMode          bool     `json:"devmode"`
+	JailMode         bool     `json:"jailmode"`
+	Classic          bool     `json:"classic"`
+	IgnoreValidation bool     `json:"ignore-validation"`
+	IgnoreRunning    bool     `json:"ignore-running"`
+	Unaliased        bool     `json:"unaliased"`
+	Purge            bool     `json:"purge,omitempty"`
+	Snaps            []string `json:"snaps"`
+	Users            []string `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
