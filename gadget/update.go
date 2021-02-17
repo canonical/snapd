@@ -341,14 +341,12 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
-	for j, oldStruct := range oldVol.LaidOutStructure {
-		newStruct := newVol.LaidOutStructure[j]
+	for j := range oldVol.LaidOutStructure {
 		// update only when new edition is higher than the old one; boot
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
-		needsUpdate, from, to := policy(&oldStruct, &newStruct)
-		if needsUpdate {
+		if needsUpdate, from, to := policy(&oldVol.LaidOutStructure[j], &newVol.LaidOutStructure[j]); needsUpdate {
 			updates = append(updates, updatePair{from, to})
 		}
 	}

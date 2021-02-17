@@ -1101,9 +1101,9 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	defer restore()
 
 	policySeen := map[string]int{}
-	err := gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) bool {
+	err := gadget.Update(oldData, newData, rollbackDir, func(from, to *gadget.LaidOutStructure) (bool, *gadget.LaidOutStructure, *gadget.LaidOutStructure) {
 		policySeen[to.Name]++
-		return false
+		return false, from, to
 	}, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -1117,9 +1117,9 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	// try with different policy
 	policySeen = map[string]int{}
-	err = gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) bool {
+	err = gadget.Update(oldData, newData, rollbackDir, func(from, to *gadget.LaidOutStructure) (bool, *gadget.LaidOutStructure, *gadget.LaidOutStructure) {
 		policySeen[to.Name]++
-		return to.Name == "second"
+		return to.Name == "second", from, to
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
