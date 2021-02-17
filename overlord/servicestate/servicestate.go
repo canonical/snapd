@@ -228,6 +228,11 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		// nothing to do
 		return nil
 	}
+	if snapApp.DaemonScope != snap.SystemDaemon {
+		// FIXME: the system instance of systemd can't tell us
+		// the state of user daemons, so bail out.
+		return nil
+	}
 
 	// collect all services for a single call to systemctl
 	extra := len(snapApp.Sockets)
@@ -277,6 +282,24 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 				Type:    "socket",
 			})
 		}
+	}
+	// Decorate with D-Bus names that activate this service
+	for _, slot := range snapApp.ActivatesOn {
+		var busName string
+		if err := slot.Attr("name", &busName); err != nil {
+			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
+		}
+		// D-Bus activators do not correspond to systemd
+		// units, so don't have the concept of being disabled
+		// or deactivated.  As the service activation file is
+		// created when the snap is installed, report as
+		// enabled/active.
+		appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+			Name:    busName,
+			Enabled: true,
+			Active:  true,
+			Type:    "dbus",
+		})
 	}
 
 	return nil

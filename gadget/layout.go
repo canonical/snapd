@@ -218,6 +218,10 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 
 	var kernelInfo *kernel.Info
 	if !constraints.SkipResolveContent {
+		// TODO:UC20: check and error if kernelRootDir == "" here
+		// This needs the upper layer of gadget updates to be
+		// updated to pass the kernel root first.
+		//
 		// Note that the kernelRootDir may reference the running
 		// kernel if there is a gadget update or the new kernel if
 		// there is a kernel update.
@@ -295,7 +299,7 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 	for idx := range ps.Content {
 		resolvedSource, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		content[idx] = ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
@@ -306,10 +310,22 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 	return content, nil
 }
 
-// resolveContentPathOrRef resolves any "$kernel:" refs in the gadget
-// content and populates VolumeContent.resolvedSource with absolute
-// paths.
+// resolveContentPathOrRef resolves the relative path from gadget
+// assets and any "$kernel:" references from "pathOrRef" using the
+// provided gadget/kernel directories and the kernel info. It returns
+// an absolute path or an error.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+
+	// TODO: add kernelRootDir == "" error too once all the higher
+	//       layers in devicestate call gadget.Update() with a
+	//       kernel dir set
+	switch {
+	case gadgetRootDir == "":
+		return "", fmt.Errorf("internal error: gadget root dir cannot beempty")
+	case pathOrRef == "":
+		return "", fmt.Errorf("cannot use empty source")
+	}
+
 	// content may refer to "$kernel:<name>/<content>"
 	var resolvedSource string
 	if strings.HasPrefix(pathOrRef, "$kernel:") {

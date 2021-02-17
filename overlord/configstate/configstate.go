@@ -26,7 +26,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -139,4 +143,64 @@ func RemapSnapToResponse(snapName string) string {
 		return "system"
 	}
 	return snapName
+}
+
+func delayedCrossMgrInit() {
+	devicestate.EarlyConfig = EarlyConfig
+}
+
+var (
+	configcoreExportExperimentalFlags = configcore.ExportExperimentalFlags
+	configcoreEarly                   = configcore.Early
+)
+
+// EarlyConfig performs any needed early configuration handling during
+// managers' startup, it is exposed as a hook to devicestate for invocation.
+// preloadGadget if set will be invoked if the system is not yet seeded
+// or configured, it should either return ErrNoState, or return
+// the gadget.Info for the to-be-preseed gadget.
+func EarlyConfig(st *state.State, preloadGadget func() (*gadget.Info, error)) error {
+	// already configured
+	configed, err := systemAlreadyConfigured(st)
+	if err != nil {
+		return err
+	}
+	tr := config.NewTransaction(st)
+	if configed {
+		if err := configcoreExportExperimentalFlags(tr); err != nil {
+			return fmt.Errorf("cannot export experimental config flags: %v", err)
+		}
+		return nil
+	}
+	if preloadGadget != nil {
+		gi, err := preloadGadget()
+		if err != nil {
+			if err == state.ErrNoState {
+				// nothing to do
+				return nil
+			}
+			return err
+		}
+		values := gadget.SystemDefaults(gi.Defaults)
+		if err := configcoreEarly(tr, values); err != nil {
+			return err
+		}
+		tr.Commit()
+	}
+	return nil
+}
+
+func systemAlreadyConfigured(st *state.State) (bool, error) {
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	if seeded {
+		return true, nil
+	}
+	cfg, err := config.GetSnapConfig(st, "core")
+	if cfg != nil {
+		return true, nil
+	}
+	return false, err
 }

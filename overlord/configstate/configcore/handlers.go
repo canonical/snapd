@@ -38,9 +38,15 @@ type flags struct {
 	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core
 	// systems only.
 	coreOnlyConfig bool
-	// validatedOnylStateConfig tells that the config requires only validation,
+	// validatedOnlyStateConfig tells that the config requires only validation,
 	// its options are applied dynamically elsewhere.
 	validatedOnlyStateConfig bool
+	// earlyConfigFilter expresses whether the handler supports
+	// any early configuration options (that can and must be
+	// set before even seeding is finished).
+	// If set the function should copy such options from values
+	// to early.
+	earlyConfigFilter func(values, early map[string]interface{})
 }
 
 type fsOnlyHandler struct {
@@ -62,7 +68,7 @@ func init() {
 	addFSOnlyHandler(validateWatchdogOptions, handleWatchdogConfiguration, coreOnly)
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	addFSOnlyHandler(validateExperimentalSettings, doExportExperimentalFlags, nil)
+	addFSOnlyHandler(validateExperimentalSettings, doExportExperimentalFlags, &flags{earlyConfigFilter: earlyExperimentalSettingsFilter})
 
 	// network.disable-ipv6
 	addFSOnlyHandler(validateNetworkSettings, handleNetworkConfiguration, coreOnly)

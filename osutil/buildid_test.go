@@ -129,6 +129,15 @@ func (s *buildIDSuite) TestMyBuildID(c *C) {
 }
 
 func (s *buildIDSuite) TestReadBuildGo(c *C) {
+	if os.Getenv("DH_GOPKG") != "" {
+		// Failure reason is unknown but only reproducible
+		// inside the any 21.04+ sbuild/pbuilder build
+		// environment during the build (with dh-golang).
+		//
+		// Not reproducible outside of dpkg-buildpackage.
+		c.Skip("This `go build` fails inside the dpkg-buildpackage environment with `loadinternal: cannot find runtime/cgo`")
+	}
+
 	tmpdir := c.MkDir()
 	goTruth := filepath.Join(tmpdir, "true")
 	err := ioutil.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
