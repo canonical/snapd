@@ -90,6 +90,10 @@ execute: |
     # my-nesting-ubuntu nesting container
 
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    # TODO: enable for ubuntu-21.04-64 when the image is available
+    if [ "$VERSION_ID" = "21.04" ]; then
+        VERSION_ID="20.10"
+    fi
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
     if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
