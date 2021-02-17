@@ -3,22 +3,24 @@ summary: Ensure snap userd autostart fixes up directory permissions of ~/snap
 environment:
   USER/root: root
   USER/test: test
+  HOMEDIR/root: /root/snap
+  HOMEDIR/test: /home/test/snap
 
 prepare: |
   # Prepare for using sessions as the given user
   tests.session prepare -u "$USER"
 
-restore: |
+execute: |
   # set permissive permissions on the user's home dir
-  tests.session -u "$USER" exec mkdir -p /home/$USER/snap
-  tests.session -u "$USER" exec chmod 0777 /home/$USER/snap
+  tests.session -u "$USER" exec mkdir -p "$HOMEDIR"
+  tests.session -u "$USER" exec chmod 0777 "$HOMEDIR"
 
   # run autostart
   tests.session -u "$USER" exec snap userd --autostart
 
   # check the permissions are fixed up now
-  tests.session -u "$USER" exec stat -c "%a" /home/$USER/snap | MATCH 700
+  tests.session -u "$USER" exec stat -c "%a" "$HOMEDIR" | MATCH 700
 
-execute: |
+restore: |
   # Restore after using sessions as the given user
   tests.session restore -u "$USER"
