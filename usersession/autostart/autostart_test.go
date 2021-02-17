@@ -325,35 +325,3 @@ Exec=no-snap
 `)
 }
 
-func (s *autostartSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
-	// first make the "snap" dir permissive with 0755 perms
-	err := os.MkdirAll(filepath.Join(s.userDir, "snap"), 0755)
-	c.Assert(err, IsNil)
-
-	// make sure the perms are as we expect them if somehow the dir already
-	// existed, MkdirAll wouldn't have changed the perms
-	st, err := os.Stat(filepath.Join(s.userDir, "snap"))
-	c.Assert(err, IsNil)
-	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0755))
-
-	// now autostart the session apps
-	err = autostart.AutostartSessionApps()
-	c.Assert(err, IsNil)
-
-	// make sure that the directory was restricted
-	st, err = os.Stat(filepath.Join(s.userDir, "snap"))
-	c.Assert(err, IsNil)
-	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0700))
-}
-
-func (s *autostartSuite) TestAutostartSessionAppsRestrictsPermissionsNoCreateSnapDir(c *C) {
-	// ensure that the "snap" dir doesn't already exist
-	c.Assert(filepath.Join(s.userDir, "snap"), testutil.FileAbsent)
-
-	// now autostart the session apps
-	err := autostart.AutostartSessionApps()
-	c.Assert(err, IsNil)
-
-	// make sure that the directory was not created
-	c.Assert(filepath.Join(s.userDir, "snap"), testutil.FileAbsent)
-}

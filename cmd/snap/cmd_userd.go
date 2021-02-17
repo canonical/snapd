@@ -24,10 +24,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/usersession/agent"
@@ -60,12 +62,43 @@ func init() {
 	cmd.hidden = true
 }
 
+func maybeFixupUsrSnapPermissions() error {
+	usr, err := userCurrent()
+	if err != nil {
+		return err
+	}
+
+	usrSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+
+	// restrict the user's "snap dir", i.e. /home/$USER/snap, to be private with
+	// permissions o0700 so that other users cannot read the data there, some
+	// snaps such as chromium etc may store secrets inside this directory
+	// note that this operation is safe since `userd --autostart` runs as the
+	// user so there is no issue with this modification being performed as root,
+	// and being vulnerable to symlink switching attacks, etc.
+	if err := os.Chmod(usrSnapDir, 0700); err != nil {
+		// if the dir doesn't exist for some reason (i.e. maybe this user has
+		// never used snaps but snapd is still installed) then ignore the error
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to restrict user snap home dir: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
 	if x.Autostart {
+		// autostart is called when starting the graphical session, use that as
+		// an opportunity to fix ~/snap permission bits
+		if err := maybeFixupUsrSnapPermissions(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to fixup ~/snap permissions: %v\n", err)
+		}
+
 		return x.runAutostart()
 	}
 
