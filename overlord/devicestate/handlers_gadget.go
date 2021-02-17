@@ -146,13 +146,13 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// add kernel directories
 	currentKernelInfo, err := snapstate.CurrentInfo(st, groundDeviceCtx.Model().Kernel())
-	// XXX: instead switch for error here once all tests are updated and
-	// have a kernel
+	// XXX: switch to the normal `if err != nil { return err }` pattern
+	// here once all tests are updated and have a kernel
 	if err == nil {
 		currentData.KernelRootDir = currentKernelInfo.MountDir()
 		updateData.KernelRootDir = currentKernelInfo.MountDir()
 	}
-	// if this is a gadget update triggered by an udpated kernel we
+	// if this is a gadget update triggered by an updated kernel we
 	// need to ensure "updateData.KernelRootDir" points to the new kernel
 	if snapsup.Type == snap.TypeKernel {
 		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
