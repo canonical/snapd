@@ -593,6 +593,10 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
 	})
 	if err != nil {
+		// this same error will be resurfaced in ensureSeed later
+		if err != seed.ErrNoAssertions {
+			logger.Debugf("early import assertions from seed failed: %v", err)
+		}
 		return nil, state.ErrNoState
 	}
 	model := deviceSeed.Model()
@@ -601,26 +605,24 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 		return nil, state.ErrNoState
 	}
 	var gi *gadget.Info
-	success := false
 	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
-		if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
-			return
-		}
-		essGadget := deviceSeed.EssentialSnaps()
-		if len(essGadget) != 1 {
-			return
-		}
-		snapf, err := snapfile.Open(essGadget[0].Path)
-		if err != nil {
-			return
-		}
-		gi, err = gadget.ReadInfoFromSnapFile(snapf, model)
-		if err != nil {
-			return
-		}
-		success = true
+		gi, err = func() (*gadget.Info, error) {
+			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
+				return nil, err
+			}
+			essGadget := deviceSeed.EssentialSnaps()
+			if len(essGadget) != 1 {
+				return nil, fmt.Errorf("multiple gadgets among essential snaps are unexpected")
+			}
+			snapf, err := snapfile.Open(essGadget[0].Path)
+			if err != nil {
+				return nil, err
+			}
+			return gadget.ReadInfoFromSnapFile(snapf, model)
+		}()
 	})
-	if !success {
+	if err != nil {
+		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
 		return nil, state.ErrNoState
 	}
 	return gi, nil
