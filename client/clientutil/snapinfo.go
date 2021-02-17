@@ -95,13 +95,15 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 	}
 
 	var notes = make([]string, 0, 2)
-	var seenTimer, seenSocket bool
+	var seenTimer, seenSocket, seenDbus bool
 	for _, act := range app.Activators {
 		switch act.Type {
 		case "timer":
 			seenTimer = true
 		case "socket":
 			seenSocket = true
+		case "dbus":
+			seenDbus = true
 		}
 	}
 	if seenTimer {
@@ -109,6 +111,9 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 	}
 	if seenSocket {
 		notes = append(notes, "socket-activated")
+	}
+	if seenDbus {
+		notes = append(notes, "dbus-activated")
 	}
 	if len(notes) == 0 {
 		return "-"
