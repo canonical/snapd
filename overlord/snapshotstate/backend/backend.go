@@ -396,6 +396,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		"--create",
 		"--sparse", "--gzip",
 		"--format", "gnu",
+		"--warning", "no-file-ignored",
 		"--directory", parent,
 	}
 
