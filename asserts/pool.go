@@ -361,7 +361,6 @@ func (p *Pool) phase(ph poolPhase) error {
 	return nil
 }
 
-
 // AddSequenceToUpdate adds the assertion referenced by toUpdate and all its
 // prerequisites to the Pool as unresolved and as required by the
 // given group. It is assumed that the assertion is currently in the
