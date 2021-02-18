@@ -4951,7 +4951,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		case 1:
 			// only possible if we managed to unlock unlock data
 			if unlockDataFails {
-				// unlocking data failed, with fallback keys disabled we should never reach here
+				// unlocking data failed, with fallback disabled we should never reach here
 				return secboot.UnlockResult{}, fmt.Errorf("unexpected call to unlock ubuntu-save, broken test")
 			}
 			// no attempts to activate ubuntu-save yet
@@ -5008,7 +5008,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterDa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: failed to unlock ubuntu-data with run object \(fallback keys disabled\)`,
+	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-data \(fallback disabled\)`,
 		s.sysLabel)
 	const unlockDataFails = true
 	const missingSaveKey = true
@@ -5026,7 +5026,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: failed to unlock ubuntu-save with key object \(fallback keys disabled\)`,
+	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-save \(fallback disabled\)`,
 		s.sysLabel)
 	const unlockDataFails = false
 	const missingSaveKey = false
@@ -5044,7 +5044,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot access run ubuntu-save key: .* \(fallback keys disabled\)`,
+	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-save \(fallback disabled\)`,
 		s.sysLabel)
 	const unlockDataFails = false
 	const missingSaveKey = true
