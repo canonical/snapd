@@ -2217,7 +2217,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 
-	// XXX: why do we get account keys?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"validation-set"},
 		{"account-key"},
@@ -2307,7 +2306,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 
-	// XXX: why do we get account keys?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"validation-set"},
 		{"account-key"},
