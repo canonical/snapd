@@ -2405,6 +2405,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 			"shim":  {shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
+		GoodRecoverySystems:       []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 	r := setupUC20Bootenv(
@@ -2762,6 +2763,81 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
 		"snapd_recovery_mode=run panic=-1",
 		"snapd_recovery_mode=run candidate panic=-1",
 	})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
+	b := bootloadertest.Mock("mock", s.bootdir)
+	s.forceBootloader(b)
+
+	// a pending kernel command line change
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   s.base1.Filename(),
+		CurrentKernels:         []string{s.kern1.Filename()},
+		CurrentRecoverySystems: []string{"1234"},
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		b,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// good recovery systems has been populated
+	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234"})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsPopulated(c *C) {
+	b := bootloadertest.Mock("mock", s.bootdir)
+	s.forceBootloader(b)
+
+	// a pending kernel command line change
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   s.base1.Filename(),
+		CurrentKernels:         []string{s.kern1.Filename()},
+		CurrentRecoverySystems: []string{"1234", "9999"},
+		GoodRecoverySystems:    []string{"1234"},
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		b,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// good recovery systems has been populated
+	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234", "9999"})
 }
 
 type recoveryBootenv20Suite struct {
