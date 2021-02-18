@@ -148,6 +148,8 @@ type unresolvedAssertRecord interface {
 	isAssertionNewer(a Assertion) bool
 	groupingPtr() *internal.Grouping
 	label() Grouping
+	revision() int
+	error() error
 }
 
 // An unresolvedRec tracks a single unresolved assertion until it is
@@ -173,6 +175,14 @@ func (u *unresolvedRec) groupingPtr() *internal.Grouping {
 
 func (u *unresolvedRec) label() Grouping {
 	return u.serializedLabel
+}
+
+func (u *unresolvedRec) revision() int {
+	return u.at.Revision
+}
+
+func (u *unresolvedRec) error() error {
+	return u.err
 }
 
 func (u *unresolvedRec) exportTo(r map[Grouping][]*AtRevision, gr *internal.Groupings) {
@@ -211,6 +221,14 @@ func (u *unresolvedSeqRec) isAssertionNewer(a Assertion) bool {
 	return a.Revision() > u.at.Revision
 }
 
+func (u *unresolvedSeqRec) revision() int {
+	return u.at.Revision
+}
+
+func (u *unresolvedSeqRec) error() error {
+	return u.err
+}
+
 func (u *unresolvedSeqRec) exportTo(r map[Grouping][]*AtSequence, gr *internal.Groupings) {
 	serLabel := Grouping(gr.Serialize(&u.grouping))
 	// remember serialized label
@@ -220,8 +238,12 @@ func (u *unresolvedSeqRec) exportTo(r map[Grouping][]*AtSequence, gr *internal.G
 
 func (u *unresolvedSeqRec) merge(at *AtSequence, gnum uint16, gr *internal.Groupings) {
 	gr.AddTo(&u.grouping, gnum)
+	// use highest revision & sequence
 	if at.Revision > u.at.Revision {
 		u.at.Revision = at.Revision
+	}
+	if at.Sequence > u.at.Sequence {
+		u.at.Sequence = at.Sequence
 	}
 }
 
@@ -249,14 +271,6 @@ func (gRec *groupRec) markResolved(ref *Ref) (marked bool) {
 	}
 	gRec.resolved = append(gRec.resolved, *ref)
 	return true
-}
-
-func (gRec *groupRec) markResolvedSeq(atseq *AtSequence, sequence int) (marked bool) {
-	ref := &Ref{
-		Type:       atseq.Type,
-		PrimaryKey: append(atseq.SequenceKey, fmt.Sprintf("%d", sequence)),
-	}
-	return gRec.markResolved(ref)
 }
 
 // markResolved marks the assertion referenced by ref as resolved
@@ -305,25 +319,6 @@ func (p *Pool) isResolved(ref *Ref) (bool, error) {
 	return false, nil
 }
 
-func (p *Pool) isResolvedSeq(atSeq *AtSequence) (bool, int, error) {
-	if p.unchanged[atSeq.Unique()] {
-		return true, -1, nil
-	}
-	// XXX: is this correct? only query backstore if current sequence number was
-	// specified, otherwise (for sequence == -1) we would get the latest known
-	// from the backstore.
-	if atSeq.Sequence > 0 {
-		sm, err := p.bs.SequenceMemberAfter(atSeq.Type, atSeq.SequenceKey, atSeq.Sequence, atSeq.Type.MaxSupportedFormat())
-		if err == nil {
-			return true, sm.Sequence(), nil
-		}
-		if !IsNotFound(err) {
-			return false, -1, err
-		}
-	}
-	return false, -1, nil
-}
-
 func (p *Pool) curRevision(ref *Ref) (int, error) {
 	a, err := ref.Resolve(p.groundDB.Find)
 	if err != nil && !IsNotFound(err) {
@@ -336,14 +331,12 @@ func (p *Pool) curRevision(ref *Ref) (int, error) {
 }
 
 func (p *Pool) curSeqRevision(seq *AtSequence) (int, error) {
-	if seq.Pinned {
-		a, err := seq.Resolve(p.groundDB.Find)
-		if err != nil && !IsNotFound(err) {
-			return 0, err
-		}
-		if err == nil {
-			return a.Revision(), nil
-		}
+	a, err := seq.Resolve(p.groundDB.Find)
+	if err != nil && !IsNotFound(err) {
+		return 0, err
+	}
+	if err == nil {
+		return a.Revision(), nil
 	}
 	return RevisionNotKnown, nil
 }
@@ -368,19 +361,42 @@ func (p *Pool) phase(ph poolPhase) error {
 	return nil
 }
 
-func (p *Pool) AddSequenceToUpdate(unresolved *AtSequence, group string) error {
+
+// AddSequenceToUpdate adds the assertion referenced by toUpdate and all its
+// prerequisites to the Pool as unresolved and as required by the
+// given group. It is assumed that the assertion is currently in the
+// ground database of the Pool, otherwise this will error.
+// The current revisions of the assertion and its prerequisites will
+// be recorded and only higher revisions will then resolve them,
+// otherwise if ultimately unresolved they will be assumed to still be
+// at their current ones. If toUpdate is pinned, then it will be resolved
+// to the highest revision with same sequence point (toUpdate.Sequence).
+func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
-	if unresolved.Pinned && unresolved.Sequence <= 0 {
-		return fmt.Errorf("internal error: unresolved sequence that is pinned must have sequence number")
+	if toUpdate.Sequence <= 0 {
+		return fmt.Errorf("internal error: sequence to update must have a sequence number set")
+	}
+	gnum, err := p.ensureGroup(group)
+	if err != nil {
+		return err
+	}
+
+	u := *toUpdate
+	// sequence forming assertions are never predefined, so no check for it.
+	return p.addUnresolvedSeq(&u, gnum)
+}
+
+func (p *Pool) AddUnresolvedSeq(unresolved *AtSequence, group string) error {
+	if err := p.phase(poolPhaseAddUnresolved); err != nil {
+		return err
 	}
 	gnum, err := p.ensureGroup(group)
 	if err != nil {
 		return err
 	}
 	u := *unresolved
-	// sequence forming assertions are never predefined, so no check for it.
 	return p.addUnresolvedSeq(&u, gnum)
 }
 
@@ -439,22 +455,6 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 }
 
 func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
-	ok, sequence, err := p.isResolvedSeq(unresolved)
-	if err != nil {
-		return err
-	}
-	if ok {
-		// We assume that either the resolving of
-		// prerequisites for the already resolved assertion in
-		// progress has succeeded or will. If that's not the
-		// case we will fail at CommitTo time. We could
-		// instead recurse into its prerequisites again but the
-		// complexity isn't clearly worth it.
-		// See TestParallelPartialResolutionFailure
-		// Mark this as resolved in the group.
-		p.groups[gnum].markResolvedSeq(unresolved, sequence)
-		return nil
-	}
 	uniq := unresolved.Unique()
 	var u unresolvedAssertRecord
 	if u = p.unresolvedSequences[uniq]; u == nil {
@@ -768,22 +768,25 @@ func (p *Pool) unresolvedBookkeeping() {
 	//  * in error
 	//  * unchanged
 	//  * or unresolved
-	for uniq, ur := range p.unresolved {
-		u := ur.(*unresolvedRec)
-		e := u.err
-		if e == nil {
-			if u.at.Revision == RevisionNotKnown {
-				e = ErrUnresolved
-			} else {
-				// unchanged
-				p.unchanged[uniq] = true
+	processUnresolved := func(unresolved map[string]unresolvedAssertRecord) {
+		for uniq, ur := range unresolved {
+			e := ur.error()
+			if e == nil {
+				if ur.revision() == RevisionNotKnown {
+					e = ErrUnresolved
+				} else {
+					// unchanged
+					p.unchanged[uniq] = true
+				}
 			}
+			if e != nil {
+				p.setErr(ur.groupingPtr(), e)
+			}
+			delete(unresolved, uniq)
 		}
-		if e != nil {
-			p.setErr(&u.grouping, e)
-		}
-		delete(p.unresolved, uniq)
 	}
+	processUnresolved(p.unresolved)
+	processUnresolved(p.unresolvedSequences)
 
 	// prerequisites will become the new unresolved but drop them
 	// if all their groups are in error
