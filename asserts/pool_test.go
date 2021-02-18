@@ -297,7 +297,15 @@ func (s *poolSuite) TestFetchSequenceFormingNotPinned(c *C) {
 		asserts.MakePoolGrouping(0): {storeKeyAt},
 	})
 
+	ok, err = pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
 	c.Check(pool.Err("for_one"), IsNil)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
 }
 
 func (s *poolSuite) TestCompleteFetch(c *C) {
@@ -915,6 +923,10 @@ func (s *poolSuite) TestUpdateSeqForming(c *C) {
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
 }
 
 func (s *poolSuite) TestUpdateSeqFormingPinned(c *C) {
@@ -953,6 +965,10 @@ func (s *poolSuite) TestUpdateSeqFormingPinned(c *C) {
 	})
 
 	c.Check(pool.Err("for_one"), IsNil)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
 }
 
 func (s *poolSuite) TestAddSequenceToUpdateMissingSequenceError(c *C) {
