@@ -239,11 +239,12 @@ func (u *unresolvedSeqRec) exportTo(r map[Grouping][]*AtSequence, gr *internal.G
 func (u *unresolvedSeqRec) merge(at *AtSequence, gnum uint16, gr *internal.Groupings) {
 	gr.AddTo(&u.grouping, gnum)
 	// use highest revision & sequence
-	if at.Revision > u.at.Revision {
+	switch {
+	case at.Sequence == u.at.Sequence && at.Revision > u.at.Revision:
 		u.at.Revision = at.Revision
-	}
-	if at.Sequence > u.at.Sequence {
+	case at.Sequence > u.at.Sequence:
 		u.at.Sequence = at.Sequence
+		u.at.Revision = at.Revision
 	}
 }
 
@@ -387,7 +388,7 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	return p.addUnresolvedSeq(&u, gnum)
 }
 
-func (p *Pool) AddUnresolvedSeq(unresolved *AtSequence, group string) error {
+func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
@@ -454,6 +455,9 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 }
 
 func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
+	// TODO: repeated calls to AddToUpdateSequence/AddUnresolvedSeq
+	// about the same sequence are not expected in our use cases; add a check
+	// for that.
 	uniq := unresolved.Unique()
 	var u unresolvedAssertRecord
 	if u = p.unresolvedSequences[uniq]; u == nil {

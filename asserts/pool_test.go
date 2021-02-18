@@ -272,7 +272,7 @@ func (s *poolSuite) TestFetchSequenceFormingNotPinned(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSeq(atseq, "for_one")
+	err := pool.AddUnresolvedSequence(atseq, "for_one")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
@@ -504,14 +504,12 @@ func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSeq(atOne, "for_one")
+	err := pool.AddUnresolvedSequence(atOne, "for_one")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	//c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
-	//	asserts.MakePoolGrouping(0): {atOne},
-	//})
+	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {atOne},
 	})
@@ -768,7 +766,7 @@ func (s *poolSuite) TestAddCurrentRevisionSeqForming(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err := pool.AddUnresolvedSeq(atSeq, "one")
+	err := pool.AddUnresolvedSequence(atSeq, "one")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
@@ -991,7 +989,7 @@ func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
 		Revision:    asserts.RevisionNotKnown,
 		Sequence:    1,
 	}
-	err := pool.AddUnresolvedSeq(atseq, "for_one")
+	err := pool.AddUnresolvedSequence(atseq, "for_one")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
@@ -1038,7 +1036,7 @@ func (s *poolSuite) TestAddErrorEarly(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolvedSeq(seq1111, "for_two")
+	err = pool.AddUnresolvedSequence(seq1111, "for_two")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
@@ -1339,7 +1337,7 @@ func (s *poolSuite) TestAddErrors(c *C) {
 		SequenceKey: []string{"1111"},
 		Revision:    asserts.RevisionNotKnown,
 	}
-	err = pool.AddUnresolvedSeq(seq1111, "for_two")
+	err = pool.AddUnresolvedSequence(seq1111, "for_two")
 	c.Assert(err, IsNil)
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
