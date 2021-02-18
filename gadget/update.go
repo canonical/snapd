@@ -51,10 +51,18 @@ type GadgetData struct {
 	KernelRootDir string
 }
 
-// UpdatePolicyFunc is a callback that evaluates the provided pair of structures
-// and returns true and the returned pair that should be part of an update
-// or false if no update is needed.
-type UpdatePolicyFunc func(from, to *LaidOutStructure) (needsUpdate bool, newFrom *LaidOutStructure, newTo *LaidOutStructure)
+// UpdatePolicyFunc is a callback that evaluates the provided pair of
+// structures and returns true when the pair should be part of an
+// update. It may also return a filter function for the resolved
+// content when not all part of the content should be applied
+// (e.g. when updating assets from the kernel snap).
+type UpdatePolicyFunc func(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc)
+
+// ResolvedContentFilterFunc is a callback that evaluates the given
+// ResolvedContent and returns true if it should be applied as part of
+// an update. This is relevant for e.g. asset updates that come from
+// the kernel snap.
+type ResolvedContentFilterFunc func(*ResolvedContent) bool
 
 // ContentChange carries paths to files containing the content data being
 // modified by the operation.
@@ -298,19 +306,21 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 type updatePair struct {
 	from *LaidOutStructure
 	to   *LaidOutStructure
+
+	resolvedContentFilter func(*ResolvedContent) bool
 }
 
-func defaultPolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
-	return to.Update.Edition > from.Update.Edition, from, to
+func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
+	return to.Update.Edition > from.Update.Edition, nil
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
-func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
+func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
 	if from.Role == schemaMBR {
-		return false, from, to
+		return false, nil
 	}
-	return true, from, to
+	return true, nil
 }
 
 // KernelUpdatePolicy implements the update policy for kernel asset updates.
@@ -321,36 +331,50 @@ func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *
 //
 // But any non-kernel assets need to be ignored, they will be handled by
 // the regular gadget->gadget update mechanism and policy.
-func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, *LaidOutStructure, *LaidOutStructure) {
-	var kernelContent []ResolvedContent
+func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
 	for _, rn := range to.ResolvedContent {
 		if rn.KernelUpdateFlag {
-			kernelContent = append(kernelContent, rn)
+			return true, func(rn *ResolvedContent) bool {
+				return rn.KernelUpdateFlag
+			}
 		}
 	}
-	if len(kernelContent) > 0 {
-		newTo := *to
-		newTo.ResolvedContent = kernelContent
-		return true, from, &newTo
-	}
 
-	return false, nil, nil
+	return false, nil
 }
 
 func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
-	for j := range oldVol.LaidOutStructure {
+	for j, oldStruct := range oldVol.LaidOutStructure {
+		newStruct := newVol.LaidOutStructure[j]
 		// update only when new edition is higher than the old one; boot
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
-		if needsUpdate, from, to := policy(&oldVol.LaidOutStructure[j], &newVol.LaidOutStructure[j]); needsUpdate {
-			updates = append(updates, updatePair{from, to})
+		if update, filter := policy(&oldStruct, &newStruct); update {
+			updates = append(updates, updatePair{
+				from: &oldVol.LaidOutStructure[j],
+				to:   &newVol.LaidOutStructure[j],
+
+				resolvedContentFilter: filter,
+			})
 		}
 	}
 	return updates, nil
+}
+
+func filterUpdates(updates []updatePair) {
+	for _, update := range updates {
+		if update.resolvedContentFilter != nil {
+			for i := len(update.to.ResolvedContent) - 1; i >= 0; i-- {
+				if !update.resolvedContentFilter(&update.to.ResolvedContent[i]) {
+					update.to.ResolvedContent = append(update.to.ResolvedContent[:i], update.to.ResolvedContent[i+1:]...)
+				}
+			}
+		}
+	}
 }
 
 type Updater interface {
@@ -366,6 +390,11 @@ type Updater interface {
 }
 
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
+	// XXX: too simplistic? should we pass the
+	// ResolvedContentFilterFunc from updatePair down to the
+	// MountedFileSystem instead?
+	filterUpdates(updates)
+
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
