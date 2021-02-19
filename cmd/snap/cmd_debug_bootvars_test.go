@@ -44,7 +44,7 @@ func (s *SnapSuite) TestDebugBootvars(c *check.C) {
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
+	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stdout(), check.Equals, `snap_mode=try
 snap_core=core18_1.snap
 snap_try_core=core18_2.snap
@@ -59,4 +59,33 @@ func (s *SnapSuite) TestDebugBootvarsNotOnClassic(c *check.C) {
 	defer restore()
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
 	c.Assert(err, check.ErrorMatches, `the "boot-vars" command is not available on classic systems`)
+}
+
+func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	bloader.BootVars = map[string]string{
+		"snap_mode":       "try",
+		"unrelated":       "thing",
+		"snap_core":       "core18_1.snap",
+		"snap_try_core":   "core18_2.snap",
+		"snap_kernel":     "pc-kernel_3.snap",
+		"snap_try_kernel": "",
+	}
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars",
+		"snap_mode=trying", "try_recovery_system=1234", "unrelated="})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(bloader.BootVars, check.DeepEquals, map[string]string{
+		"snap_mode":           "trying",
+		"unrelated":           "",
+		"snap_core":           "core18_1.snap",
+		"snap_try_core":       "core18_2.snap",
+		"snap_kernel":         "pc-kernel_3.snap",
+		"snap_try_kernel":     "",
+		"try_recovery_system": "1234",
+	})
 }
