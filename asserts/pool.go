@@ -218,7 +218,19 @@ func (u *unresolvedSeqRec) label() Grouping {
 }
 
 func (u *unresolvedSeqRec) isAssertionNewer(a Assertion) bool {
-	return a.Revision() > u.at.Revision
+	seqf, ok := a.(SequenceMember)
+	if !ok {
+		// This should never happen because resolveWith() compares correct types.
+		panic(fmt.Sprintf("internal error: cannot compare assertion %v with unresolved sequence-forming assertion (wrong type)", a.Ref()))
+	}
+	if u.at.Pinned {
+		return seqf.Sequence() == u.at.Sequence && a.Revision() > u.at.Revision
+	}
+	// not pinned
+	if seqf.Sequence() == u.at.Sequence {
+		return a.Revision() > u.at.Revision
+	}
+	return seqf.Sequence() > u.at.Sequence
 }
 
 func (u *unresolvedSeqRec) revision() int {
