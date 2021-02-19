@@ -67,6 +67,8 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 			"snapd_recovery_kernel",
 			"snap_kernel",
 			"kernel_status",
+			"recovery_system_status",
+			"try_recovery_system",
 		}
 	}
 	bloader, err := bootloader.Find(dir, opts)
