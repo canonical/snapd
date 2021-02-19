@@ -22,14 +22,15 @@ package boot
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-// DumpBootVars writes a dump of the snapd bootvars to the given writer
-func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
+// DebugDumpBootVars writes a dump of the snapd bootvars to the given writer
+func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	opts := &bootloader.Options{
 		NoSlashBoot: dir != "" && dir != "/",
 	}
@@ -84,4 +85,38 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
 	}
 	return nil
+}
+
+// DebugSetBootVars is a debug helper that takes a list of <var>=<value> entries
+// and sets them for the configured bootloader.
+func DebugSetBootVars(dir string, varEqVal []string) error {
+	opts := &bootloader.Options{
+		NoSlashBoot: dir != "" && dir != "/",
+	}
+	switch dir {
+	// is it any of the well-known UC20 boot partition mount locations?
+	case InitramfsUbuntuBootDir:
+		opts.Role = bootloader.RoleRunMode
+	case InitramfsUbuntuSeedDir:
+		opts.Role = bootloader.RoleRecovery
+	}
+	if !opts.NoSlashBoot {
+		// no root directory set, default ot run mode
+		opts.Role = bootloader.RoleRunMode
+	}
+	bloader, err := bootloader.Find(dir, opts)
+	if err != nil {
+		return err
+	}
+
+	toSet := map[string]string{}
+
+	for _, req := range varEqVal {
+		split := strings.SplitN(req, "=", 2)
+		if len(split) != 2 {
+			return fmt.Errorf("incorrect setting %q", varEqVal)
+		}
+		toSet[split[0]] = split[1]
+	}
+	return bloader.SetBootVars(toSet)
 }
