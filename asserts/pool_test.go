@@ -1013,6 +1013,42 @@ func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
 	c.Check(pool.Err("for_one"), Equals, asserts.ErrUnresolved)
 }
 
+func (s *poolSuite) TestAddUnresolvedSeqOnce(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        s.seq1_1111.Type(),
+		SequenceKey: []string{"1111"},
+		Revision:    asserts.RevisionNotKnown,
+		Sequence:    1,
+	}
+	err := pool.AddUnresolvedSequence(atseq, "for_one")
+	c.Assert(err, IsNil)
+
+	atseq.Sequence = 2
+	atseq.Revision = 3
+	err = pool.AddUnresolvedSequence(atseq, "for_one")
+	c.Assert(err, ErrorMatches, `internal error: sequence \[1111\] is already being resolved`)
+}
+
+func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        s.seq1_1111.Type(),
+		SequenceKey: []string{"1111"},
+		Revision:    2,
+		Sequence:    1,
+	}
+	err := pool.AddSequenceToUpdate(atseq, "for_one")
+	c.Assert(err, IsNil)
+
+	atseq.Sequence = 3
+	atseq.Revision = 3
+	err = pool.AddSequenceToUpdate(atseq, "for_one")
+	c.Assert(err, ErrorMatches, `internal error: sequence \[1111\] is already being resolved`)
+}
+
 var errBoom = errors.New("boom")
 
 func (s *poolSuite) TestAddErrorEarly(c *C) {

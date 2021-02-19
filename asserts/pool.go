@@ -236,18 +236,6 @@ func (u *unresolvedSeqRec) exportTo(r map[Grouping][]*AtSequence, gr *internal.G
 	r[serLabel] = append(r[serLabel], u.at)
 }
 
-func (u *unresolvedSeqRec) merge(at *AtSequence, gnum uint16, gr *internal.Groupings) {
-	gr.AddTo(&u.grouping, gnum)
-	// use highest revision & sequence
-	switch {
-	case at.Sequence == u.at.Sequence && at.Revision > u.at.Revision:
-		u.at.Revision = at.Revision
-	case at.Sequence > u.at.Sequence:
-		u.at.Sequence = at.Sequence
-		u.at.Revision = at.Revision
-	}
-}
-
 // A groupRec keeps track of all the resolved assertions in a group
 // or whether the group should be considered in error (err != nil).
 type groupRec struct {
@@ -378,6 +366,9 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	if toUpdate.Sequence <= 0 {
 		return fmt.Errorf("internal error: sequence to update must have a sequence number set")
 	}
+	if p.unresolvedSequences[toUpdate.Unique()] != nil {
+		return fmt.Errorf("internal error: sequence %v is already being resolved", toUpdate.SequenceKey)
+	}
 	gnum, err := p.ensureGroup(group)
 	if err != nil {
 		return err
@@ -391,6 +382,9 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
+	}
+	if p.unresolvedSequences[unresolved.Unique()] != nil {
+		return fmt.Errorf("internal error: sequence %v is already being resolved", unresolved.SequenceKey)
 	}
 	gnum, err := p.ensureGroup(group)
 	if err != nil {
@@ -455,9 +449,6 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 }
 
 func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
-	// TODO: repeated calls to AddToUpdateSequence/AddUnresolvedSeq
-	// about the same sequence are not expected in our use cases; add a check
-	// for that.
 	uniq := unresolved.Unique()
 	var u unresolvedAssertRecord
 	if u = p.unresolvedSequences[uniq]; u == nil {
@@ -467,7 +458,7 @@ func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
 		p.unresolvedSequences[uniq] = u
 	}
 	useq := u.(*unresolvedSeqRec)
-	useq.merge(unresolved, gnum, p.groupings)
+	p.groupings.AddTo(&useq.grouping, gnum)
 	return nil
 }
 
