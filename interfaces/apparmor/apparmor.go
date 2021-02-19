@@ -129,6 +129,13 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		args = append(args, filepath.Join(prefix, "/apparmor/parser.conf"))
 		args = append(args, "-b")
 		args = append(args, filepath.Join(prefix, "/apparmor.d"))
+	} else {
+		// if not using the internal apparmor_parser then don't use
+		// the absolute path to the one from apparmor_sandbox but
+		// fall-back to finding the first in the current real PATH
+		// via exec.Command() with just the binary name so that we
+		// can support a mocked parser during tests
+		parser = "apparmor_parser"
 	}
 	output, err := exec.Command(parser, args...).CombinedOutput()
 	if err != nil {
