@@ -727,7 +727,7 @@ type bootState20CommandLine struct {
 	dev Device
 }
 
-func (ba20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u20, err := toBootStateUpdate20(update)
 	if err != nil {
 		return nil, err
@@ -741,7 +741,7 @@ func (ba20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (boot
 		return update, nil
 	}
 
-	newM, err := observeSuccessfulCommandLine(ba20.dev.Model(), u20.writeModeenv)
+	newM, err := observeSuccessfulCommandLine(bcl20.dev.Model(), u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)
 	}
@@ -761,13 +761,13 @@ type bootState20RecoverySystem struct {
 	dev Device
 }
 
-func (ba20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u20, err := toBootStateUpdate20(update)
 	if err != nil {
 		return nil, err
 	}
 
-	newM, err := observeSuccessfulSystems(ba20.dev.Model(), u20.writeModeenv)
+	newM, err := observeSuccessfulSystems(brs20.dev.Model(), u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful recovery system: %v", err)
 	}

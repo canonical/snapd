@@ -48,12 +48,12 @@ type Modeenv struct {
 	Mode           string `key:"mode"`
 	RecoverySystem string `key:"recovery_system"`
 	// CurrentRecoverySystems is a list of labels corresponding to recovery
-	// systems have been verified or are in the process of being tried, thus
-	// only the run key is resealed for these sytems.
+	// systems that have been tested or are in the process of being tried,
+	// thus only the run key is resealed for these sytems.
 	CurrentRecoverySystems []string `key:"current_recovery_systems"`
 	// GoodRecoverySystems is a list of labels corresponding to recovery
-	// systems were verified and we are prepared to use for recovering. The
-	// fallback keys are resealed for these systems.
+	// systems that were tested and are prepared to use for recovering.
+	// The fallback keys are resealed for these systems.
 	GoodRecoverySystems []string `key:"good_recovery_systems"`
 	Base                string   `key:"base"`
 	TryBase             string   `key:"try_base"`

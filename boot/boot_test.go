@@ -2769,7 +2769,6 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
 	b := bootloadertest.Mock("mock", s.bootdir)
 	s.forceBootloader(b)
 
-	// a pending kernel command line change
 	m := &boot.Modeenv{
 		Mode:                   "run",
 		Base:                   s.base1.Filename(),
@@ -2797,7 +2796,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
 	// check the modeenv
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	// good recovery systems has been populated
+	// the list of good recovery systems has not been modified
 	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
 	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234"})
 }
@@ -2806,7 +2805,6 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsPopulated(c *C) {
 	b := bootloadertest.Mock("mock", s.bootdir)
 	s.forceBootloader(b)
 
-	// a pending kernel command line change
 	m := &boot.Modeenv{
 		Mode:                   "run",
 		Base:                   s.base1.Filename(),
