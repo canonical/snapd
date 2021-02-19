@@ -376,7 +376,8 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 
 	u := *toUpdate
 	// sequence forming assertions are never predefined, so no check for it.
-	return p.addUnresolvedSeq(&u, gnum)
+	p.addUnresolvedSeq(&u, gnum)
+	return nil
 }
 
 func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
@@ -391,7 +392,8 @@ func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error
 		return err
 	}
 	u := *unresolved
-	return p.addUnresolvedSeq(&u, gnum)
+	p.addUnresolvedSeq(&u, gnum)
+	return nil
 }
 
 // AddUnresolved adds the assertion referenced by unresolved
@@ -448,7 +450,7 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 	return nil
 }
 
-func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
+func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) {
 	uniq := unresolved.Unique()
 	var u unresolvedAssertRecord
 	if u = p.unresolvedSequences[uniq]; u == nil {
@@ -459,7 +461,6 @@ func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
 	}
 	useq := u.(*unresolvedSeqRec)
 	p.groupings.AddTo(&useq.grouping, gnum)
-	return nil
 }
 
 // ToResolve returns all the currently unresolved assertions in the
