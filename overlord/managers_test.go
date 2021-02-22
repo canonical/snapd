@@ -214,14 +214,17 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	st := o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	err = o.StartUp()
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
-	st := s.o.State()
+
 	st.Lock()
 	defer st.Unlock()
-	st.Set("seeded", true)
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
 	c.Assert(err, IsNil)
@@ -6230,10 +6233,10 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// makeMockDev mocks /dev/disk/by-label/{structureName} and
-// /dev/disk/by-label/{structureName} under the test rootdir and for
+// makeMockDev mocks /dev/disk/by-label/{structureName} and the mount
+// point /run/mnt/{structureName} under the test rootdir and for
 // osutil.LoadMountInfo for use by gadget code for test gadgets using
-// structureNam. This is useful for e.g. end-to-end testing of gadget
+// structureName. This is useful for e.g. end-to-end testing of gadget
 // assets installs/updates.
 func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// mock /dev/disk/by-label/{structureName}

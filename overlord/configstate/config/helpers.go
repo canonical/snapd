@@ -290,7 +290,8 @@ type ConfGetter interface {
 // Patch sets values in cfg for the provided snap's configuration
 // based on patch.
 // patch keys can be dotted as the key argument to Set.
-// The patch is applied according to the order of its keys sorted by depth.
+// The patch is applied according to the order of its keys sorted by depth,
+// with top keys sorted first.
 func Patch(cfg Conf, snapName string, patch map[string]interface{}) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {

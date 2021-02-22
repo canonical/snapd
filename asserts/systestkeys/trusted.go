@@ -198,6 +198,50 @@ o7ZSZ/h/bUY1EjE2
 -----END PGP PRIVATE KEY BLOCK-----
 `
 
+	TestRepairRootPrivKey = `-----BEGIN PGP PRIVATE KEY-----
+
+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
+=3Jq1
+-----END PGP PRIVATE KEY-----
+`
+
 	TestStoreKeyID = "XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y"
 
 	encodedTestStoreAccountKey = `type: account-key
@@ -231,13 +275,48 @@ hJTlp/am+2uVn6U8wPACir4PrbuXYo7L4MIXww2OEO0ruBIaLARbc5IutSWmw6AEYQUxtsa9bdHV
 Zin7LGbEj6lZm8GycWQwh4B6Vnt6dJRIyPc/9G7uM8Ds/2Wa7+yAxhiPqm8DwlbOYh1npw4X4TLD
 IMGnTv5N3zllI+Xz4rqJzNTzEbvOIcrqWxCedQe79A==
 `
+
+	TestRepairKeyID = "3m-CaG9w6CoHbGp8ctHH-sqNj-sBa_M65ekmqPncNN7wOa7NQvYN4J3NMyd_DmYz"
+
+	encodedTestRepairRootAccountKey = `type: account-key
+authority-id: testrootorg
+public-key-sha3-384: 3m-CaG9w6CoHbGp8ctHH-sqNj-sBa_M65ekmqPncNN7wOa7NQvYN4J3NMyd_DmYz
+account-id: testrootorg
+name: test-root-repair
+since: 2021-02-12T13:16:51-06:00
+body-length: 717
+sign-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
+
+AcbBTQRWhcGAARAAqpVMFubDL4n8sdaRM+c/ym1Hh/HToWRUvPQ9VhGARa3tBZX0yeKZIWbqttXU
+gkr3FHx6z+vfia87Z3S5E6I60X+hSKV6RmS2uON19rPJi0KZ0TGGAfF0rfk3WYpVW+M28smMPqZU
+jL8soDYeP+LRrqPCByvI2CvgAbNkQGZNZJoYPsEoW1ekDdVew9nvN1MRkMih+hK/TMk70jGixsbR
+NEOg9nQ9HdDwv0fdlF9oFTfz8GfIGtMlPbFg9/G/AbiYnnHho5JDgpJ+pyjAkoC9CttO3FUc4mgE
+EY+6SwuJH548gPg6gwS1ATi6+l8hNxUCUQlIvaTHRvQ09+kCfbu+B7RqHf0yuJEH74H0fqg+0l7g
+/RwU1Iv4ylkKsO9w8YjAhGzLdoAOZ0j9EwDpRr3jUj/sE7sY4760C6dcCe8mC83nuaiRMvzStUcy
+taa+KqpwFepxzZteRM2JzCA0h9G9yF08iANnzgPSBoI6YvsxPkXKNJU8PrOCHvtZjkTGJR1b1sg6
+Y9AvGGTLsX+D/KHPox1TVuJQulI3lnB2zNwf99c348KSFSoefvlhbWwxLErzc2ogt0L2f7JcY4q7
+vcegoXULoD1pvyzzjVljTzNeQ4tjrlNKG1sVrxJmekMjzgEtJvuTljLjxPB0QDqeVyP2n5JUKP3i
+8J8JH9XlT+gpv40AEQEAAQ==
+
+AcLBUgQAAQoABgUCYCbUIwAA+LMQAF/J4VOh3YXz9GGOrPlFQHBUzDzqiwFJBl7mdUMJ8AgBoFvk
+bKm1Y3tIl4VX7Ajft6RyjpQ/O/RsvmNeQbb409FWvuUxuRUbguXHR/m1WeWH3EGEfQi1MYpAY+ed
+IwAVyA/RCrn+1PnSu4YVtDUJHIJ5NHpcMXufpeo1Ek1S18T7prHezEq+QTgJ6iCSMZPSmhIEBQVm
+V7+8Ui+uKuqqPReN/KmQEedZxH6sKTHxZe3mQ0wyM7YOzL19nECSoWAHiaSErSdVzhYpQIiZjeGs
+7LroIKZY2zJkZhWPlAzDDjlSMWSFmh6P2B6Fsg45ozDw4JuXE0O7+wESEA6Gh3S9xaTk/QU2g8yu
+NSWtQ0zGSyLknVRfNEtWTiYR1ZJ6HVAsAH+zILE88LQnIhPFb4ruF4w30LYgJk9RWTqRAtxnnu9E
+K7GR/NWNqLpjaWZ/z+KTCPSnj0o7GnVjH99uVOIbVQMd5WxYbGrM/i9+5Q+E94WK3Dhr5erdEIx3
+8MahXGKpzhnGLlHHERWKupgU9HOZFi+jyaHs2gr5rXfYyaf5wPuy6nFiE04mJCR5nhmvxROMBcmZ
+J2ZZ3ST8ihwC0d6L038zp/oWDNJHIPpp/hWI82f2diR9soJGpKvFS+rNxPBrL1l2KkNqdMRffIHE
+W9mKvTpJVq095x2hhfHD/4VHLGIm
+`
 )
 
 var (
 	TestRootAccount    asserts.Assertion
 	TestRootAccountKey asserts.Assertion
 	// here for convenience, does not need to be in the trusted set
-	TestStoreAccountKey asserts.Assertion
+	TestStoreAccountKey      asserts.Assertion
+	TestRepairRootAccountKey asserts.Assertion
 	// Testing-only trusted assertions for injecting in the system trusted set.
 	Trusted []asserts.Assertion
 )
@@ -255,9 +334,14 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot decode test store assertion: %v", err))
 	}
+	repairAccKey, err := asserts.Decode([]byte(encodedTestRepairRootAccountKey))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode test repair root assertion: %v", err))
+	}
 
 	TestRootAccount = acct
 	TestRootAccountKey = accKey
 	TestStoreAccountKey = storeAccKey
+	TestRepairRootAccountKey = repairAccKey
 	Trusted = []asserts.Assertion{TestRootAccount, TestRootAccountKey}
 }
