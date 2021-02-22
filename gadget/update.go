@@ -392,7 +392,10 @@ type Updater interface {
 }
 
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
-	// XXX: too simplistic? should we pass the
+	// XXX: we may need to revisit filterUpdates later and instead
+	// pass the ResolvedContentFilterFunc to the updaters. But for
+	// now using filterUpdates() is simpler.
+	//
 	// ResolvedContentFilterFunc from updatePair down to the
 	// MountedFileSystem instead?
 	filterUpdates(updates)
