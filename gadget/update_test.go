@@ -1654,3 +1654,80 @@ func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	c.Check(filter(&to.ResolvedContent[0]), Equals, false)
 	c.Check(filter(&to.ResolvedContent[1]), Equals, true)
 }
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
+	// prepare the stage
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Size:       5 * quantity.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			{UnresolvedSource: "/second-content", Target: "/"},
+			{UnresolvedSource: "$kernel:ref/kernel-content", Target: "/"},
+		},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     "gpt",
+				Structure:  []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	oldRootDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir, KernelRootDir: oldKernelDir}
+	makeSizedFile(c, filepath.Join(oldRootDir, "some-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	newRootDir := c.MkDir()
+	newKernelDir := c.MkDir()
+	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
+	makeSizedFile(c, kernelYamlFn, 0, []byte(`
+assets:
+  ref:
+    update: true
+    content:
+    - kernel-content`))
+
+	// same volume description
+	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir, KernelRootDir: newKernelDir}
+	// different file from gadget
+	makeSizedFile(c, filepath.Join(newRootDir, "some-content"), 2*quantity.SizeMiB, nil)
+	// same file from kernel, it is still updated because kernel sets
+	// the update flag
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	rollbackDir := c.MkDir()
+	muo := &mockUpdateProcessObserver{}
+
+	// Check that filtering happend via the KernelUpdatePolicy and the
+	// updater is only called with the kernel content, not with the
+	// gadget content.
+	mockUpdaterCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		mockUpdaterCalls++
+		c.Check(ps.ResolvedContent, DeepEquals, []gadget.ResolvedContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					UnresolvedSource: "$kernel:ref/kernel-content",
+					Target:           "/",
+				},
+				ResolvedSource:   filepath.Join(newKernelDir, "kernel-content"),
+				KernelUpdateFlag: true,
+			},
+		})
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	// exercise KernelUpdatePolicy here
+	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	c.Assert(err, IsNil)
+
+	// ensure update for kernel content happend
+	c.Assert(mockUpdaterCalls, Equals, 1)
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+}
