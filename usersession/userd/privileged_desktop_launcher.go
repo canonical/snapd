@@ -93,7 +93,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	args = append([]string{"systemd-run", "--user", "--"}, args...)
+	args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
 
 	cmd := exec.Command(args[0], args[1:]...)
 
