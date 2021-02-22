@@ -5,6 +5,8 @@ details: |
     Delegate=true snippet added to prevent CVE-2020-27352.
 
 prepare: |
+    tests.cleanup prepare
+
     # build and install the strict test snap
     snap pack container-mgr-snap
     snap install --dangerous test-snapd-container-mgrs*.snap
@@ -20,16 +22,19 @@ prepare: |
             classic-container-mgr-snap/meta/snap.yaml
         echo "confinement: classic" >> classic-container-mgr-snap/meta/snap.yaml
 
-        # TODO: use os.query is-arch on master; "is-arch" etc. sub-commands are
-        # unavailable on 2.48 branch
-        if [ "$SPREAD_SYSTEM" = "arch-linux-64" ] || [[ "$SPREAD_SYSTEM" == fedora-* ]] || [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+        if os.query is-arch || os.query is-fedora || os.query is-centos; then
             # need to enable /snap symlink to install classic snaps
             ln -s /var/lib/snapd/snap /snap
+            # remove it when we are done
+            tests.cleanup defer rm -rf /snap
         fi
 
         snap pack classic-container-mgr-snap
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
+
+restore: |
+    tests.cleanup restore
 
 execute: |
     for confinement in classic strict; do
@@ -111,17 +116,19 @@ execute: |
     # only run this test on ubuntu since the docker snap is not guaranteed to 
     # work on non-ubuntu systems
 
-    if ! [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+    if os.query is-ubuntu; then
         echo "skipping docker test on non-ubuntu"
         exit 0
     fi
 
     snap install docker
+    tests.cleanup defer snap remove docker
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 
     # start a docker container - need to wait until dockerd comes alive
     retry -n10 --wait 1 sh -c 'docker run -d --name test ubuntu:18.04 sleep infinity'
+    tests.cleanup defer docker kill test
 
     # make sure that docker top can see the process
     docker top test | MATCH "sleep infinity"
