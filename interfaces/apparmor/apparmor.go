@@ -121,7 +121,14 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	args = append(args, fnames...)
 
 	parser, internal, err := apparmor_sandbox.FindAppArmorParser()
-	if internal {
+	if err == nil || !internal {
+		// if we couldn't find the parser with apparmor_sandbox
+		// then fall-back to trying to find one in the current PATH
+		// - same for if we are not using the internal
+		// apparmor_parser so that we can support a mocked parser
+		// during tests
+		parser = "apparmor_parser"
+	} else {
 		// when using the internal apparmor_parser also use it's
 		// own configuration and includes etc
 		prefix := strings.TrimSuffix(parser, "apparmor_parser")
@@ -129,13 +136,6 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		args = append(args, filepath.Join(prefix, "/apparmor/parser.conf"))
 		args = append(args, "-b")
 		args = append(args, filepath.Join(prefix, "/apparmor.d"))
-	} else {
-		// if not using the internal apparmor_parser then don't use
-		// the absolute path to the one from apparmor_sandbox but
-		// fall-back to finding the first in the current real PATH
-		// via exec.Command() with just the binary name so that we
-		// can support a mocked parser during tests
-		parser = "apparmor_parser"
 	}
 	output, err := exec.Command(parser, args...).CombinedOutput()
 	if err != nil {
