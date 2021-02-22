@@ -98,7 +98,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 	cmd := exec.Command(args[0], args[1:]...)
 
 	if err := cmd.Run(); err != nil {	
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", command, , err))
+		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", command, err))
 	}
 
 	return nil
