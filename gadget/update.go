@@ -368,11 +368,13 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 func filterUpdates(updates []updatePair) {
 	for _, update := range updates {
 		if update.resolvedContentFilter != nil {
-			for i := len(update.to.ResolvedContent) - 1; i >= 0; i-- {
-				if !update.resolvedContentFilter(&update.to.ResolvedContent[i]) {
-					update.to.ResolvedContent = append(update.to.ResolvedContent[:i], update.to.ResolvedContent[i+1:]...)
+			filteredResolvedContent := make([]ResolvedContent, 0, len(update.to.ResolvedContent))
+			for _, rn := range update.to.ResolvedContent {
+				if update.resolvedContentFilter(&rn) {
+					filteredResolvedContent = append(filteredResolvedContent, rn)
 				}
 			}
+			update.to.ResolvedContent = filteredResolvedContent
 		}
 	}
 }
