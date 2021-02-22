@@ -189,7 +189,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 		if line == "[Desktop Entry]" {
 			inDesktopSection = true
 		} else if strings.HasPrefix(line, "[Desktop Action ") {
-			// maybe later we'll add support here
+			// TODO: add support for desktop action sections
 			inDesktopSection = false
 		} else if strings.HasPrefix(line, "[") {
 			inDesktopSection = false
