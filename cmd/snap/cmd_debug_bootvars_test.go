@@ -22,6 +22,7 @@ package main_test
 import (
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -87,5 +88,49 @@ func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
 		"snap_kernel":         "pc-kernel_3.snap",
 		"snap_try_kernel":     "",
 		"try_recovery_system": "1234",
+	})
+}
+
+func (s *SnapSuite) TestDebugGetSetBootvarsWithDir(c *check.C) {
+	// the bootloader options are not intercepted by the mocks, so we can
+	// only observe the effect indirectly for boot-vars
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	bloader.BootVars = map[string]string{
+		"snapd_recovery_system":  "1234",
+		"snapd_recovery_mode":    "run",
+		"unrelated":              "thing",
+		"snap_kernel":            "pc-kernel_3.snap",
+		"recovery_system_status": "try",
+		"try_recovery_system":    "9999",
+	}
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+	c.Check(s.Stdout(), check.Equals, `snapd_recovery_mode=run
+snapd_recovery_system=1234
+snapd_recovery_kernel=
+snap_kernel=pc-kernel_3.snap
+kernel_status=
+recovery_system_status=try
+try_recovery_system=9999
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	s.ResetStdStreams()
+
+	// and make sure that set does not blow up when passed a root dir
+
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=bar"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	v, err := bloader.GetBootVars("foo")
+	c.Assert(err, check.IsNil)
+	c.Check(v, check.DeepEquals, map[string]string{
+		"foo": "bar",
 	})
 }
