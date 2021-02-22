@@ -58,7 +58,7 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	}
 	if uc20 {
 		if !opts.NoSlashBoot {
-			// no root directory set, default ot run mode
+			// no root directory set, default to run mode
 			opts.Role = bootloader.RoleRunMode
 		}
 		// keys relevant to all uc20 bootloader implementations
@@ -101,7 +101,7 @@ func DebugSetBootVars(dir string, varEqVal []string) error {
 		opts.Role = bootloader.RoleRecovery
 	}
 	if !opts.NoSlashBoot {
-		// no root directory set, default ot run mode
+		// no root directory set, default to run mode
 		opts.Role = bootloader.RoleRunMode
 	}
 	bloader, err := bootloader.Find(dir, opts)
