@@ -147,7 +147,6 @@ func desktopFileIDToFilename(desktopFileID string) (string, error) {
 	baseDir := dirs.SnapDesktopFilesDir
 
 	desktopFile, err := findDesktopFile(baseDir, strings.Split(desktopFileID, "-"))
-
 	if err == nil {
 		return desktopFile, nil
 	}
