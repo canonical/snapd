@@ -1588,3 +1588,69 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot observe canceled update: canceled fail`)
 }
+
+func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
+	for _, tc := range []struct {
+		from, to *gadget.LaidOutStructure
+		update   bool
+	}{
+		{
+			from:   &gadget.LaidOutStructure{},
+			to:     &gadget.LaidOutStructure{},
+			update: false,
+		},
+		{
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				ResolvedContent: []gadget.ResolvedContent{
+					{ResolvedSource: "something"},
+				},
+			},
+			update: false,
+		},
+		{
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				ResolvedContent: []gadget.ResolvedContent{
+					{
+						ResolvedSource: "other",
+					},
+					{
+						ResolvedSource:   "kernel-ref",
+						KernelUpdateFlag: true,
+					},
+				},
+			},
+			update: true,
+		},
+	} {
+		needsUpdate, filter := gadget.KernelUpdatePolicy(tc.from, tc.to)
+		if tc.update {
+			c.Check(needsUpdate, Equals, true)
+			c.Check(filter, NotNil)
+		} else {
+			c.Check(needsUpdate, Equals, false)
+			c.Check(filter, IsNil)
+		}
+	}
+}
+
+func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
+	from := &gadget.LaidOutStructure{}
+	to := &gadget.LaidOutStructure{
+		ResolvedContent: []gadget.ResolvedContent{
+			{
+				ResolvedSource: "other",
+			},
+			{
+				ResolvedSource:   "kernel-ref",
+				KernelUpdateFlag: true,
+			},
+		},
+	}
+	needsUpdate, filter := gadget.KernelUpdatePolicy(from, to)
+	c.Check(needsUpdate, Equals, true)
+	c.Assert(filter, NotNil)
+	c.Check(filter(&to.ResolvedContent[0]), Equals, false)
+	c.Check(filter(&to.ResolvedContent[1]), Equals, true)
+}
