@@ -375,6 +375,7 @@ func (p *Pool) phase(ph poolPhase) error {
 // at their current ones. If toUpdate is pinned, then it will be resolved
 // to the highest revision with same sequence point (toUpdate.Sequence).
 func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
+	// TODO: use Fetcher.Fetch(), similar to AddToUpdate.
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
