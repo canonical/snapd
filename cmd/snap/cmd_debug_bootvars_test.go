@@ -115,6 +115,7 @@ func (s *SnapSuite) TestDebugGetSetBootvarsWithDir(c *check.C) {
 snapd_recovery_system=1234
 snapd_recovery_kernel=
 snap_kernel=pc-kernel_3.snap
+snap_try_kernel=
 kernel_status=
 recovery_system_status=try
 try_recovery_system=9999
