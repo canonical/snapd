@@ -476,13 +476,11 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 
 func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) {
 	uniq := unresolved.Unique()
-	var u unresolvedAssertRecord
-	u = &unresolvedSeqRec{
+	u := &unresolvedSeqRec{
 		at: unresolved,
 	}
 	p.unresolvedSequences[uniq] = u
-	useq := u.(*unresolvedSeqRec)
-	p.groupings.AddTo(&useq.grouping, gnum)
+	p.groupings.AddTo(&u.grouping, gnum)
 }
 
 // ToResolve returns all the currently unresolved assertions in the
