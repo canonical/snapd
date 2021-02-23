@@ -116,7 +116,7 @@ execute: |
     # only run this test on ubuntu since the docker snap is not guaranteed to 
     # work on non-ubuntu systems
 
-    if os.query is-ubuntu; then
+    if ! os.query is-ubuntu; then
         echo "skipping docker test on non-ubuntu"
         exit 0
     fi
