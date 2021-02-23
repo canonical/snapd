@@ -1212,7 +1212,7 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 
 	kernelSnapDir := c.MkDir()
 	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
-	c.Assert(err, ErrorMatches, `cannot find "dtbs" in kernel info from "/.*"`)
+	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
@@ -1225,7 +1225,7 @@ func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {
 
 	kernelSnapDir := c.MkDir()
 	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
-	c.Assert(err, ErrorMatches, `cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
+	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot parse kernel ref: invalid asset name in kernel ref "\$kernel:-invalid-kernel-ref/boot-assets/"`)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeContent(c *C) {
@@ -1243,7 +1243,7 @@ assets:
 	kernelSnapFiles := map[string]string{}
 	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
 	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
-	c.Assert(err, ErrorMatches, `cannot find wanted kernel content "boot-assets/" in "/.*"`)
+	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find wanted kernel content "boot-assets/" in "/.*"`)
 }
 
 func (p *layoutTestSuite) TestResolveContentPaths(c *C) {

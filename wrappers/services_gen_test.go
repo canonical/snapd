@@ -439,7 +439,7 @@ WantedBy=sockets.target
 		Command:     "bin/foo start",
 		Daemon:      "simple",
 		DaemonScope: snap.SystemDaemon,
-		Plugs:       map[string]*snap.PlugInfo{"network-bind": {}},
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",

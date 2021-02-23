@@ -120,6 +120,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
+func PreloadGadget(m *DeviceManager) (*gadget.Info, error) {
+	return m.preloadGadget()
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -193,6 +197,8 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
+	LoadDeviceSeed               = loadDeviceSeed
+	UnloadDeviceSeed             = unloadDeviceSeed
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid

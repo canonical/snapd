@@ -343,6 +343,7 @@ func MarkBootSuccessful(dev Device) error {
 		for _, bs := range []successfulBootState{
 			trustedAssetsBootState(dev),
 			trustedCommandLineBootState(dev),
+			recoverySystemsBootState(dev),
 		} {
 			var err error
 			u, err = bs.markSuccessful(u)

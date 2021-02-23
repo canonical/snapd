@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const greengrassSupportSummary = `allows operating as the Greengrass service`
@@ -391,6 +392,21 @@ keyctl
 mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
+
+func (iface *greengrassSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+
+	// only no-container flavor does not get Delegate=true, all other flavors
+	// (including no flavor, which is the same as legacy-container flavor)
+	// are usable to manage control groups of processes/containers, and thus
+	// need Delegate=true
+	if flavor == "no-container" {
+		return nil
+	}
+
+	return []string{"Delegate=true"}
+}
 
 func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// check the flavor

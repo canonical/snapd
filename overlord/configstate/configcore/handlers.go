@@ -38,7 +38,7 @@ type flags struct {
 	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core
 	// systems only.
 	coreOnlyConfig bool
-	// validatedOnylStateConfig tells that the config requires only validation,
+	// validatedOnlyStateConfig tells that the config requires only validation,
 	// its options are applied dynamically elsewhere.
 	validatedOnlyStateConfig bool
 	// earlyConfigFilter expresses whether the handler supports
