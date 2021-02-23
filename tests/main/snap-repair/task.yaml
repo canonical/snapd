@@ -66,7 +66,7 @@ execute: |
         snapd.tool exec snap-repair run
 
         echo "And we should see them executed"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+done\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+some test keys repair"
 
         echo "And running multiple times is idempotent"
         snapd.tool exec snap-repair run
@@ -88,12 +88,12 @@ execute: |
         snapd.tool exec snap-repair run
 
         test "$(snapd.tool exec snap-repair list | tail -n +2 | wc -l)" = 2
-        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+done\s+some test keys repair"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+1\s+retry\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-0\s+1\s+done\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+retry\s+some test keys repair"
 
         echo "Add a new repair ID 2 revision that completes successfully"
 
-        jq '."revision" = "2"' < "$PWD/2-$REPAIR_JSON" > "$PWD/2-$REPAIR_JSON.tmp"
+        jq '."revision" = "1"' < "$PWD/2-$REPAIR_JSON" > "$PWD/2-$REPAIR_JSON.tmp"
         mv "$PWD/2-$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
         new_repair "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/2-$REPAIR_JSON"
@@ -101,9 +101,9 @@ execute: |
         snapd.tool exec snap-repair run
 
         test "$(snapd.tool exec snap-repair list | tail -n +2 | wc -l)" = 3
-        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+done\s+some test keys repair"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+1\s+retry\s+some test keys repair"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+2\s+done\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+0\s+retry\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+1\s+done\s+some test keys repair"
 
         # on UC20 we also check that repair assertions scoped to recover mode 
         # work too
@@ -127,7 +127,7 @@ execute: |
         snapd.tool exec snap-repair run
 
         echo "And we should see them executed"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+done\s+recovery mode repair assertion"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+recovery mode repair assertion"
 
         echo "Transition back to run mode"
         transition_to_run_mode ""

@@ -1,5 +1,5 @@
 {
-    "revision": "1",
+    "revision": "0",
     "summary": "recovery mode repair assertion",
     "bases": [
         "core20"
