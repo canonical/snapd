@@ -124,7 +124,6 @@ try_recovery_system=9999
 	s.ResetStdStreams()
 
 	// and make sure that set does not blow up when passed a root dir
-
 	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
@@ -134,4 +133,19 @@ try_recovery_system=9999
 	c.Check(v, check.DeepEquals, map[string]string{
 		"foo": "bar",
 	})
+	// and make sure that set does not blow up when passed recover bootloader flag
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "foo=recovery"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	v, err = bloader.GetBootVars("foo")
+	c.Assert(err, check.IsNil)
+	c.Check(v, check.DeepEquals, map[string]string{
+		"foo": "recovery",
+	})
+
+	// but basic sanity checks are still done
+	// and make sure that set does not blow up when passed recover bootloader flag
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"})
+	c.Assert(err, check.ErrorMatches, "cannot use run bootloader root-dir with a recovery flag")
 }

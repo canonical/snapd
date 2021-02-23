@@ -36,6 +36,7 @@ type cmdBootvarsGet struct {
 
 type cmdBootvarsSet struct {
 	RootDir    string `long:"root-dir"`
+	Recovery   bool   `long:"recovery"`
 	Positional struct {
 		VarEqValue []string `positional-arg-name:"<var-eq-value>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -58,7 +59,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdBootvarsSet{}
 		}, map[string]string{
-			"root-dir": i18n.G("Root directory to look for boot variables in"),
+			"root-dir": i18n.G("Root directory to look for boot variables in (implies UC20)"),
+			"recovery": i18n.G("Manipulate the recovery bootloader (implies UC20)"),
 		}, nil)
 
 	if release.OnClassic {
@@ -78,5 +80,5 @@ func (x *cmdBootvarsSet) Execute(args []string) error {
 	if release.OnClassic {
 		return errors.New(`the "boot-vars" command is not available on classic systems`)
 	}
-	return boot.DebugSetBootVars(x.RootDir, x.Positional.VarEqValue)
+	return boot.DebugSetBootVars(x.RootDir, x.Recovery, x.Positional.VarEqValue)
 }

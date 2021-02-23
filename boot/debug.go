@@ -90,20 +90,27 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 
 // DebugSetBootVars is a debug helper that takes a list of <var>=<value> entries
 // and sets them for the configured bootloader.
-func DebugSetBootVars(dir string, varEqVal []string) error {
+func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) error {
 	opts := &bootloader.Options{
 		NoSlashBoot: dir != "" && dir != "/",
 	}
+	if opts.NoSlashBoot || osutil.FileExists(dirs.SnapModeenvFile) {
+		// implied UC20 bootloader
+		opts.Role = bootloader.RoleRunMode
+	}
+	if recoveryBootloader {
+		// UC20 recovery bootloader
+		opts.Role = bootloader.RoleRecovery
+	}
+	// try some well known UC20 root dirs
 	switch dir {
-	// is it any of the well-known UC20 boot partition mount locations?
 	case InitramfsUbuntuBootDir:
+		if recoveryBootloader {
+			return fmt.Errorf("cannot use run bootloader root-dir with a recovery flag")
+		}
 		opts.Role = bootloader.RoleRunMode
 	case InitramfsUbuntuSeedDir:
 		opts.Role = bootloader.RoleRecovery
-	}
-	if !opts.NoSlashBoot {
-		// no root directory set, default to run mode
-		opts.Role = bootloader.RoleRunMode
 	}
 	bloader, err := bootloader.Find(dir, opts)
 	if err != nil {
