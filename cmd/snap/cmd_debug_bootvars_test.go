@@ -34,14 +34,14 @@ func (s *SnapSuite) TestDebugBootvars(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	bloader.BootVars = map[string]string{
+	err := bloader.SetBootVars(map[string]string{
 		"snap_mode":       "try",
 		"unrelated":       "thing",
 		"snap_core":       "core18_1.snap",
 		"snap_try_core":   "core18_2.snap",
 		"snap_kernel":     "pc-kernel_3.snap",
 		"snap_try_kernel": "pc-kernel_4.snap",
-	}
+	})
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
 	c.Assert(err, check.IsNil)
@@ -67,14 +67,15 @@ func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	bloader.BootVars = map[string]string{
+	err := bloader.SetBootVars(map[string]string{
 		"snap_mode":       "try",
 		"unrelated":       "thing",
 		"snap_core":       "core18_1.snap",
 		"snap_try_core":   "core18_2.snap",
 		"snap_kernel":     "pc-kernel_3.snap",
 		"snap_try_kernel": "",
-	}
+	})
+	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars",
 		"snap_mode=trying", "try_recovery_system=1234", "unrelated="})
@@ -91,7 +92,7 @@ func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
 	})
 }
 
-func (s *SnapSuite) TestDebugGetSetBootvarsWithDir(c *check.C) {
+func (s *SnapSuite) TestDebugGetSetBootvarsWithParams(c *check.C) {
 	// the bootloader options are not intercepted by the mocks, so we can
 	// only observe the effect indirectly for boot-vars
 
@@ -99,14 +100,15 @@ func (s *SnapSuite) TestDebugGetSetBootvarsWithDir(c *check.C) {
 	defer restore()
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
-	bloader.BootVars = map[string]string{
+	err := bloader.SetBootVars(map[string]string{
 		"snapd_recovery_system":  "1234",
 		"snapd_recovery_mode":    "run",
 		"unrelated":              "thing",
 		"snap_kernel":            "pc-kernel_3.snap",
 		"recovery_system_status": "try",
 		"try_recovery_system":    "9999",
-	}
+	})
+	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars", "--root-dir", boot.InitramfsUbuntuBootDir})
 	c.Assert(err, check.IsNil)
