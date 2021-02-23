@@ -19,12 +19,6 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  # qemu-utils is not installed by default on google images which are not
-  # updated by snapd like the current 21.04 image.
-  if ! dpkg -l qemu-utils; then
-      apt install -y qemu-utils
-  fi
-
   wget --quiet "$(nested_get_image_url_for_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
