@@ -146,7 +146,9 @@ func (s *svcStatus) Execute(args []string) error {
 			startup = i18n.G("enabled")
 		}
 		current := i18n.G("inactive")
-		if svc.Active {
+		if svc.DaemonScope == snap.UserDaemon {
+			current = "-"
+		} else if svc.Active {
 			current = i18n.G("active")
 		}
 		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, scope, startup, current, clientutil.ClientAppInfoNotes(svc))
