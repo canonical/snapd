@@ -73,6 +73,13 @@ execute: |
 
         test "$(snapd.tool exec snap-repair list | tail -n +2 | wc -l)" = 1
 
+        echo "And the SNAP_SYSTEM_MODE env var is set appropriately"
+        if is-core20; then
+            snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo 'run'"
+        else
+            snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo ''"
+        fi
+
         # produce a retry repair assertion with repair ID 2 that does not 
         # complete, and another revision that succeeds
 
@@ -128,6 +135,8 @@ execute: |
 
         echo "And we should see them executed"
         snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+recovery mode repair assertion"
+
+        snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo 'recover'"
 
         echo "Transition back to run mode"
         transition_to_run_mode ""
