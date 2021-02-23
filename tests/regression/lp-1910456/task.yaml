@@ -22,7 +22,7 @@ prepare: |
             classic-container-mgr-snap/meta/snap.yaml
         echo "confinement: classic" >> classic-container-mgr-snap/meta/snap.yaml
 
-        if os.query is-arch || os.query is-fedora || os.query is-centos; then
+        if os.query is-arch-linux || os.query is-fedora || os.query is-centos; then
             # need to enable /snap symlink to install classic snaps
             ln -s /var/lib/snapd/snap /snap
             # remove it when we are done
