@@ -39,10 +39,13 @@ type Grouping string
 // of more than one group are tracked properly only once.
 //
 // Typical usage involves specifying the initial assertions needing to
-// be resolved or updated using AddUnresolved and AddToUpdate. At this
-// point ToResolve can be called to get them organized in groupings
-// ready for fetching. Fetched assertions can then be provided with
-// Add or AddBatch. Because these can have prerequisites calling
+// be resolved or updated using AddUnresolved and AddToUpdate.
+// AddUnresolvedSequence and AddSequenceToUpdate exist parallel to
+// AddUnresolved/AddToUpdate to handle sequence-forming assertions,
+// which cannot be used with the latter.
+// At this point ToResolve can be called to get them organized in
+// groupings ready for fetching. Fetched assertions can then be provided
+// with Add or AddBatch. Because these can have prerequisites calling
 // ToResolve and fetching needs to be repeated until ToResolve's
 // result is empty.  Between any two ToResolve invocations but after
 // any Add or AddBatch AddUnresolved/AddToUpdate can also be used
@@ -148,7 +151,7 @@ type unresolvedAssertRecord interface {
 	isAssertionNewer(a Assertion) bool
 	groupingPtr() *internal.Grouping
 	label() Grouping
-	revision() int
+	isRevisionNotKnown() bool
 	error() error
 }
 
@@ -177,8 +180,8 @@ func (u *unresolvedRec) label() Grouping {
 	return u.serializedLabel
 }
 
-func (u *unresolvedRec) revision() int {
-	return u.at.Revision
+func (u *unresolvedRec) isRevisionNotKnown() bool {
+	return u.at.Revision == RevisionNotKnown
 }
 
 func (u *unresolvedRec) error() error {
@@ -233,8 +236,8 @@ func (u *unresolvedSeqRec) isAssertionNewer(a Assertion) bool {
 	return seqf.Sequence() > u.at.Sequence
 }
 
-func (u *unresolvedSeqRec) revision() int {
-	return u.at.Revision
+func (u *unresolvedSeqRec) isRevisionNotKnown() bool {
+	return u.at.Revision == RevisionNotKnown
 }
 
 func (u *unresolvedSeqRec) error() error {
@@ -392,26 +395,14 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	return nil
 }
 
-func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
-	if p.unresolvedSequences[unresolved.Unique()] != nil {
-		return fmt.Errorf("internal error: sequence %v is already being resolved", unresolved.SequenceKey)
-	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
-	u := *unresolved
-	p.addUnresolvedSeq(&u, gnum)
-	return nil
-}
-
 // AddUnresolved adds the assertion referenced by unresolved
 // AtRevision to the Pool as unresolved and as required by the given group.
 // Usually unresolved.Revision will have been set to RevisionNotKnown.
 func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
+	if unresolved.Type.SequenceForming() {
+		return fmt.Errorf("internal error: AddUnresolved requested for sequence-forming assertion")
+	}
+
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
@@ -429,6 +420,26 @@ func (p *Pool) AddUnresolved(unresolved *AtRevision, group string) error {
 		return nil
 	}
 	return p.addUnresolved(&u, gnum)
+}
+
+// AddUnresolvedSequence adds the assertion referenced by unresolved
+// AtSequence to the Pool as unresolved and as required by the given group.
+// Usually unresolved.Revision will have been set to RevisionNotKnown.
+// Given sequence can only be added once to the Pool.
+func (p *Pool) AddUnresolvedSequence(unresolved *AtSequence, group string) error {
+	if err := p.phase(poolPhaseAddUnresolved); err != nil {
+		return err
+	}
+	if p.unresolvedSequences[unresolved.Unique()] != nil {
+		return fmt.Errorf("internal error: sequence %v is already being resolved", unresolved.SequenceKey)
+	}
+	gnum, err := p.ensureGroup(group)
+	if err != nil {
+		return err
+	}
+	u := *unresolved
+	p.addUnresolvedSeq(&u, gnum)
+	return nil
 }
 
 func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
@@ -465,12 +476,10 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) {
 	uniq := unresolved.Unique()
 	var u unresolvedAssertRecord
-	if u = p.unresolvedSequences[uniq]; u == nil {
-		u = &unresolvedSeqRec{
-			at: unresolved,
-		}
-		p.unresolvedSequences[uniq] = u
+	u = &unresolvedSeqRec{
+		at: unresolved,
 	}
+	p.unresolvedSequences[uniq] = u
 	useq := u.(*unresolvedSeqRec)
 	p.groupings.AddTo(&useq.grouping, gnum)
 }
@@ -648,34 +657,20 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 	var uniq string
 	ref := a.Ref()
 	// deal with sequence key
-	if ref.Type.SequenceForming() {
+	if !ref.Type.SequenceForming() {
+		uniq = ref.Unique()
+	} else {
 		atseq := AtSequence{
 			Type:        ref.Type,
 			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
 		}
 		uniq = atseq.Unique()
-	} else {
-		uniq = ref.Unique()
 	}
 	var u unresolvedAssertRecord
 	var extrag *internal.Grouping
 	var unresolved map[string]unresolvedAssertRecord
 
-	if ref.Type.SequenceForming() {
-		if u = p.unresolvedSequences[uniq]; u != nil {
-			unresolved = p.unresolvedSequences
-		} else {
-			at := a.At()
-			rec := &unresolvedSeqRec{
-				at: &AtSequence{
-					Type:        a.Type(),
-					SequenceKey: at.PrimaryKey[:len(at.PrimaryKey)-1],
-				},
-			}
-			rec.at.Revision = RevisionNotKnown
-			u = rec
-		}
-	} else {
+	if !ref.Type.SequenceForming() {
 		if u = p.unresolved[uniq]; u != nil {
 			unresolved = p.unresolved
 		} else if u = p.prerequisites[uniq]; u != nil {
@@ -697,6 +692,27 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 			// be a nop
 			rec := &unresolvedRec{
 				at: a.At(),
+			}
+			rec.at.Revision = RevisionNotKnown
+			u = rec
+		}
+	} else {
+		if u = p.unresolvedSequences[uniq]; u != nil {
+			unresolved = p.unresolvedSequences
+		} else {
+			// note: sequence-forming assertions are never prerequisites.
+			at := a.At()
+			// a is not tracked as unresolved in any way so far,
+			// this is an atypical scenario where something gets
+			// pushed but we still want to add it to the resolved
+			// lists of the relevant groups; in case it is
+			// actually already resolved most of resolveWith below will
+			// be a nop
+			rec := &unresolvedSeqRec{
+				at: &AtSequence{
+					Type:        a.Type(),
+					SequenceKey: at.PrimaryKey[:len(at.PrimaryKey)-1],
+				},
 			}
 			rec.at.Revision = RevisionNotKnown
 			u = rec
@@ -779,7 +795,7 @@ func (p *Pool) unresolvedBookkeeping() {
 		for uniq, ur := range unresolved {
 			e := ur.error()
 			if e == nil {
-				if ur.revision() == RevisionNotKnown {
+				if ur.isRevisionNotKnown() {
 					e = ErrUnresolved
 				} else {
 					// unchanged
