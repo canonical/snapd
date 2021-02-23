@@ -1,7 +1,4 @@
-summary: Ensure that snap-repair is available
-
-# snap-repair is not shipped on non-ubuntu
-systems: [ubuntu-*]
+summary: Ensure that snap-repair works on Ubuntu Core
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -13,11 +10,8 @@ prepare: |
     tests.cleanup defer snap remove jq
 
 execute: |
-    if os.query is-classic; then
-        echo "Ensure snap-repair is disabled on classic"
-        snapd.tool exec snap-repair 2>&1 | MATCH "cannot use snap-repair on a classic system"
-        exit 0
-    fi
+    echo "Ensure the snap-repair timer is enabled"
+    systemctl list-timers | MATCH snapd.snap-repair.timer
 
     # shellcheck source=tests/lib/uc20-recovery.sh
     . "$TESTSLIB/uc20-recovery.sh"
