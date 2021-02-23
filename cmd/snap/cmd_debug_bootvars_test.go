@@ -42,6 +42,7 @@ func (s *SnapSuite) TestDebugBootvars(c *check.C) {
 		"snap_kernel":     "pc-kernel_3.snap",
 		"snap_try_kernel": "pc-kernel_4.snap",
 	})
+	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
 	c.Assert(err, check.IsNil)
@@ -147,6 +148,6 @@ try_recovery_system=9999
 	})
 
 	// but basic sanity checks are still done
-	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"})
 	c.Assert(err, check.ErrorMatches, "cannot use run bootloader root-dir with a recovery flag")
 }
