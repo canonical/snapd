@@ -570,6 +570,46 @@ func (s *ondiskTestSuite) TestDeviceInfoNotSectors(c *C) {
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
+func (s *ondiskTestSuite) TestDeviceInfoSectorSizeNotMultiple512Unhappy(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+      ]
+   }
+}'`)
+	defer cmdSfdisk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+   # sector size
+   echo 513
+   exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+`)
+	defer cmdBlockdev.Restore()
+
+	_, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, ErrorMatches, `cannot calculate structure size: sector size \(513\) is not a multiple of 512`)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+	})
+
+}
+
 func (s *ondiskTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {

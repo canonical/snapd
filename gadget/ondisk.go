@@ -126,7 +126,7 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockdevCmd(cmd, devpath string) (quantity.Size, error) {
+func blockdevSizeCmd(cmd, devpath string) (quantity.Size, error) {
 	out, err := exec.Command("blockdev", cmd, devpath).CombinedOutput()
 	if err != nil {
 		return 0, osutil.OutputErr(out, err)
@@ -143,12 +143,23 @@ func blockDeviceSizeInSectors(devpath string) (quantity.Size, error) {
 	// the size is always reported in 512-byte sectors, even if the device does
 	// not have a physical sector size of 512
 	// XXX: consider using /sys/block/<dev>/size directly
-	return blockdevCmd("--getsz", devpath)
+	return blockdevSizeCmd("--getsz", devpath)
 }
 
 func blockDeviceSectorSize(devpath string) (quantity.Size, error) {
 	// the size is reported in raw bytes
-	return blockdevCmd("--getss", devpath)
+	sz, err := blockdevSizeCmd("--getss", devpath)
+	if err != nil {
+		return 0, err
+	}
+
+	// ensure that the sector size is a multiple of 512, since we rely on that
+	// when we calculate the size in sectors, as blockdev --getsz always returns
+	// the size in 512-byte sectors
+	if sz%512 != 0 {
+		return 0, fmt.Errorf("cannot calculate structure size: sector size (%s) is not a multiple of 512", sz.String())
+	}
+	return sz, nil
 }
 
 // onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
@@ -221,8 +232,8 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		// sectors by 512, then divide by the actual sector size to get the
 		// number of sectors
 
-		// note this assumes that the real sector size is a multiple of 512
-
+		// this will never have a divisor, since we verified that sector size is
+		// a multiple of 512 above
 		numSectors = sz * 512 / sectorSize
 	}
 
