@@ -730,7 +730,7 @@ exec /bin/tar "$@"
 	// task 1 (for "too-snap") will have errored
 	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
-	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `\S+ ERROR cannot create archive: .* Permission denied .and \d+ more.`)
+	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `\S+ ERROR cannot create archive: /bin/tar: common/common-too-snap: .* Permission denied \(and 1 earlier\)`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
 	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
