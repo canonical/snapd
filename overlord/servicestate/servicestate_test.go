@@ -85,7 +85,7 @@ UnitFileState=%s
 			}
 			return bytes.Repeat([]byte(unitState), len(args)-3), nil
 		default:
-			c.Fatalf("unexpected systemctl command: %v", args)
+			c.Errorf("unexpected systemctl command: %v", args)
 			return nil, fmt.Errorf("should not be reached")
 		}
 	})
