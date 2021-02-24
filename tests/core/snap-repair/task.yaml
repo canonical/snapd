@@ -69,7 +69,7 @@ execute: |
 
         echo "And the SNAP_SYSTEM_MODE env var is set appropriately"
         if os.query is-core20; then
-            snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo 'run'"
+            snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo run"
         else
             snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo ''"
         fi
@@ -130,7 +130,7 @@ execute: |
         echo "And we should see them executed"
         snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+recovery mode repair assertion"
 
-        snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo 'recover'"
+        snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo recover"
 
         echo "Transition back to run mode"
         transition_to_run_mode ""
