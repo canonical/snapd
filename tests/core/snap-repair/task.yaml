@@ -68,7 +68,7 @@ execute: |
         test "$(snapd.tool exec snap-repair list | tail -n +2 | wc -l)" = 1
 
         echo "And the SNAP_SYSTEM_MODE env var is set appropriately"
-        if is-core20; then
+        if os.query is-core20; then
             snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo 'run'"
         else
             snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo ''"
@@ -89,8 +89,8 @@ execute: |
         snapd.tool exec snap-repair run
 
         test "$(snapd.tool exec snap-repair list | tail -n +2 | wc -l)" = 2
-        snapd.tool exec snap-repair list | MATCH "testrootorg-0\s+1\s+done\s+some test keys repair"
-        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+1\s+retry\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-1\s+0\s+done\s+some test keys repair"
+        snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+0\s+retry\s+some test keys repair"
 
         echo "Add a new repair ID 2 revision that completes successfully"
 
