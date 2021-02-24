@@ -5,7 +5,8 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-systems: [ubuntu-2*]
+# TODO: enable for ubuntu-21+ once the lxd image is published
+systems: [ubuntu-20*]
 
 execute: |
     echo "Install lxd"
@@ -23,10 +24,6 @@ execute: |
     fi
 
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    # TODO: enable for ubuntu-21.04-64 when the image is available
-    if [ "$VERSION_ID" = "21.04" ]; then
-        VERSION_ID="20.10"
-    fi
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
 
     echo "Setting up proxy *inside* the container"
