@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 )
 
@@ -92,4 +93,23 @@ func InitramfsMarkTryRecoverySystemResultForRunMode(success bool) error {
 		vars["recovery_system_status"] = "tried"
 	}
 	return bl.SetBootVars(vars)
+}
+
+func observeSuccessfulSystems(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+	// updates happen in run mode only
+	if m.Mode != "run" {
+		return m, nil
+	}
+
+	// compatibility scenario, no good systems are tracked in modeenv yet,
+	// and there is a single entry in the current systems list
+	if len(m.GoodRecoverySystems) == 0 && len(m.CurrentRecoverySystems) == 1 {
+		newM, err := m.Copy()
+		if err != nil {
+			return nil, err
+		}
+		newM.GoodRecoverySystems = []string{m.CurrentRecoverySystems[0]}
+		return newM, nil
+	}
+	return m, nil
 }

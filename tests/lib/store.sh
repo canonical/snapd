@@ -108,6 +108,13 @@ new_snap_revision(){
     snap ack "$p"
 }
 
+new_repair(){
+    local dir="$1"
+    local script_path="$2"
+    shift 2
+
+    p=$(fakestore new-repair --dir "$dir" "$@" "${script_path}")
+}
 
 setup_fake_store(){
     # before switching make sure we have a session macaroon
