@@ -98,10 +98,6 @@ func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) er
 		// implied UC20 bootloader
 		opts.Role = bootloader.RoleRunMode
 	}
-	if recoveryBootloader {
-		// UC20 recovery bootloader
-		opts.Role = bootloader.RoleRecovery
-	}
 	// try some well known UC20 root dirs
 	switch dir {
 	case InitramfsUbuntuBootDir:
@@ -111,6 +107,15 @@ func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) er
 		opts.Role = bootloader.RoleRunMode
 	case InitramfsUbuntuSeedDir:
 		opts.Role = bootloader.RoleRecovery
+	}
+	if recoveryBootloader {
+		// UC20 recovery bootloader
+		opts.Role = bootloader.RoleRecovery
+		if !opts.NoSlashBoot {
+			// no root dir was provided, use the default one for a
+			// recovery bootloader
+			dir = InitramfsUbuntuSeedDir
+		}
 	}
 	bloader, err := bootloader.Find(dir, opts)
 	if err != nil {
