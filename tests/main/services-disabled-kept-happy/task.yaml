@@ -115,7 +115,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  retry -n 10 --wait 1 sh -c 'snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"'
+  retry -n 10 --wait 1 sh -c 'snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"'
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -130,7 +130,7 @@ execute: |
   snap enable disabled-svcs-kept
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -146,7 +146,7 @@ execute: |
   snap install --dangerous disabled-svcs-kept_1.0*.snap
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -161,7 +161,7 @@ execute: |
   snap revert disabled-svcs-kept --revision=x1
 
   echo "Check that the service is still disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -192,7 +192,7 @@ execute: |
   snap revert disabled-svcs-kept --revision=x2
 
   echo "Check that the service is disabled again"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json no longer contains last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -207,7 +207,7 @@ execute: |
   snap refresh disabled-svcs-kept --revision=x3
 
   echo "Check that the new service was not disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+enabled\\s+active"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+enabled\\s+active"
 
   echo "Check that state.json now contains the old service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc
@@ -216,7 +216,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc2
 
   echo "Check that the new service IS NOW disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   ########################################
   ############### CASE 8 #################
@@ -228,7 +228,7 @@ execute: |
   snap revert disabled-svcs-kept --revision=x2
 
   echo "Check that the old service is disabled again"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json now contains the new service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc2
@@ -237,7 +237,7 @@ execute: |
   snap refresh disabled-svcs-kept --revision=x3
 
   echo "Check that the new service IS NOW disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Check that state.json now contains the old service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc
@@ -253,7 +253,7 @@ execute: |
   snap start --enable disabled-svcs-kept.svc
 
   echo "Check that the old service is now enabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+enabled\\s+active"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+enabled\\s+active"
 
   echo "Re-refresh to new revision"
   snap refresh disabled-svcs-kept --revision=x3
@@ -283,7 +283,7 @@ execute: |
   snap revert disabled-svcs-kept --revision=x3
 
   echo "Check that the new service is now disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Check that state.json no longer contains last-active-disabled-services"
   check_state_json_no_disabled_svcs
@@ -304,25 +304,25 @@ execute: |
   snap start --enable disabled-svcs-kept.svc2
 
   echo "Check that the new service is now enabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+enabled\\s+active"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+enabled\\s+active"
 
   echo "Refresh back to old revision with old service to re-disable"
   snap refresh disabled-svcs-kept --revision=x2
 
   echo "Check that the old service was not disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+enabled\\s+active"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+enabled\\s+active"
 
   echo "Disable the old service"
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that the old service IS NOW disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Re-refresh forward to new revision with new service to re-disable"
   snap refresh disabled-svcs-kept --revision=x3
 
   echo "Check that the new service was not disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+enabled\\s+active"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+enabled\\s+active"
 
   echo "Check that state.json now contains the old service in last-active-disabled-services"
   check_state_json_specific_disabled_svc svc
@@ -331,7 +331,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc2
 
   echo "Check that the new service IS NOW disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Re-refresh to the new revision without any services"
   snap refresh disabled-svcs-kept --revision=x4
@@ -352,7 +352,7 @@ execute: |
   snap refresh disabled-svcs-kept --revision=x2
 
   echo "Check that the old service is disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json now contains last-active-disabled-services for the new service"
   check_state_json_specific_disabled_svc svc2
@@ -361,7 +361,7 @@ execute: |
   snap refresh disabled-svcs-kept --revision=x3
 
   echo "Check that the old service is disabled"
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+system\\s+disabled\\s+inactive"
+  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Check that state.json now contains last-active-disabled-services for the old service"
   check_state_json_specific_disabled_svc svc

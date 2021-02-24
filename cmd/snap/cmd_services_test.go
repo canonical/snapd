@@ -230,11 +230,11 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, `Service  Scope   Startup  Current   Notes
-foo.bar  system  enabled  inactive  timer-activated
-foo.baz  system  enabled  inactive  socket-activated
-foo.qux  user    enabled  -         -
-foo.zed  system  enabled  active    -
+	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
+foo.bar  enabled  inactive  timer-activated
+foo.baz  enabled  inactive  socket-activated
+foo.qux  enabled  -         user
+foo.zed  enabled  active    -
 `)
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)

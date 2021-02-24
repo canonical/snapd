@@ -134,13 +134,9 @@ func (s *svcStatus) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Service\tScope\tStartup\tCurrent\tNotes"))
+	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 
 	for _, svc := range services {
-		scope := i18n.G("system")
-		if svc.DaemonScope == snap.UserDaemon {
-			scope = i18n.G("user")
-		}
 		startup := i18n.G("disabled")
 		if svc.Enabled {
 			startup = i18n.G("enabled")
@@ -151,7 +147,7 @@ func (s *svcStatus) Execute(args []string) error {
 		} else if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, scope, startup, current, clientutil.ClientAppInfoNotes(svc))
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
 	}
 
 	return nil

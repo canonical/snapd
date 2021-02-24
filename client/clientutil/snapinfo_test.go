@@ -263,6 +263,12 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "-")
 
 	ai = client.AppInfo{
+		Daemon:      "simple",
+		DaemonScope: snap.UserDaemon,
+	}
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "user")
+
+	ai = client.AppInfo{
 		Daemon: "oneshot",
 		Activators: []client.AppActivator{
 			{Type: "timer"},
@@ -297,12 +303,13 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 	}
 	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated,dbus-activated")
 	ai = client.AppInfo{
-		Daemon: "oneshot",
+		Daemon:      "oneshot",
+		DaemonScope: snap.UserDaemon,
 		Activators: []client.AppActivator{
 			{Type: "dbus"},
 			{Type: "socket"},
 			{Type: "timer"},
 		},
 	}
-	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated,dbus-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "user,timer-activated,socket-activated,dbus-activated")
 }

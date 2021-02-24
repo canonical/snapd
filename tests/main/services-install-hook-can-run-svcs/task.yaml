@@ -5,7 +5,7 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-install-hook-runs-svc
 
   echo "Verify that the snap service is still disabled"
-  snap services | MATCH "test-snapd-install-hook-runs-svc\\.svc\\s+system\\s+disabled\\s+inactive"
+  snap services | MATCH "test-snapd-install-hook-runs-svc\\.svc\\s+disabled\\s+inactive"
 
   echo "Verify that the snap service ran and did something during the install hook"
   MATCH snap-svc-did-this < /var/snap/test-snapd-install-hook-runs-svc/current/data
