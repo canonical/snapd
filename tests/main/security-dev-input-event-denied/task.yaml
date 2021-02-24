@@ -50,7 +50,7 @@ execute: |
         exit 1
     fi
     # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Permission denied" < call.error
+    MATCH "(Permission denied|Operation not permitted)" < call.error
 
     echo "When the joystick plug is connected"
     snap connect test-snapd-event:joystick
@@ -83,7 +83,7 @@ execute: |
         exit 1
     fi
     # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Permission denied" < call.error
+    MATCH "(Permission denied|Operation not permitted)" < call.error
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons
