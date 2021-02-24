@@ -169,11 +169,10 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	var updatePolicy gadget.UpdatePolicyFunc = nil
 
+	// Even with a remodel a kernel refresh only updates the kernel assets
 	if snapsup.Type == snap.TypeKernel {
 		updatePolicy = gadget.KernelUpdatePolicy
-	}
-
-	if isRemodel {
+	} else if isRemodel {
 		// use the remodel policy which triggers an update of all
 		// structures
 		updatePolicy = gadget.RemodelUpdatePolicy
