@@ -1106,59 +1106,6 @@ func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, re
 	}
 }
 
-// On openSUSE Tumbleweed partial apparmor support doesn't change apparmor template to classic.
-// Strict confinement template, along with snippets, are used.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.16-10-1-default", "opensuse-tumbleweed")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
-}
-
-// On openSUSE Tumbleweed running older kernel partial apparmor support changes
-// apparmor template to classic.
-func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweedOldKernel(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.14", "opensuse-tumbleweed")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, "\n#classic"+commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n")
-}
-
-func (s *backendSuite) TestCombineSnippetsArchOldIDSufficientHardened(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "arch", "archlinux")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
-}
-
-func (s *backendSuite) TestCombineSnippetsArchSufficientHardened(c *C) {
-	restore := mockPartalAppArmorOnDistro(c, "4.18.2.a-1-hardened", "archlinux")
-	defer restore()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.AddSnippet("snippet")
-		return nil
-	}
-
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	c.Check(profile, testutil.FileEquals, commonPrefix+"\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n")
-}
-
 const coreYaml = `name: core
 version: 1
 type: os
@@ -1994,7 +1941,7 @@ func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
 	restore = osutil.MockKernelVersion("4.14.1-default")
 	defer restore()
 
-	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:downgraded"})
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "parser:baz", "parser:norf", "support-level:partial", "policy:default"})
 }
 
 func (s *backendSuite) TestParallelInstanceSetupSnapUpdateNS(c *C) {
@@ -2017,31 +1964,6 @@ apps:
   mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
   mount options=(rw rbind) /var/snap/some-snap_instance/ -> /var/snap/some-snap/,
 `)
-}
-
-func (s *backendSuite) TestDowngradeConfinement(c *C) {
-
-	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
-	defer restore()
-
-	for _, tc := range []struct {
-		distro   string
-		kernel   string
-		expected bool
-	}{
-		{"opensuse-tumbleweed", "4.16.10-1-default", false},
-		{"opensuse-tumbleweed", "4.14.1-default", true},
-		{"arch", "4.18.2.a-1-hardened", false},
-		{"arch", "4.18.8-arch1-1-ARCH", false},
-		{"archlinux", "4.18.2.a-1-hardened", false},
-	} {
-		c.Logf("trying: %+v", tc)
-		restore := release.MockReleaseInfo(&release.OS{ID: tc.distro})
-		defer restore()
-		restore = osutil.MockKernelVersion(tc.kernel)
-		defer restore()
-		c.Check(apparmor.DowngradeConfinement(), Equals, tc.expected, Commentf("unexpected result for %+v", tc))
-	}
 }
 
 func (s *backendSuite) TestPtraceTraceRule(c *C) {
