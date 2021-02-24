@@ -326,8 +326,10 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 func delayedCrossMgrInit() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
-	// hook auto refresh of assertions into snapstate
+	// hook auto refresh of assertions (snap declarations) into snapstate
 	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
+	// hook auto refresh of validation sets assertions into snapstate
+	snapstate.RefreshValidationSetAssertions = RefreshValidationSetAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
 }

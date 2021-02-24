@@ -3108,6 +3108,14 @@ func mockAutoRefreshAssertions(f func(st *state.State, userID int) error) func()
 	}
 }
 
+func mockRefreshValidationSetAssertions(f func(st *state.State, userID int) error) func() {
+	origRefreshValidationSetAssertions := snapstate.RefreshValidationSetAssertions
+	snapstate.RefreshValidationSetAssertions = f
+	return func() {
+		snapstate.RefreshValidationSetAssertions = origRefreshValidationSetAssertions
+	}
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3138,6 +3146,51 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesValidationSetsAssertions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	// avoid special at seed policy
+	s.state.Set("last-refresh", time.Time{})
+	refreshAssertionsCalled := 0
+	restore := mockRefreshValidationSetAssertions(func(st *state.State, userID int) error {
+		refreshAssertionsCalled++
+		return nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	c.Assert(s.snapmgr.Ensure(), IsNil)
+	s.state.Lock()
+	c.Assert(refreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesValidationSetsAssertionsError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	// avoid special at seed policy
+	s.state.Set("last-refresh", time.Time{})
+	refreshAssertionsCalled := 0
+	restore := mockRefreshValidationSetAssertions(func(st *state.State, userID int) error {
+		// simulate failure from RefreshValidationSetAssertions
+		refreshAssertionsCalled++
+		return fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.state.Unlock()
+	// no error from Ensure
+	c.Assert(s.snapmgr.Ensure(), IsNil)
+	s.state.Lock()
+	c.Assert(refreshAssertionsCalled, Equals, 1)
+	c.Check(logbuf.String(), testutil.Contains, ": auto-refresh: boom\n")
 }
 
 func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, confSet func(*config.Transaction)) {

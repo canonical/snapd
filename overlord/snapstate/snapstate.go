@@ -1787,11 +1787,22 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 // into the Autorefresh function.
 var AutoRefreshAssertions func(st *state.State, userID int) error
 
+// RefreshValidationSetAssertions allows to hook refreshing of validation sets
+// assertions into the Autorefresh function.
+var RefreshValidationSetAssertions func(st *state.State, userID int) error
+
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
 func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
 	userID := 0
+
+	if RefreshValidationSetAssertions != nil {
+		if err := RefreshValidationSetAssertions(st, userID); err != nil {
+			// XXX: error out when enforce mode is implemented.
+			logger.Noticef("auto-refresh: %v", err)
+		}
+	}
 
 	if AutoRefreshAssertions != nil {
 		if err := AutoRefreshAssertions(st, userID); err != nil {
