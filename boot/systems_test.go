@@ -56,15 +56,13 @@ func (s *initramfsMarkTryRecoverySystemSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
-var uncalledCheck = func() error { return fmt.Errorf("unexpected call") }
-
-func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C, success bool, expectingStatus string) {
+func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C, outcome boot.TryRecoverySystemOutcome, expectingStatus string) {
 	err := s.bl.SetBootVars(map[string]string{
 		"recovery_system_status": "try",
 		"try_recovery_system":    "1234",
 	})
 	c.Assert(err, IsNil)
-	err = boot.InitramfsMarkTryRecoverySystemResultForRunMode(success)
+	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome)
 	c.Assert(err, IsNil)
 
 	expectedVars := map[string]string{
@@ -87,7 +85,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C,
 	})
 	c.Assert(err, IsNil)
 
-	err = boot.InitramfsMarkTryRecoverySystemResultForRunMode(success)
+	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome)
 	c.Assert(err, IsNil)
 
 	vars, err = s.bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system",
@@ -97,20 +95,24 @@ func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C,
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestMarkTryRecoverySystemSuccess(c *C) {
-	const success = true
-	s.testMarkRecoverySystemForRun(c, success, "tried")
+	s.testMarkRecoverySystemForRun(c, boot.TryRecoverySystemOutcomeSuccess, "tried")
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestMarkRecoverySystemFailure(c *C) {
-	const success = false
-	s.testMarkRecoverySystemForRun(c, success, "try")
+	s.testMarkRecoverySystemForRun(c, boot.TryRecoverySystemOutcomeFailure, "try")
+}
+
+func (s *initramfsMarkTryRecoverySystemSuite) TestMarkRecoverySystemBogus(c *C) {
+	s.testMarkRecoverySystemForRun(c, boot.TryRecoverySystemOutcomeInconsistent, "")
 }
 
 func (s *initramfsMarkTryRecoverySystemSuite) TestMarkRecoverySystemErr(c *C) {
 	s.bl.SetErr = fmt.Errorf("set fails")
-	err := boot.InitramfsMarkTryRecoverySystemResultForRunMode(true)
+	err := boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeSuccess)
 	c.Assert(err, ErrorMatches, "set fails")
-	err = boot.InitramfsMarkTryRecoverySystemResultForRunMode(false)
+	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeFailure)
+	c.Assert(err, ErrorMatches, "set fails")
+	err = boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(boot.TryRecoverySystemOutcomeInconsistent)
 	c.Assert(err, ErrorMatches, "set fails")
 }
 
@@ -121,8 +123,32 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemUnset(c *C
 		"try_recovery_system": "",
 	})
 	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsTryingRecoverySystem("1234")
-	c.Assert(err, ErrorMatches, "try recovery system is unset")
+	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
+	c.Assert(err, ErrorMatches, `try recovery system is unset but status is "try"`)
+	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
+	c.Check(isTry, Equals, false)
+}
+
+func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemBogus(c *C) {
+	err := s.bl.SetBootVars(map[string]string{
+		"recovery_system_status": "foobar",
+		"try_recovery_system":    "1234",
+	})
+	c.Assert(err, IsNil)
+	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
+	c.Assert(err, ErrorMatches, `unexpected recovery system status "foobar"`)
+	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
+	c.Check(isTry, Equals, false)
+
+	// errors out even if try recovery system label is unset
+	err = s.bl.SetBootVars(map[string]string{
+		"recovery_system_status": "no-label",
+		"try_recovery_system":    "",
+	})
+	c.Assert(err, IsNil)
+	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
+	c.Assert(err, ErrorMatches, `unexpected recovery system status "no-label"`)
+	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 }
 
@@ -132,7 +158,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemNoTryingSt
 		"try_recovery_system":    "",
 	})
 	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, false)
 
@@ -142,7 +168,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemNoTryingSt
 		"try_recovery_system":    "1234",
 	})
 	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, false)
 }
@@ -154,7 +180,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemSameSystem
 		"try_recovery_system":    "1234",
 	})
 	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, true)
 
@@ -164,7 +190,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemSameSystem
 		"try_recovery_system":    "1234",
 	})
 	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, true)
 }
@@ -176,7 +202,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestRecoverySystemSuccessDifferent
 		"try_recovery_system":    "9999",
 	})
 	c.Assert(err, IsNil)
-	isTry, err := boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, false)
 
@@ -186,7 +212,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestRecoverySystemSuccessDifferent
 		"try_recovery_system":    "9999",
 	})
 	c.Assert(err, IsNil)
-	isTry, err = boot.InitramfsTryingRecoverySystem("1234")
+	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, IsNil)
 	c.Check(isTry, Equals, false)
 }
