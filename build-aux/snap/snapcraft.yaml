@@ -127,3 +127,24 @@ parts:
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     prime:
       - bin/fc-cache-v7
+  apparmor:
+    plugin: autotools
+    build-packages: [ bison, flex ]
+    source: https://launchpad.net/apparmor/3.0/3.0.1/+download/apparmor-3.0.1.tar.gz
+    override-build: |
+      cd libraries/libapparmor
+      ./autogen.sh
+      ./configure --prefix=/usr
+      make
+      cd ../../parser
+      make
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+      cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor
+      cp -a parser.conf $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor/
+      cd ../profiles
+      make
+      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d
+      cp -a apparmor.d/abi $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
+      cp -a apparmor.d/abstractions $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
+      cp -a apparmor.d/tunables $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
