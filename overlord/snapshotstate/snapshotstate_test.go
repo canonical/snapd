@@ -730,7 +730,9 @@ exec /bin/tar "$@"
 	// task 1 (for "too-snap") will have errored
 	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
-	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `\S+ ERROR cannot create archive: /bin/tar: common/common-too-snap: .* Permission denied \(and 1 earlier\)`)
+	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
+/bin/tar: common/common-too-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
 	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
@@ -742,6 +744,107 @@ exec /bin/tar "$@"
 	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
+}
+
+func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, expectedErr string) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	// sanity check: no files in snapshot dir
+	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
+
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
+	// mock tar so that it outputs a desired number of lines
+	mocktar := testutil.MockCommand(c, "tar", fmt.Sprintf(`
+export LANG=C
+for c in $(seq %d); do echo "log line $c" >&2 ; done
+exec /bin/tar "$@"
+`, tarLogLines))
+	defer mocktar.Restore()
+
+	defer backend.MockUserLookup(func(username string) (*user.User, error) {
+		if username != "a-user" {
+			c.Fatalf("unexpected user %q", username)
+		}
+		return &user.User{
+			Uid:      fmt.Sprint(sys.Geteuid()),
+			Username: username,
+			HomeDir:  homedir,
+		}, nil
+	})()
+
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "tar-fail-snap", Revision: snap.R(1)}
+	snapstate.Set(st, "tar-fail-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, "name: tar-fail-snap\nversion: v1", sideInfo)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/1/canary-tar-fail-snap"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/common"), 0755), check.IsNil)
+	// this makes tar unhappy
+	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
+
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(1))
+	c.Check(saved, check.DeepEquals, []string{"tar-fail-snap"})
+
+	change := st.NewChange("save-snapshot", "...")
+	change.AddAll(taskset)
+
+	st.Unlock()
+	c.Assert(o.Settle(5*time.Second), check.IsNil)
+	st.Lock()
+	c.Check(change.Err(), check.NotNil)
+	tasks := change.Tasks()
+	c.Assert(tasks, check.HasLen, 1)
+
+	// task 1 (for "too-snap") will have errored
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
+	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
+
+	// no zips left behind, not for errors, not for undos \o/
+	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsManyLines(c *check.C) {
+	// cutoff at 5 lines, 3 lines of log + 2 lines from tar
+	s.testSaveIntegrationTarFails(c, 3, `(?ms)\S+ ERROR cannot create archive:
+log line 1
+log line 2
+log line 3
+/bin/tar: common/common-tar-fail-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsTrimmedLines(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 10, `(?ms)\S+ ERROR cannot create archive \(showing last 5 lines out of 12\):
+log line 8
+log line 9
+log line 10
+/bin/tar: common/common-tar-fail-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
 }
 
 func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
