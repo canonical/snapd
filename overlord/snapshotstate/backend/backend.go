@@ -445,8 +445,8 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
 	matchCounter := &strutil.MatchCounter{
-		// keep at most 6 matches
-		N: 6,
+		// keep at most 5 matches
+		N: 5,
 		// keep the last lines only, those likely contain the reason for
 		// fatal errors
 		LastN: true,
@@ -460,10 +460,10 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		matches, count := matchCounter.Matches()
 		if count > 0 {
 			note := ""
-			if len(matches) > 5 {
-				matches = matches[len(matches)-5:]
-				note = fmt.Sprintf(" (showing last %d lines out of %d)", 5, count)
+			if count > 5 {
+				note = fmt.Sprintf(" (showing last 5 lines out of %d)", count)
 			}
+			// we have at most 5 matches here
 			errStr := strings.Join(matches, "\n")
 			return fmt.Errorf("cannot create archive%s:\n%s", note, errStr)
 		}

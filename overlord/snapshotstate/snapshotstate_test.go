@@ -758,11 +758,17 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
 	// mock tar so that it outputs a desired number of lines
-	mocktar := testutil.MockCommand(c, "tar", fmt.Sprintf(`
+	tarFailScript := fmt.Sprintf(`
 export LANG=C
 for c in $(seq %d); do echo "log line $c" >&2 ; done
 exec /bin/tar "$@"
-`, tarLogLines))
+`, tarLogLines)
+	if tarLogLines == 1 {
+		tarFailScript = "echo nope >&2 ; exit 1"
+	} else if tarLogLines == 0 {
+		tarFailScript = "exit 1"
+	}
+	mocktar := testutil.MockCommand(c, "tar", tarFailScript)
 	defer mocktar.Restore()
 
 	defer backend.MockUserLookup(func(username string) (*user.User, error) {
@@ -845,6 +851,15 @@ log line 9
 log line 10
 /bin/tar: common/common-tar-fail-snap: .* Permission denied
 /bin/tar: Exiting with failure status due to previous errors`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsSingleLine(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 1, `(?ms)\S+ ERROR cannot create archive:
+nope`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsNoLines(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 0, `(?ms)\S+ ERROR tar failed: exit status 1`)
 }
 
 func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
