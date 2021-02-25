@@ -48,8 +48,6 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
-	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services

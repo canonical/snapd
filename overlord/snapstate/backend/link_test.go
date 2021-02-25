@@ -322,8 +322,6 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
-	c.Assert(err, IsNil)
 
 	info, _ := mockSnapdSnapForLink(c)
 
@@ -583,8 +581,6 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
-	c.Assert(err, IsNil)
 
 	// make snap mount dir non-writable, triggers error updating the current symlink
 	snapdSnapDir := filepath.Dir(info.MountDir())
@@ -663,8 +659,6 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
 	c.Assert(err, IsNil)
 
 	info, snapdUnits := mockSnapdSnapForLink(c)

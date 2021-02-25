@@ -581,6 +581,10 @@ var dbusSessionServices = []string{
 }
 
 func writeSnapdDbusActivationOnCore(s *snap.Info) error {
+	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
+		return err
+	}
+
 	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
 	for _, service := range dbusSessionServices {
 		content[service] = &osutil.FileReference{
