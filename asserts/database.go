@@ -725,7 +725,8 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
 			}
-			return fmt.Errorf("%s assertion timestamp outside of signing key validity (key valid since %q%s)", assert.Type().Name, signingKey.Since(), until)
+			return fmt.Errorf("%s assertion timestamp %q outside of signing key validity (key valid since %q%s)",
+				assert.Type().Name, checkTime, signingKey.Since(), until)
 		}
 	}
 	return nil
