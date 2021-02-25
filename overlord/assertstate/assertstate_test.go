@@ -2499,5 +2499,5 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
 
 	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0)
-	c.Assert(err, check.ErrorMatches, `cannot fetch and resolve assertions:\n - validation set assertions: validation-set assertion not found.*`)
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }
