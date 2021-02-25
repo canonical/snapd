@@ -436,6 +436,19 @@ func writeResolvedContentImpl(targetdir, gadgetUnpackDir, kernelUnpackDir string
 				return err
 			}
 			dst := filepath.Join(targetdir, volName, ps.Name)
+			// XXX: this is ugly
+			//
+			// on UC20, ensure system-seed links back to the
+			// <PrepareDir>/system-seed
+			if ps.Role == gadget.SystemSeed {
+				uc20systemSeedDir := filepath.Join(targetdir, "../system-seed")
+				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+					return err
+				}
+				if err := os.Symlink(uc20systemSeedDir, dst); err != nil {
+					return err
+				}
+			}
 			if err := mw.Write(dst, nil); err != nil {
 				return err
 			}

@@ -144,6 +144,14 @@ volumes:
         offset: 0
         content:
         - image: non-fs.img
+      - name: ubuntu-seed
+        role: system-seed
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+        content:
+         - source: system-seed.efi
+           target: EFI/boot/system-seed.efi
       - name: structure-name
         role: system-boot
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
@@ -152,6 +160,10 @@ volumes:
         content:
          - source: grubx64.efi
            target: EFI/boot/grubx64.efi
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
   vol2:
     structure:
       - name: struct2
@@ -164,33 +176,48 @@ volumes:
 `
 
 func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
-	dst := c.MkDir()
+	prepareImageDir := c.MkDir()
+	// on uc20 there is a "system-seed" under the <PrepareImageDir>
+	uc20systemSeed := filepath.Join(prepareImageDir, "system-seed")
+	err := os.MkdirAll(uc20systemSeed, 0755)
+	c.Assert(err, check.IsNil)
+
+	// the resolved content is written here
+	dst := filepath.Join(prepareImageDir, "resolved-content")
 	gadgetRoot := c.MkDir()
 	snaptest.PopulateDir(gadgetRoot, [][]string{
 		{"meta/snap.yaml", packageGadget},
 		{"meta/gadget.yaml", validGadgetYaml},
+		{"system-seed.efi", "content of system-seed.efi"},
 		{"grubx64.efi", "content of grubx64.efi"},
 		{"foo", "content of foo"},
 		{"non-fs.img", "content of non-fs.img"},
 	})
 	kernelRoot := c.MkDir()
-	err := image.WriteResolvedContent(dst, gadgetRoot, kernelRoot, s.model)
+	model := s.makeUC20Model(nil)
+
+	err = image.WriteResolvedContent(dst, gadgetRoot, kernelRoot, model)
 	c.Assert(err, check.IsNil)
 
 	// XXX: add testutil.DirEquals([][]string)
-	cmd := exec.Command("find", ".", "-printf", "%P\n")
+	cmd := exec.Command("find", ".", "-printf", "%y %P\n")
 	cmd.Dir = dst
 	tree, err := cmd.CombinedOutput()
 	c.Assert(err, check.IsNil)
-	c.Check(string(tree), check.Equals, `
-vol1
-vol1/structure-name
-vol1/structure-name/EFI
-vol1/structure-name/EFI/boot
-vol1/structure-name/EFI/boot/grubx64.efi
-vol2
-vol2/struct2
-vol2/struct2/subdir
-vol2/struct2/subdir/foo
+	c.Check(string(tree), check.Equals, `d 
+d vol1
+d vol1/structure-name
+d vol1/structure-name/EFI
+d vol1/structure-name/EFI/boot
+f vol1/structure-name/EFI/boot/grubx64.efi
+l vol1/ubuntu-seed
+d vol2
+d vol2/struct2
+d vol2/struct2/subdir
+f vol2/struct2/subdir/foo
 `)
+	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
+	t, err := os.Readlink(filepath.Join(dst, "vol1/ubuntu-seed"))
+	c.Assert(err, check.IsNil)
+	c.Check(t, check.Equals, uc20systemSeed)
 }
