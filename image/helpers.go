@@ -414,7 +414,11 @@ var writeResolvedContent = writeResolvedContentImpl
 func writeResolvedContentImpl(prepareDir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
 	// XXX: ugly this is hardcoded here and that the caller needs
 	// to know what we did here :/
-	targetdir := filepath.Join(prepareDir, "resolved-content")
+	fullPrepareDir, err := filepath.Abs(prepareDir)
+	if err != nil {
+		return err
+	}
+	targetdir := filepath.Join(fullPrepareDir, "resolved-content")
 
 	info, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
@@ -443,7 +447,7 @@ func writeResolvedContentImpl(prepareDir, gadgetUnpackDir, kernelUnpackDir strin
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
 			if ps.Role == gadget.SystemSeed {
-				uc20systemSeedDir := filepath.Join(prepareDir, "system-seed")
+				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
 				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 					return err
 				}
