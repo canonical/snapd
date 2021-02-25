@@ -805,7 +805,7 @@ exec /bin/tar "$@"
 	snaptest.MockSnap(c, "name: tar-fail-snap\nversion: v1", sideInfo)
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/1/canary-tar-fail-snap"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/common"), 0755), check.IsNil)
-	// this makes tar unhappy
+	// these dir permissions (000) make tar unhappy
 	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
 
 	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
@@ -817,7 +817,7 @@ exec /bin/tar "$@"
 	change.AddAll(taskset)
 
 	st.Unlock()
-	c.Assert(o.Settle(5*time.Second), check.IsNil)
+	c.Assert(o.Settle(testutil.HostScaledTimeout(5*time.Second)), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.NotNil)
 	tasks := change.Tasks()
