@@ -894,7 +894,9 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -915,9 +917,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 	toResolve, toResolveSeq, err = pool.ToResolve()
 	c.Assert(err, IsNil)
 
-	storeKey := s.hub.StoreAccountKey("")
-	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
-		asserts.MakePoolGrouping(0): {storeKey.At()}})
+	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
 
@@ -950,7 +950,9 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -971,9 +973,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 	toResolve, toResolveSeq, err = pool.ToResolve()
 	c.Assert(err, IsNil)
 
-	storeKey := s.hub.StoreAccountKey("")
-	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
-		asserts.MakePoolGrouping(0): {storeKey.At()}})
+	c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, HasLen, 0)
 	c.Check(pool.Err("for_one"), IsNil)
 
@@ -1006,7 +1006,9 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -1056,7 +1058,9 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -1111,7 +1115,9 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -1145,7 +1151,6 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 
 func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
-
 	pool := asserts.NewPool(s.db, 64)
 
 	atseq := &asserts.AtSequence{
@@ -1160,7 +1165,10 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 
 	toResolve, toResolveSeq, err := pool.ToResolve()
 	c.Assert(err, IsNil)
-	c.Check(toResolve, HasLen, 0)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
+	//c.Check(toResolve, HasLen, 0)
 	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
 		asserts.MakePoolGrouping(0): {
 			&asserts.AtSequence{
@@ -1251,6 +1259,7 @@ func (s *poolSuite) TestAddUnresolvedSeqOnce(c *C) {
 }
 
 func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 	pool := asserts.NewPool(s.db, 64)
 
 	atseq := &asserts.AtSequence{
@@ -1266,6 +1275,19 @@ func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
 	atseq.Revision = 3
 	err = pool.AddSequenceToUpdate(atseq, "for_one")
 	c.Assert(err, ErrorMatches, `internal error: sequence \[1111\] is already being resolved`)
+}
+
+func (s *poolSuite) TestAddSeqToUpdateNotFound(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        s.seq1_1111r5.Type(),
+		SequenceKey: []string{"1111"},
+		Revision:    2,
+		Sequence:    1,
+	}
+	err := pool.AddSequenceToUpdate(atseq, "for_one")
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 
 var errBoom = errors.New("boom")
