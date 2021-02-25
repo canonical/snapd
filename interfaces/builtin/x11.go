@@ -134,6 +134,9 @@ owner /run/user/[0-9]*/.Xauthority r,
 owner /run/user/[0-9]*/.mutter-Xwaylandauth.* r,
 owner /run/user/[0-9]*/mutter/Xauthority r,
 
+# Allow reading KDE Plasma's Xwayland Xauth file
+owner /run/user/[0-9]*/xauth_* r,
+
 
 # Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
 # raw' rule is not finely mediated by apparmor so we mediate with seccomp arg

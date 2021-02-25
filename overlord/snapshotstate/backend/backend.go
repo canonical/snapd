@@ -453,7 +453,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
-			return fmt.Errorf("cannot create archive: %s (and %d more)", matches[0], count-1)
+			return fmt.Errorf("cannot create archive: %s (and %d earlier)", matches[len(matches)-1], count-1)
 		}
 		return fmt.Errorf("tar failed: %v", err)
 	}
