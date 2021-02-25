@@ -192,6 +192,11 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		}
 	}
 
+	// no fallback for validation-sets, report inner error.
+	if ferr, ok := err.(*bulkAssertionFallbackError); ok {
+		err = ferr.err
+	}
+
 	return fmt.Errorf("cannot refresh validation set assertions: %v", err)
 }
 

@@ -2168,7 +2168,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
-	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: unsuccessful bulk assertion refresh, fallback: cannot : got unexpected HTTP status code 400.*`)
+	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: cannot : got unexpected HTTP status code 400.*`)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
