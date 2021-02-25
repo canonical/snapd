@@ -48,6 +48,8 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755)
+	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
@@ -64,6 +66,10 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		{"usr/share/dbus-1/system.d/snapd.system-services.conf", "<busconfig/>"},
 		// Extra non-snapd D-Bus config that shouldn't be copied
 		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
+		// D-Bus activation files
+		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
+		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
+		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
 	})
 
 	return info
@@ -165,6 +171,15 @@ WantedBy=snapd.service
 	}, {
 		filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"),
 		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"),
+		"[D-BUS Service]\nName=io.snapcraft.Launcher",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"),
+		"[D-BUS Service]\nName=io.snapcraft.Settings",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"),
+		"[D-BUS Service]\nName=io.snapcraft.SessionAgent",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
