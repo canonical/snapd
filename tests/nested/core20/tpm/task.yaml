@@ -3,6 +3,10 @@ summary: Check that tpm works properly on UC20
 description: |
     This test check UC20 can boot with secure boot successfully
 
+debug: |
+    cat modeenv || true
+    cat modeenv.after-reboot || true
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -59,8 +63,18 @@ execute: |
     test "$cmdline" = "$cmdline_modeenv"
     echo "$cmdline" | MATCH "snapd_recovery_mode=run "
 
-    # check that kernel command lines is restored when booted successfully
+    # check that recovery systems are properly recorded
+    current_recovery_systems="$(grep current_recovery_systems= < modeenv  | sed -e 's/current_recovery_systems=//')"
+    good_recovery_systems="$(grep good_recovery_systems= < modeenv  | sed -e 's/good_recovery_systems=//')"
+    test -n "$current_recovery_systems"
+    test "$current_recovery_systems" = "$good_recovery_systems"
+
+    # check compatibility scenarios:
+    # 1. that kernel command lines is restored when booted successfully
     nested_exec "sudo sed -i -e 's/current_kernel_command_lines=.*/current_kernel_command_lines=/' /var/lib/snapd/modeenv"
+    # 2. good recovery systems is populated with current systems
+    nested_exec "sudo sed -i -e 's/good_recovery_systems=.*/good_recovery_systems=/' /var/lib/snapd/modeenv"
+
     boot_id="$( nested_get_boot_id )"
     nested_exec "sudo reboot" || true
     nested_wait_for_reboot "${boot_id}"
@@ -68,5 +82,9 @@ execute: |
     # have a good state
     nested_retry_until_success 10 5 "grep -E \"current_kernel_command_lines=.*snapd_recovery_mode=run\" < /var/lib/snapd/modeenv"
     nested_exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot
+    # 1a. kernel command line is restored
     cmdline_modeenv_restored="$(grep current_kernel_command_lines= < modeenv.after-reboot  | sed -e 's/current_kernel_command_lines=//' | jq -r '.[0]')"
     test "$cmdline_modeenv_restored" = "$cmdline_modeenv"
+    # 2a. good recovery systems is populated
+    good_recovery_systems_restored="$(grep good_recovery_systems= < modeenv.after-reboot  | sed -e 's/good_recovery_systems=//')"
+    test "$good_recovery_systems_restored" = "$good_recovery_systems"
