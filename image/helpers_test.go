@@ -183,7 +183,6 @@ func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// the resolved content is written here
-	dst := filepath.Join(prepareImageDir, "resolved-content")
 	gadgetRoot := c.MkDir()
 	snaptest.PopulateDir(gadgetRoot, [][]string{
 		{"meta/snap.yaml", packageGadget},
@@ -196,12 +195,14 @@ func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	kernelRoot := c.MkDir()
 	model := s.makeUC20Model(nil)
 
-	err = image.WriteResolvedContent(dst, gadgetRoot, kernelRoot, model)
+	err = image.WriteResolvedContent(prepareImageDir, gadgetRoot, kernelRoot, model)
 	c.Assert(err, check.IsNil)
 
 	// XXX: add testutil.DirEquals([][]string)
+	resolvedContent := filepath.Join(prepareImageDir, "resolved-content")
+
 	cmd := exec.Command("find", ".", "-printf", "%y %P\n")
-	cmd.Dir = dst
+	cmd.Dir = resolvedContent
 	tree, err := cmd.CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(tree), check.Equals, `d 
@@ -217,7 +218,7 @@ d vol2/struct2/subdir
 f vol2/struct2/subdir/foo
 `)
 	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
-	t, err := os.Readlink(filepath.Join(dst, "vol1/ubuntu-seed"))
+	t, err := os.Readlink(filepath.Join(resolvedContent, "vol1/ubuntu-seed"))
 	c.Assert(err, check.IsNil)
 	c.Check(t, check.Equals, uc20systemSeed)
 }

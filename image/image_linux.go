@@ -436,7 +436,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// write resolved content to structure root
 	// XXX: move to gadget?
 	if !opts.Classic {
-		if err := writeResolvedContent(filepath.Join(opts.PrepareDir, "resolved-content"), gadgetUnpackDir, kernelUnpackDir, model); err != nil {
+		if err := writeResolvedContent(opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
 			return err
 		}
 	}

@@ -592,7 +592,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	gadgetWriteResolvedContentCalled := 0
 	restore = image.MockWriteResolvedContent(func(dst, gadgetRoot, kernelRoot string, model *asserts.Model) error {
 		c.Check(model, DeepEquals, s.model)
-		c.Check(dst, Equals, filepath.Join(preparedir, "resolved-content"))
+		c.Check(dst, Equals, preparedir)
 		c.Check(gadgetRoot, Equals, filepath.Join(preparedir, "gadget"))
 		c.Check(kernelRoot, Equals, filepath.Join(preparedir, "kernel"))
 		gadgetWriteResolvedContentCalled++

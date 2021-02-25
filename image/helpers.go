@@ -411,7 +411,11 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 var writeResolvedContent = writeResolvedContentImpl
 
 // XXX: move to gadget?
-func writeResolvedContentImpl(targetdir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
+func writeResolvedContentImpl(prepareDir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
+	// XXX: ugly this is hardcoded here and that the caller needs
+	// to know what we did here :/
+	targetdir := filepath.Join(prepareDir, "resolved-content")
+
 	info, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
 		return err
@@ -436,12 +440,10 @@ func writeResolvedContentImpl(targetdir, gadgetUnpackDir, kernelUnpackDir string
 				return err
 			}
 			dst := filepath.Join(targetdir, volName, ps.Name)
-			// XXX: this is ugly
-			//
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
 			if ps.Role == gadget.SystemSeed {
-				uc20systemSeedDir := filepath.Join(targetdir, "../system-seed")
+				uc20systemSeedDir := filepath.Join(prepareDir, "system-seed")
 				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 					return err
 				}
