@@ -4779,7 +4779,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 	return err
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappy(c *C) {
+func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happyStatus string) {
 	rebootCalls := 0
 	restore := boot.MockInitramfsReboot(func() error {
 		rebootCalls++
@@ -4789,7 +4789,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappy(c *C) {
 
 	bl := bootloadertest.Mock("bootloader", c.MkDir())
 	bl.BootVars = map[string]string{
-		"recovery_system_status": "try",
+		"recovery_system_status": happyStatus,
 		"try_recovery_system":    s.sysLabel,
 	}
 	bootloader.Force(bl)
@@ -4812,6 +4812,108 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappy(c *C) {
 	c.Check(bl.BootVars, DeepEquals, map[string]string{
 		"recovery_system_status": "tried",
 		"try_recovery_system":    s.sysLabel,
+		"snapd_recovery_mode":    "run",
+		"snapd_recovery_system":  "",
+	})
+	c.Check(rebootCalls, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappyTry(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "try")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHappyTried(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "tried")
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover  snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	runParser := func() {
+		main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	}
+	c.Assert(runParser, PanicMatches, `inconsistent tried recovery system bootenv: <nil>`)
+
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentBogusStatus(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	err := bl.SetBootVars(map[string]string{
+		"recovery_system_status": "bogus",
+		"try_recovery_system":    s.sysLabel,
+	})
+	c.Assert(err, IsNil)
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	s.testInitramfsMountsTryRecoveryInconsistent(c)
+
+	vars, err := bl.GetBootVars("recovery_system_status", "try_recovery_system",
+		"snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    s.sysLabel,
+		"snapd_recovery_mode":    "run",
+		"snapd_recovery_system":  "",
+	})
+	c.Check(rebootCalls, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentMissingLabel(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	err := bl.SetBootVars(map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    "",
+	})
+	c.Assert(err, IsNil)
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	s.testInitramfsMountsTryRecoveryInconsistent(c)
+
+	vars, err := bl.GetBootVars("recovery_system_status", "try_recovery_system",
+		"snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    "",
 		"snapd_recovery_mode":    "run",
 		"snapd_recovery_system":  "",
 	})

@@ -991,8 +991,16 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// for most cases we allow the use of fallback to unlock/mount things
 	allowFallback := true
 
-	tryingCurrentSystem, err := boot.InitramfsTryingRecoverySystem(mst.recoverySystem)
+	tryingCurrentSystem, err := boot.InitramfsIsTryingRecoverySystem(mst.recoverySystem)
 	if err != nil {
+		if boot.IsInconsystemRecoverySystemState(err) {
+			// there is some try recovery system state in bootenv
+			// but it is inconsistent, make sure we clear it and
+			// return back to run mode
+			finalizeErr := finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
+			// not reached, unless in tests
+			panic(fmt.Errorf("inconsistent tried recovery system bootenv: %v", finalizeErr))
+		}
 		// this could be an inconsistency in the state
 		return err
 	}
@@ -1031,13 +1039,16 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if tryingCurrentSystem {
 		// end of the line for a recovery system we are only trying out,
 		// this branch always ends with a reboot (or a panic)
-		isSuccessful := err == nil && !machine.degraded()
-		finalizeErr := finalizeTryRecoverySystemAndReboot(isSuccessful)
+		outcome := boot.TryRecoverySystemOutcomeFailure
+		if err == nil && !machine.degraded() {
+			outcome = boot.TryRecoverySystemOutcomeSuccess
+		}
+		finalizeErr := finalizeTryRecoverySystemAndReboot(outcome)
 		// unreachable unless in tests, as finalize issues a reboot,
 		// waits for it and panics if none happened
-		status := "successful"
-		if !isSuccessful {
-			status = "failed"
+		status := "failed"
+		if outcome == boot.TryRecoverySystemOutcomeSuccess {
+			status = "successful"
 		}
 		if finalizeErr != nil {
 			err = finalizeErr
@@ -1464,7 +1475,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	return nil
 }
 
-func finalizeTryRecoverySystemAndReboot(successful bool) (err error) {
+func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (err error) {
 	// from this point on, we must finish with a system reboot
 	defer func() {
 		if rebootErr := boot.InitramfsReboot(); rebootErr != nil {
@@ -1485,16 +1496,18 @@ func finalizeTryRecoverySystemAndReboot(successful bool) (err error) {
 		return nil
 	}
 
-	if err := healthCheck(); err != nil {
-		// health checks failed, the recovery system is considered
-		// unsuccessful
-		successful = false
+	if outcome == boot.TryRecoverySystemOutcomeSuccess {
+		if err := healthCheck(); err != nil {
+			// health checks failed, the recovery system is considered
+			// unsuccessful
+			outcome = boot.TryRecoverySystemOutcomeFailure
+		}
 	}
 
 	// that's it, we've tried booting a new recovery system to this point,
 	// whether things are looking good or bad we will reboot back to run
 	// mode and update the boot variables accordingly
-	if err := boot.InitramfsMarkTryRecoverySystemResultForRunMode(successful); err != nil {
+	if err := boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome); err != nil {
 		logger.Noticef("cannot update the try recovery system state: %v", err)
 		return fmt.Errorf("cannot mark recovery system successful: %v", err)
 	}
