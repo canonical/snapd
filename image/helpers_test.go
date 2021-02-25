@@ -135,9 +135,15 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 
 var validGadgetYaml = `
 volumes:
-  pc:
+  vol1:
     bootloader: grub
     structure:
+      - name: non-fs
+        type: bare
+        size: 512
+        offset: 0
+        content:
+        - image: non-fs.img
       - name: structure-name
         role: system-boot
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
@@ -146,6 +152,15 @@ volumes:
         content:
          - source: grubx64.efi
            target: EFI/boot/grubx64.efi
+  vol2:
+    structure:
+      - name: struct2
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+        content:
+         - source: foo
+           target: subdir/foo
 `
 
 func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
@@ -155,6 +170,8 @@ func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 		{"meta/snap.yaml", packageGadget},
 		{"meta/gadget.yaml", validGadgetYaml},
 		{"grubx64.efi", "content of grubx64.efi"},
+		{"foo", "content of foo"},
+		{"non-fs.img", "content of non-fs.img"},
 	})
 	kernelRoot := c.MkDir()
 	err := image.WriteResolvedContent(dst, gadgetRoot, kernelRoot, s.model)
@@ -166,9 +183,14 @@ func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	tree, err := cmd.CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(tree), check.Equals, `
-structure-name
-structure-name/EFI
-structure-name/EFI/boot
-structure-name/EFI/boot/grubx64.efi
+vol1
+vol1/structure-name
+vol1/structure-name/EFI
+vol1/structure-name/EFI/boot
+vol1/structure-name/EFI/boot/grubx64.efi
+vol2
+vol2/struct2
+vol2/struct2/subdir
+vol2/struct2/subdir/foo
 `)
 }

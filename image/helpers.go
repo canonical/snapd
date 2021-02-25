@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -411,19 +412,35 @@ var writeResolvedContent = writeResolvedContentImpl
 
 // XXX: move to gadget?
 func writeResolvedContentImpl(targetdir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetUnpackDir, kernelUnpackDir, model)
+	info, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
 		return err
 	}
-	for _, ps := range lv.LaidOutStructure {
-		mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+	constraints := gadget.LayoutConstraints{
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
+		// TODO:UC20: SectorSize is irrelevant here, we only care
+		// about filesystem assets
+		SectorSize: 512,
+	}
+	for volName, vol := range info.Volumes {
+		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, constraints)
 		if err != nil {
 			return err
 		}
-		dst := filepath.Join(targetdir, ps.Name)
-		if err := mw.Write(dst, nil); err != nil {
-			return err
+		for _, ps := range pvol.LaidOutStructure {
+			if !ps.HasFilesystem() {
+				continue
+			}
+			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+			if err != nil {
+				return err
+			}
+			dst := filepath.Join(targetdir, volName, ps.Name)
+			if err := mw.Write(dst, nil); err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }
