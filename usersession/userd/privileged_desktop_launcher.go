@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil/shlex"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const privilegedLauncherIntrospectionXML = `
@@ -93,11 +94,23 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
+	ver, err := systemd.Version()
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	// systemd 236 introduced the --collect option to systemd-run,
+	// which specifies that the unit should be garbage collected
+	// even if it fails.
+	//   https://github.com/systemd/systemd/pull/7314
+	if ver >= 236 {
+		args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
+	} else {
+		args = append([]string{"systemd-run", "--user", "--"}, args...)
+	}
 
 	cmd := exec.Command(args[0], args[1:]...)
 
-	if err := cmd.Run(); err != nil {	
+	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", command, err))
 	}
 
