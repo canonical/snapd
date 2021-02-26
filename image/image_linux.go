@@ -434,12 +434,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	// write resolved content to structure root
-	// XXX: move to gadget?
-	if !opts.Classic {
-		targetDir := filepath.Join(opts.PrepareDir, "resolved-content")
-		if err := writeResolvedContent(targetDir, opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
-			return err
-		}
+	targetDir := filepath.Join(opts.PrepareDir, "resolved-content")
+	if err := writeResolvedContent(targetDir, opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
+		return err
 	}
 
 	// early config & cloud-init config (done at install for Core 20)
