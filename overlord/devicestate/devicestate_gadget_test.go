@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -1028,6 +1029,54 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, 1)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "pc-kernel_34")
+	c.Check(rollbackDir, Equals, passedRollbackDir)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
+	var updateCalled int
+	var passedRollbackDir string
+
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+		updateCalled++
+		passedRollbackDir = path
+
+		c.Check(strings.HasSuffix(current.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(update.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(current.KernelRootDir, "/snap/pc-kernel/33"), Equals, true)
+		c.Check(strings.HasSuffix(update.KernelRootDir, "/snap/pc-kernel/34"), Equals, true)
+
+		// KernelUpdatePolicy is used even when we remodel
+		c.Check(reflect.ValueOf(policy), DeepEquals, reflect.ValueOf(gadget.UpdatePolicyFunc(gadget.KernelUpdatePolicy)))
+		return nil
+	})
+	defer restore()
+
+	chg, t := s.setupKernelAssetsUpdate(c)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "foo-gadget",
+		"base":         "core18",
+		"revision":     "1",
+	})
+
+	s.state.Lock()
+	// pretend we are remodeling
+	chg.Set("new-model", string(asserts.Encode(newModel)))
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
