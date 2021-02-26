@@ -87,6 +87,8 @@ restore: |
     
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        # XXX: Note that the order will change here as we adjust the policy.
+        #
         # first install the asserted kernel so that the gadget can resolve
         # the kernel refs
         snap install pc-kernel_x1.snap
