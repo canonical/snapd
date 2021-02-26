@@ -177,6 +177,8 @@ volumes:
 
 func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	prepareImageDir := c.MkDir()
+	targetDir := filepath.Join(prepareImageDir, "resolved-content")
+
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
 	uc20systemSeed := filepath.Join(prepareImageDir, "system-seed")
 	err := os.MkdirAll(uc20systemSeed, 0755)
@@ -195,14 +197,12 @@ func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	kernelRoot := c.MkDir()
 	model := s.makeUC20Model(nil)
 
-	err = image.WriteResolvedContent(prepareImageDir, gadgetRoot, kernelRoot, model)
+	err = image.WriteResolvedContent(targetDir, prepareImageDir, gadgetRoot, kernelRoot, model)
 	c.Assert(err, check.IsNil)
 
 	// XXX: add testutil.DirEquals([][]string)
-	resolvedContent := filepath.Join(prepareImageDir, "resolved-content")
-
 	cmd := exec.Command("find", ".", "-printf", "%y %P\n")
-	cmd.Dir = resolvedContent
+	cmd.Dir = targetDir
 	tree, err := cmd.CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(tree), check.Equals, `d 
@@ -218,7 +218,7 @@ d vol2/struct2/subdir
 f vol2/struct2/subdir/foo
 `)
 	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
-	t, err := os.Readlink(filepath.Join(resolvedContent, "vol1/ubuntu-seed"))
+	t, err := os.Readlink(filepath.Join(targetDir, "vol1/ubuntu-seed"))
 	c.Assert(err, check.IsNil)
 	c.Check(t, check.Equals, uc20systemSeed)
 }

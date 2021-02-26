@@ -55,7 +55,7 @@ var (
 	WriteResolvedContent = writeResolvedContent
 )
 
-func MockWriteResolvedContent(f func(dst, gadgetRoot, kernelRoot string, model *asserts.Model) error) (restore func()) {
+func MockWriteResolvedContent(f func(targetDir, prepareImageDir, gadgetRoot, kernelRoot string, model *asserts.Model) error) (restore func()) {
 	oldWriteResolvedContent := writeResolvedContent
 	writeResolvedContent = f
 	return func() {
