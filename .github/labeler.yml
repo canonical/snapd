@@ -4,5 +4,5 @@
 # - https://github.com/actions/labeler/issues/104
 
 # Add 'Run nested' label to either any change on nested lib or nested test
-#Run nested:
-#- any: ['tests/lib/nested.sh', 'tests/nested/**/*']
+Run nested:
+  - any: ["tests/lib/nested.sh", "tests/nested/**/*"]
