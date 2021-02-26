@@ -492,13 +492,21 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    # Retry govendor sync to minimize the number of connection errors during the sync
-    for _ in $(seq 10); do
-        if quiet govendor sync; then
-            break
-        fi
-        sleep 1
-    done
+
+    if [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]]; then
+        wget -q "https://storage.googleapis.com/spread-snapd-tests/dependencies/govendor/vendor.zip"
+        rm -rf "${GOPATH%%:*}/src/github.com/snapcore/snapd/vendor"
+        unzip vendor.zip -d /
+        rm vendor.zip
+    else
+        # Retry govendor sync to minimize the number of connection errors during the sync
+        for _ in $(seq 10); do
+            if quiet govendor sync; then
+                break
+            fi
+            sleep 1
+        done
+    fi
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
