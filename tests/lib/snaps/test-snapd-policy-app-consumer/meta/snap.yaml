@@ -11,6 +11,9 @@ apps:
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
+  allegro-vcu:
+    command: bin/run
+    plugs: [ allegro-vcu ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -239,6 +242,9 @@ apps:
   maliit:
     command: bin/run
     plugs: [ maliit ]
+  media-control:
+    command: bin/run
+    plugs: [ media-control ]
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
