@@ -177,11 +177,30 @@ volumes:
 
 func (s *imageSuite) TestWriteResolvedContent(c *check.C) {
 	prepareImageDir := c.MkDir()
-	targetDir := filepath.Join(prepareImageDir, "resolved-content")
+	targetDir := c.MkDir()
 
+	s.testWriteResolvedContent(c, targetDir, prepareImageDir)
+}
+
+func (s *imageSuite) TestWriteResolvedContentRelativePath(c *check.C) {
+	prepareImageDir := c.MkDir()
+
+	// chdir to prepareImage dir and run writeResolvedContent from
+	// this relative dir
+	cwd, err := os.Getwd()
+	c.Assert(err, check.IsNil)
+	err = os.Chdir(prepareImageDir)
+	c.Assert(err, check.IsNil)
+	defer func() { os.Chdir(cwd) }()
+
+	s.testWriteResolvedContent(c, "./resolved-content", ".")
+}
+
+func (s *imageSuite) testWriteResolvedContent(c *check.C, targetDir, prepareImageDir string) {
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
-	uc20systemSeed := filepath.Join(prepareImageDir, "system-seed")
-	err := os.MkdirAll(uc20systemSeed, 0755)
+	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
+	c.Assert(err, check.IsNil)
+	err = os.MkdirAll(uc20systemSeed, 0755)
 	c.Assert(err, check.IsNil)
 
 	// the resolved content is written here
