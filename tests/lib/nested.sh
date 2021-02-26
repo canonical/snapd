@@ -12,7 +12,6 @@ NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
 NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
-
 NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
@@ -189,6 +188,9 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.10-64*)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
+        ubuntu-21.04-64*)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -210,6 +212,9 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.10-64*)
             echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.04-64*)
+            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"

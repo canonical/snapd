@@ -275,3 +275,20 @@ KERNEL=="kmsg", TAG+="snap_kubernetes-support_kubelet"`)
 func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *KubernetesSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C) {
+	for _, t := range []struct {
+		plug *snap.PlugInfo
+		exp  []string
+	}{
+		{s.plugInfo, []string{"Delegate=true"}},
+		{s.plugKubeletInfo, []string{"Delegate=true"}},
+		{s.plugKubeproxyInfo, []string{"Delegate=true"}},
+		// only autobind-unix flavor does not get Delegate=true
+		{s.plugKubeAutobindInfo, nil},
+	} {
+		snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, t.plug)
+		c.Assert(err, IsNil)
+		c.Check(snips, DeepEquals, t.exp)
+	}
+}

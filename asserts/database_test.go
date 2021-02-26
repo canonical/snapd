@@ -312,6 +312,30 @@ func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
 }
 
+func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
+	trustedKey := testPrivKey0
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id": "random",
+		"primary-key":  "0",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
+
+	err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), db, time.Time{})
+	c.Check(err, ErrorMatches, `assertion authority "random" does not match public key from "canonical"`)
+}
+
 type signAddFindSuite struct {
 	signingDB    *asserts.Database
 	signingKeyID string

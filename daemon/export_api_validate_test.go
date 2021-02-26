@@ -19,6 +19,18 @@
 
 package daemon
 
+import (
+	"github.com/snapcore/snapd/asserts/snapasserts"
+)
+
 type (
 	ValidationSetResult = validationSetResult
 )
+
+func MockCheckInstalledSnaps(f func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error) func() {
+	old := checkInstalledSnaps
+	checkInstalledSnaps = f
+	return func() {
+		checkInstalledSnaps = old
+	}
+}

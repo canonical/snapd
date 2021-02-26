@@ -2,7 +2,6 @@
 Description=Timer to automatically fetch and run repair assertions
 # don't run on classic
 ConditionKernelCommandLine=|snap_core
-# TODO:UC20: only enable this in run mode?
 ConditionKernelCommandLine=|snapd_recovery_mode
 
 [Timer]
