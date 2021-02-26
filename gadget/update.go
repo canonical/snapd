@@ -333,9 +333,9 @@ func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilte
 // the regular gadget->gadget update mechanism and policy.
 func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
 	for _, rn := range to.ResolvedContent {
-		if rn.KernelUpdateFlag {
+		if rn.KernelUpdate {
 			return true, func(rn *ResolvedContent) bool {
-				return rn.KernelUpdateFlag
+				return rn.KernelUpdate
 			}
 		}
 	}

@@ -1616,8 +1616,8 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 						ResolvedSource: "other",
 					},
 					{
-						ResolvedSource:   "kernel-ref",
-						KernelUpdateFlag: true,
+						ResolvedSource: "kernel-ref",
+						KernelUpdate:   true,
 					},
 				},
 			},
@@ -1643,8 +1643,8 @@ func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 				ResolvedSource: "other",
 			},
 			{
-				ResolvedSource:   "kernel-ref",
-				KernelUpdateFlag: true,
+				ResolvedSource: "kernel-ref",
+				KernelUpdate:   true,
 			},
 		},
 	}
@@ -1715,8 +1715,8 @@ assets:
 					UnresolvedSource: "$kernel:ref/kernel-content",
 					Target:           "/",
 				},
-				ResolvedSource:   filepath.Join(newKernelDir, "kernel-content"),
-				KernelUpdateFlag: true,
+				ResolvedSource: filepath.Join(newKernelDir, "kernel-content"),
+				KernelUpdate:   true,
 			},
 		})
 		return &mockUpdater{}, nil

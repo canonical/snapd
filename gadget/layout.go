@@ -132,9 +132,9 @@ type ResolvedContent struct {
 	// any references (e.g. to a "$kernel:" snap).
 	ResolvedSource string
 
-	// KernelUpdateSet is true if this content comes from the kernel
+	// KernelUpdate is true if this content comes from the kernel
 	// and has the "Update" property set
-	KernelUpdateFlag bool
+	KernelUpdate bool
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -306,9 +306,9 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		content[idx] = ResolvedContent{
-			VolumeContent:    &ps.Content[idx],
-			ResolvedSource:   resolvedSource,
-			KernelUpdateFlag: kupdate,
+			VolumeContent:  &ps.Content[idx],
+			ResolvedSource: resolvedSource,
+			KernelUpdate:   kupdate,
 		}
 	}
 

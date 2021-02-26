@@ -1288,14 +1288,14 @@ assets:
 	c.Assert(lv.LaidOutStructure, HasLen, 1)
 	c.Check(lv.LaidOutStructure[0].ResolvedContent, DeepEquals, []gadget.ResolvedContent{
 		{
-			VolumeContent:    &lv.Structure[0].Content[0],
-			ResolvedSource:   filepath.Join(kernelSnapDir, "boot-assets/") + "/",
-			KernelUpdateFlag: true,
+			VolumeContent:  &lv.Structure[0].Content[0],
+			ResolvedSource: filepath.Join(kernelSnapDir, "boot-assets/") + "/",
+			KernelUpdate:   true,
 		},
 		{
-			VolumeContent:    &lv.Structure[0].Content[1],
-			ResolvedSource:   filepath.Join(kernelSnapDir, "some-file"),
-			KernelUpdateFlag: true,
+			VolumeContent:  &lv.Structure[0].Content[1],
+			ResolvedSource: filepath.Join(kernelSnapDir, "some-file"),
+			KernelUpdate:   true,
 		},
 		{
 			VolumeContent:  &lv.Structure[0].Content[2],
