@@ -22,5 +22,5 @@ execute: |
     fi
 
     # /usr/bin/xdg-open is a proxy that talks to snap userd
-    not tests.session -u test exec /usr/bin/xdg-open https://snapcraft.io > output.txt
+    not tests.session -u test exec /usr/bin/xdg-open https://snapcraft.io 2> output.txt
     MATCH "not supported on Ubuntu Core" < output.txt
