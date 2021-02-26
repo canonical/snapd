@@ -134,7 +134,7 @@ func blockdevSizeCmd(cmd, devpath string) (quantity.Size, error) {
 	nospace := strings.TrimSpace(string(out))
 	sz, err := strconv.Atoi(nospace)
 	if err != nil {
-		return 0, fmt.Errorf("cannot parse blockdev size %q: %v", nospace, err)
+		return 0, fmt.Errorf("cannot parse blockdev %s result size %q: %v", cmd, nospace, err)
 	}
 	return quantity.Size(sz), nil
 }
@@ -158,6 +158,10 @@ func blockDeviceSectorSize(devpath string) (quantity.Size, error) {
 	// the size in 512-byte sectors
 	if sz%512 != 0 {
 		return 0, fmt.Errorf("cannot calculate structure size: sector size (%s) is not a multiple of 512", sz.String())
+	}
+	if sz == 0 {
+		// extra paranoia
+		return 0, fmt.Errorf("internal error: sector size returned as 0")
 	}
 	return sz, nil
 }
