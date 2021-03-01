@@ -410,24 +410,20 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 // var so that it can be mocked for tests
 var writeResolvedContent = writeResolvedContentImpl
 
-// writeResolvedContent takes the unpacked gadget/kernel snaps and the
-// model and outputs the resolved content from the
+// writeResolvedContent takes gadget.Info and the unpacked
+// gadget/kernel snaps and outputs the resolved content from the
 // {gadget,kernel}.yaml into a filesystem tree with the structure:
 // <prepareImageDir>/resolved-content/<volume-name>/<structure-name>/...
 //
 // E.g.
 // /tmp/prep-img/resolved-content/pi/ubuntu-seed/{config.txt,bootcode.bin,...}
-func writeResolvedContentImpl(prepareDir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
+func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpackDir, kernelUnpackDir string) error {
 	fullPrepareDir, err := filepath.Abs(prepareDir)
 	if err != nil {
 		return err
 	}
 	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
 
-	info, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
-	if err != nil {
-		return err
-	}
 	constraints := gadget.LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 		// TODO:UC20: SectorSize is irrelevant here, we only care

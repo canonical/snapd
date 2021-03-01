@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -213,9 +214,12 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 		{"non-fs.img", "content of non-fs.img"},
 	})
 	kernelRoot := c.MkDir()
-	model := s.makeUC20Model(nil)
 
-	err = image.WriteResolvedContent(prepareImageDir, gadgetRoot, kernelRoot, model)
+	model := s.makeUC20Model(nil)
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	c.Assert(err, check.IsNil)
+
+	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
 	c.Assert(err, check.IsNil)
 
 	// XXX: add testutil.DirEquals([][]string)

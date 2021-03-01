@@ -20,7 +20,7 @@
 package image
 
 import (
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
@@ -55,7 +55,7 @@ var (
 	WriteResolvedContent = writeResolvedContent
 )
 
-func MockWriteResolvedContent(f func(prepareImageDir, gadgetRoot, kernelRoot string, model *asserts.Model) error) (restore func()) {
+func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, gadgetRoot, kernelRoot string) error) (restore func()) {
 	oldWriteResolvedContent := writeResolvedContent
 	writeResolvedContent = f
 	return func() {

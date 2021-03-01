@@ -426,8 +426,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
+	if err != nil {
+		return err
+	}
+
 	// write resolved content to structure root
-	if err := writeResolvedContent(opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
+	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
 		return err
 	}
 
@@ -435,11 +440,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if !core20 {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
-			return err
-		}
-
-		gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
-		if err != nil {
 			return err
 		}
 

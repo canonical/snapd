@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -119,7 +120,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	s.AddCleanup(c2.Restore)
 
-	restore := image.MockWriteResolvedContent(func(_, _, _ string, _ *asserts.Model) error {
+	restore := image.MockWriteResolvedContent(func(_ string, _ *gadget.Info, _, _ string) error {
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -486,6 +487,37 @@ const pcGadgetYaml = `
      bootloader: grub
  `
 
+const pcUC20GadgetYaml = `
+ volumes:
+   pc:
+     bootloader: grub
+     structure:
+       - name: ubuntu-seed
+         role: system-seed
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 100M
+       - name: ubuntu-data
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 200M
+ `
+
+const piUC20GadgetYaml = `
+ volumes:
+   pi:
+     schema: mbr
+     bootloader: u-boot
+     structure:
+       - name: ubuntu-seed
+         role: system-seed
+         type: 0C
+         size: 100M
+       - name: ubuntu-data
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 200M
+ `
+
 func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml string) {
 	gadgetYaml := pcGadgetYaml + defaultsYaml
 	if _, ok := publishers["pc"]; ok {
@@ -590,8 +622,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	}, "")
 
 	gadgetWriteResolvedContentCalled := 0
-	restore = image.MockWriteResolvedContent(func(prepareImageDir, gadgetRoot, kernelRoot string, model *asserts.Model) error {
-		c.Check(model, DeepEquals, s.model)
+	restore = image.MockWriteResolvedContent(func(prepareImageDir string, info *gadget.Info, gadgetRoot, kernelRoot string) error {
 		c.Check(prepareImageDir, Equals, preparedir)
 		c.Check(gadgetRoot, Equals, filepath.Join(preparedir, "gadget"))
 		c.Check(kernelRoot, Equals, filepath.Join(preparedir, "kernel"))
@@ -2605,6 +2636,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	gadgetContent := [][]string{
 		{"grub-recovery.conf", "# recovery grub.cfg"},
 		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
 	}
 	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
@@ -2761,6 +2793,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 		// TODO:UC20: write this test with non-empty uboot.env when we support
 		//            that
 		{"uboot.conf", ""},
+		{"meta/gadget.yaml", piUC20GadgetYaml},
 	}
 	s.makeSnap(c, "uboot-gadget=20", gadgetContent, snap.R(22), "")
 
