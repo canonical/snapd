@@ -410,12 +410,19 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 // var so that it can be mocked for tests
 var writeResolvedContent = writeResolvedContentImpl
 
-// XXX: move to gadget?
-func writeResolvedContentImpl(targetDir, prepareDir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
+// writeResolvedContent takes the unpacked gadget/kernel snaps and the
+// model and outputs the resolved content from the
+// {gadget,kernel}.yaml into a filesystem tree with the structure:
+// <prepareImageDir>/resolved-content/<volume-name>/<structure-name>/...
+//
+// E.g.
+// /tmp/prep-img/resolved-content/pi/ubuntu-seed/{config.txt,bootcode.bin,...}
+func writeResolvedContentImpl(prepareDir, gadgetUnpackDir, kernelUnpackDir string, model *asserts.Model) error {
 	fullPrepareDir, err := filepath.Abs(prepareDir)
 	if err != nil {
 		return err
 	}
+	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
 
 	info, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {

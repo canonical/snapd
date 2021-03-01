@@ -119,7 +119,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	s.AddCleanup(c2.Restore)
 
-	restore := image.MockWriteResolvedContent(func(_, _, _, _ string, _ *asserts.Model) error {
+	restore := image.MockWriteResolvedContent(func(_, _, _ string, _ *asserts.Model) error {
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -590,9 +590,8 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	}, "")
 
 	gadgetWriteResolvedContentCalled := 0
-	restore = image.MockWriteResolvedContent(func(targetDir, prepareImageDir, gadgetRoot, kernelRoot string, model *asserts.Model) error {
+	restore = image.MockWriteResolvedContent(func(prepareImageDir, gadgetRoot, kernelRoot string, model *asserts.Model) error {
 		c.Check(model, DeepEquals, s.model)
-		c.Check(targetDir, Equals, filepath.Join(preparedir, "resolved-content"))
 		c.Check(prepareImageDir, Equals, preparedir)
 		c.Check(gadgetRoot, Equals, filepath.Join(preparedir, "gadget"))
 		c.Check(kernelRoot, Equals, filepath.Join(preparedir, "kernel"))

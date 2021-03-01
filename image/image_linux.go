@@ -434,8 +434,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	// write resolved content to structure root
-	targetDir := filepath.Join(opts.PrepareDir, "resolved-content")
-	if err := writeResolvedContent(targetDir, opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
+	if err := writeResolvedContent(opts.PrepareDir, gadgetUnpackDir, kernelUnpackDir, model); err != nil {
 		return err
 	}
 
