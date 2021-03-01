@@ -131,6 +131,8 @@ execute: |
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 3 ]; then
-        # nothing, we just booted into the restored system
+        # Nothing to do/check here. Just waiting for the revert to
+        # finish.  This reboot is only needed so that the system is
+        # fully restored to the original state.
         snap watch --last=revert\?
     fi
