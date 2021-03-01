@@ -123,18 +123,11 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
+func unpackSnap(gadgetFname, gadgetUnpackDir string) error {
 	// FIXME: jumping through layers here, we need to make
 	//        unpack part of the container interface (again)
 	snap := squashfs.New(gadgetFname)
 	return snap.Unpack("*", gadgetUnpackDir)
-}
-
-func unpackKernel(kernelFname, kernelUnpackDir string) error {
-	// FIXME: jumping through layers here, we need to make
-	//        unpack part of the container interface (again)
-	snap := squashfs.New(kernelFname)
-	return snap.Unpack("*", kernelUnpackDir)
 }
 
 func installCloudConfig(rootDir, gadgetDir string) error {
@@ -422,10 +415,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
+	if err := unpackSnap(gadgetFname, gadgetUnpackDir); err != nil {
 		return err
 	}
-	if err := unpackKernel(kernelFname, kernelUnpackDir); err != nil {
+	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
 		return err
 	}
 
