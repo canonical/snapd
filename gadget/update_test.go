@@ -1594,11 +1594,13 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		from, to *gadget.LaidOutStructure
 		update   bool
 	}{
+		// trivial
 		{
 			from:   &gadget.LaidOutStructure{},
 			to:     &gadget.LaidOutStructure{},
 			update: false,
 		},
+		// gadget content only, nothing for the kernel
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
@@ -1608,6 +1610,28 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 			},
 			update: false,
 		},
+		// ensure that only the `KernelUpdate` of the `to`
+		// structure is relevant
+		{
+			from: &gadget.LaidOutStructure{
+				ResolvedContent: []gadget.ResolvedContent{
+					{
+						ResolvedSource: "kernel-ref",
+						KernelUpdate:   true,
+					},
+				},
+			},
+			to: &gadget.LaidOutStructure{
+				ResolvedContent: []gadget.ResolvedContent{
+					{
+						ResolvedSource: "kernel-ref",
+						KernelUpdate:   false,
+					},
+				},
+			},
+			update: false,
+		},
+		// happy case, kernelUpdate is true
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
