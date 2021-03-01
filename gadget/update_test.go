@@ -1727,7 +1727,7 @@ assets:
 	rollbackDir := c.MkDir()
 	muo := &mockUpdateProcessObserver{}
 
-	// Check that filtering happend via the KernelUpdatePolicy and the
+	// Check that filtering happened via the KernelUpdatePolicy and the
 	// updater is only called with the kernel content, not with the
 	// gadget content.
 	mockUpdaterCalls := 0
