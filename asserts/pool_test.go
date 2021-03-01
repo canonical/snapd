@@ -1196,6 +1196,38 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	atseq := &asserts.AtSequence{
+		Type:        s.seq1_1111r5.Type(),
+		SequenceKey: []string{"1111"},
+		Sequence:    s.seq1_1111r5.Sequence(),
+		Revision:    0, // intentionaly unset
+	}
+	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
+	c.Assert(err, IsNil)
+
+	toResolve, toResolveSeq, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.hub.StoreAccountKey(s.dev1Acct.SignKeyID()).At()},
+	})
+
+	// verify that revision number from the existing assertion to update was used.
+	c.Check(toResolveSeq, DeepEquals, map[asserts.Grouping][]*asserts.AtSequence{
+		asserts.MakePoolGrouping(0): {
+			&asserts.AtSequence{
+				Type:        s.seq1_1111r5.Type(),
+				SequenceKey: []string{"1111"},
+				Sequence:    1,
+				Revision:    5,
+			}},
+	})
+}
+
 func (s *poolSuite) TestAddSequenceToUpdateMissingSequenceError(c *C) {
 	pool := asserts.NewPool(s.db, 64)
 	atseq := &asserts.AtSequence{
