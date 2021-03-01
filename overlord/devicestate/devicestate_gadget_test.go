@@ -909,7 +909,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWor
 	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
 }
 
-func (s *deviceMgrGadgetSuite) setupKernelAssetsUpdate(c *C) (chg *state.Change, tsk *state.Task) {
+func (s *deviceMgrGadgetSuite) makeMinimalKernelAssetsUpdateChange(c *C) (chg *state.Change, tsk *state.Task) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -922,24 +922,9 @@ func (s *deviceMgrGadgetSuite) setupKernelAssetsUpdate(c *C) (chg *state.Change,
 	gadgetYamlContent := `
 volumes:
   pi:
-    schema: mbr
-    bootloader: u-boot
-    structure:
-      - name: foo
-        filesystem: vfat
-        type: 0C
-        size: 1200M
-        content:
-          - source: boot-assets/
-            target: /
-          - source: kernel:ref/managed-asset
-            target: /
-          - source: kernel:ref/trusted-asset
-            target: /`
+    bootloader: grub`
 	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, siGadget, [][]string{
 		{"meta/gadget.yaml", gadgetYamlContent},
-		{"managed-asset", "managed asset rev 1"},
-		{"trusted-asset", "trusted asset rev 1"},
 	})
 	s.setupModelWithGadget(c, "foo-gadget")
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
@@ -949,55 +934,34 @@ volumes:
 		Active:   true,
 	})
 
-	// XXX: "pc-kernel" is not ideal here, but it is used everywhere
-	// in this test (including setupModelWithGadget)
 	snapKernelYaml := "name: pc-kernel\nversion: 1.0\ntype: kernel"
-	kernelYamlContent := `
-assets:
- ref:
-  update: true
-  content:
-  - managed-asset
-  - trusted-asset`
 	siCurrent := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(33),
 		SnapID:   "foo-id",
 	}
-	snaptest.MockSnapWithFiles(c, snapKernelYaml, siCurrent, [][]string{
-		{"meta/kernel.yaml", kernelYamlContent},
-		{"kernel-managed-asset", "managed asset rev 33"},
-		{"kernel-trusted-asset", "trusted asset rev 33"},
-	})
-	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{siCurrent},
-		Current:  siCurrent.Revision,
-		Active:   true,
-	})
-
-	si := &snap.SideInfo{
+	snaptest.MockSnapWithFiles(c, snapKernelYaml, siCurrent, nil)
+	siNext := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(34),
 		SnapID:   "foo-id",
 	}
-	snaptest.MockSnapWithFiles(c, snapKernelYaml, si, [][]string{
-		{"meta/kernel.yaml", kernelYamlContent},
-		{"managed-asset", "managed asset rev 34"},
-		// SHA3-384: 88478d8afe6925b348b9cd00085f3535959fde7029a64d7841b031acc39415c690796757afab1852a9e09da913a0151b
-		{"trusted-asset", "trusted asset rev 34"},
-	})
-
+	snaptest.MockSnapWithFiles(c, snapKernelYaml, siNext, nil)
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		SnapType: "kernel",
+		Sequence: []*snap.SideInfo{siNext, siCurrent},
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
 
+	s.bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_33.snap",
+	})
+
 	tsk = s.state.NewTask("update-gadget-assets", "update gadget")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: si,
+		SideInfo: siNext,
 		Type:     snap.TypeKernel,
 	})
 	chg = s.state.NewChange("dummy", "...")
@@ -1025,7 +989,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
 	})
 	defer restore()
 
-	chg, t := s.setupKernelAssetsUpdate(c)
+	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -1063,7 +1027,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	})
 	defer restore()
 
-	chg, t := s.setupKernelAssetsUpdate(c)
+	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
