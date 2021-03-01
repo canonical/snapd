@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,27 @@
  *
  */
 
-package configstate
+package boot
 
 import (
-	"sort"
-	"strings"
+	"github.com/snapcore/snapd/asserts"
 )
 
-func sortPatchKeysByDepth(patch map[string]interface{}) []string {
-	if len(patch) == 0 {
-		return nil
-	}
-	depths := make(map[string]int, len(patch))
-	keys := make([]string, 0, len(patch))
-	for k := range patch {
-		depths[k] = strings.Count(k, ".")
-		keys = append(keys, k)
+func observeSuccessfulSystems(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+	// updates happen in run mode only
+	if m.Mode != "run" {
+		return m, nil
 	}
 
-	sort.Slice(keys, func(i, j int) bool {
-		return depths[keys[i]] < depths[keys[j]]
-	})
-	return keys
+	// compatibility scenario, no good systems are tracked in modeenv yet,
+	// and there is a single entry in the current systems list
+	if len(m.GoodRecoverySystems) == 0 && len(m.CurrentRecoverySystems) == 1 {
+		newM, err := m.Copy()
+		if err != nil {
+			return nil, err
+		}
+		newM.GoodRecoverySystems = []string{m.CurrentRecoverySystems[0]}
+		return newM, nil
+	}
+	return m, nil
 }

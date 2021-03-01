@@ -3,6 +3,11 @@ summary: Check that the boot config is correctly updated when snapd is refreshed
 systems: [ubuntu-20.04-64]
 
 prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
   #shellcheck source=tests/lib/snaps.sh
@@ -24,6 +29,11 @@ debug: |
   cat boot-chains-after.json || true
 
 execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 

@@ -230,8 +230,10 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	d := newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
+	s.markSeeded(d)
+
 	// after starting, maintenance.json should be removed
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
 	d.Stop(nil)
 }
