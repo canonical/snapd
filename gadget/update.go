@@ -134,6 +134,28 @@ type ContentUpdateObserver interface {
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
+//
+//
+// The rules for gadget/kernel updates with "$kernel:refs":
+//
+// 1. When installing a kernel with assets that have "update: true"
+//    there *must* be a matching entry in gadget.yaml. If not we risk
+//    bricking the system because the kernel tells us that it *needs*
+//    this file to boot but without gadget.yaml we would not put it
+//    anywhere.
+// 2. When installing a gadget with "$kernel:ref" content it is okay
+//    if this content cannot get resolved as long as there is no
+//    "edition" jump. This means adding new "$kernel:ref" without
+//    "edition" updates is always possible.
+//
+// To add a new "$kernel:ref" to gadget/kernel:
+// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not
+//    update edition (if edition update is needed, use epoch)
+// b. Update kernel and kernel.yaml with new assets.
+// c. snapd will refresh gadget (see rule 2) but refuse to take the
+//    new kernel (rule 1)
+// d. After step (c) is completed the kernel refresh will now also
+//    work (no more violation of rule 1)
 func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
