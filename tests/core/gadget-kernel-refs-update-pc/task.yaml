@@ -82,7 +82,7 @@ restore: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
-    # XXX: ideall we would restore the kernel/gadget here but the kernel
+    # XXX: ideally we would restore the kernel/gadget here but the kernel
     #      restore requires a reboot :/
     
 execute: |
@@ -100,7 +100,7 @@ execute: |
         # now install the asserted gadget
         snap install  pc_x1.snap
         # and kernel again because the previous gadget update did not
-        # had a edition bump so it won't have installed the new kernel
+        # have a edition bump so it won't have installed the new kernel
         # refs automatically (XXX: that is what we want, right?)
         snap pack --filename=pc-kernel_x2.snap pc-kernel-snap
         # has to be asserted

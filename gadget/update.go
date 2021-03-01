@@ -325,7 +325,7 @@ func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilte
 
 // KernelUpdatePolicy implements the update policy for kernel asset updates.
 //
-// This is called when there is a kernel->kernel refresh for kernles that
+// This is called when there is a kernel->kernel refresh for kernels that
 // contain bootloader assets. In this case all bootloader assets that are
 // marked as "update: true" in the kernel.yaml need updating.
 //
