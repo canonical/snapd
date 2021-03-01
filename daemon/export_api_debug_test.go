@@ -19,7 +19,6 @@
 
 package daemon
 
-
 var (
 	MinLane = minLane
 )
