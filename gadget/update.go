@@ -35,7 +35,6 @@ var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 )
 
