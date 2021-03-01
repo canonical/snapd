@@ -2187,10 +2187,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	err = assertstate.Add(s.state, s.dev1Acct)
 	c.Assert(err, IsNil)
 
-	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-
 	vsetAs2 := s.validationSetAssert(c, "bar", "1", "1")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
@@ -2239,7 +2235,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
-	// XXX: why account-key again?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"validation-set"},
 		{"account-key"},
@@ -2269,12 +2264,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5")
 	err = s.storeSigning.Add(vsetAs2)
@@ -2288,9 +2279,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		PinnedAt:  2,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-
-	// XXX: we should have respective assertion already in the local db
-	// rather than have it retrieved below.
 
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
@@ -2307,7 +2295,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"validation-set"},
 		{"account-key"},
-		{"account", "account-key"},
 	})
 
 	// sequence changed in the store to 7
@@ -2319,7 +2306,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
-	// XXX: why account-key again?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"validation-set"},
 		{"account-key"},
