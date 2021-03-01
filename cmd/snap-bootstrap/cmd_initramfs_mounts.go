@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -70,6 +71,8 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 
 var (
 	osutilIsMounted = osutil.IsMounted
+
+	osutilSetTime = osutil.SetTime
 
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
@@ -149,10 +152,68 @@ func generateInitramfsMounts() (err error) {
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
+	// in install mode, we need to set the time to whatever timestamp we have
+	// in the initrd filesystem, using the /var/lib/systemd/timesync/clock file
+	// whose mtime is bumped every time the initrd is rebuilt
+	haveKernelInitrdClockTime := false
+	kernelInitrdClockTime := time.Time{}
+	currentSysTime := timeNow()
+	st, err := os.Stat(filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock"))
+	// if the clock file doesn't exist, just skip this step, otherwise if the
+	// file exists we should be able to get the modification time
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil {
+		haveKernelInitrdClockTime = true
+		kernelInitrdClockTime = st.ModTime()
+
+		// only move the time forward if the current system time is before
+		// the kernel initrd timestamp
+		if kernelInitrdClockTime.After(currentSysTime) {
+			err := osutilSetTime(kernelInitrdClockTime)
+			if err == nil {
+				haveKernelInitrdClockTime = true
+			} else {
+				logger.Noticef("failed to set time to %s: %v", kernelInitrdClockTime, err)
+			}
+		}
+	}
+
 	// steps 1 and 2 are shared with recover mode
 	model, snaps, err := generateMountsCommonInstallRecover(mst)
 	if err != nil {
 		return err
+	}
+
+	// after mounting ubuntu-seed, we may need to move time forward even more,
+	// to the time that the image was built using the modification time of the
+	// systems dir from ubuntu-seed, but only do this if two conditions are met:
+	//  1. we set the time from the kernel timestamp
+	//  2. the time from ubuntu-seed systems dir is _after_ the kernel timestamp
+	// these conditions are meant to protect against moving the time backwards
+	// to before when the kernel was built which could degrade our security and
+	// allow a new device to trust keys that have been revoked and should not
+	// be used anymore
+	// we also impose these conditions for compatibility until the clock file
+	// is actually present in the initrd (since it doesn't exist today for
+	// example)
+
+	if haveKernelInitrdClockTime {
+		// now get the m-time of the ubuntu-seed systems dir mount point
+		systemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+		st, err := os.Stat(systemsDir)
+		if err != nil {
+			// we _must_ have ubuntu-seed systems dir in install mode
+			return err
+		}
+		systemsDirMTime := st.ModTime()
+		if systemsDirMTime.After(kernelInitrdClockTime) {
+			// then set the time again, since the systems dir is in the future
+			if err := osutilSetTime(systemsDirMTime); err != nil {
+				logger.Noticef("failed to set time to %s: %v", systemsDirMTime.String(), err)
+			}
+		}
 	}
 
 	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in

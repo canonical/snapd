@@ -462,6 +462,365 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeMovesTimeForward(c *C) {
+	// mock the time as being the unix epoch
+	r := main.MockTimeNow(func() time.Time {
+		return time.Time{}
+	})
+	defer r()
+
+	// mock the kernel initrd timestamp file
+	kernelTimestampFile := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	err := os.MkdirAll(filepath.Dir(kernelTimestampFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(kernelTimestampFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// set the time of the file to something exact and predictable
+	kernelStampTime, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
+	c.Assert(err, IsNil)
+
+	err = os.Chtimes(kernelTimestampFile, kernelStampTime, kernelStampTime)
+	c.Assert(err, IsNil)
+
+	// double check that the filetime got modified
+	st, err := os.Stat(kernelTimestampFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime().Sub(kernelStampTime) < time.Second, Equals, true, Commentf("got %s, expected %s", st.ModTime(), kernelStampTime))
+
+	// now make the systems dir time 1 year later
+	systemsDirTime := kernelStampTime.Add(365 * 24 * time.Hour)
+	err = os.Chtimes(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems"), systemsDirTime, systemsDirTime)
+	c.Assert(err, IsNil)
+
+	n := 0
+	r = main.MockOsutilSetTime(func(t time.Time) error {
+		expTime := time.Time{}
+		n++
+		switch n {
+		case 1:
+			// first invocation is using the kernel initrd timestamp file
+			expTime = kernelStampTime
+		case 2:
+			// second invocation is using the systems dir on ubuntu-seed
+			expTime = systemsDirTime
+		default:
+			c.Errorf("unexpected call (number %d) to osutil.SetTime with t=%s", n, t)
+		}
+
+		// the actual timestamp written to the file from above and returned
+		// by os.Stat may be rounded slightly due to fs implementations,
+		// but we shouldn't be off by more than a second
+		cmt := Commentf("got %s, expected %s on SetTime call num %d", t, expTime, n)
+		c.Assert(t.Sub(expTime) < time.Second, Equals, true, cmt)
+
+		return nil
+	})
+	defer r()
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	c.Check(sealedKeysLocked, Equals, true)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeMovesTimeMonotonicallyKernelInitrd(c *C) {
+	// mock the time as being the unix epoch
+	r := main.MockTimeNow(func() time.Time {
+		return time.Time{}
+	})
+	defer r()
+
+	// mock the kernel initrd timestamp file
+	kernelTimestampFile := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	err := os.MkdirAll(filepath.Dir(kernelTimestampFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(kernelTimestampFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// set the time of the file to something exact and predictable
+	kernelStampTime, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
+	c.Assert(err, IsNil)
+
+	err = os.Chtimes(kernelTimestampFile, kernelStampTime, kernelStampTime)
+	c.Assert(err, IsNil)
+
+	// double check that the filetime got modified
+	st, err := os.Stat(kernelTimestampFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime().Sub(kernelStampTime) < time.Second, Equals, true, Commentf("got %s, expected %s", st.ModTime(), kernelStampTime))
+
+	// now make the systems dir time 1 year earlier, so we won't try to set it
+	systemsDirTime := kernelStampTime.Add(-365 * 24 * time.Hour)
+	err = os.Chtimes(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems"), systemsDirTime, systemsDirTime)
+	c.Assert(err, IsNil)
+
+	n := 0
+	r = main.MockOsutilSetTime(func(t time.Time) error {
+		expTime := time.Time{}
+		n++
+		switch n {
+		case 1:
+			// first invocation is using the kernel initrd timestamp file
+			expTime = kernelStampTime
+		default:
+			c.Errorf("unexpected call (number %d) to osutil.SetTime with t=%s", n, t)
+		}
+
+		// the actual timestamp written to the file from above and returned
+		// by os.Stat may be rounded slightly due to fs implementations,
+		// but we shouldn't be off by more than a second
+		cmt := Commentf("got %s, expected %s on SetTime call num %d", t, expTime, n)
+		c.Assert(t.Sub(expTime) < time.Second, Equals, true, cmt)
+
+		return nil
+	})
+	defer r()
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	c.Check(sealedKeysLocked, Equals, true)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeMovesTimeMonotonicallyUbuntuSeed(c *C) {
+	// mock the time as being the a reference time
+	refTime, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
+	c.Assert(err, IsNil)
+	r := main.MockTimeNow(func() time.Time {
+		return refTime
+	})
+	defer r()
+
+	// mock the kernel initrd timestamp file as being 1 year earlier than the
+	// the current time
+	kernelTimestampFile := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	err = os.MkdirAll(filepath.Dir(kernelTimestampFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(kernelTimestampFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	kernelStampTime := refTime.Add(-365 * 24 * time.Hour)
+	c.Assert(err, IsNil)
+
+	err = os.Chtimes(kernelTimestampFile, kernelStampTime, kernelStampTime)
+	c.Assert(err, IsNil)
+
+	// double check that the filetime got modified
+	st, err := os.Stat(kernelTimestampFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime().Sub(kernelStampTime) < time.Second, Equals, true, Commentf("got %s, expected %s", st.ModTime(), kernelStampTime))
+
+	// now make the systems dir time 1 year after ref time
+	systemsDirTime := refTime.Add(365 * 24 * time.Hour)
+	err = os.Chtimes(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems"), systemsDirTime, systemsDirTime)
+	c.Assert(err, IsNil)
+
+	n := 0
+	r = main.MockOsutilSetTime(func(t time.Time) error {
+		expTime := time.Time{}
+		n++
+		switch n {
+		case 1:
+			// first invocation is using the ubuntu-seed systems dir time
+			expTime = systemsDirTime
+		default:
+			c.Errorf("unexpected call (number %d) to osutil.SetTime with t=%s", n, t)
+		}
+
+		// the actual timestamp written to the file from above and returned
+		// by os.Stat may be rounded slightly due to fs implementations,
+		// but we shouldn't be off by more than a second
+		cmt := Commentf("got %s, expected %s on SetTime call num %d", t, expTime, n)
+		c.Assert(t.Sub(expTime) < time.Second, Equals, true, cmt)
+
+		return nil
+	})
+	defer r()
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	c.Check(sealedKeysLocked, Equals, true)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeDoesNotMoveTimeWhenAllReferencesAreOld(c *C) {
+	// mock the time as being the a reference time
+	refTime, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
+	c.Assert(err, IsNil)
+	r := main.MockTimeNow(func() time.Time {
+		return refTime
+	})
+	defer r()
+
+	// mock the kernel initrd timestamp file as being 1 year earlier than the
+	// the current time
+	kernelTimestampFile := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	err = os.MkdirAll(filepath.Dir(kernelTimestampFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(kernelTimestampFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	kernelStampTime := refTime.Add(-365 * 24 * time.Hour)
+	c.Assert(err, IsNil)
+
+	err = os.Chtimes(kernelTimestampFile, kernelStampTime, kernelStampTime)
+	c.Assert(err, IsNil)
+
+	// double check that the filetime got modified
+	st, err := os.Stat(kernelTimestampFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime().Sub(kernelStampTime) < time.Second, Equals, true, Commentf("got %s, expected %s", st.ModTime(), kernelStampTime))
+
+	// now make the systems dir time 2 year earlier than ref time
+	systemsDirTime := refTime.Add(-2 * 365 * 24 * time.Hour)
+	err = os.Chtimes(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems"), systemsDirTime, systemsDirTime)
+	c.Assert(err, IsNil)
+
+	r = main.MockOsutilSetTime(func(t time.Time) error {
+		c.Errorf("unexpected call to osutil.SetTime")
+		return fmt.Errorf("test broken")
+	})
+	defer r()
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	defer main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})()
+
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "install"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+		},
+	}, nil)
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
+
+	c.Check(sealedKeysLocked, Equals, true)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeGadgetDefaultsHappy(c *C) {
 	// setup a seed with default gadget yaml
 	const gadgetYamlDefaults = `
