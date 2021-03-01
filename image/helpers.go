@@ -426,9 +426,6 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 
 	constraints := gadget.LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// TODO:UC20: SectorSize is irrelevant here, we only care
-		// about filesystem assets
-		SectorSize: 512,
 	}
 	for volName, vol := range info.Volumes {
 		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, constraints)
