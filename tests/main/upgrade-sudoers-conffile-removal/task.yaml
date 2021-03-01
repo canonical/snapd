@@ -1,0 +1,27 @@
+summary: Ensure conffile removal from upgrades <2.46 works
+
+description: |
+    Ensure that upgrading from 2.45.1 works and conffile cleanup for
+    /etc/sudoers.d/99-snapd.conf happens.
+    
+    The exact version of snapd is a bit arbitrary (anything before
+    2.46 is fine).
+
+systems: [ubuntu-20.04-64]
+
+execute: |
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+
+    echo "download snapd 2.37.4"
+    wget https://launchpad.net/ubuntu/+source/snapd/2.45.1/+build/19499801/+files/snapd_2.45.1_amd64.deb
+    apt install -y --allow-downgrades ./snapd_2.45*_amd64.deb
+
+    echo "Check that the sudoers.d conffile is there"
+    test -e /etc/sudoers.d/99-snapd.conf
+    
+    echo "upgrade to current snapd"
+    apt install -y "$GOHOME"/snapd*.deb
+
+    echo "Check that the conffile is gone after the upgrade (LP: 1915156)"
+    test ! -e /etc/sudoers.d/99-snapd.conf
