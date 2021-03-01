@@ -1751,7 +1751,7 @@ assets:
 	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, IsNil)
 
-	// ensure update for kernel content happend
+	// ensure update for kernel content happened
 	c.Assert(mockUpdaterCalls, Equals, 1)
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
 }
