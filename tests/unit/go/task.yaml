@@ -3,7 +3,11 @@ summary: Run project static and unit tests
 # Start before anything else as it takes a long time.
 priority: 1000
 
+prepare: |
+    tests.session -u test prepare
+
 restore: |
+    tests.session -u test restore
     rm -rf /tmp/static-unit-tests
 
 execute: |
@@ -25,13 +29,13 @@ execute: |
         skip="${skip:-} SKIP_NAKEDRET=1"
     fi
 
-    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+    tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
         PATH=$PATH GOPATH=/tmp/static-unit-tests \
         ${skip:-} \
-        ./run-checks --static" test
+        ./run-checks --static"
 
-    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+    tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
         PATH=$PATH \
         GOPATH=/tmp/static-unit-tests \
         SKIP_COVERAGE=1 \
-        ./run-checks --unit" test
+        ./run-checks --unit"
