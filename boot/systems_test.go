@@ -293,6 +293,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
+			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		case 2:
 			// called for the 'try' system
@@ -303,12 +304,15 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
 				"20200825", "1234",
 			})
+			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			// we are triggering the cleanup by returning an error now
 			cleanupTriggered = true
 			return nil, nil, fmt.Errorf("seed read essential fails")
 		case 3:
 			// (cleanup) called for the first system
 			c.Assert(label, Equals, "20200825")
+			// boot variables already updated
+			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
@@ -392,6 +396,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
+			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		case 2:
 			// called for the 'try' system
@@ -402,11 +407,14 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
 				"20200825", "1234",
 			})
+			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			// still good
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		case 3:
 			// (cleanup) called for the first system
 			c.Assert(label, Equals, "20200825")
+			// boot variables already updated
+			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)

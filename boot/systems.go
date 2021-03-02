@@ -64,11 +64,6 @@ func clearTryRecoverySystem(dev Device, systemLabel string) error {
 			return err
 		}
 	}
-	// but we still want to reseal, in case the cleanup did not reach this
-	// point before
-	const expectReseal = true
-	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
-
 	// clear both variables, no matter the values they hold
 	vars := map[string]string{
 		"try_recovery_system":    "",
@@ -76,6 +71,11 @@ func clearTryRecoverySystem(dev Device, systemLabel string) error {
 	}
 	// try to clear regardless of reseal failing
 	blErr := bl.SetBootVars(vars)
+
+	// but we still want to reseal, in case the cleanup did not reach this
+	// point before
+	const expectReseal = true
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
 
 	if resealErr != nil {
 		return resealErr
