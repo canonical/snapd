@@ -717,6 +717,7 @@ pkg_dependencies_opensuse(){
         jq
         lsb-release
         man
+        man-pages
         nfs-kernel-server
         PackageKit
         python3-yaml
