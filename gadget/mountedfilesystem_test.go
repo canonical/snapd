@@ -841,11 +841,10 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
-			// no filesystem
 			Content: []gadget.VolumeContent{
 				{
-					UnresolvedSource: "",
-					Target:           "",
+					UnresolvedSource: "/",
+					Target:           "/",
 				},
 			},
 		},
@@ -859,10 +858,12 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: destination directory cannot be unset")
 
 	d := c.MkDir()
+	ps.ResolvedContent[0].ResolvedSource = ""
 	err = rw.Write(d, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* source cannot be unset")
 
 	ps.ResolvedContent[0].ResolvedSource = "/"
+	ps.ResolvedContent[0].Target = ""
 	err = rw.Write(d, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* target cannot be unset")
 }
@@ -2980,20 +2981,24 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 	}
 
 	for _, tc := range []struct {
-		content gadget.VolumeContent
-		match   string
+		src, dst string
+		match    string
 	}{
-		{content: gadget.VolumeContent{UnresolvedSource: "", Target: "/"}, match: "internal error: source cannot be unset"},
-		{content: gadget.VolumeContent{UnresolvedSource: "/", Target: ""}, match: "internal error: target cannot be unset"},
+		{src: "", dst: "", match: "internal error: source cannot be unset"},
+		{src: "/", dst: "", match: "internal error: target cannot be unset"},
 	} {
 		testPs := &gadget.LaidOutStructure{
 			VolumeStructure: &gadget.VolumeStructure{
 				Size:       2048,
 				Filesystem: "ext4",
-				Content:    []gadget.VolumeContent{tc.content},
+				Content: []gadget.VolumeContent{
+					{UnresolvedSource: "/", Target: "/"},
+				},
 			},
 		}
 		s.mustResolveVolumeContent(c, testPs)
+		testPs.ResolvedContent[0].ResolvedSource = tc.src
+		testPs.ResolvedContent[0].Target = tc.dst
 
 		rw, err := gadget.NewMountedFilesystemUpdater(testPs, s.backup, lookupOk, nil)
 		c.Assert(err, IsNil)

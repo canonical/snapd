@@ -682,6 +682,9 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
+		if assert.AuthorityID() != signingKey.AccountID() {
+			return fmt.Errorf("assertion authority %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
+		}
 	} else {
 		custom, ok := assert.(customSigner)
 		if !ok {
@@ -722,7 +725,8 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
 			}
-			return fmt.Errorf("%s assertion timestamp outside of signing key validity (key valid since %q%s)", assert.Type().Name, signingKey.Since(), until)
+			return fmt.Errorf("%s assertion timestamp %q outside of signing key validity (key valid since %q%s)",
+				assert.Type().Name, checkTime, signingKey.Since(), until)
 		}
 	}
 	return nil

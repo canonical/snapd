@@ -111,7 +111,8 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		panic("only assertion query supported")
 	}
 
-	toResolve, err := assertQuery.ToResolve()
+	// TODO: sequence-forming
+	toResolve, _, err := assertQuery.ToResolve()
 	if err != nil {
 		return nil, nil, err
 	}

@@ -118,7 +118,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
 
-	dir := filepath.Join(dirs.GlobalRootDir, "snap", "hello-snap", "12.mount")
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -262,7 +262,7 @@ plugs:
 		content, err := ioutil.ReadFile(svcFile)
 		c.Assert(err, IsNil, comment)
 
-		dir := filepath.Join(dirs.GlobalRootDir, "snap", "hello-snap", "12.mount")
+		dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 		c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
