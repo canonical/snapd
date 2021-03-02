@@ -79,8 +79,6 @@ func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf
 
 func (s *systemsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
