@@ -122,15 +122,17 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
 	}()
-	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal); err != nil {
-		return err
-	}
+
 	vars := map[string]string{
 		"try_recovery_system":    systemLabel,
 		"recovery_system_status": "try",
 	}
-	return bl.SetBootVars(vars)
+	if err := bl.SetBootVars(vars); err != nil {
+		return err
+	}
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
 }
 
 type errInconsistentRecoverySystemState struct {

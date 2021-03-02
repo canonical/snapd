@@ -139,8 +139,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	resealCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
-		// bootloader variables have not been modified yet
-		c.Check(mtbl.SetBootVarsCalls, Equals, 0)
+		// bootloader variables have already been modified
+		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 		return nil
 	})
 	defer restore()
