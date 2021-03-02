@@ -624,21 +624,12 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping func(string) (*internal.Grouping, error)) (ok bool, err error) {
 	var uniq string
 	ref := a.Ref()
-	// deal with sequence key
-	if !ref.Type.SequenceForming() {
-		uniq = ref.Unique()
-	} else {
-		atseq := AtSequence{
-			Type:        ref.Type,
-			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
-		}
-		uniq = atseq.Unique()
-	}
 	var u unresolvedAssertRecord
 	var extrag *internal.Grouping
 	var unresolved map[string]unresolvedAssertRecord
 
 	if !ref.Type.SequenceForming() {
+		uniq = ref.Unique()
 		if u = p.unresolved[uniq]; u != nil {
 			unresolved = p.unresolved
 		} else if u = p.prerequisites[uniq]; u != nil {
@@ -665,6 +656,11 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 			u = rec
 		}
 	} else {
+		atseq := AtSequence{
+			Type:        ref.Type,
+			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
+		}
+		uniq = atseq.Unique()
 		if u = p.unresolvedSequences[uniq]; u != nil {
 			unresolved = p.unresolvedSequences
 		} else {
