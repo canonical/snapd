@@ -84,8 +84,8 @@ func clearTryRecoverySystem(dev Device, systemLabel string) error {
 }
 
 // SetTryRecoverySystem sets up the boot environment for trying out a recovery
-// system with given label. Once done, the caller should request switching to a
-// given recovery system.
+// system with given label. Once done, the caller should request switching to
+// the given recovery system.
 func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
