@@ -443,13 +443,13 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 	return nil
 }
 
-func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) {
+func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
 	uniq := unresolved.Unique()
 	u := &unresolvedSeqRec{
 		at: unresolved,
 	}
 	p.unresolvedSequences[uniq] = u
-	p.groupings.AddTo(&u.grouping, gnum)
+	return p.groupings.AddTo(&u.grouping, gnum)
 }
 
 // ToResolve returns all the currently unresolved assertions in the
@@ -914,7 +914,6 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 // at their current ones. If toUpdate is pinned, then it will be resolved
 // to the highest revision with same sequence point (toUpdate.Sequence).
 func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
-	// TODO: use Fetcher.Fetch(), similar to AddToUpdate.
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
@@ -930,8 +929,26 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	}
 
 	u := *toUpdate
-	// sequence forming assertions are never predefined, so no check for it.
-	p.addUnresolvedSeq(&u, gnum)
+	retrieve := func(ref *Ref) (Assertion, error) {
+		return ref.Resolve(p.groundDB.Find)
+	}
+	add := func(a Assertion) error {
+		if !a.Type().SequenceForming() {
+			return p.addUnresolved(a.At(), gnum)
+		}
+		// sequence forming assertions are never predefined, so no check for it.
+		// final add corresponding to toUpdate itself.
+		u.Revision = a.Revision()
+		return p.addUnresolvedSeq(&u, gnum)
+	}
+	f := NewFetcher(p.groundDB, retrieve, add)
+	ref := &Ref{
+		Type:       toUpdate.Type,
+		PrimaryKey: append(u.SequenceKey, fmt.Sprintf("%d", u.Sequence)),
+	}
+	if err := f.Fetch(ref); err != nil {
+		return err
+	}
 	return nil
 }
 
