@@ -563,6 +563,7 @@ func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 	a, err := s.seq2_1111r7.Ref().Resolve(s.db.Find)
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.TestOnlySeq).N(), Equals, "1111")
+	c.Check(a.Revision(), Equals, 7)
 }
 
 func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
@@ -755,7 +756,7 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 	c.Check(toResolveSeq, HasLen, 0)
 
 	// re-adding of current revisions, is not what we expect
-	// but needs not to produce unneeded roundtrips
+	// but needs to not produce unnecessary roundtrips
 
 	ok, err := pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
@@ -805,7 +806,7 @@ func (s *poolSuite) TestAddCurrentRevisionSeqForming(c *C) {
 	})
 
 	// re-adding of current revisions, is not what we expect
-	// but needs not to produce unneeded roundtrips
+	// but needs to not produce unnecessary roundtrips
 
 	ok, err := pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
@@ -886,8 +887,8 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -909,7 +910,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	// resolve
+	// resolve with sequence 3
 	ok, err := pool.Add(s.seq3_1111r5, asserts.MakePoolGrouping(0))
 	c.Assert(err, IsNil)
 	c.Assert(ok, Equals, true)
@@ -942,8 +943,8 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -998,8 +999,8 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -1049,8 +1050,8 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 		Pinned:      true,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
@@ -1106,8 +1107,8 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 		Pinned:      true,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
@@ -1156,8 +1157,8 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
-		Revision:    s.seq1_1111r5.Revision(),
+		Sequence:    1,
+		Revision:    5,
 		Pinned:      true,
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
@@ -1204,7 +1205,7 @@ func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
-		Sequence:    s.seq1_1111r5.Sequence(),
+		Sequence:    1,
 		Revision:    0, // intentionaly unset
 	}
 	err := pool.AddSequenceToUpdate(atseq, "for_one") // group num: 0
