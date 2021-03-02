@@ -32,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var MinLane = minLane
-
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {

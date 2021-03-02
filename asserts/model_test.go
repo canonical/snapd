@@ -521,7 +521,7 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)
-	c.Assert(err, ErrorMatches, `model assertion timestamp outside of signing key validity \(key valid since.*\)`)
+	c.Assert(err, ErrorMatches, `model assertion timestamp "2011-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
 func (mods *modelSuite) TestClassicDecodeOK(c *C) {

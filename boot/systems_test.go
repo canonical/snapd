@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,7 +79,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) testMarkRecoverySystemForRun(c *C,
 	c.Check(vars, DeepEquals, expectedVars)
 
 	err = s.bl.SetBootVars(map[string]string{
-		// the status it overwritten, even if it's completely bogus
+		// the status is overwritten, even if it's completely bogus
 		"recovery_system_status": "foobar",
 		"try_recovery_system":    "1234",
 	})

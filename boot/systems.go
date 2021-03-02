@@ -36,12 +36,12 @@ func IsInconsystemRecoverySystemState(err error) bool {
 	return ok
 }
 
-// InitramfsIsTryingRecoverySystem typically called while in initramfs of
+// InitramfsIsTryingRecoverySystem, typically called while in initramfs of
 // recovery mode system, checks whether the boot variables indicate that the
 // given recovery system is only being tried. When the state of boot variables
 // is inconsistent, eg. status indicates that a recovery system is to be tried,
 // but the label is unset, a specific error which can be tested with
-// InitramfsIsTryingRecoverySystem() is returned.
+// IsInconsystemRecoverySystemState() is returned.
 func InitramfsIsTryingRecoverySystem(currentSystemLabel string) (bool, error) {
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
@@ -86,7 +86,7 @@ func InitramfsIsTryingRecoverySystem(currentSystemLabel string) (bool, error) {
 		// point, nonetheless we are in recover mode and thus consider
 		// the system as being tried
 
-		// note, with status set to ''tried', we may be back to the
+		// note, with status set to 'tried', we may be back to the
 		// tried system again, most likely due to an unexpected reboot
 		// when coming back to run mode
 		return true, nil
@@ -107,11 +107,11 @@ const (
 	TryRecoverySystemOutcomeInconsistent
 )
 
-// EnsureNextBootToRunModeWithTryRecoverySystemOutcome typically called while in
-// initramfs, updates the boot environment to indicate that the outcome of
-// trying out a recovery system and sets up the system to boot into run mode. It
-// is up to the caller to ensure the status is updated for the right recovery
-// system, typically by calling InitramfsIsTryingRecoverySystem beforehand.
+// EnsureNextBootToRunModeWithTryRecoverySystemOutcome, typically called while
+// in initramfs, updates the boot environment to indicate an outcome of trying
+// out a recovery system and sets the system up to boot into run mode. It is up
+// to the caller to ensure the status is updated for the right recovery system,
+// typically by calling InitramfsIsTryingRecoverySystem beforehand.
 func EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome TryRecoverySystemOutcome) error {
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
