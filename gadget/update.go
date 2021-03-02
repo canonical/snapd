@@ -166,6 +166,12 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		return nil
 	}
 
+	isGadgetUpdate := old.RootDir != new.RootDir
+	isKernelUpdate := old.KernelRootDir != new.KernelRootDir
+	if isGadgetUpdate && isKernelUpdate {
+		return fmt.Errorf("internal error: cannot update gadget and kernel at the same time")
+	}
+
 	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
 	if err != nil {
 		return err

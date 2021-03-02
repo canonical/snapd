@@ -1679,6 +1679,26 @@ func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	c.Check(filter(&to.ResolvedContent[1]), Equals, true)
 }
 
+func (u *updateTestSuite) TestUpdateApplyUpdatesNewKernelAndGadgetErrors(c *C) {
+	info := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {},
+		},
+	}
+
+	oldRootDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: info, RootDir: oldRootDir, KernelRootDir: oldKernelDir}
+
+	newRootDir := c.MkDir()
+	newKernelDir := c.MkDir()
+	newData := gadget.GadgetData{Info: info, RootDir: newRootDir, KernelRootDir: newKernelDir}
+
+	// ensure upgrading both kernel and
+	err := gadget.Update(oldData, newData, "", nil, nil)
+	c.Assert(err, ErrorMatches, `internal error: cannot update gadget and kernel at the same time`)
+}
+
 func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	// prepare the stage
 	fsStruct := gadget.VolumeStructure{
@@ -1706,7 +1726,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "some-content"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
 
-	newRootDir := c.MkDir()
+	newRootDir := oldRootDir
 	newKernelDir := c.MkDir()
 	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
 	makeSizedFile(c, kernelYamlFn, 0, []byte(`
