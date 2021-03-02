@@ -34,6 +34,6 @@ func init() {
 func timeToTimeval32(t time.Time) *syscall.Timeval {
 	return &syscall.Timeval{
 		Sec:  int32(t.Unix()),
-		Usec: int32(t.UnixNano() / 1000 % 1000),
+		Usec: int32(t.Nanosecond() / 1000),
 	}
 }
