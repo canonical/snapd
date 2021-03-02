@@ -61,7 +61,7 @@ type appsSuite struct {
 	serviceControlError error
 	serviceControlCalls []serviceControlArgs
 
-	infoA, infoB, infoC, infoD *snap.Info
+	infoA, infoB, infoC, infoD, infoE *snap.Info
 }
 
 func (s *appsSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
@@ -146,6 +146,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
 	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
 	s.infoD = s.mkInstalledInState(c, s.d, "snap-d", "dev", "v1", snap.R(1), true, "apps: {cmd2: {}, cmd3: {}}")
+	s.infoE = s.mkInstalledInState(c, s.d, "snap-e", "dev", "v1", snap.R(1), true, "apps: {svc4: {daemon: simple, daemon-scope: user}}")
 
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
@@ -171,7 +172,8 @@ func (s *appsSuite) TestSplitAppName(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfo(c *check.C) {
-	svcNames := []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}
+	// System services from active snaps
+	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
@@ -180,6 +182,11 @@ ActiveState=active
 UnitFileState=enabled
 `[1:], name)))
 	}
+	// System services from inactive snaps
+	svcNames = append(svcNames, "snap-b.svc3")
+	// User services from active snaps
+	svcNames = append(svcNames, "snap-e.svc4")
+	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
 	req, err := http.NewRequest("GET", "/v2/apps", nil)
 	c.Assert(err, check.IsNil)
@@ -189,7 +196,7 @@ UnitFileState=enabled
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
 	apps := rsp.Result.([]client.AppInfo)
-	c.Assert(apps, check.HasLen, 6)
+	c.Assert(apps, check.HasLen, 7)
 
 	for _, name := range svcNames {
 		snapName, app := daemon.SplitAppName(name)
@@ -203,6 +210,11 @@ UnitFileState=enabled
 			// snap-b is not active (all the others are)
 			needle.Active = true
 			needle.Enabled = true
+		}
+		if snapName == "snap-e" {
+			// snap-e contains user services
+			needle.DaemonScope = snap.UserDaemon
+			needle.Active = false
 		}
 		c.Check(apps, testutil.DeepContains, needle)
 	}
@@ -250,7 +262,8 @@ func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
-	svcNames := []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}
+	// System services from active snaps
+	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
@@ -259,6 +272,11 @@ ActiveState=active
 UnitFileState=enabled
 `[1:], name)))
 	}
+	// System services from inactive snaps
+	svcNames = append(svcNames, "snap-b.svc3")
+	// User services from active snaps
+	svcNames = append(svcNames, "snap-e.svc4")
+	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
 	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
 	c.Assert(err, check.IsNil)
@@ -268,7 +286,7 @@ UnitFileState=enabled
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
 	svcs := rsp.Result.([]client.AppInfo)
-	c.Assert(svcs, check.HasLen, 3)
+	c.Assert(svcs, check.HasLen, 4)
 
 	for _, name := range svcNames {
 		snapName, app := daemon.SplitAppName(name)
@@ -282,6 +300,11 @@ UnitFileState=enabled
 			// snap-b is not active (all the others are)
 			needle.Active = true
 			needle.Enabled = true
+		}
+		if snapName == "snap-e" {
+			// snap-e contains user services
+			needle.DaemonScope = snap.UserDaemon
+			needle.Active = false
 		}
 		c.Check(svcs, testutil.DeepContains, needle)
 	}
@@ -330,13 +353,13 @@ func (s *appsSuite) TestAppInfosForAll(c *check.C) {
 	for _, t := range []T{
 		{
 			opts:  daemon.AppInfoServiceTrue,
-			names: []string{"svc1", "svc2", "svc3"},
-			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB},
+			names: []string{"svc1", "svc2", "svc3", "svc4"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoE},
 		},
 		{
 			opts:  daemon.AppInfoServiceFalse,
-			names: []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3"},
-			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD},
+			names: []string{"svc1", "svc2", "cmd1", "svc3", "cmd2", "cmd3", "svc4"},
+			snaps: []*snap.Info{s.infoA, s.infoA, s.infoB, s.infoB, s.infoD, s.infoD, s.infoE},
 		},
 	} {
 		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.opts))
