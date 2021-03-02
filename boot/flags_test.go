@@ -145,5 +145,76 @@ func (s *bootFlagsSuite) TestNextBootFlagsUC20Happy(c *C) {
 		flags, err = boot.NextBootFlags(coreDev)
 		c.Assert(err, IsNil)
 		c.Assert(flags, DeepEquals, []string{"some-other", "factory"})
+
+		// Now assign some boot flags with SetNextBootFlags
+		err = boot.SetNextBootFlags(coreDev, []string{"other-thing", "under_score", "numbers123"})
+		c.Assert(err, IsNil)
+
+		flags, err = boot.NextBootFlags(coreDev)
+		c.Assert(err, IsNil)
+		c.Assert(flags, DeepEquals, []string{"other-thing", "under_score", "numbers123"})
+
+		// we can also clear the flags too
+		err = boot.SetNextBootFlags(coreDev, nil)
+		c.Assert(err, IsNil)
+
+		flags, err = boot.NextBootFlags(coreDev)
+		c.Assert(err, IsNil)
+		c.Assert(flags, HasLen, 0)
+	}
+}
+
+func (s *bootFlagsSuite) TestSetNextBootFlagsUC20Unhappy(c *C) {
+	dir := c.MkDir()
+	dirs.SetRootDir(dir)
+	defer func() { dirs.SetRootDir("") }()
+
+	_ = setupRealGrub(c, "", "boot/grub", nil)
+
+	coreDev := boottest.MockDevice("some-snap@run")
+
+	tt := []struct {
+		err   string
+		flags []string
+	}{
+		{
+			`cannot set boot flags: invalid flag "..."`,
+			[]string{"..."},
+		},
+		{
+			`cannot set boot flags: invalid flag ".*`,
+			[]string{"#$%#$^#$@#@@%^^"},
+		},
+		{
+			`cannot set boot flags: invalid flag "👈👈👈👈"`,
+			[]string{"👈👈👈👈"},
+		},
+		{
+			`cannot set boot flags: combined serialized length \(305\) is too long`,
+			[]string{
+				"00000000000000000000000000000000000000000000000000",
+				"00000000000000000000000000000000000000000000000000",
+				"00000000000000000000000000000000000000000000000000",
+				"00000000000000000000000000000000000000000000000000",
+				"00000000000000000000000000000000000000000000000000",
+				"00000000000000000000000000000000000000000000000000",
+			},
+		},
+		{
+			flags: []string{},
+		},
+	}
+
+	for _, t := range tt {
+		err := boot.SetNextBootFlags(coreDev, t.flags)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		flags, err := boot.NextBootFlags(coreDev)
+		c.Assert(err, IsNil)
+		c.Assert(flags, DeepEquals, t.flags)
 	}
 }

@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -39,6 +40,7 @@ func blForDev(dev Device) (bootloader.Bootloader, error) {
 
 	return bootloader.Find(dir, opts)
 }
+
 // NextBootFlags returns the set of boot flags for the current active boot and
 // possibly for the next boot. By default, the flags should only be used on one
 // boot ever after being set and the system being rebooted with the flags
@@ -70,4 +72,40 @@ func NextBootFlags(dev Device) ([]string, error) {
 
 	// TODO: is this the right format? (comma separated values)
 	return flags, nil
+}
+
+// TODO: how strict should we be in flags here? Should we instead just have an
+// allow list of supported flags?
+var validFlagRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// SetNextBootFlags sets the flags for the next boot by assigning the flags to
+// the bootenv var snapd_next_boot_flags. It completely overwrites the current
+// value of snapd_next_boot_flags. The serialized flags must be less than 255
+// characters long to fit into some constrained device's bootenv, and each flag
+// must consist of only letters, numbers and '_' or '-'.
+func SetNextBootFlags(dev Device, flags []string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("cannot get boot flags on non-UC20 device")
+	}
+
+	bl, err := blForDev(dev)
+	if err != nil {
+		return err
+	}
+
+	// verify that the flags when combined are not longer than 255, otherwise
+	// we won't be able to fit the value into boot env on i.e. lk bootloaders
+
+	for _, flag := range flags {
+		if !validFlagRegexp.MatchString(flag) {
+			return fmt.Errorf("cannot set boot flags: invalid flag %q", flag)
+		}
+	}
+
+	serializedFlags := strings.Join(flags, ",")
+	if len(serializedFlags) > 255 {
+		return fmt.Errorf("cannot set boot flags: combined serialized length (%d) is too long", len(serializedFlags))
+	}
+
+	return bl.SetBootVars(map[string]string{"snapd_next_boot_flags": serializedFlags})
 }
