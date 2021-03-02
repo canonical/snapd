@@ -703,14 +703,17 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        bash-completion
         clang
         curl
+        dbus-1-python3
         evolution-data-server
         expect
         fontconfig
         fwupd
         git
         golang-packaging
+        iptables
         jq
         lsb-release
         man
