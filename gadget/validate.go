@@ -358,3 +358,36 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	}
 	return nil
 }
+
+// checkVolumeHasAllKernelRefs ensures that the given
+func checkVolumetHasAllKernelRefs(pNew *LaidOutVolume, kernelRootDir string) error {
+	kernelInfo, err := kernel.ReadInfo(kernelRootDir)
+	if err != nil {
+		return err
+	}
+	for assetName, asset := range kernelInfo.Assets {
+		if !asset.Update {
+			continue
+		}
+		found := false
+		for _, ps := range pNew.LaidOutStructure {
+			for _, rc := range ps.Content {
+				pathOrRef := rc.UnresolvedSource
+				if strings.HasPrefix(pathOrRef, "$kernel:") {
+					wantedAsset, _, err := splitKernelRef(pathOrRef)
+					if err != nil {
+						return err
+					}
+					if assetName == wantedAsset {
+						found = true
+						break
+					}
+				}
+			}
+		}
+		if !found {
+			return fmt.Errorf("cannot find required kernel asset %q in gadget", assetName)
+		}
+	}
+	return nil
+}

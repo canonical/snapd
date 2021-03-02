@@ -193,6 +193,11 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
+	if isKernelUpdate {
+		if err := checkVolumetHasAllKernelRefs(pNew, new.KernelRootDir); err != nil {
+			return err
+		}
+	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {
 		return fmt.Errorf("cannot apply update to volume: %v", err)

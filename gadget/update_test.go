@@ -1775,3 +1775,60 @@ assets:
 	c.Assert(mockUpdaterCalls, Equals, 1)
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
 }
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesWithMissingKernelRefInGadget(c *C) {
+	// kernel.yaml has "$kernel:ref" style content
+	kernelYaml := []byte(`
+assets:
+  ref:
+    update: true
+    content:
+    - kernel-content`)
+	// but gadget.yaml does not have this
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Size:       5 * quantity.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			// Note that there is no "$kernel:ref" here
+			{UnresolvedSource: "/content", Target: "/"},
+		},
+	}
+	info := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     "gpt",
+				Structure:  []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	gadgetDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: oldKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "some-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	newKernelDir := c.MkDir()
+	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
+	makeSizedFile(c, kernelYamlFn, 0, kernelYaml)
+
+	newData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: newKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "content"), 2*quantity.SizeMiB, nil)
+	rollbackDir := c.MkDir()
+	muo := &mockUpdateProcessObserver{}
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		panic("should not get called")
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	// exercise KernelUpdatePolicy here
+	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	c.Assert(err, ErrorMatches, `cannot find required kernel asset "ref" in gadget`)
+
+	// ensure update for kernel content happened
+	c.Assert(muo.beforeWriteCalled, Equals, 0)
+}
