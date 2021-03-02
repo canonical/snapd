@@ -851,10 +851,12 @@ func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	defer daemon.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		// we should not reach here
 		panic("no user should be created")
 	})()
 	// make sure we report them as non-existing until created
 	defer daemon.MockUserLookup(func(username string) (*user.User, error) {
+		// this error would simply be interpreted as need to create
 		return nil, fmt.Errorf("not created yet")
 	})()
 
