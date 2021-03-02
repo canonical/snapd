@@ -108,9 +108,10 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	// we could have rebooted before resealing the keys
 	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
 		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
-	}
-	if err := m.Write(); err != nil {
-		return err
+
+		if err := m.Write(); err != nil {
+			return err
+		}
 	}
 
 	defer func() {
