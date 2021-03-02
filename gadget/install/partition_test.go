@@ -61,6 +61,10 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(cmdSfdisk.Restore)
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
 	s.AddCleanup(cmdLsblk.Restore)
+
+	// we test different sector sizes elsewhere, here we always use it to get the sector size
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", blockdevSectorSize512Script)
+	s.AddCleanup(cmdBlockdev.Restore)
 }
 
 const (
@@ -163,6 +167,15 @@ exit 0`)
 	return b.String()
 }
 
+const blockdevSectorSize512Script = `
+if [ "$1" == "--getss" ]; then
+	echo 512
+	exit 0
+fi
+echo "unexpected cmdline opts $*"
+exit 1
+`
+
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
@@ -228,7 +241,6 @@ func mustLayOutVolumeFromGadget(c *C, gadgetRoot, kernelRoot string, model gadge
 
 	constraints := gadget.LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 
 	for _, vol := range info.Volumes {
@@ -689,7 +701,17 @@ echo '{
 }'
 `)
 	defer cmdSfdisk.Restore()
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", `echo '1234567'`)
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == "--getss" ]; then
+	echo 512
+	exit 0
+elif [ "$1" == "--getsz" ]; then
+	echo 1234567
+	exit 0
+fi
+echo "unexpected cmdline opts $*"
+exit 1
+`)
 	defer cmdBlockdev.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")

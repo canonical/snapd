@@ -75,7 +75,7 @@ func Wait(timeout time.Duration) error {
 	select {
 	case kev := <-detectKeyCh:
 		if kev.Err != nil {
-			return err
+			return kev.Err
 		}
 		// channel got closed without an error
 		logger.Noticef("%s: + got trigger key %v", kev.Dev, triggerFilter.Key)
