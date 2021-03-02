@@ -90,6 +90,18 @@ func (mcSuite) TestMatchCounterFull(c *check.C) {
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 19)
 	c.Assert(matches, check.DeepEquals, expected)
+
+	expectedLast := []string{
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+		"Failed to write /tmp/1/snap/snapcraft.yaml, skipping",
+	}
+	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: 3, LastN: true}
+	_, err = wLast.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count = wLast.Matches()
+	c.Check(count, check.Equals, 19)
+	c.Assert(matches, check.DeepEquals, expectedLast)
 }
 
 func (mcSuite) TestMatchCounterPartials(c *check.C) {
@@ -100,19 +112,30 @@ func (mcSuite) TestMatchCounterPartials(c *check.C) {
 		"Write on output file failed because No space left on device",
 		"writer: failed to write data block 0",
 	}
+	expectedLast := []string{
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+		"Failed to write /tmp/1/snap/snapcraft.yaml, skipping",
+	}
 
-	for step := 1; step < 100; step++ {
-		w := &strutil.MatchCounter{Regexp: thisRegexp, N: 3}
-		var i int
-		for i = 0; i+step < len(buf); i += step {
-			_, err := w.Write(buf[i : i+step])
-			c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
+	for _, keepLast := range []bool{false, true} {
+		for step := 1; step < 100; step++ {
+			w := &strutil.MatchCounter{Regexp: thisRegexp, N: 3, LastN: keepLast}
+			var i int
+			for i = 0; i+step < len(buf); i += step {
+				_, err := w.Write(buf[i : i+step])
+				c.Assert(err, check.IsNil, check.Commentf("step:%d i:%d", step, i))
+			}
+			_, err := w.Write(buf[i:])
+			c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
+			matches, count := w.Matches()
+			c.Check(count, check.Equals, 19, check.Commentf("step:%d", step))
+			if !keepLast {
+				c.Check(matches, check.DeepEquals, expected, check.Commentf("step:%d", step))
+			} else {
+				c.Check(matches, check.DeepEquals, expectedLast, check.Commentf("step:%d", step))
+			}
 		}
-		_, err := w.Write(buf[i:])
-		c.Assert(err, check.IsNil, check.Commentf("step:%d tail", step))
-		matches, count := w.Matches()
-		c.Check(count, check.Equals, 19, check.Commentf("step:%d", step))
-		c.Check(matches, check.DeepEquals, expected, check.Commentf("step:%d", step))
 	}
 }
 
@@ -151,6 +174,13 @@ func (mcSuite) TestMatchCounterZero(c *check.C) {
 	matches, count := w.Matches()
 	c.Check(count, check.Equals, 19)
 	c.Assert(matches, check.HasLen, 0)
+
+	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: 0, LastN: true}
+	_, err = wLast.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count = w.Matches()
+	c.Check(count, check.Equals, 19)
+	c.Assert(matches, check.HasLen, 0)
 }
 
 func (mcSuite) TestMatchCounterNegative(c *check.C) {
@@ -160,6 +190,15 @@ func (mcSuite) TestMatchCounterNegative(c *check.C) {
 	_, err := w.Write([]byte(out))
 	c.Assert(err, check.IsNil)
 	matches, count := w.Matches()
+	c.Check(count, check.Equals, 19)
+	c.Check(count, check.Equals, len(matches))
+	c.Assert(matches, check.DeepEquals, expected)
+
+	// always keep all lines
+	wLast := &strutil.MatchCounter{Regexp: thisRegexp, N: -1, LastN: true}
+	_, err = wLast.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count = w.Matches()
 	c.Check(count, check.Equals, 19)
 	c.Check(count, check.Equals, len(matches))
 	c.Assert(matches, check.DeepEquals, expected)
@@ -185,6 +224,28 @@ func (mcSuite) TestMatchCounterNilRegexpLimited(c *check.C) {
 	c.Check(count, check.Equals, 22)
 	c.Check(len(matches), check.Equals, len(expected))
 	c.Assert(matches, check.DeepEquals, expected)
+
+	expectedLast := []string{
+		// "writer: failed to write data block 0",
+		// "Failed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso64.so, skipping",
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+		"Failed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdsox32.so, skipping",
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+		"Failed to write /tmp/1/snap/manifest.yaml, skipping",
+		"🦄🌈💩",
+		"Write on output file failed because No space left on device",
+		"writer: failed to write data block 0",
+		"Failed to write /tmp/1/snap/snapcraft.yaml, skipping",
+	}
+	wLast := &strutil.MatchCounter{N: 10, LastN: true}
+	_, err = wLast.Write([]byte(out))
+	c.Assert(err, check.IsNil)
+	matches, count = wLast.Matches()
+	c.Check(count, check.Equals, 22)
+	c.Check(len(matches), check.Equals, len(expectedLast))
+	c.Assert(matches, check.DeepEquals, expectedLast)
 }
 
 func (mcSuite) TestMatchCounterNilRegexpPartials(c *check.C) {
