@@ -87,34 +87,16 @@ restore: |
     
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # XXX: Note that the order will change here as we adjust the policy.
-        #
-        # first install the asserted kernel so that the gadget can resolve
-        # the kernel refs
-        snap install pc-kernel_x1.snap
+        # first install the gadget that knows about the kernel
+        # (but no edition bump so this will install fine)
+        snap install pc_x1.snap
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 1 ]; then
         # wait for change to complete
         snap watch --last=install\?
-        # now install the asserted gadget
-        snap install  pc_x1.snap
-        # and kernel again because the previous gadget update did not
-        # have a edition bump so it won't have installed the new kernel
-        # refs automatically (XXX: that is what we want, right?)
-        snap pack --filename=pc-kernel_x2.snap pc-kernel-snap
-        # has to be asserted
-        cat <<EOF > decl-headers.json
-    {"snap-id": "$PC_KERNEL_ID"}
-    EOF
-        cat <<EOF > rev-headers.json
-    {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$((START_REVISION+1))"}
-    EOF
-        #shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        new_snap_declaration "$BLOB_DIR" pc-kernel_x2.snap --snap-decl-json decl-headers.json
-        new_snap_revision "$BLOB_DIR" pc-kernel_x2.snap --snap-rev-json rev-headers.json
-        snap install pc-kernel_x2.snap
+        # now install the kernel that has the kernel assets
+        snap install pc-kernel_x1.snap
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 2 ]; then
