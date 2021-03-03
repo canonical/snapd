@@ -22,6 +22,7 @@ package boot_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
