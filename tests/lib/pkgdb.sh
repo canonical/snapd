@@ -703,6 +703,7 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        audit
         clang
         curl
         evolution-data-server
