@@ -24,7 +24,116 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
+
+// clearTryRecoverySystem removes a given candidate recovery system from the
+// modeenv state file, reseals and clears related bootloader variables.
+func clearTryRecoverySystem(dev Device, systemLabel string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for idx, sys := range m.CurrentRecoverySystems {
+		if sys == systemLabel {
+			found = true
+			m.CurrentRecoverySystems = append(m.CurrentRecoverySystems[:idx],
+				m.CurrentRecoverySystems[idx+1:]...)
+			break
+		}
+	}
+	// we may be repeating the cleanup, in which case the system was already
+	// removed from the modeenv and we don't need to rewrite the modeenv
+	if found {
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+	// clear both variables, no matter the values they hold
+	vars := map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	}
+	// try to clear regardless of reseal failing
+	blErr := bl.SetBootVars(vars)
+
+	// but we still want to reseal, in case the cleanup did not reach this
+	// point before
+	const expectReseal = true
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+
+	if resealErr != nil {
+		return resealErr
+	}
+	return blErr
+}
+
+// SetTryRecoverySystem sets up the boot environment for trying out a recovery
+// system with given label. Once done, the caller should request switching to
+// the given recovery system.
+func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	// we could have rebooted before resealing the keys
+	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
+		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		if cleanupErr := clearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
+			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
+		}
+	}()
+
+	vars := map[string]string{
+		"try_recovery_system":    systemLabel,
+		"recovery_system_status": "try",
+	}
+	if err := bl.SetBootVars(vars); err != nil {
+		return err
+	}
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+}
 
 type errInconsistentRecoverySystemState struct {
 	why string
