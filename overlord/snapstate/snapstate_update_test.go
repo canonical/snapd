@@ -1833,7 +1833,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(coreState.UserID, Equals, 2)
 	c.Check(coreState.Current, DeepEquals, snap.R(11))
-
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThrough(c *C) {
@@ -5337,8 +5336,8 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		Sequence: []*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
 		},
-		Current: snap.R(11),
-		Active:  true,
+		Current:                    snap.R(11),
+		Active:                     true,
 		LastActiveDisabledServices: []string{"svc2"},
 	})
 
@@ -5700,4 +5699,69 @@ func (s *snapmgrTestSuite) TestUpdateDiskCheckHappy(c *C) {
 	failDiskCheck := false
 	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyAutoRefreshWithConflictingChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	// create a change that triggers a refresh of some snaps
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 1)
+
+	// validate that we get a useful error if there are updates but
+	// no update can be performed because of auto refreshes
+	_, _, err = snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
+	c.Assert(err, ErrorMatches, "auto-refresh has conflicting changes in progress")
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyAutoRefreshWithConflictingChangesButOneGood(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	// create a change that triggers a refresh of *only* core
+	chg := s.state.NewChange("refresh", "refresh the core snaps")
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"core"}, 0, nil)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, DeepEquals, []string{"core"})
+
+	// ensure that "some-snap" gets updated via auto-refresh
+	updated, _, err = snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"some-snap"})
 }
