@@ -114,11 +114,8 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	patchKeys := sortPatchKeysByDepth(patch)
-	for _, key := range patchKeys {
-		if err := tr.Set(instanceName, key, patch[key]); err != nil {
-			return err
-		}
+	if err := config.Patch(tr, instanceName, patch); err != nil {
+		return err
 	}
 
 	return nil

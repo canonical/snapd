@@ -125,11 +125,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
 	if assertQuery != nil {
-		toResolve, err := assertQuery.ToResolve()
+		toResolve, toResolveSeq, err := assertQuery.ToResolve()
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(toResolve) != 0 {
+		if len(toResolve) != 0 || len(toResolveSeq) != 0 {
 			panic("no assertion query support")
 		}
 	}
@@ -267,14 +267,16 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	d, err := daemon.NewAndAddRoutes()
 	c.Assert(err, check.IsNil)
 
+	st := d.Overlord().State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	c.Assert(d.Overlord().StartUp(), check.IsNil)
 
-	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
-	// mark as already seeded
-	st.Set("seeded", true)
 	// registered
 	s.mockModel(c, st, nil)
 

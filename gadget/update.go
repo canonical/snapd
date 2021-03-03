@@ -35,7 +35,6 @@ var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 )
 
@@ -427,7 +426,7 @@ func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir strin
 	if !ps.HasFilesystem() {
 		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, findDeviceForStructureWithFallback)
 	} else {
-		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure, observer)
+		updater, err = newMountedFilesystemUpdater(ps, rollbackDir, findMountPointForStructure, observer)
 	}
 	return updater, err
 }

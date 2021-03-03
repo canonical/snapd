@@ -1409,10 +1409,6 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	updater, err = gadget.UpdaterForStructure(psBare, gadgetRootDir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(updater, IsNil)
-
-	updater, err = gadget.UpdaterForStructure(psFs, "", rollbackDir, nil)
-	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
-	c.Assert(updater, IsNil)
 }
 
 func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {

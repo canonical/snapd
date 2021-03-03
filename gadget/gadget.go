@@ -184,20 +184,6 @@ type VolumeContent struct {
 	Size quantity.Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
-
-	// resolvedSource is the absolute path of the Source after resolving
-	// any references (e.g. to a "$kernel:" snap)
-	resolvedSource string
-	// TODO: provide resolvedImage too
-}
-
-func (vc VolumeContent) ResolvedSource() string {
-	// TODO: ensure that sources are always resolved and only return
-	//       vc.resolvedSource(). This will come in the next PR.
-	if vc.resolvedSource != "" {
-		return vc.resolvedSource
-	}
-	return vc.UnresolvedSource
 }
 
 func (vc VolumeContent) String() string {
@@ -806,8 +792,11 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
-		return fmt.Errorf("missing source or target")
+	if vc.UnresolvedSource == "" {
+		return fmt.Errorf("missing source")
+	}
+	if vc.Target == "" {
+		return fmt.Errorf("missing target")
 	}
 	return nil
 }
@@ -957,16 +946,13 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (
 
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// TODO:UC20: make SectorSize dynamic, either through config in the
-		//            gadget or by dynamic detection
-		SectorSize: sectorSize,
 	}
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for _, vol := range info.Volumes {
 		for _, structure := range vol.Structure {
-			// use the system-boot role
+			// use the system-boot role to identify the system volume
 			if structure.Role == SystemBoot {
 				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 				if err != nil {

@@ -797,6 +797,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	markSeeded(o)
 
 	// avoid immediate transition to Done due to unknown kind
 	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {

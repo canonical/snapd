@@ -17,29 +17,8 @@
  *
  */
 
-package configstate_test
+package daemon
 
-import (
-	"github.com/snapcore/snapd/overlord/configstate"
-
-	. "gopkg.in/check.v1"
+var (
+	MinLane = minLane
 )
-
-func (s *miscSuite) TestSortPatchKeysEmpty(c *C) {
-	patch := map[string]interface{}{}
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, IsNil)
-}
-
-func (s *miscSuite) TestSortPatchKeys(c *C) {
-	patch := map[string]interface{}{
-		"a.b.c":         0,
-		"a":             0,
-		"a.b.c.d":       0,
-		"q.w.e.r.t.y.u": 0,
-		"f.g":           0,
-	}
-
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
-}
