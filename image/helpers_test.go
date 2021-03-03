@@ -24,6 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -196,6 +198,29 @@ func (s *imageSuite) TestWriteResolvedContentRelativePath(c *check.C) {
 	s.testWriteResolvedContent(c, ".")
 }
 
+// treeLines is used to sort the output from find
+type treeLines []string
+
+func (t treeLines) Len() int {
+	return len(t)
+}
+func (t treeLines) Less(i, j int) bool {
+	// strip off the first character of the two strings (assuming the strings
+	// are at least 1 character long)
+	s1 := t[i]
+	if len(s1) > 1 {
+		s1 = s1[1:]
+	}
+	s2 := t[j]
+	if len(s2) > 1 {
+		s2 = s2[1:]
+	}
+	return s1 < s2
+}
+func (t treeLines) Swap(i, j int) {
+	t[i], t[j] = t[j], t[i]
+}
+
 func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string) {
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
 	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
@@ -227,11 +252,11 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 	cmd.Dir = prepareImageDir
 	tree, err := cmd.CombinedOutput()
 	c.Assert(err, check.IsNil)
-	c.Check(string(tree), check.Equals, `d 
-d system-seed
-d system-seed/EFI
-d system-seed/EFI/boot
-f system-seed/EFI/boot/system-seed.efi
+	// sort the tree output
+	lines := strings.Split(string(tree), "\n")
+	sort.Sort(treeLines(lines))
+	c.Check(strings.Join(lines, "\n"), check.Equals, `
+d 
 d resolved-content
 d resolved-content/vol1
 d resolved-content/vol1/structure-name
@@ -243,7 +268,11 @@ d resolved-content/vol2
 d resolved-content/vol2/struct2
 d resolved-content/vol2/struct2/subdir
 f resolved-content/vol2/struct2/subdir/foo
-`)
+d system-seed
+d system-seed/EFI
+d system-seed/EFI/boot
+f system-seed/EFI/boot/system-seed.efi`)
+
 	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
 	t, err := os.Readlink(filepath.Join(prepareImageDir, "resolved-content/vol1/ubuntu-seed"))
 	c.Assert(err, check.IsNil)
