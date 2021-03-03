@@ -365,37 +365,6 @@ func (p *Pool) phase(ph poolPhase) error {
 	return nil
 }
 
-// AddSequenceToUpdate adds the assertion referenced by toUpdate and all its
-// prerequisites to the Pool as unresolved and as required by the
-// given group. It is assumed that the assertion is currently in the
-// ground database of the Pool, otherwise this will error.
-// The current revisions of the assertion and its prerequisites will
-// be recorded and only higher revisions will then resolve them,
-// otherwise if ultimately unresolved they will be assumed to still be
-// at their current ones. If toUpdate is pinned, then it will be resolved
-// to the highest revision with same sequence point (toUpdate.Sequence).
-func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
-	// TODO: use Fetcher.Fetch(), similar to AddToUpdate.
-	if err := p.phase(poolPhaseAddUnresolved); err != nil {
-		return err
-	}
-	if toUpdate.Sequence <= 0 {
-		return fmt.Errorf("internal error: sequence to update must have a sequence number set")
-	}
-	if p.unresolvedSequences[toUpdate.Unique()] != nil {
-		return fmt.Errorf("internal error: sequence %v is already being resolved", toUpdate.SequenceKey)
-	}
-	gnum, err := p.ensureGroup(group)
-	if err != nil {
-		return err
-	}
-
-	u := *toUpdate
-	// sequence forming assertions are never predefined, so no check for it.
-	p.addUnresolvedSeq(&u, gnum)
-	return nil
-}
-
 // AddUnresolved adds the assertion referenced by unresolved
 // AtRevision to the Pool as unresolved and as required by the given group.
 // Usually unresolved.Revision will have been set to RevisionNotKnown.
