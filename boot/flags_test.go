@@ -340,3 +340,124 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 		c.Assert(err, IsNil)
 	}
 }
+
+func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
+	tt := []struct {
+		mode               string
+		expDir             string
+		noExpDirRootPrefix bool
+		degradedJSON       string
+		err                string
+	}{
+		{
+			mode:   boot.ModeRun,
+			expDir: "/run/mnt/data",
+		},
+		{
+			mode:   boot.ModeInstall,
+			expDir: "/run/mnt/ubuntu-data",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted",
+					"mount-location": "/host/ubuntu-data"
+				}
+			}
+			`,
+			expDir:             "/host/ubuntu-data",
+			noExpDirRootPrefix: true,
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted",
+					"mount-location": "/host/elsewhere/ubuntu-data"
+				}
+			}
+			`,
+			expDir:             "/host/elsewhere/ubuntu-data",
+			noExpDirRootPrefix: true,
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "error-mounting"
+				}
+			}
+			`,
+			expDir: "",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted-untrusted"
+				}
+			}
+			`,
+			expDir: "",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "absent-but-optional"
+				}
+			}
+			`,
+			expDir: "",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "new-wild-unknown-state"
+				}
+			}
+			`,
+			expDir: "",
+		},
+		{
+			mode: "",
+			err:  "system mode is unsupported",
+		},
+	}
+	for _, t := range tt {
+
+		if t.degradedJSON != "" {
+			rootdir := c.MkDir()
+			dirs.SetRootDir(rootdir)
+			defer func() { dirs.SetRootDir("") }()
+
+			degradedJSON := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
+			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
+			c.Assert(err, IsNil)
+
+			err = ioutil.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
+			c.Assert(err, IsNil)
+		}
+
+		dir, err := boot.RunModeRootfs(t.mode)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err)
+			continue
+		}
+
+		c.Assert(err, IsNil)
+		if t.expDir != "" && !t.noExpDirRootPrefix {
+			c.Assert(dir, Equals, filepath.Join(dirs.GlobalRootDir, t.expDir))
+		} else {
+			c.Assert(dir, Equals, t.expDir)
+		}
+	}
+}
