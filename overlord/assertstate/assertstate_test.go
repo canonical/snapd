@@ -2159,8 +2159,16 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 
 	s.setModel(sysdb.GenericClassicModel())
 
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
 	tr := assertstate.ValidationSetTracking{
-		AccountID: "foo",
+		AccountID: s.dev1Acct.AccountID(),
 		Name:      "bar",
 		Mode:      assertstate.Monitor,
 		Current:   1,
@@ -2168,7 +2176,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
-	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: unsuccessful bulk assertion refresh, fallback: cannot : got unexpected HTTP status code 400.*`)
+	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: cannot : got unexpected HTTP status code 400.*`)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
@@ -2181,17 +2189,14 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(err, IsNil)
 
 	// store key already present
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
-
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "1")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
 
@@ -2214,11 +2219,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+	c.Check(a.Revision(), Equals, 2)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
-		{"account", "account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// sequence changed in the store to 4
@@ -2239,10 +2243,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
-	// XXX: why account-key again?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is available in the db
@@ -2269,12 +2271,11 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	snapDeclFoo := s.snapDecl(c, "foo", nil)
-	err = assertstate.Add(s.state, snapDeclFoo)
-	c.Assert(err, IsNil)
+	vsetAs1 := s.validationSetAssert(c, "bar", "2", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5")
 	err = s.storeSigning.Add(vsetAs2)
@@ -2289,9 +2290,6 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	// XXX: we should have respective assertion already in the local db
-	// rather than have it retrieved below.
-
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
@@ -2303,11 +2301,11 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
+	c.Check(a.Revision(), Equals, 5)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
-		{"account", "account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// sequence changed in the store to 7
@@ -2319,10 +2317,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
-	// XXX: why account-key again?
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is available in the db
@@ -2499,5 +2495,5 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
 
 	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0)
-	c.Assert(err, check.ErrorMatches, `cannot fetch and resolve assertions:\n - validation set assertions: validation-set assertion not found.*`)
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }

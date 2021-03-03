@@ -205,7 +205,8 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags
 
 // StatusDecorator supports decorating client.AppInfos with service status.
 type StatusDecorator struct {
-	sysd systemd.Systemd
+	sysd           systemd.Systemd
+	globalUserSysd systemd.Systemd
 }
 
 // NewStatusDecorator returns a new StatusDecorator.
@@ -213,7 +214,8 @@ func NewStatusDecorator(rep interface {
 	Notify(string)
 }) *StatusDecorator {
 	return &StatusDecorator{
-		sysd: systemd.New(systemd.SystemMode, rep),
+		sysd:           systemd.New(systemd.SystemMode, rep),
+		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
 	}
 }
 
@@ -228,10 +230,14 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		// nothing to do
 		return nil
 	}
-	if snapApp.DaemonScope != snap.SystemDaemon {
-		// FIXME: the system instance of systemd can't tell us
-		// the state of user daemons, so bail out.
-		return nil
+	var sysd systemd.Systemd
+	switch snapApp.DaemonScope {
+	case snap.SystemDaemon:
+		sysd = sd.sysd
+	case snap.UserDaemon:
+		sysd = sd.globalUserSysd
+	default:
+		return fmt.Errorf("internal error: unknown daemon-scope %q", snapApp.DaemonScope)
 	}
 
 	// collect all services for a single call to systemctl
@@ -255,7 +261,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sd.sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames...)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}

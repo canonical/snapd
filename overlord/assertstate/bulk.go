@@ -33,7 +33,6 @@ import (
 )
 
 const storeGroup = "store assertion"
-const validationSetsGroup = "validation set assertions"
 
 // maxGroups is the maximum number of assertion groups we set with the
 // asserts.Pool used to refresh snap assertions, it corresponds
@@ -166,11 +165,11 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 			}
 		}
 		// every sequence to resolve has own group
-		grouping := atSeq.Unique()
+		group := atSeq.Unique()
 		if vs.LocalOnly {
-			ignoreNotFound[grouping] = true
+			ignoreNotFound[group] = true
 		}
-		if err := pool.AddSequenceToUpdate(atSeq, grouping); err != nil {
+		if err := pool.AddSequenceToUpdate(atSeq, group); err != nil {
 			return err
 		}
 	}
@@ -183,14 +182,19 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 	if rerr, ok := err.(*resolvePoolError); ok {
 		// ignore resolving errors for validation sets that are local only (no
 		// assertion in the store).
-		for grouping := range ignoreNotFound {
-			if e := rerr.errors[grouping]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
-				delete(rerr.errors, grouping)
+		for group := range ignoreNotFound {
+			if e := rerr.errors[group]; asserts.IsNotFound(e) || e == asserts.ErrUnresolved {
+				delete(rerr.errors, group)
 			}
 		}
 		if len(rerr.errors) == 0 {
 			return nil
 		}
+	}
+
+	// no fallback for validation-sets, report inner error.
+	if ferr, ok := err.(*bulkAssertionFallbackError); ok {
+		err = ferr.err
 	}
 
 	return fmt.Errorf("cannot refresh validation set assertions: %v", err)

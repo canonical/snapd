@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -34,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -444,33 +442,6 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 
 	c.Check(err, check.IsNil)
 	c.Check(user, check.DeepEquals, expectedUser)
-}
-
-func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
-	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
-	var calledFlags snapstate.Flags
-
-	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		calledFlags = flags
-
-		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), nil
-	}
-
-	d := s.daemon(c)
-	inst := &snapInstruction{
-		Action:   "install",
-		LeaveOld: true,
-	}
-
-	st := d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	_, _, err := inst.dispatch()(inst, st)
-	c.Assert(err, check.IsNil)
-
-	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{})
-	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 )
 
 type svcStatus struct {
@@ -141,7 +142,9 @@ func (s *svcStatus) Execute(args []string) error {
 			startup = i18n.G("enabled")
 		}
 		current := i18n.G("inactive")
-		if svc.Active {
+		if svc.DaemonScope == snap.UserDaemon {
+			current = "-"
+		} else if svc.Active {
 			current = i18n.G("active")
 		}
 		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))

@@ -355,7 +355,6 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return nil
 	}
 
-	// XXX: do we need one-by-one fetch fallback?
 	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
 }
 
@@ -407,25 +406,28 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		atSeq.Revision = asserts.RevisionNotKnown
 	}
 
-	// not pinned or not found locally, fetch
+	// resolve if not found locally, otherwise add for update
 	if as == nil {
-		if err := pool.AddUnresolvedSequence(atSeq, validationSetsGroup); err != nil {
+		if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
 			return nil, false, err
 		}
 	} else {
 		atSeq.Sequence = as.Sequence()
 		// found locally, try to update
 		atSeq.Revision = as.Revision()
-		if err := pool.AddSequenceToUpdate(atSeq, validationSetsGroup); err != nil {
+		if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
 			return nil, false, err
 		}
 	}
 
 	if err := resolvePool(st, pool, userID, deviceCtx); err != nil {
-		if pinned && as != nil {
-			// fallback: support the scenario of local assertion (snap ack)
-			// not available in the store.
-			return as, true, nil
+		rerr, ok := err.(*resolvePoolError)
+		if ok && pinned && as != nil {
+			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {
+				// fallback: support the scenario of local assertion (snap ack)
+				// not available in the store.
+				return as, true, nil
+			}
 		}
 		return nil, false, err
 	}
