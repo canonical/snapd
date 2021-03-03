@@ -22,6 +22,7 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
@@ -167,12 +168,6 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		return nil
 	}
 
-	isGadgetUpdate := old.RootDir != new.RootDir
-	isKernelUpdate := old.KernelRootDir != new.KernelRootDir
-	if isGadgetUpdate && isKernelUpdate {
-		return fmt.Errorf("internal error: cannot update gadget and kernel at the same time")
-	}
-
 	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
 	if err != nil {
 		return err
@@ -189,20 +184,16 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
-	// Layout new volume, for gadget delay resolving of filesystem
-	// content (see rule 2 above) but kernel must resolve everything
+	// Layout new volume, delay resolving of filesystem content
 	constraints := defaultConstraints
-	if isGadgetUpdate {
-		constraints.SkipResolveContent = true
-	}
+	constraints.SkipResolveContent = true
 	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
-	if isKernelUpdate {
-		if err := checkVolumetHasAllKernelRefs(pNew, new.KernelRootDir); err != nil {
-			return err
-		}
+	// ensure all required kernel assets are found in the gadget
+	if err := checkVolumetHasAllKernelRefs(pNew, new.KernelRootDir); err != nil {
+		return err
 	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {
@@ -212,8 +203,13 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if updatePolicy == nil {
 		updatePolicy = defaultPolicy
 	}
+
+	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
+	if err != nil {
+		return err
+	}
 	// now we know which structure is which, find which ones need an update
-	updates, err := resolveUpdate(pOld, pNew, updatePolicy)
+	updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
 	if err != nil {
 		return err
 	}
@@ -226,23 +222,6 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	for _, update := range updates {
 		if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
 			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
-		}
-	}
-
-	if isGadgetUpdate {
-		// XXX: move this into a helper
-		//
-		// resolve only the kernel content that is needed for the update
-		kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
-		if err != nil {
-			return err
-		}
-		for _, update := range updates {
-			resolvedContent, err := resolveVolumeContent(new.RootDir, new.KernelRootDir, kernelInfo, update.to)
-			if err != nil {
-				return err
-			}
-			update.to.ResolvedContent = resolvedContent
 		}
 	}
 
@@ -388,8 +367,11 @@ func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilte
 // But any non-kernel assets need to be ignored, they will be handled by
 // the regular gadget->gadget update mechanism and policy.
 func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	for _, rn := range to.ResolvedContent {
-		if rn.KernelUpdate {
+	// The policy function has to work on unresolved content, the
+	// returned filter will make sure that after resolving only the
+	// relevant $kernel:refs are updated.
+	for _, ct := range to.Content {
+		if strings.HasPrefix(ct.UnresolvedSource, "$kernel:") {
 			return true, func(rn *ResolvedContent) bool {
 				return rn.KernelUpdate
 			}
@@ -399,17 +381,26 @@ func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilter
 	return false, nil
 }
 
-func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
+func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc, newGadgetRootDir, newKernelRootDir string, kernelInfo *kernel.Info) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
 	for j, oldStruct := range oldVol.LaidOutStructure {
 		newStruct := newVol.LaidOutStructure[j]
-		// update only when new edition is higher than the old one; boot
-		// assets are assumed to be backwards compatible, once deployed
-		// are not rolled back or replaced unless a higher edition is
-		// available
+		// update only when the policy says so; boot assets
+		// are assumed to be backwards compatible, once
+		// deployed are not rolled back or replaced unless
+		// told by the new policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
+
+			// always ensure content is resolved at this point
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct)
+			if err != nil {
+				return nil, err
+			}
+			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
+
+			// and add to updates
 			updates = append(updates, updatePair{
 				from: &oldVol.LaidOutStructure[j],
 				to:   &newVol.LaidOutStructure[j],

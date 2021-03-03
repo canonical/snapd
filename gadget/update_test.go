@@ -1596,38 +1596,37 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 	}{
 		// trivial
 		{
-			from:   &gadget.LaidOutStructure{},
-			to:     &gadget.LaidOutStructure{},
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{},
+			},
 			update: false,
 		},
 		// gadget content only, nothing for the kernel
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{ResolvedSource: "something"},
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{UnresolvedSource: "something"},
+					},
 				},
 			},
-			update: false,
 		},
 		// ensure that only the `KernelUpdate` of the `to`
 		// structure is relevant
 		{
 			from: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   true,
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
 					},
 				},
 			},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   false,
-					},
-				},
+				VolumeStructure: &gadget.VolumeStructure{},
 			},
 			update: false,
 		},
@@ -1635,13 +1634,14 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "other",
-					},
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   true,
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "other",
+						},
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
 					},
 				},
 			},
@@ -1650,10 +1650,10 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 	} {
 		needsUpdate, filter := gadget.KernelUpdatePolicy(tc.from, tc.to)
 		if tc.update {
-			c.Check(needsUpdate, Equals, true)
+			c.Check(needsUpdate, Equals, true, Commentf("%v", tc))
 			c.Check(filter, NotNil)
 		} else {
-			c.Check(needsUpdate, Equals, false)
+			c.Check(needsUpdate, Equals, false, Commentf("%v", tc))
 			c.Check(filter, IsNil)
 		}
 	}
@@ -1662,12 +1662,22 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	from := &gadget.LaidOutStructure{}
 	to := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Content: []gadget.VolumeContent{
+				{
+					UnresolvedSource: "other",
+				},
+				{
+					UnresolvedSource: "$kernel:ref",
+				},
+			},
+		},
 		ResolvedContent: []gadget.ResolvedContent{
 			{
-				ResolvedSource: "other",
+				ResolvedSource: "/gadget/path/to/other",
 			},
 			{
-				ResolvedSource: "kernel-ref",
+				ResolvedSource: "/kernel/path/to/ref",
 				KernelUpdate:   true,
 			},
 		},
@@ -1677,26 +1687,6 @@ func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	c.Assert(filter, NotNil)
 	c.Check(filter(&to.ResolvedContent[0]), Equals, false)
 	c.Check(filter(&to.ResolvedContent[1]), Equals, true)
-}
-
-func (u *updateTestSuite) TestUpdateApplyUpdatesNewKernelAndGadgetErrors(c *C) {
-	info := &gadget.Info{
-		Volumes: map[string]*gadget.Volume{
-			"foo": {},
-		},
-	}
-
-	oldRootDir := c.MkDir()
-	oldKernelDir := c.MkDir()
-	oldData := gadget.GadgetData{Info: info, RootDir: oldRootDir, KernelRootDir: oldKernelDir}
-
-	newRootDir := c.MkDir()
-	newKernelDir := c.MkDir()
-	newData := gadget.GadgetData{Info: info, RootDir: newRootDir, KernelRootDir: newKernelDir}
-
-	// ensure upgrading both kernel and
-	err := gadget.Update(oldData, newData, "", nil, nil)
-	c.Assert(err, ErrorMatches, `internal error: cannot update gadget and kernel at the same time`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
