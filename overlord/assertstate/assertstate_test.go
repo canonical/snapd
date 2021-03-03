@@ -2159,8 +2159,16 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 
 	s.setModel(sysdb.GenericClassicModel())
 
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
 	tr := assertstate.ValidationSetTracking{
-		AccountID: "foo",
+		AccountID: s.dev1Acct.AccountID(),
 		Name:      "bar",
 		Mode:      assertstate.Monitor,
 		Current:   1,
@@ -2181,13 +2189,14 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(err, IsNil)
 
 	// store key already present
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "1")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
 
@@ -2210,11 +2219,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+	c.Check(a.Revision(), Equals, 2)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
-		{"account", "account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// sequence changed in the store to 4
@@ -2236,8 +2244,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is available in the db
@@ -2267,6 +2274,9 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
+	vsetAs1 := s.validationSetAssert(c, "bar", "2", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
@@ -2291,10 +2301,11 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
+	c.Check(a.Revision(), Equals, 5)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// sequence changed in the store to 7
@@ -2307,8 +2318,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
-		{"validation-set"},
-		{"account-key"},
+		{"account", "account-key", "validation-set"},
 	})
 
 	// new sequence is available in the db
