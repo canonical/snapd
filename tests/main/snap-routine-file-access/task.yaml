@@ -1,5 +1,5 @@
 summary: The file-access command provides information about access to file paths
-description: |
+details: |
     The "snap routine file-access" command is intended to be a helper for
     xdg-document-portal.  When xdg-document-portal is asked to make a
     file available to a snap, we would like to avoid proxying files

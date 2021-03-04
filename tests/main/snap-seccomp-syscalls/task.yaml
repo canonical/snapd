@@ -1,6 +1,6 @@
 summary: Ensure that we accounted for all syscalls known to libseccomp
 
-description: |
+details: |
   The snap-seccomp tool maintains a list of all syscalls supported by
   libseccomp. The test ensures that we catch when the internal list is not in
   sync with upstream anymore, and thus an update is needed. See

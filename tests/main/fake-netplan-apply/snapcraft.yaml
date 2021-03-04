@@ -2,7 +2,7 @@ name: test-snapd-netplan-apply
 base: core18
 adopt-info: netplan
 summary: Backend-agnostic network configuration in YAML
-description: |
+details: |
   Netplan is a utility for easily configuring networking on a linux system.
   You simply create a YAML description of the required network interfaces and
   what each should be configured to do. From this description Netplan will
