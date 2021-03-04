@@ -34,7 +34,7 @@ prepare: |
         file: basic18.snap
     EOF
 
-    echo "Copy the needed assertions to /var/lib/snapd/""
+    echo "Copy the needed assertions to /var/lib/snapd/"
     cp core_*.assert "$SEED_DIR/assertions"
 
     echo "Copy the needed snaps to $SEED_DIR/snaps"
