@@ -383,6 +383,8 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 		// compatibility for systems where good recovery systems list
 		// has not been populated yet
 		testedRecoverySystems = modeenv.CurrentRecoverySystems[:1]
+		logger.Noticef("no good recovery systems for reseal, fallback to known current system %v",
+			testedRecoverySystems[0])
 	}
 	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, tbl, model, modeenv)
 	if err != nil {
