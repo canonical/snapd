@@ -1281,7 +1281,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	if refreshAll && len(tasksets) == 0 {
 		for _, err := range updateErrs {
 			if _, ok := err.(*ChangeConflictError); ok {
-				return nil, nil, &ChangeConflictError{ChangeKind: "refresh", Message: "auto-refresh has conflicting changes in progress"}
+				return nil, nil, &ChangeConflictError{Message: "auto-refresh has conflicting changes in progress"}
 			}
 		}
 	}
