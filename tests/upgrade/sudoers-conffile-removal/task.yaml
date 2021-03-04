@@ -10,10 +10,7 @@ description: |
 systems: [ubuntu-20.04-64]
 
 execute: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
-    echo "download snapd 2.37.4"
+    echo "download snapd 2.45.1"
     wget https://launchpad.net/ubuntu/+source/snapd/2.45.1/+build/19499801/+files/snapd_2.45.1_amd64.deb
     apt install -y --allow-downgrades ./snapd_2.45*_amd64.deb
 
