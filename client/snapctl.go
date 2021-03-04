@@ -62,15 +62,22 @@ type snapctlOutput struct {
 	Stderr string `json:"stderr"`
 }
 
+// protect against too much data via stdin
+var stdinReadLimit = int64(4 * 1000 * 1000)
+
 // RunSnapctl requests a snapctl run for the given options.
 func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
 	// TODO: instead of reading all of stdin here we need to forward it to
 	//       the daemon eventually
 	var stdinData []byte
 	if stdin != nil {
-		stdinData, err = ioutil.ReadAll(stdin)
+		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit}
+		stdinData, err = ioutil.ReadAll(limitedStdin)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
+		}
+		if limitedStdin.N <= 0 {
+			return nil, nil, fmt.Errorf("cannot read more than %v bytes of data from stdin", stdinReadLimit-1)
 		}
 	}
 

@@ -82,3 +82,24 @@ func (cs *clientSuite) TestInternalSnapctlCmdNeedsStdin(c *check.C) {
 		c.Check(res, check.Equals, false)
 	}
 }
+
+func (cs *clientSuite) TestClientRunSnapctlReadLimit(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+        "status-code": 200,
+		"result": {
+		}
+	}`
+
+	restore := client.MockStdinReadLimit(11)
+	defer restore()
+
+	mockStdin := bytes.NewBufferString("12345678901")
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
+	}
+
+	_, _, err := cs.cli.RunSnapctl(options, mockStdin)
+	c.Check(err, check.ErrorMatches, "cannot read more than 10 bytes of data from stdin")
+}
