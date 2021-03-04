@@ -6,9 +6,16 @@ details: |
 environment:
     NETPLAN: io.netplan.Netplan
 
-# only run on ubuntu lts's which match ubuntu core series, we don't run this on
-# core since there we can't setup the fake dbus service, but we have a core
-# specific spread test in tests/core/netplan which uses the real netplan
+# Only run on ubuntu lts's which match ubuntu core series
+# We don't run this test on core since there we can't setup the fake dbus
+# service there, but we have a core specific spread test in tests/core/netplan
+# which uses the real netplan. That test also tests the full support matrix of
+# all versions of the client netplan library from all base snaps against all
+# "boot base snap" (or host) versions of netplan that run outside confinement on
+# a real Ubuntu Core system. As such, this test only concerns itself with
+# testing a particular netplan client library version via the specific base snap
+# matching the classic system, against the fake service we setup (which will be
+# the same for all spread systems).
 systems:
     - ubuntu-16.04*
     - ubuntu-18.04*
