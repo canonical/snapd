@@ -109,7 +109,6 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentKernels:         []string{},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
@@ -160,9 +159,18 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825", "1234",
-	})
+	c.Check(modeenvRead.DeepEqual(&boot.Modeenv{
+		Mode: "run",
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"20200825", "1234"},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+	}), Equals, true)
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
@@ -194,9 +202,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825", "1234",
-	})
+	c.Check(modeenvRead.DeepEqual(&boot.Modeenv{
+		Mode: "run",
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"20200825", "1234"},
+	}), Equals, true)
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
@@ -245,9 +255,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825",
-	})
+	// modeenv is unchanged
+	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) {
@@ -265,7 +274,6 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentKernels:         []string{},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
@@ -340,10 +348,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	// modeenv is back to normal
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825",
-	})
+	// modeenv is unchanged
+	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -369,7 +375,6 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentKernels:         []string{},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
@@ -449,10 +454,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	// modeenv is back to normal
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825",
-	})
+	// modeenv is unchanged
+	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -478,7 +481,6 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentKernels:         []string{},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
@@ -546,10 +548,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	// modeenv is back to normal
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825",
-	})
+	// modeenv is unchanged
+	c.Check(modeenvRead.DeepEqual(modeenv), Equals, true)
 	// bootloader variables have been cleared regardless of reseal failing
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
