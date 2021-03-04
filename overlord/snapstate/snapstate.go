@@ -1230,7 +1230,6 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if refreshAll {
-				// XXX: should this be a map instead?
 				updateErrs = append(updateErrs, err)
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.InstanceName(), err)
@@ -1276,12 +1275,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		updated = append(updated, name)
 	}
 
-	// Report a useful error if nothing can be updated and we have at
-	// least one auto-refresh change in progress.
+	// Report a useful error for auto-refresh if nothing can be
+	// updated and we have at least one conflicting change in
+	// progress.
 	if refreshAll && len(tasksets) == 0 {
 		for _, err := range updateErrs {
 			if _, ok := err.(*ChangeConflictError); ok {
-				return nil, nil, fmt.Errorf("auto-refresh has conflicting changes in progress")
+				return nil, nil, &ChangeConflictError{ChangeKind: "refresh", Message: "auto-refresh has conflicting changes in progress"}
 			}
 		}
 	}
