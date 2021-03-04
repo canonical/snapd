@@ -37,8 +37,6 @@ prepare: |
 
 restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    rm -f doc-portal.log
-    rm -f report-error.txt
     tests.session -u test restore
 
 execute: |
