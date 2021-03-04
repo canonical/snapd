@@ -570,6 +570,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
+                gperf
                 evolution-data-server
                 fwupd
                 packagekit
