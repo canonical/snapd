@@ -590,6 +590,12 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
+        ubuntu-21.04-64)
+            echo "
+                dbus-user-session
+                qemu-utils
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
@@ -697,17 +703,21 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        bash-completion
         clang
         curl
+        dbus-1-python3
         evolution-data-server
         expect
         fontconfig
         fwupd
         git
         golang-packaging
+        iptables
         jq
         lsb-release
         man
+        man-pages
         nfs-kernel-server
         PackageKit
         python3-yaml

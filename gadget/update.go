@@ -37,7 +37,6 @@ var (
 	// default positioning constraints that match ubuntu-image
 	defaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 )
 
@@ -56,8 +55,8 @@ type GadgetData struct {
 // UpdatePolicyFunc is a callback that evaluates the provided pair of
 // structures and returns true when the pair should be part of an
 // update. It may also return a filter function for the resolved
-// content when not all part of the content should be applied
-// (e.g. when updating assets from the kernel snap).
+// content when not all of the content should be applied as part of
+//  the update (e.g. when updating assets from the kernel snap).
 type UpdatePolicyFunc func(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc)
 
 // ResolvedContentFilterFunc is a callback that evaluates the given

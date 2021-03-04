@@ -100,7 +100,7 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return nil
 	}
 
-	fmt.Fprintf(w, i18n.G("Label\tBrand\tModel\tNotes\n"))
+	fmt.Fprintf(w, i18n.G("Label\tBrand%s\tModel\tNotes\n"), fillerPublisher(esc))
 	for _, sys := range systems {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{

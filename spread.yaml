@@ -3,6 +3,9 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
+    # TODO: some distros started shipping Go 1.16 which defaults to having
+    # modules enabled, drop this when snapd starts supporting Go modules
+    GO111MODULE: off
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -37,7 +40,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.48
+    DELTA_REF: 2.49
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -553,7 +556,8 @@ prepare: |
     fi
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
         # refresh metadatadata
-        zypper ref
+        # Auto import gpg keys needed for could repository added to support google backend
+        zypper --gpg-auto-import-keys ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.

@@ -37,8 +37,6 @@ type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
-	// SectorSize is the size of the sector to be used for calculations
-	SectorSize quantity.Size
 	// SkipResolveContent will skip resolving content paths
 	// and `$kernel:` style references
 	SkipResolveContent bool
@@ -50,8 +48,6 @@ type LaidOutVolume struct {
 	*Volume
 	// Size is the total size of the volume
 	Size quantity.Size
-	// SectorSize sector size of the volume
-	SectorSize quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -63,8 +59,6 @@ type LaidOutVolume struct {
 // details about the layout of raw image content within the bare structures.
 type PartiallyLaidOutVolume struct {
 	*Volume
-	// SectorSize sector size of the volume
-	SectorSize quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -87,6 +81,13 @@ type LaidOutStructure struct {
 	// ResolvedContent is a list of filesystem content that has all
 	// relative paths or references resolved
 	ResolvedContent []ResolvedContent
+}
+
+// IsRoleMBR returns whether a structure's role is MBR or not.
+// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
+// constant exported
+func IsRoleMBR(ls LaidOutStructure) bool {
+	return ls.Role == schemaMBR
 }
 
 func (p LaidOutStructure) String() string {
@@ -142,10 +143,6 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
-	if constraints.SectorSize == 0 {
-		return nil, nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
-	}
-
 	for idx, s := range volume.Structure {
 		var start quantity.Offset
 		if s.Offset == nil {
@@ -163,13 +160,6 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			VolumeStructure: &volume.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
-		}
-
-		if ps.Role != schemaMBR {
-			if s.Size%constraints.SectorSize != 0 {
-				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
-					ps, constraints.SectorSize)
-			}
 		}
 
 		if ps.Name != "" {
@@ -207,9 +197,9 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 	if err != nil {
 		return nil, err
 	}
+
 	vol := &PartiallyLaidOutVolume{
 		Volume:           volume,
-		SectorSize:       constraints.SectorSize,
 		LaidOutStructure: structures,
 	}
 	return vol, nil
@@ -283,7 +273,6 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 	vol := &LaidOutVolume{
 		Volume:           volume,
 		Size:             volumeSize,
-		SectorSize:       constraints.SectorSize,
 		LaidOutStructure: structures,
 		RootDir:          gadgetRootDir,
 	}
@@ -318,7 +307,8 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 // resolveContentPathOrRef resolves the relative path from gadget
 // assets and any "$kernel:" references from "pathOrRef" using the
 // provided gadget/kernel directories and the kernel info. It returns
-// an absolute path or an error.
+// an absolute path, a flag indicating whether the content is part of
+// a kernel update, or an error.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (resolved string, kupdate bool, err error) {
 
 	// TODO: add kernelRootDir == "" error too once all the higher
@@ -488,7 +478,7 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	}
 
 	// XXX: the code below asssumes both volumes have the same number of
-	// structures, this limitation may be lifter later
+	// structures, this limitation may be lifted later
 	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
 			len(current.LaidOutStructure), len(new.LaidOutStructure))
