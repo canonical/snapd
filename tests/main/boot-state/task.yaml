@@ -65,20 +65,20 @@ execute: |
     "$TESTSTOOLS"/boot-state bootenv unset snap_test_2
     "$TESTSTOOLS"/boot-state bootenv show | NOMATCH 'snap_test_2='
 
-    echo "check an inexistent var can be unset in bootenv"
+    echo "Check an inexistent var can be unset in bootenv"
     "$TESTSTOOLS"/boot-state bootenv unset snap_boot_no_exist
 
     echo "Check that the wait-core-post-boot command finishes inmediatly"
     "$TESTSTOOLS"/boot-state wait-core-post-boot
     # TODO: Test the scenario when the core reaches the timeout running wait-core-post-boot
 
-    echo "Check bootenv shows an error message if not subcommand is used"
+    echo "Check bootenv shows an error message if no subcommand is used"
     "$TESTSTOOLS"/boot-state bootenv 2>&1 | MATCH "boot-state: unsupported bootenv sub-command"
     "$TESTSTOOLS"/boot-state bootenv noexist 2>&1 | MATCH "boot-state: unsupported bootenv sub-command noexist"
 
-    echo "Check the bootenv set command shows an error message if variable and value are not used"
+    echo "Check the bootenv set command shows an error message if variable and value are missing"
     "$TESTSTOOLS"/boot-state bootenv set 2>&1 | MATCH "boot-state: variable and value required to set in bootenv"
     "$TESTSTOOLS"/boot-state bootenv set justvar 2>&1 | MATCH "boot-state: variable and value required to set in bootenv"
 
-    echo "Check the bootenv unset command shows an error message if a variable is not used"
+    echo "Check the bootenv unset command shows an error message if a variable is missing"
     "$TESTSTOOLS"/boot-state bootenv unset 2>&1 | MATCH "boot-state: variable required to unset from bootenv"
