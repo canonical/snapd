@@ -47,7 +47,7 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && [ "$NESTED_ENABLE_TPM" != "true" ]; then
-        echo "Check that ubuntu-save is not mounted""
+        echo "Check that ubuntu-save is not mounted"
         nested_exec "! mountpoint /run/mnt/ubuntu-save"
         nested_exec "! mountpoint /var/lib/snapd/save"
     else
