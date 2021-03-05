@@ -49,6 +49,9 @@ func init() {
 	// store-certs.*
 	addWithStateHandler(validateCertSettings, handleCertConfiguration, nil)
 
+	// users.create.automatic
+	addWithStateHandler(validateUsersSettings, handleUserSettings, &flags{earlyConfigFilter: earlyUsersSettingsFilter})
+
 	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)

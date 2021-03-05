@@ -8,7 +8,7 @@ restore: |
 
 execute: |
     if [ "$(snap debug confinement)" != "strict" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        if os.query is-ubuntu; then
             echo "all ubuntu systems must have strict confinement"
             exit 1
         fi

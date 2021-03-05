@@ -88,7 +88,7 @@ is_opensuse() {
 }
 
 is_opensuse_tumbleweed() {
-    grep -qFx 'ID="opensuse-tumbleweed"'
+    grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
 }
 
 is_pc_amd64() {

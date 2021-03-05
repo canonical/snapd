@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -327,6 +328,22 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		}
 	}
 	if createData.Automatic {
+		var enabled bool
+		st.Lock()
+		tr := config.NewTransaction(st)
+		err := tr.Get("core", "users.create.automatic", &enabled)
+		st.Unlock()
+		if err != nil {
+			if !config.IsNoOption(err) {
+				return InternalError("%v", err)
+			}
+			// defaults to enabled
+			enabled = true
+		}
+		if !enabled {
+			// disabled, do nothing
+			return SyncResponse([]userResponseData{}, nil)
+		}
 		// Automatic implies known/sudoers
 		createData.Known = true
 		createData.Sudoer = true

@@ -562,3 +562,38 @@ defaults:
 	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 }
+
+func (s *firstBoot20Suite) TestUsersCreateAutomaticIsAvailableEarly(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	defaultsGadgetYaml := `
+defaults:
+   system:
+      users:
+        create.automatic: false
+`
+
+	s.earlySetup(c, &m, "signed", defaultsGadgetYaml)
+
+	// create a new overlord and pick up the modeenv
+	// this overlord will use the proper EarlyConfig implementation
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
+	c.Assert(o.StartUp(), IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// early config in StartUp made the option available already
+	tr := config.NewTransaction(st)
+	var enabled bool
+	err = tr.Get("core", "users.create.automatic", &enabled)
+	c.Assert(err, IsNil)
+	c.Check(enabled, Equals, false)
+}
