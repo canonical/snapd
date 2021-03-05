@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -101,6 +101,48 @@ func (s *batchSuite) TestAddStream(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *batchSuite) TestCommitToAndObserve(c *C) {
+	b := &bytes.Buffer{}
+	enc := asserts.NewEncoder(b)
+	// wrong order is ok
+	err := enc.Encode(s.dev1Acct)
+	c.Assert(err, IsNil)
+	enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := asserts.NewBatch(nil)
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, DeepEquals, []*asserts.Ref{
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
+	})
+
+	// noop
+	err = batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	var seen []*asserts.Ref
+	obs := func(verified asserts.Assertion) {
+		seen = append(seen, verified.Ref())
+	}
+	err = batch.CommitToAndObserve(s.db, obs, nil)
+	c.Assert(err, IsNil)
+
+	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+
+	// this is the order they needed to be added
+	c.Check(seen, DeepEquals, []*asserts.Ref{
+
+		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+	})
 }
 
 func (s *batchSuite) TestAddEmptyStream(c *C) {
