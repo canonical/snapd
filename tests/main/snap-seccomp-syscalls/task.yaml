@@ -29,5 +29,5 @@ execute: |
     echo "Grab the list snap-seccomp knows about"
     go run listcalls.go > syscalls.known
 
-    echo "Check that both lists should be identical, otherwise we need an update in snap-seccomp"
+    echo "Check that both lists are identical, otherwise we need an update in snap-seccomp"
     diff -up syscalls.uniq syscalls.known
