@@ -2,7 +2,7 @@ name: test-snapd-upower
 base: core
 version: 0.99.4-3
 summary: snapd upower test snap
-details: |
+description: |
   Originally adapted from https://code.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/upower
 confinement: strict
 grade: stable
