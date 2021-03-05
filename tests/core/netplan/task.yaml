@@ -6,21 +6,12 @@ details: |
 environment:
     NETPLAN: io.netplan.Netplan
 
-# TODO:UC20: enable, fails right now with: "The permission of the
-#            setuid helper is not correct", the issue is with the permissions of
-#            /usr/lib/dbus-1.0/dbus-daemon-launch-helper - it shows up as not
-#            being in the right group because the /etc/group from the classic
-#            host that we use to prepare the core system has a different group
-#            defined for gid 103 (which on core is messagebus, but on classic is
-#            systemd-network), and thus the dbus daemon thinks it has the wrong
-#            permissions (well basically speaking it does)
-
 # TODO: re-enable this on ubuntu-core-16-* when network-setup-control is updated
 # to allow running netplan directly from the base snap and we can update this
 # test to just using a simple shell script snap instead of building netplan from
 # source, as currently that is broken on xenial with test-snapd-netplan-apply
 # for some reason, see https://github.com/anonymouse64/test-snapd-netplan-apply/issues/1
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 prepare: |
     snap install test-snapd-netplan-apply --edge
