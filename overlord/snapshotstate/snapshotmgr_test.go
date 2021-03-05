@@ -581,6 +581,48 @@ func (rs *readerSuite) TestDoRestore(c *check.C) {
 	c.Check(v, check.DeepEquals, map[string]interface{}{"config": map[string]interface{}{"old": "conf"}})
 }
 
+func (rs *readerSuite) TestDoRestoreNoConfig(c *check.C) {
+	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
+		rs.calls = append(rs.calls, "get config")
+		c.Check(snapname, check.Equals, "a-snap")
+		// simulate old config
+		raw := json.RawMessage(`{"foo": "bar"}`)
+		return &raw, nil
+	})()
+	defer snapshotstate.MockBackendOpen(func(filename string, setID uint64) (*backend.Reader, error) {
+		rs.calls = append(rs.calls, "open")
+		// set id 0 tells backend.Open to use set id from the filename
+		c.Check(setID, check.Equals, uint64(0))
+		c.Check(filename, check.Equals, "/some/1_file.zip")
+		return &backend.Reader{
+			// snapshot has no configuration to restore
+			Snapshot: client.Snapshot{Snap: "a-snap", Conf: nil},
+		}, nil
+	})()
+	defer snapshotstate.MockBackendRestore(func(_ *backend.Reader, _ context.Context, _ snap.Revision, users []string, _ backend.Logf) (*backend.RestoreState, error) {
+		rs.calls = append(rs.calls, "restore")
+		c.Check(users, check.DeepEquals, []string{"a-user", "b-user"})
+		return &backend.RestoreState{}, nil
+	})()
+	defer snapshotstate.MockConfigSetSnapConfig(func(_ *state.State, snapname string, conf *json.RawMessage) error {
+		rs.calls = append(rs.calls, "set config")
+		c.Check(snapname, check.Equals, "a-snap")
+		c.Check(conf, check.IsNil)
+		return nil
+	})()
+
+	st := rs.task.State()
+	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	c.Check(rs.calls, check.DeepEquals, []string{"get config", "open", "restore", "set config"})
+
+	st.Lock()
+	defer st.Unlock()
+	var v map[string]interface{}
+	rs.task.Get("restore-state", &v)
+	c.Check(v, check.DeepEquals, map[string]interface{}{"config": map[string]interface{}{"foo": "bar"}})
+}
+
 func (rs *readerSuite) TestDoRestoreFailsNoTaskSnapshot(c *check.C) {
 	rs.task.State().Lock()
 	rs.task.Clear("snapshot-setup")
@@ -662,6 +704,30 @@ func (rs *readerSuite) TestDoRestoreFailsAndRevertsOnSetConfigError(c *check.C) 
 }
 
 func (rs *readerSuite) TestUndoRestore(c *check.C) {
+	defer snapshotstate.MockConfigSetSnapConfig(func(st *state.State, snapName string, raw *json.RawMessage) error {
+		rs.calls = append(rs.calls, "set config")
+		c.Check(string(*raw), check.Equals, `{"foo":"bar"}`)
+		return nil
+	})()
+
+	st := rs.task.State()
+	st.Lock()
+	v := map[string]interface{}{"config": map[string]interface{}{"foo": "bar"}}
+	rs.task.Set("restore-state", &v)
+	st.Unlock()
+
+	err := snapshotstate.UndoRestore(rs.task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	c.Check(rs.calls, check.DeepEquals, []string{"set config", "revert"})
+}
+
+func (rs *readerSuite) TestUndoRestoreNoConfig(c *check.C) {
+	defer snapshotstate.MockConfigSetSnapConfig(func(st *state.State, snapName string, raw *json.RawMessage) error {
+		rs.calls = append(rs.calls, "set config")
+		c.Check(raw, check.IsNil)
+		return nil
+	})()
+
 	st := rs.task.State()
 	st.Lock()
 	var v map[string]interface{}
