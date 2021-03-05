@@ -139,6 +139,11 @@ type envVariant interface {
 	// partitions. The boot image matrix is used for various recovery system
 	// methods such as FindFreeRecoverySystemBootPartition(), etc.
 	bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error)
+
+	// dtboImgKernelMatrix returns the dtbo to boot partition maping from the
+	// relavant environment. The dtbo to boot image matrix is used for the
+	// mapping of the correct dtbo partition for used boot image partition.
+	dtboImgKernelMatrix() (bootimgMatrixGeneric, error)
 }
 
 var (

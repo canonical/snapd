@@ -196,6 +196,10 @@ func (v2recovery *SnapBootSelect_v2_recovery) bootImgRecoverySystemMatrix() (boo
 	return (bootimgMatrixGeneric)((&v2recovery.Bootimg_matrix)[:]), nil
 }
 
+func (v2recovery *SnapBootSelect_v2_recovery) dtboImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v2recovery.Bootimg_to_dtboimg_matrix)[:]), nil
+}
+
 func (v2recovery *SnapBootSelect_v2_recovery) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
 	return nil, fmt.Errorf("internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 }
@@ -364,6 +368,10 @@ func (v2run *SnapBootSelect_v2_run) set(key, value string) {
 
 func (v2run *SnapBootSelect_v2_run) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
 	return (bootimgMatrixGeneric)((&v2run.Bootimg_matrix)[:]), nil
+}
+
+func (v2run *SnapBootSelect_v2_run) dtboImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v2run.Bootimg_to_dtboimg_matrix)[:]), nil
 }
 
 func (v2run *SnapBootSelect_v2_run) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {

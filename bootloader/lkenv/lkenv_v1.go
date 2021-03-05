@@ -216,3 +216,7 @@ func (v1 *SnapBootSelect_v1) bootImgKernelMatrix() (bootimgMatrixGeneric, error)
 func (v1 *SnapBootSelect_v1) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
 	return nil, fmt.Errorf("internal error: v1 lkenv has no boot image partition recovery system matrix")
 }
+
+func (v1 *SnapBootSelect_v1) dtboImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return nil, fmt.Errorf("internal error: v1 lkenv has no dtbo to boot partition matrix")
+}
