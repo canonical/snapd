@@ -422,6 +422,19 @@ func (l *Env) FindFreeKernelBootPartition(kernel string) (string, error) {
 	return matr.findFreeBootPartition(installedKernels, kernel)
 }
 
+// FindDtboPartition finds a dtbo image partition to be used for
+// a dtbo image revision based on used boot image partition.
+// each boot partition has dedicated dtbo partition.
+// This optional feature and return string can be empty for not-supported
+func (l *Env) FindDtboPartition(bootPartition string) (string, error) {
+	matr, err := l.variant.dtboImgKernelMatrix()
+	if err != nil {
+		return "", err
+	}
+
+	return matr.getBootPartWithValue(bootPartition)
+}
+
 // GetKernelBootPartition returns the first found boot image partition label
 // that contains a reference to the given kernel revision. If the revision was
 // not found, a non-nil error is returned.
@@ -528,6 +541,12 @@ func (l *Env) GetBootImageName() string {
 		return fn
 	}
 	return BOOTIMG_DEFAULT_NAME
+}
+
+// GetDtboImageName return expected boot image file name in kernel snap. If
+// unset, it will return empty string as dtbo is not in use
+func (l *Env) GetDtboImageName() string {
+	return l.Get("dtboimg_file_name")
 }
 
 // common matrix helper methods which operate on the boot image matrix, which is
