@@ -369,8 +369,8 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 		return fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
 	}
 
-	// the recovery boot chains for run key include all recovery systems,
-	// even those that are being tried
+	// the recovery boot chains for the run key are generated for all
+	// recovery systems, including those that are being tried
 	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
