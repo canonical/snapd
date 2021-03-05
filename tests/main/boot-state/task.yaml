@@ -22,7 +22,7 @@ execute: |
     # ARM devices are not supported on ubuntu-core-18/20 due to fw_printenv/setenv are
     # not provided by the system and as the devices boot with uboot so it is not
     # possible to get any boot information as it is done with non arm devices.
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-arm-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
+    if ( os.query is-core18 || os.query is-core20 ) && os.query is-arm; then
         exit
     fi
 

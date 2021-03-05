@@ -24,10 +24,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -905,4 +907,151 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWor
         role: system-boot
 `
 	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
+}
+
+func (s *deviceMgrGadgetSuite) makeMinimalKernelAssetsUpdateChange(c *C) (chg *state.Change, tsk *state.Task) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	siGadget := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(1),
+		SnapID:   "foo-gadget-id",
+	}
+	gadgetSnapYaml := "name: foo-gadget\nversion: 1.0\ntype: gadget"
+	gadgetYamlContent := `
+volumes:
+  pi:
+    bootloader: grub`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, siGadget, [][]string{
+		{"meta/gadget.yaml", gadgetYamlContent},
+	})
+	s.setupModelWithGadget(c, "foo-gadget")
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siGadget},
+		Current:  siGadget.Revision,
+		Active:   true,
+	})
+
+	snapKernelYaml := "name: pc-kernel\nversion: 1.0\ntype: kernel"
+	siCurrent := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapKernelYaml, siCurrent, nil)
+	siNext := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	snaptest.MockSnapWithFiles(c, snapKernelYaml, siNext, nil)
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Sequence: []*snap.SideInfo{siNext, siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	s.bootloader.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_33.snap",
+	})
+
+	tsk = s.state.NewTask("update-gadget-assets", "update gadget")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: siNext,
+		Type:     snap.TypeKernel,
+	})
+	chg = s.state.NewChange("dummy", "...")
+	chg.AddTask(tsk)
+
+	return chg, tsk
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
+	var updateCalled int
+	var passedRollbackDir string
+
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+		updateCalled++
+		passedRollbackDir = path
+
+		c.Check(strings.HasSuffix(current.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(update.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(current.KernelRootDir, "/snap/pc-kernel/33"), Equals, true)
+		c.Check(strings.HasSuffix(update.KernelRootDir, "/snap/pc-kernel/34"), Equals, true)
+
+		// KernelUpdatePolicy is used
+		c.Check(reflect.ValueOf(policy), DeepEquals, reflect.ValueOf(gadget.UpdatePolicyFunc(gadget.KernelUpdatePolicy)))
+		return nil
+	})
+	defer restore()
+
+	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, 1)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "pc-kernel_34")
+	c.Check(rollbackDir, Equals, passedRollbackDir)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
+	var updateCalled int
+	var passedRollbackDir string
+
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+		updateCalled++
+		passedRollbackDir = path
+
+		c.Check(strings.HasSuffix(current.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(update.RootDir, "/snap/foo-gadget/1"), Equals, true)
+		c.Check(strings.HasSuffix(current.KernelRootDir, "/snap/pc-kernel/33"), Equals, true)
+		c.Check(strings.HasSuffix(update.KernelRootDir, "/snap/pc-kernel/34"), Equals, true)
+
+		// KernelUpdatePolicy is used even when we remodel
+		c.Check(reflect.ValueOf(policy), DeepEquals, reflect.ValueOf(gadget.UpdatePolicyFunc(gadget.KernelUpdatePolicy)))
+		return nil
+	})
+	defer restore()
+
+	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "foo-gadget",
+		"base":         "core18",
+		"revision":     "1",
+	})
+
+	s.state.Lock()
+	// pretend we are remodeling
+	chg.Set("new-model", string(asserts.Encode(newModel)))
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, 1)
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "pc-kernel_34")
+	c.Check(rollbackDir, Equals, passedRollbackDir)
 }
