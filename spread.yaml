@@ -565,6 +565,9 @@ prepare: |
     # added by spread tests
     download.max_silent_tries = 20
     EOF
+
+        # Make sure docs are installed with the packages
+        sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
     fi
 
     if os.query is-arch-linux; then
