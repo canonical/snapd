@@ -62,7 +62,7 @@ type message struct {
 	Element
 
 	GettextDomain string `xml:"gettext-domain,attr"`
-	Language      string `xml:"xml:lang,attr"`
+	Language      string `xml:"lang,attr"` // to match xml:lang
 }
 
 type defaults struct {
