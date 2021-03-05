@@ -169,6 +169,8 @@ func (v2recovery *SnapBootSelect_v2_recovery) get(key string) string {
 		return cToGoString(v2recovery.Snapd_recovery_system[:])
 	case "bootimg_file_name":
 		return cToGoString(v2recovery.Bootimg_file_name[:])
+	case "dtboimg_file_name":
+		return cToGoString(v2recovery.Dtboimg_file_name[:])
 	case "try_recovery_system":
 		return cToGoString(v2recovery.Try_recovery_system[:])
 	case "recovery_system_status":
@@ -185,6 +187,8 @@ func (v2recovery *SnapBootSelect_v2_recovery) set(key, value string) {
 		copyString(v2recovery.Snapd_recovery_system[:], value)
 	case "bootimg_file_name":
 		copyString(v2recovery.Bootimg_file_name[:], value)
+	case "dtboimg_file_name":
+		copyString(v2recovery.Dtboimg_file_name[:], value)
 	case "try_recovery_system":
 		copyString(v2recovery.Try_recovery_system[:], value)
 	case "recovery_system_status":
@@ -345,6 +349,8 @@ func (v2run *SnapBootSelect_v2_run) get(key string) string {
 		return cToGoString(v2run.Snap_try_gadget[:])
 	case "bootimg_file_name":
 		return cToGoString(v2run.Bootimg_file_name[:])
+	case "dtboimg_file_name":
+		return cToGoString(v2run.Dtboimg_file_name[:])
 	}
 	return ""
 }
@@ -363,6 +369,8 @@ func (v2run *SnapBootSelect_v2_run) set(key, value string) {
 		copyString(v2run.Snap_try_gadget[:], value)
 	case "bootimg_file_name":
 		copyString(v2run.Bootimg_file_name[:], value)
+	case "dtboimg_file_name":
+		copyString(v2run.Dtboimg_file_name[:], value)
 	}
 }
 
