@@ -33,7 +33,7 @@ var (
 
 var (
 	// default positioning constraints that match ubuntu-image
-	defaultConstraints = LayoutConstraints{
+	DefaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
 )
@@ -145,13 +145,13 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// layout old partially, without going deep into the layout of structure
 	// content
-	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
+	pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// layout new
-	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, defaultConstraints)
+	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}

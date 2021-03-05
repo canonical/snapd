@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -424,11 +423,8 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 	}
 	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
 
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, constraints)
+		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, gadget.DefaultConstraints)
 		if err != nil {
 			return err
 		}
