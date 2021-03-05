@@ -4,7 +4,7 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    echo "Install snapd.deb in teh nested vm"
+    echo "Install snapd.deb in the nested vm"
     nested_copy "${GOHOME}"/snapd_*.deb
     nested_exec "sudo apt update"
     nested_exec "sudo apt install -y ./snapd_*.deb"
