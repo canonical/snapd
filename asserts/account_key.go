@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,26 @@ func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
 		valid = when.Before(ak.until)
 	}
 	return valid
+}
+
+// isKeyValidAbout returns whether the account key is possibly valid
+// if the current time is known to be within [earliest, latest].
+// If latest is zero, then current time is assumed to be >=earliest.
+func (ak *AccountKey) isKeyValidAbout(earliest, latest time.Time) bool {
+	if !latest.IsZero() {
+		if latest.Before(earliest) {
+			return false
+		}
+		if earliest.Before(ak.since) && latest.Before(ak.since) {
+			return false
+		}
+	}
+	if !ak.until.IsZero() {
+		if earliest.After(ak.until) || earliest.Equal(ak.until) {
+			return false
+		}
+	}
+	return true
 }
 
 // publicKey returns the underlying public key of the account key.

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -588,6 +588,175 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until), Equals, false)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, -1, 0)), Equals, false)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
+}
+
+func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilPunctual(c *C) {
+	// With since and until, i.e. signing account-key expires.
+	// Key is valid over [since, until)
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey := a.(*asserts.AccountKey)
+
+	tests := []struct {
+		timePt time.Time
+		valid  bool
+	}{
+		{aks.since, true},
+		{aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, -2, 0), false},
+		{aks.until, false},
+		{aks.until.AddDate(0, 3, 0), false},
+		{aks.until.AddDate(0, -2, 0), true},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.timePt, t.timePt), Equals, t.valid)
+	}
+}
+
+func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilPunctual(c *C) {
+	// With since and until, i.e. signing account-key expires.
+	// Key is valid for time >= since.
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey := a.(*asserts.AccountKey)
+
+	later := aks.until
+	tests := []struct {
+		timePt time.Time
+		valid  bool
+	}{
+		{aks.since, true},
+		{aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, -2, 0), false},
+		{later, true},
+		{later.AddDate(0, 3, 0), true},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.timePt, t.timePt), Equals, t.valid)
+	}
+}
+
+func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilInterval(c *C) {
+	// With since and until, i.e. signing account-key expires.
+	// Key is valid over [since, until)
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey := a.(*asserts.AccountKey)
+
+	z := time.Time{}
+
+	tests := []struct {
+		earliest time.Time
+		latest   time.Time
+		valid    bool
+	}{
+		{aks.since, aks.until, true},
+		{aks.since, aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, 1, 0), aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, 1, 0), aks.until, true},
+		{aks.until, aks.until.AddDate(0, 3, 0), false},
+		{aks.until.AddDate(0, 2, 0), aks.until.AddDate(0, 3, 0), false},
+		{aks.since.AddDate(0, -1, 0), aks.since, true},
+		{aks.since.AddDate(0, -1, 0), aks.since.AddDate(0, 1, 0), true},
+		{aks.since.AddDate(0, -2, 0), aks.since.AddDate(0, -2, 0), false},
+		{aks.until.AddDate(0, -1, 0), aks.until.AddDate(0, 1, 0), true},
+		{aks.since, z, true},
+		{aks.since.AddDate(0, 1, 0), z, true},
+		{aks.since.AddDate(0, -3, 0), z, true},
+		{aks.until, z, false},
+		{aks.until.AddDate(0, 1, 0), z, false},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.earliest, t.latest), Equals, t.valid)
+	}
+
+}
+
+func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilInterval(c *C) {
+	// With since and until, i.e. signing account-key expires.
+	// Key is valid for time >= since.
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey := a.(*asserts.AccountKey)
+
+	z := time.Time{}
+	later := aks.until
+
+	tests := []struct {
+		earliest time.Time
+		latest   time.Time
+		valid    bool
+	}{
+		{aks.since, later, true},
+		{aks.since, aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, 1, 0), aks.since.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, 1, 0), later, true},
+		{later, later.AddDate(0, 3, 0), true},
+		{later.AddDate(0, 2, 0), later.AddDate(0, 3, 0), true},
+		{aks.since.AddDate(0, -1, 0), aks.since, true},
+		{aks.since.AddDate(0, -1, 0), aks.since.AddDate(0, 1, 0), true},
+		{aks.since.AddDate(0, -2, 0), aks.since.AddDate(0, -2, 0), false},
+		{later.AddDate(0, -1, 0), later.AddDate(0, 1, 0), true},
+		{aks.since, z, true},
+		{aks.since.AddDate(0, 1, 0), z, true},
+		{aks.since.AddDate(0, -3, 0), z, true},
+		{later, z, true},
+		{later.AddDate(0, 1, 0), z, true},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.earliest, t.latest), Equals, t.valid)
+	}
+
 }
 
 func (aks *accountKeySuite) TestPrerequisites(c *C) {
