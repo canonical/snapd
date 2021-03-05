@@ -342,3 +342,26 @@ func (s *validateSuite) TestAnnotateElement(c *C) {
 	sort.Strings(actionIDs)
 	c.Check(actionIDs, DeepEquals, []string{"action_id", "id1", "id2"})
 }
+
+func (s *validateSuite) TestActionIDExtraction(c *C) {
+	actionIDs, err := validateString(`<policyconfig>
+  <!-- a comment -->
+  <action id="action1">
+    <description>desc1</description>
+    <message>msg1</message>
+  </action>
+  <action id="action2">
+    <description>desc1</description>
+    <message>msg1</message>
+    <annotate key="org.freedesktop.policykit.imply">action3</annotate>
+  </action>
+  <action id="action3">
+    <description>desc1</description>
+    <message>msg1</message>
+    <annotate key="org.freedesktop.policykit.imply">action2 action4</annotate>
+  </action>
+</policyconfig>`)
+	c.Check(err, IsNil)
+	sort.Strings(actionIDs)
+	c.Check(actionIDs, DeepEquals, []string{"action1", "action2", "action3", "action4"})
+}
