@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -213,7 +213,7 @@ type RODatabase interface {
 // A Checker defines a check on an assertion considering aspects such as
 // the signing key, and consistency with other
 // assertions in the database.
-type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error
+type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
@@ -228,7 +228,8 @@ type Database struct {
 	// backstores of dbs this was built on by stacking
 	stackedOn []Backstore
 
-	checkers []Checker
+	checkers     []Checker
+	earliestTime time.Time
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -386,6 +387,15 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 	return err == nil
 }
 
+var timeNow = time.Now
+
+// SetEarliestTime affects how key expiration is checked.
+// Instead of considering current system time, only assume that current time
+// is >= earliest. If earliest is zero reset to considering current system time.
+func (db *Database) SetEarliestTime(earliest time.Time) {
+	db.earliestTime = earliest
+}
+
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	if !assert.SupportedFormat() {
@@ -393,7 +403,14 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	typ := assert.Type()
-	now := time.Now()
+	// assume current time is >= earliestTime and <= latestTime
+	earliestTime := db.earliestTime
+	var latestTime time.Time
+	if earliestTime.IsZero() {
+		// use the current system time by setting both to it
+		earliestTime = timeNow()
+		latestTime = earliestTime
+	}
 
 	var accKey *AccountKey
 	var err error
@@ -413,7 +430,7 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	for _, checker := range db.checkers {
-		err := checker(assert, accKey, db, now)
+		err := checker(assert, accKey, db, earliestTime, latestTime)
 		if err != nil {
 			return err
 		}
@@ -676,7 +693,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 // assertion checkers
 
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
-func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff,
@@ -684,14 +701,14 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB 
 		// (e.g. account-key-request)
 		return nil
 	}
-	if !signingKey.isKeyValidAt(checkTime) {
+	if !signingKey.isKeyValidAbout(checkTimeEarliest, checkTimeLatest) {
 		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	return nil
 }
 
 // CheckSignature checks that the signature is valid.
-func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
@@ -723,7 +740,7 @@ type timestamped interface {
 
 // CheckTimestampVsSigningKeyValidity verifies that the timestamp of
 // the assertion is within the signing key validity.
-func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff.
@@ -754,7 +771,7 @@ type consistencyChecker interface {
 }
 
 // CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
-func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	// see if the assertion requires further checks
 	if checker, ok := assert.(consistencyChecker); ok {
 		return checker.checkConsistency(roDB, signingKey)
