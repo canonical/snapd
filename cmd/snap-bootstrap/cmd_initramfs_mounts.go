@@ -997,9 +997,10 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 			// there is some try recovery system state in bootenv
 			// but it is inconsistent, make sure we clear it and
 			// return back to run mode
-			finalizeErr := finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
-			// not reached, unless in tests
-			panic(fmt.Errorf("inconsistent tried recovery system bootenv: %v", finalizeErr))
+
+			// finalize reboots or panics
+			logger.Noticef("try recovery system state is inconsistent: %v", err)
+			finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
 		}
 		// this could be an inconsistency in the state
 		return err
@@ -1043,17 +1044,14 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		if err == nil && !machine.degraded() {
 			outcome = boot.TryRecoverySystemOutcomeSuccess
 		}
-		finalizeErr := finalizeTryRecoverySystemAndReboot(outcome)
-		// unreachable unless in tests, as finalize issues a reboot,
-		// waits for it and panics if none happened
-		status := "failed"
-		if outcome == boot.TryRecoverySystemOutcomeSuccess {
-			status = "successful"
+		if outcome == boot.TryRecoverySystemOutcomeFailure {
+			if err == nil {
+				err = fmt.Errorf("in degraded state")
+			}
+			logger.Noticef("try recovery system %q failed: %v", mst.recoverySystem, err)
 		}
-		if finalizeErr != nil {
-			err = finalizeErr
-		}
-		panic(fmt.Errorf("%v tried recovery system %q: %v", status, mst.recoverySystem, err))
+		// finalize reboots or panics
+		finalizeTryRecoverySystemAndReboot(outcome)
 	}
 
 	if err != nil {
@@ -1475,6 +1473,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	return nil
 }
 
+var tryRecoverySystemHealthCheck = func() error {
+	// check that writable is accessible by checking whether the
+	// state file exists
+	if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir)) {
+		return fmt.Errorf("host state file is not accessible")
+	}
+	return nil
+}
+
 func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (err error) {
 	// from this point on, we must finish with a system reboot
 	defer func() {
@@ -1485,22 +1492,16 @@ func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (
 				err = fmt.Errorf("cannot reboot to run system: %v", rebootErr)
 			}
 		}
+		// not reached, unless in tests
+		panic(fmt.Errorf("finalize try recovery system did not reboot, last error: %v", err))
 	}()
 
-	healthCheck := func() error {
-		// check that writable is accessible by checking whether the
-		// state file exists
-		if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir)) {
-			return fmt.Errorf("host state file is not accessible")
-		}
-		return nil
-	}
-
 	if outcome == boot.TryRecoverySystemOutcomeSuccess {
-		if err := healthCheck(); err != nil {
+		if err := tryRecoverySystemHealthCheck(); err != nil {
 			// health checks failed, the recovery system is considered
 			// unsuccessful
 			outcome = boot.TryRecoverySystemOutcomeFailure
+			logger.Noticef("try recovery system health check failed: %v", err)
 		}
 	}
 

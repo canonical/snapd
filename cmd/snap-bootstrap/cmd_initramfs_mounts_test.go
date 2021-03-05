@@ -59,6 +59,7 @@ type initramfsMountsSuite struct {
 	*seedtest.TestingSeed20
 
 	Stdout *bytes.Buffer
+	Logbuf *bytes.Buffer
 
 	seedDir  string
 	sysLabel string
@@ -176,8 +177,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	s.Stdout = bytes.NewBuffer(nil)
 
-	_, restore := logger.MockLogger()
+	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
+	s.Logbuf = logbuf
 
 	s.tmpDir = c.MkDir()
 
@@ -4804,7 +4806,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
 	// due to hackery with replacing reboot, we expect a non nil error that
 	// actually indicates a success
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`successful tried recovery system %q: <nil>`, s.sysLabel))
+	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
 
 	// modeenv is not written as reboot happens before that
 	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
@@ -4854,8 +4856,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 	runParser := func() {
 		main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	}
-	c.Assert(runParser, PanicMatches, `inconsistent tried recovery system bootenv: <nil>`)
-
+	c.Assert(runParser, PanicMatches, `finalize try recovery system did not reboot, last error: <nil>`)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentBogusStatus(c *C) {
@@ -4887,6 +4888,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentBogusSt
 		"snapd_recovery_system":  "",
 	})
 	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, `try recovery system state is inconsistent: unexpected recovery system status "bogus"`)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentMissingLabel(c *C) {
@@ -4918,6 +4920,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryInconsistentMissing
 		"snapd_recovery_system":  "",
 	})
 	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, `try recovery system state is inconsistent: try recovery system is unset but status is "try"`)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *C) {
@@ -5110,14 +5113,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterDa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-data \(fallback disabled\)`,
-		s.sysLabel)
+	expectedErr := `finalize try recovery system did not reboot, last error: <nil>`
 	const unlockDataFails = true
 	const missingSaveKey = true
 	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr, unlockDataFails, missingSaveKey)
 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, fmt.Sprintf(`try recovery system %q failed: cannot unlock ubuntu-data (fallback disabled)`, s.sysLabel))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSaveUnlockFailed(c *C) {
@@ -5128,14 +5131,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-save \(fallback disabled\)`,
-		s.sysLabel)
+	expectedErr := `finalize try recovery system did not reboot, last error: <nil>`
 	const unlockDataFails = false
 	const missingSaveKey = false
 	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr, unlockDataFails, missingSaveKey)
 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, fmt.Sprintf(`try recovery system %q failed: cannot unlock ubuntu-save (fallback disabled)`, s.sysLabel))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSaveMissingKey(c *C) {
@@ -5146,14 +5149,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedStopAfterSa
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot unlock ubuntu-save \(fallback disabled\)`,
-		s.sysLabel)
+	expectedErr := `finalize try recovery system did not reboot, last error: <nil>`
 	const unlockDataFails = false
 	const missingSaveKey = true
 	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr, unlockDataFails, missingSaveKey)
 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, fmt.Sprintf(`try recovery system %q failed: cannot unlock ubuntu-save (fallback disabled)`, s.sysLabel))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedRebootFails(c *C) {
@@ -5164,12 +5167,57 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDegradedRebootFails
 	})
 	defer restore()
 
-	expectedErr := fmt.Sprintf(`failed tried recovery system %q: cannot reboot to run system: reboot fails`,
-		s.sysLabel)
+	expectedErr := `finalize try recovery system did not reboot, last error: cannot reboot to run system: reboot fails`
 	const unlockDataFails = false
 	const unlockSaveFails = false
 	s.testInitramfsMountsTryRecoveryDegraded(c, expectedErr, unlockDataFails, unlockSaveFails)
 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c *C) {
+	rebootCalls := 0
+	restore := boot.MockInitramfsReboot(func() error {
+		rebootCalls++
+		return nil
+	})
+	defer restore()
+
+	bl := bootloadertest.Mock("bootloader", c.MkDir())
+	bl.BootVars = map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    s.sysLabel,
+	}
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
+	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+
+	restore = main.MockTryRecoverySystemHealthCheck(func() error {
+		return fmt.Errorf("mock failure")
+	})
+	defer restore()
+
+	const triedSystem = true
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
+	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
+
+	modeEnv := filepath.Join(boot.InitramfsRunMntDir, "data/system-data/var/lib/snapd/modeenv")
+	// modeenv is not written when trying out a recovery system
+	c.Check(modeEnv, testutil.FileAbsent)
+	c.Check(bl.BootVars, DeepEquals, map[string]string{
+		// variables not modified since the health check failed
+		"recovery_system_status": "try",
+		"try_recovery_system":    s.sysLabel,
+		// but system is set up to go back to run mode
+		"snapd_recovery_mode":   "run",
+		"snapd_recovery_system": "",
+	})
+	// reboot was requested
+	c.Check(rebootCalls, Equals, 1)
+	c.Check(s.Logbuf.String(), testutil.Contains, `try recovery system health check failed: mock failure`)
 }
