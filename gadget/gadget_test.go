@@ -441,20 +441,30 @@ volumes:
         size: 31457280
         type: 20117F86-E985-4357-B9EE-374BC1D8487D
         role: system-boot-image
-      - name: ubuntu-boot
+      - name: dtbo_a
         offset: 135266304
+        size: 1048576
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        role: system-dtbo-image
+      - name: dtbo_b
+        offset: 136314880
+        size: 1048576
+        type: 20117F86-E985-4357-B9EE-374BC1D8487D
+        role: system-dtbo-image
+      - name: ubuntu-boot
+        offset: 137363456
         filesystem: ext4
         size: 10485760
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-boot
       - name: ubuntu-seed
-        offset: 145752064
+        offset: 147849216
         filesystem: ext4
         size: 500M
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-seed
       - name: ubuntu-data
-        offset: 670040064
+        offset: 672137216
         filesystem: ext4
         size: 1G
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
