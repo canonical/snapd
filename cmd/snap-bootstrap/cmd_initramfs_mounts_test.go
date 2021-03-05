@@ -1044,7 +1044,7 @@ After=%[1]s
 
 	// we should have only tried to unseal things twice, first for ubuntu-data
 	// unencrypted, then for ubuntu-save unencrypted
-	c.Assert(unlockVolumeWithSealedKeyCalls, Equals, 2)
+	c.Assert(unlockVolumeWithSealedKeyCalls, Equals, 1)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSystemdMount(c *C) {
@@ -3580,7 +3580,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataS
 	defer restore()
 
 	dataActivated := false
-	saveActivated := false
 	unlockVolumeWithSealedKeyCalls := 0
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		unlockVolumeWithSealedKeyCalls++
@@ -3599,21 +3598,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataS
 			dataActivated = true
 			// data not found at all
 			return notFoundPart(), fmt.Errorf("error enumerating to find ubuntu-data")
-
-		case 2:
-			// we can however still mount unecrypted ubuntu-save
-			c.Assert(name, Equals, "ubuntu-save")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
-			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
-			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
-			unencDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
-			c.Assert(err, IsNil)
-			c.Assert(unencDevPartUUID, Equals, "ubuntu-save-partuuid")
-			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
-				AllowRecoveryKey: true,
-			})
-			saveActivated = true
-			return foundUnencrypted("ubuntu-save"), nil
 		default:
 			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
 			return secboot.UnlockResult{}, fmt.Errorf("broken test")
@@ -3730,8 +3714,7 @@ grade=signed
 	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivated, Equals, true)
-	c.Check(saveActivated, Equals, true)
-	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 2)
+	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 1)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
@@ -3740,7 +3723,7 @@ grade=signed
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencryptedDataSaveEncryptedUnhappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveUnhappy(c *C) {
 	// test a scenario when data is unencrypted but save is encrypted
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
@@ -3755,11 +3738,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	// no ubuntu-data on the disk at all
 	mockDiskDataUnencSaveEnc := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot": "ubuntu-boot-partuuid",
-			"ubuntu-seed": "ubuntu-seed-partuuid",
-			// ubuntu-data is unencrypted but ubuntu-save is encrypted
-			"ubuntu-data":     "ubuntu-data-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+			"ubuntu-boot":     "ubuntu-boot-partuuid",
+			"ubuntu-seed":     "ubuntu-seed-partuuid",
+			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+			// ubuntu-data is encrypted but ubuntu-save is not
+			"ubuntu-save": "ubuntu-save-partuuid",
 		},
 		DiskHasPartitions: true,
 		DevNum:            "dataUnencSaveEnc",
@@ -3777,42 +3760,35 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	)
 	defer restore()
 
-	dataActivated := false
-	saveActivated := false
 	unlockVolumeWithSealedKeyCalls := 0
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		unlockVolumeWithSealedKeyCalls++
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
-			// ubuntu data is a plain old unencrypted partition
+			// ubuntu data is encrypted partition
 			c.Assert(name, Equals, "ubuntu-data")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
-			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
-			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{})
-			// sanity check that we can't find a normal ubuntu-data either
-			partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, IsNil)
-			c.Assert(partUUID, Equals, "ubuntu-data-partuuid")
-			dataActivated = true
-
-			return foundUnencrypted("ubuntu-data"), nil
-
+			// sanity check that we can't find a normal ubuntu-data either
+			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
+			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
+			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
 		case 2:
+			c.Assert(name, Equals, "ubuntu-data")
+			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with recovery object")
+		case 3:
 			// we can however still find/unlock ubuntu-save with the recovery key
 			c.Assert(name, Equals, "ubuntu-save")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
-			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
-			encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 			c.Assert(err, IsNil)
-			c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
-			c.Assert(opts, DeepEquals, &secboot.UnlockVolumeUsingSealedKeyOptions{
-				AllowRecoveryKey: true,
-			})
-			saveActivated = true
-			return happyUnlocked("ubuntu-save", secboot.UnlockedWithRecoveryKey), nil
+			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+			// sanity
+			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
+			return foundUnencrypted("ubuntu-save"), nil
 		default:
 			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
 			return secboot.UnlockResult{}, fmt.Errorf("broken test")
@@ -3864,11 +3840,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
 		},
-		{
-			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
-			boot.InitramfsHostUbuntuDataDir,
-			nil,
-		},
 	}, nil)
 	defer restore()
 
@@ -3881,14 +3852,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, `inconsistent encryption status for disk dataUnencSaveEnc: ubuntu-data \(device /dev/disk/by-partuuid/ubuntu-data-partuuid\) was found unencrypted but ubuntu-save \(device /dev/mapper/ubuntu-save-random\) was found to be encrypted`)
+	c.Assert(err, ErrorMatches, `inconsistent disk encryption status: previous access resulted in encrypted, but now is unencrypted from partition ubuntu-save`)
 
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
-	c.Check(dataActivated, Equals, true)
-	c.Check(saveActivated, Equals, true)
-	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 2)
+	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 3)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
