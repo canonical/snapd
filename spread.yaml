@@ -540,7 +540,7 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if os.query is-fedora; then
         # The Fedora archive mirror seems to be unreliable.
         # Switch to the main archive by commenting out metalink and uncommenting
         # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
@@ -554,7 +554,7 @@ prepare: |
         # enable audit daemon
         systemctl enable --now auditd.service
     fi
-    if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+    if os.query is-opensuse; then
         # refresh metadatadata
         # Auto import gpg keys needed for could repository added to support google backend
         zypper --gpg-auto-import-keys ref
@@ -567,7 +567,7 @@ prepare: |
     EOF
     fi
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # Possible that AppArmor was not started and is not enabled in the
         # image, do both now
         if systemctl show -p LoadState apparmor.service | MATCH 'LoadState=loaded' ; then
@@ -580,16 +580,16 @@ prepare: |
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
+    if os.query is-debian; then
         apt-get update && apt-get install -y eatmydata
     fi
 
-    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+    if os.query is-centos; then
         # make sure EPEL is enabled
         yum install -y epel-release
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+    if os.query is-ubuntu; then
         # make sure unattended-upgrades does not get in the way
         if systemctl is-enabled unattended-upgrades.service; then
             systemctl stop unattended-upgrades.service
