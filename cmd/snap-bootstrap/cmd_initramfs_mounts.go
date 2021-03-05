@@ -487,11 +487,10 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 	part := m.degradedState.partition(partName)
 	if err != nil {
 		if _, ok := err.(disks.PartitionNotFoundError); ok {
-			if optionalPartition {
-				part.FindState = partitionAbsentOptional
-			} else {
-				// explicit error that the device was not found
-				part.FindState = partitionNotFound
+			// explicit error that the device was not found
+			part.FindState = partitionNotFound
+			if !optionalPartition {
+				// partition is not optional, thus the error is relevant
 				m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
 			}
 			return nil
