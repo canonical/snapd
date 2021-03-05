@@ -102,12 +102,21 @@ typedef struct SNAP_RUN_BOOT_SELECTION {
      */
     char gadget_asset_matrix[SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
+    /**
+     * Matrix mapping boot partition to the optional dtbo partition
+     * This matrix is optional and if not populated dtbo is not extracted
+     * If defined, dtbo image will be extracted to the partions based on used
+     * bootimg partition
+     * [ <bootimg 1 part label> ] [ <dtbo 1 part label> ]
+     * [ <bootimg 2 part label> ] [ <dtbo 2 part label> ]
+     */
+    char bootimg_to_dtboimg_matrix[SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
+
+    /* name of the dtbo image from kernel snap to be used for extraction
+       when not defined or empty, default dtbo.img will be used */
+    char dtboimg_file_name[SNAP_NAME_MAX_LEN];
+
     /* unused placeholders for additional parameters to be used  in the future */
-    char unused_key_01[SNAP_NAME_MAX_LEN];
-    char unused_key_02[SNAP_NAME_MAX_LEN];
-    char unused_key_03[SNAP_NAME_MAX_LEN];
-    char unused_key_04[SNAP_NAME_MAX_LEN];
-    char unused_key_05[SNAP_NAME_MAX_LEN];
     char unused_key_06[SNAP_NAME_MAX_LEN];
     char unused_key_07[SNAP_NAME_MAX_LEN];
     char unused_key_08[SNAP_NAME_MAX_LEN];
@@ -209,12 +218,21 @@ typedef struct SNAP_RECOVERY_BOOT_SELECTION {
      */
     char recovery_system_status[SNAP_NAME_MAX_LEN];
 
+    /**
+     * Matrix mapping boot partition to the optional dtbo partition
+     * This matrix is optional and if not populated dtbo is not extracted
+     * If defined, dtbo image will be extracted to the partions based on used
+     * bootimg partition
+     * [ <bootimg 1 part label> ] [ <dtbo 1 part label> ]
+     * [ <bootimg 2 part label> ] [ <dtbo 2 part label> ]
+     */
+    char bootimg_to_dtboimg_matrix[SNAP_RUN_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
+
+    /* name of the dtbo image from kernel snap to be used for extraction
+       when not defined or empty, default dtbo.img will be used */
+    char dtboimg_file_name[SNAP_NAME_MAX_LEN];
+
     /* unused placeholders for additional parameters to be used  in the future */
-    char unused_key_01[SNAP_NAME_MAX_LEN];
-    char unused_key_02[SNAP_NAME_MAX_LEN];
-    char unused_key_03[SNAP_NAME_MAX_LEN];
-    char unused_key_04[SNAP_NAME_MAX_LEN];
-    char unused_key_05[SNAP_NAME_MAX_LEN];
     char unused_key_06[SNAP_NAME_MAX_LEN];
     char unused_key_07[SNAP_NAME_MAX_LEN];
     char unused_key_08[SNAP_NAME_MAX_LEN];
