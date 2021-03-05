@@ -395,6 +395,14 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 		return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 	}
 
+	// check if there is also dtbo to be extracted, no dtbo image name means
+	// dtbo is not used
+	dtboImg := env.GetDtboImageName()
+	if dtboImg != "" {
+		if err := snapf.Unpack(dtboImg, l.dir()); err != nil {
+			return fmt.Errorf("cannot open unpacked %s: %v", dtboImg, err)
+		}
+	}
 	if err := env.SetBootPartitionRecoverySystem(bootPartition, recoverySystem); err != nil {
 		return err
 	}
@@ -432,12 +440,17 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	if err != nil {
 		return err
 	}
+	dtboPartition, err := env.FindDtboPartition(bootPartition)
+	if err != nil || dtboPartition == "" {
+		logger.Debugf("dtbo feature is not used on this system: %v\n", err)
+	}
 
 	if l.prepareImageTime {
 		// we are preparing image, just extract boot image to bootloader directory
 		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
 			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
+		// We do not support dtbo image with v1, no need to extract dtbo here
 	} else {
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has to be updated with
@@ -452,6 +465,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		if err := snapf.Unpack(bootImg, tmpdir); err != nil {
 			return fmt.Errorf("cannot unpack %s: %v", bootImg, err)
 		}
+
 		// write boot.img to free boot partition
 		bootimgName := filepath.Join(tmpdir, bootImg)
 		bif, err := os.Open(bootimgName)
@@ -479,6 +493,47 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 		if _, err := io.Copy(bpf, bif); err != nil {
 			return err
+		}
+
+		// write dtbo image if needed
+		// check if there is also dtbo to be extracted
+		if dtboPartition != "" {
+			dtboImg := env.GetDtboImageName()
+			if dtboImg != "" {
+				if err := snapf.Unpack(dtboImg, tmpdir); err != nil {
+					return fmt.Errorf("cannot open unpacked %s: %v", dtboImg, err)
+				}
+			} else {
+				return fmt.Errorf("Missing dtbo image filename")
+			}
+
+			dtboImgName := filepath.Join(tmpdir, dtboImg)
+			dif, err := os.Open(dtboImgName)
+			if err != nil {
+				return fmt.Errorf("cannot open unpacked %s: %v", dtboImg, err)
+			}
+			defer dif.Close()
+			var dpart string
+			// TODO: for RoleSole bootloaders this will eventually be the same
+			// codepath as for non-RoleSole bootloader
+			if l.role == RoleSole {
+				dpart = filepath.Join(l.dir(), dtboPartition)
+			} else {
+				dpart, _, err = l.devPathForPartName(dtboPartition)
+				if err != nil {
+					return err
+				}
+			}
+
+			dpf, err := os.OpenFile(dpart, os.O_WRONLY, 0660)
+			if err != nil {
+				return fmt.Errorf("cannot open boot partition [%s]: %v", dpart, err)
+			}
+			defer dpf.Close()
+
+			if _, err := io.Copy(dpf, dif); err != nil {
+				return err
+			}
 		}
 	}
 
