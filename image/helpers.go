@@ -412,10 +412,10 @@ var writeResolvedContent = writeResolvedContentImpl
 // writeResolvedContent takes gadget.Info and the unpacked
 // gadget/kernel snaps and outputs the resolved content from the
 // {gadget,kernel}.yaml into a filesystem tree with the structure:
-// <prepareImageDir>/resolved-content/<volume-name>/<structure-name>/...
+// <prepareImageDir>/resolved-content/<volume-name>/<structure-nr>/...
 //
 // E.g.
-// /tmp/prep-img/resolved-content/pi/ubuntu-seed/{config.txt,bootcode.bin,...}
+// /tmp/prep-img/resolved-content/pi/part1/{config.txt,bootcode.bin,...}
 func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpackDir, kernelUnpackDir string) error {
 	fullPrepareDir, err := filepath.Abs(prepareDir)
 	if err != nil {
@@ -428,7 +428,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 		if err != nil {
 			return err
 		}
-		for _, ps := range pvol.LaidOutStructure {
+		for i, ps := range pvol.LaidOutStructure {
 			if !ps.HasFilesystem() {
 				continue
 			}
@@ -436,7 +436,8 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			if err != nil {
 				return err
 			}
-			dst := filepath.Join(targetDir, volName, ps.Name)
+			// ubuntu-image uses the "part{}" nomenclature
+			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
 			if ps.Role == gadget.SystemSeed {

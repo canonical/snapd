@@ -259,22 +259,22 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 d 
 d resolved-content
 d resolved-content/vol1
-d resolved-content/vol1/structure-name
-d resolved-content/vol1/structure-name/EFI
-d resolved-content/vol1/structure-name/EFI/boot
-f resolved-content/vol1/structure-name/EFI/boot/grubx64.efi
-l resolved-content/vol1/ubuntu-seed
+l resolved-content/vol1/part1
+d resolved-content/vol1/part2
+d resolved-content/vol1/part2/EFI
+d resolved-content/vol1/part2/EFI/boot
+f resolved-content/vol1/part2/EFI/boot/grubx64.efi
 d resolved-content/vol2
-d resolved-content/vol2/struct2
-d resolved-content/vol2/struct2/subdir
-f resolved-content/vol2/struct2/subdir/foo
+d resolved-content/vol2/part0
+d resolved-content/vol2/part0/subdir
+f resolved-content/vol2/part0/subdir/foo
 d system-seed
 d system-seed/EFI
 d system-seed/EFI/boot
 f system-seed/EFI/boot/system-seed.efi`)
 
 	// check symlink target for "ubuntu-seed" -> <prepareImageDir>/system-seed
-	t, err := os.Readlink(filepath.Join(prepareImageDir, "resolved-content/vol1/ubuntu-seed"))
+	t, err := os.Readlink(filepath.Join(prepareImageDir, "resolved-content/vol1/part1"))
 	c.Assert(err, check.IsNil)
 	c.Check(t, check.Equals, uc20systemSeed)
 }
