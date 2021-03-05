@@ -3,7 +3,7 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
-# Classic confinement isn't working yet on Fedora
+# Classic confinement isn't working yet on Fedora, Arch linux and Centos
 systems: [-ubuntu-core-*]
 
 prepare: |
@@ -16,8 +16,8 @@ prepare: |
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
-            # we still want to verify if the basics do work if the user
-            # symlinks /snap to $SNAP_MOUNT_DIR themselves
+            # Arch linux and Centos, we still want to verify if the basics
+            # do work if the user symlinks /snap to $SNAP_MOUNT_DIR themselves
             ln -sf $SNAP_MOUNT_DIR /snap
             ;;
     esac
