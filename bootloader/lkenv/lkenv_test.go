@@ -151,6 +151,30 @@ func (l *lkenvTestSuite) TestGetBootImageName(c *C) {
 	}
 }
 
+func (l *lkenvTestSuite) TestGetDtboImageName(c *C) {
+	for _, version := range lkversions {
+		for _, setValue := range []bool{true, false} {
+			env := lkenv.NewEnv(l.envPath, "", version)
+			c.Check(env, NotNil)
+
+			if setValue {
+				env.Set("dtboimg_file_name", "some-dtbo-image-name")
+			}
+
+			name := env.GetDtboImageName()
+			if version == lkenv.V1 {
+				c.Assert(name, Equals, "")
+			} else {
+				if setValue {
+					c.Assert(name, Equals, "some-dtbo-image-name")
+				} else {
+					c.Assert(name, Equals, "")
+				}
+			}
+		}
+	}
+}
+
 func (l *lkenvTestSuite) TestSet(c *C) {
 	tt := []struct {
 		version lkenv.Version
@@ -210,6 +234,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				"snap_gadget":       "gadget-1",
 				"snap_try_gadget":   "gadget-2",
 				"bootimg_file_name": "boot.img",
+				"dtboimg_file_name": "dtbo.img",
 			},
 			"lkenv v2 run",
 		},
@@ -221,6 +246,7 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 				"bootimg_file_name":      "boot.img",
 				"try_recovery_system":    "1234",
 				"recovery_system_status": "tried",
+				"dtboimg_file_name":      "dtbo.img",
 			},
 			"lkenv v2 recovery",
 		},
@@ -857,10 +883,7 @@ func (l *lkenvTestSuite) TestV2RecoveryNoKernelSupport(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
 }
 
-func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
-	// TODO: add binary data test for v2 structures generated with gadget build
-	// tool when it has been updated for v2
-
+func (l *lkenvTestSuite) TestZippedDataSampleV1(c *C) {
 	// test data is generated with gadget build helper tool:
 	// $ parts/snap-boot-sel-env/build/lk-boot-env -w test.bin \
 	//   --snap-mode="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2" \
@@ -902,6 +925,7 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	c.Check(env.Get("snap_try_core"), Equals, "core-2")
 	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
 	c.Check(env.Get("reboot_reason"), Equals, "")
+	c.Check(env.Get("dtboimg_file_name"), Equals, "")
 	// first partition should be with label 'boot_a' and 'kernel-1' revision
 	p, err := env.GetKernelBootPartition("kernel-1")
 	c.Check(p, Equals, "boot_a")
@@ -909,5 +933,234 @@ func (l *lkenvTestSuite) TestZippedDataSample(c *C) {
 	// test second boot partition is free with label "boot_b"
 	p, err = env.FindFreeKernelBootPartition("kernel-2")
 	c.Check(p, Equals, "boot_b")
+	c.Assert(err, IsNil)
+	// test dtbo mapping, which is not supported for v1
+	p, err = env.FindDtboPartition("boot_a")
+	c.Check(p, Equals, "")
+	c.Assert(err, NotNil)
+}
+
+func (l *lkenvTestSuite) TestZippedDataSampleV2runNoDtbo(c *C) {
+	// test data is generated with gadget build helper tool:
+	// $ parts/snap-boot-sel-env/build//lk-boot-env --runtime -w test.bin \
+	//   --kernel-status="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2" \
+	//   --boot-0-part="boot_a" --boot-1-part="boot_b" --boot-0-snap="kernel-1" \
+	//   --boot-1-snap="kernel-3" --bootimg-file="boot.img"
+	// $ cat test.bin | gzip | xxd -i
+	gzipedData := []byte{
+		0x1f, 0x8b, 0x08, 0x00, 0x56, 0x31, 0x42, 0x60, 0x00, 0x03, 0xed, 0xd6,
+		0xc1, 0x09, 0xc2, 0x40, 0x14, 0x45, 0xd1, 0x71, 0x97, 0x45, 0x16, 0x36,
+		0x62, 0x40, 0xed, 0xc0, 0x16, 0x2c, 0x40, 0x0c, 0x0c, 0x12, 0x8c, 0x09,
+		0xc4, 0x6c, 0xec, 0xc8, 0xf6, 0xec, 0x40, 0x94, 0xd4, 0xe0, 0x47, 0xe6,
+		0x9c, 0x0a, 0xee, 0xf0, 0xe0, 0x33, 0xc7, 0xc3, 0x3d, 0xaf, 0xd3, 0x2a,
+		0xcd, 0xd3, 0xa3, 0x1b, 0x2e, 0xa9, 0x58, 0xd7, 0x3c, 0x0d, 0xb9, 0xdf,
+		0x6c, 0xa3, 0x3b, 0xa2, 0x2c, 0xef, 0xdf, 0x45, 0x77, 0x00, 0xbf, 0xd7,
+		0x8e, 0xe3, 0x7c, 0x3a, 0x47, 0x57, 0xc4, 0x29, 0xfd, 0xfe, 0x7f, 0xf7,
+		0x6f, 0xa3, 0x2b, 0xe2, 0x2c, 0xfb, 0xef, 0xa3, 0x3b, 0xa2, 0x7c, 0xf6,
+		0x6f, 0xba, 0x5b, 0xc1, 0x3f, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0xe0, 0x5f, 0x54, 0xcf, 0xfa, 0xf5, 0x06, 0x1c,
+		0xdf, 0x44, 0x21, 0x0c, 0x37, 0x00, 0x00}
+
+	// uncompress test data to sample env file
+	rawData, err := unpackTestData(gzipedData)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPath, rawData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
+	c.Assert(err, IsNil)
+
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Run)
+	c.Check(env, NotNil)
+	err = env.Load()
+	c.Assert(err, IsNil)
+	c.Check(env.Get("kernel_status"), Equals, boot.TryingStatus)
+	c.Check(env.Get("snap_kernel"), Equals, "kernel-1")
+	c.Check(env.Get("snap_try_kernel"), Equals, "kernel-2")
+	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
+	c.Check(env.Get("dtboimg_file_name"), Equals, "")
+	// first partition should be with label 'boot_a' and 'kernel-1' revision
+	p, err := env.GetKernelBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_a")
+	c.Assert(err, IsNil)
+	// test second boot partition is free with label "boot_b"
+	p, err = env.FindFreeKernelBootPartition("kernel-2")
+	c.Check(p, Equals, "boot_b")
+	c.Assert(err, IsNil)
+	// test dtbo mapping
+	p, err = env.FindDtboPartition("boot_a")
+	c.Check(p, Equals, "")
+	c.Assert(err, NotNil)
+	p, err = env.FindDtboPartition("boot_b")
+	c.Check(p, Equals, "")
+	c.Assert(err, NotNil)
+}
+
+func (l *lkenvTestSuite) TestZippedDataSampleV2run(c *C) {
+	// test data is generated with gadget build helper tool:
+	// $ parts/snap-boot-sel-env/build//lk-boot-env --runtime -w test.bin \
+	//   --kernel-status="trying" --snap-kernel="kernel-1" --snap-try-kernel="kernel-2" \
+	//   --boot-0-part="boot_a" --boot-1-part="boot_b" --boot-0-snap="kernel-1" \
+	//   --boot-1-snap="kernel-3" --bootimg-file="boot.img" --dtbo-0-part="dtbo_a" \\
+	//   --dtbo-1-part="dtbo_b" --dtbo-0-boot="boot_a" --dtbo-1-boot="boot_b" \
+	//   --dtboimg-file="dtbo.img
+	// $ cat test.bin | gzip | xxd -i
+	gzipedData := []byte{
+		0x1f, 0x8b, 0x08, 0x00, 0xc7, 0x2f, 0x42, 0x60, 0x00, 0x03, 0xed, 0xd6,
+		0xd1, 0x09, 0x82, 0x00, 0x14, 0x05, 0x50, 0xdb, 0xa0, 0xef, 0x76, 0x28,
+		0xa8, 0x36, 0x68, 0x84, 0x1a, 0x20, 0x12, 0x25, 0xc4, 0x52, 0x30, 0x7f,
+		0x1a, 0xb0, 0xbd, 0x42, 0x71, 0x86, 0x1e, 0xf1, 0xce, 0x99, 0xe0, 0x3e,
+		0x2e, 0x3c, 0xee, 0xe5, 0xf4, 0xaa, 0xd7, 0xc5, 0xaa, 0x18, 0x87, 0x77,
+		0xd3, 0xdd, 0x8b, 0xb4, 0xda, 0x7a, 0xe8, 0xea, 0xc7, 0x76, 0x1f, 0x9d,
+		0x23, 0xca, 0x72, 0xff, 0x21, 0x3a, 0x07, 0xf0, 0x7b, 0x65, 0xdf, 0x8f,
+		0xd7, 0x5b, 0x74, 0x8a, 0x38, 0xd9, 0xff, 0xff, 0xdc, 0x7f, 0x19, 0x9d,
+		0x22, 0xce, 0xd2, 0xff, 0x31, 0x3a, 0x47, 0x94, 0xa9, 0xff, 0x5d, 0xf3,
+		0x4c, 0xbc, 0x00, 0x81, 0xac, 0xaa, 0xb1, 0xec, 0x33, 0xef, 0x9f, 0xec,
+		0xfb, 0x6f, 0xee, 0x3f, 0xf1, 0xfe, 0xc9, 0xbe, 0xff, 0xa6, 0xfe, 0xed,
+		0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x4f, 0x9b,
+		0x4f, 0x7b, 0xfe, 0x02, 0x1c, 0xdf, 0x44, 0x21, 0x0c, 0x37, 0x00, 0x00}
+
+	// uncompress test data to sample env file
+	rawData, err := unpackTestData(gzipedData)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPath, rawData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
+	c.Assert(err, IsNil)
+
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Run)
+	c.Check(env, NotNil)
+	err = env.Load()
+	c.Assert(err, IsNil)
+	c.Check(env.Get("kernel_status"), Equals, boot.TryingStatus)
+	c.Check(env.Get("snap_kernel"), Equals, "kernel-1")
+	c.Check(env.Get("snap_try_kernel"), Equals, "kernel-2")
+	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
+	c.Check(env.Get("dtboimg_file_name"), Equals, "dtbo.img")
+	// first partition should be with label 'boot_a' and 'kernel-1' revision
+	p, err := env.GetKernelBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_a")
+	c.Assert(err, IsNil)
+	// test second boot partition is free with label "boot_b"
+	p, err = env.FindFreeKernelBootPartition("kernel-2")
+	c.Check(p, Equals, "boot_b")
+	c.Assert(err, IsNil)
+	// test dtbo mapping
+	p, err = env.FindDtboPartition("boot_a")
+	c.Check(p, Equals, "dtbo_a")
+	c.Assert(err, IsNil)
+	p, err = env.FindDtboPartition("boot_b")
+	c.Check(p, Equals, "dtbo_b")
+	c.Assert(err, IsNil)
+}
+
+func (l *lkenvTestSuite) TestZippedDataSampleV2recoveryNoDtbo(c *C) {
+	// test data is generated with gadget build helper tool:
+	// $ parts/snap-boot-sel-env/build//./lk-boot-env --recovery -w test.bin \
+	//   --revovery-mode="recover" --revovery-system="05032021" \
+	//   --recovery-0-part="boot_ra" --recovery-1-part="boot_rb" \
+	//   --recovery-0-snap="kernel-1" --recovery-1-snap="kernel-3" \
+	//   --bootimg-file="boot.img"
+	// $ cat test.bin | gzip | xxd -i
+	gzipedData := []byte{
+		0x1f, 0x8b, 0x08, 0x00, 0xe8, 0x3c, 0x42, 0x60, 0x00, 0x03, 0xed, 0xd8,
+		0xcb, 0x09, 0xc2, 0x40, 0x18, 0x85, 0xd1, 0xa4, 0x03, 0x1b, 0x51, 0xc6,
+		0x04, 0x1b, 0xd1, 0x02, 0xc4, 0x84, 0x41, 0xc4, 0xc7, 0xc0, 0x28, 0xe9,
+		0xc7, 0x22, 0xdd, 0x8b, 0x60, 0x01, 0x6e, 0xe4, 0x5f, 0xe4, 0x9c, 0x0a,
+		0x3e, 0xb8, 0xbb, 0xbb, 0xdb, 0xde, 0xf3, 0xa2, 0x69, 0x9b, 0x9a, 0xc7,
+		0x32, 0xe5, 0xda, 0xcc, 0x55, 0xda, 0xa4, 0xbe, 0x4b, 0xdd, 0x3a, 0xba,
+		0x23, 0xca, 0x50, 0xca, 0x63, 0x5f, 0x0f, 0xd1, 0x19, 0x61, 0xce, 0xb9,
+		0xde, 0xf2, 0x65, 0x39, 0xf3, 0xfd, 0x87, 0xe8, 0x8c, 0x30, 0xdf, 0xfd,
+		0xfb, 0xe8, 0x0e, 0x00, 0x00, 0x00, 0x80, 0x7f, 0xf9, 0xfc, 0x3f, 0xab,
+		0xd3, 0xf5, 0x18, 0xdd, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0xf0, 0xab, 0xa9, 0x7d, 0xbe, 0xde, 0x1c, 0xdf, 0x44, 0x21,
+		0x0c, 0x3f, 0x00, 0x00}
+
+	// uncompress test data to sample env file
+	rawData, err := unpackTestData(gzipedData)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPath, rawData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
+	c.Assert(err, IsNil)
+
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
+	c.Check(env, NotNil)
+	err = env.Load()
+	c.Assert(err, IsNil)
+	c.Check(env.Get("snapd_recovery_mode"), Equals, "recover")
+	c.Check(env.Get("snapd_recovery_system"), Equals, "05032021")
+	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
+	c.Check(env.Get("dtboimg_file_name"), Equals, "")
+	// first partition should be with label 'boot_a' and 'kernel-1' revision
+	p, err := env.GetRecoverySystemBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_ra")
+	c.Assert(err, IsNil)
+	// test second boot partition is free with label "boot_b"
+	p, err = env.FindFreeRecoverySystemBootPartition("kernel-3")
+	c.Check(p, Equals, "boot_rb")
+	c.Assert(err, IsNil)
+	// test dtbo mapping
+	p, err = env.FindDtboPartition("boot_ra")
+	c.Check(p, Equals, "")
+	c.Assert(err, NotNil)
+	p, err = env.FindDtboPartition("boot_rb")
+	c.Check(p, Equals, "")
+	c.Assert(err, NotNil)
+}
+
+func (l *lkenvTestSuite) TestZippedDataSampleV2recovery(c *C) {
+	// test data is generated with gadget build helper tool:
+	// $ parts/snap-boot-sel-env/build//./lk-boot-env --recovery -w test.bin \
+	//   --revovery-mode="recover" --revovery-system="05032021" \
+	//   --recovery-0-part="boot_ra" --recovery-1-part="boot_rb" \
+	//   --recovery-0-snap="kernel-1" --recovery-1-snap="kernel-3" \
+	//   --bootimg-file="boot.img" --dtbo-0-part="dtbo_ra" --dtbo-1-part="dtbo_rb" \
+	//   --dtbo-0-boot="boot_ra" --dtbo-1-boot="boot_rb" --dtboimg-file="dtbo.img"
+	// $ cat test.bin | gzip | xxd -i
+	gzipedData := []byte{
+		0x1f, 0x8b, 0x08, 0x00, 0xc9, 0x3d, 0x42, 0x60, 0x00, 0x03, 0xed, 0xd8,
+		0xd1, 0x09, 0xc2, 0x40, 0x14, 0x04, 0xc0, 0xd8, 0x81, 0x8d, 0x28, 0x31,
+		0xc1, 0x46, 0xb4, 0x00, 0x31, 0x7a, 0x88, 0xa8, 0x09, 0x9c, 0xc1, 0xe6,
+		0xec, 0x4d, 0x24, 0x68, 0x0b, 0xf2, 0x90, 0x9b, 0xa9, 0x60, 0x61, 0x3f,
+		0x16, 0x76, 0xbb, 0xb9, 0xa7, 0x79, 0x35, 0xab, 0x72, 0x3a, 0x0c, 0x8f,
+		0x94, 0xab, 0x52, 0xd5, 0xeb, 0xba, 0x6d, 0xea, 0x66, 0x15, 0x9d, 0x23,
+		0x4a, 0x37, 0x0c, 0xe3, 0x2e, 0xef, 0xa3, 0x63, 0x84, 0xb9, 0xa4, 0xdc,
+		0xa7, 0xeb, 0xa2, 0xf0, 0xfe, 0xbb, 0xe8, 0x18, 0x61, 0xbe, 0xfd, 0xb7,
+		0xd1, 0x39, 0x00, 0x00, 0x00, 0x00, 0x7e, 0x65, 0xfa, 0x7f, 0x96, 0xe7,
+		0xdb, 0x29, 0x3a, 0x07, 0x44, 0x38, 0x8e, 0xdd, 0x50, 0xf2, 0xff, 0x5d,
+		0xfa, 0xff, 0xff, 0xe9, 0xbf, 0xdc, 0xff, 0xbb, 0xf4, 0xff, 0x7f, 0xea,
+		0xdf, 0xfe, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc, 0xaf,
+		0xd7, 0xb3, 0x6f, 0xde, 0x1c, 0xdf, 0x44, 0x21, 0x0c, 0x3f, 0x00, 0x00}
+
+	// uncompress test data to sample env file
+	rawData, err := unpackTestData(gzipedData)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPath, rawData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(l.envPathbak, rawData, 0644)
+	c.Assert(err, IsNil)
+
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
+	c.Check(env, NotNil)
+	err = env.Load()
+	c.Assert(err, IsNil)
+	c.Check(env.Get("snapd_recovery_mode"), Equals, "recover")
+	c.Check(env.Get("snapd_recovery_system"), Equals, "05032021")
+	c.Check(env.Get("bootimg_file_name"), Equals, "boot.img")
+	c.Check(env.Get("dtboimg_file_name"), Equals, "dtbo.img")
+	// first partition should be with label 'boot_a' and 'kernel-1' revision
+	p, err := env.GetRecoverySystemBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_ra")
+	c.Assert(err, IsNil)
+	// test second boot partition is free with label "boot_b"
+	p, err = env.FindFreeRecoverySystemBootPartition("kernel-3")
+	c.Check(p, Equals, "boot_rb")
+	c.Assert(err, IsNil)
+	// test dtbo mapping
+	p, err = env.FindDtboPartition("boot_ra")
+	c.Check(p, Equals, "dtbo_ra")
+	c.Assert(err, IsNil)
+	p, err = env.FindDtboPartition("boot_rb")
+	c.Check(p, Equals, "dtbo_rb")
 	c.Assert(err, IsNil)
 }
