@@ -74,7 +74,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
@@ -87,7 +87,7 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+    if os.query is-amazon-linux; then
         distro=amzn
         release=2
     fi
@@ -308,7 +308,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
@@ -584,7 +584,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
+    if os.query is-debian-sid; then
         systemctl restart systemd-journald
     fi
 
