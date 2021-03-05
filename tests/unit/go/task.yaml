@@ -26,11 +26,14 @@ execute: |
     fi
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-        PATH=$PATH GOPATH=/tmp/static-unit-tests \
+        GO111MODULE=off \
+        PATH=$PATH \
+        GOPATH=/tmp/static-unit-tests \
         ${skip:-} \
         ./run-checks --static" test
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+        GO111MODULE=off\
         PATH=$PATH \
         GOPATH=/tmp/static-unit-tests \
         SKIP_COVERAGE=1 \
