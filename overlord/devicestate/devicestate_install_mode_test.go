@@ -529,7 +529,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 	})
 	defer restore()
 	s.testInstallEncryptionSanityChecks(c, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(internal error: system encryption keys are unset\)`)
+- Make system for run mode bootable \(internal error: system encryption keys are unset\)`)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
@@ -543,7 +543,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDat
 	})
 	defer restore()
 	s.testInstallEncryptionSanityChecks(c, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(internal error: system encryption keys are unset\)`)
+- Make system for run mode bootable \(internal error: system encryption keys are unset\)`)
 }
 
 func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadgetDefaultsYaml string) *asserts.Model {

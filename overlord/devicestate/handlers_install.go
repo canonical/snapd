@@ -123,6 +123,145 @@ func writeLogs(rootdir string) error {
 	return nil
 }
 
+func (m *DeviceManager) doMakeRunSystemBootable(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	// get gadget dir
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get gadget info: %v", err)
+	}
+	gadgetDir := gadgetInfo.MountDir()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	useEncryption, err := m.checkEncryption(st, deviceCtx)
+	if err != nil {
+		return err
+	}
+
+	model := deviceCtx.Model()
+
+	// get the keys for roles from the setup-system task
+	setupID := ""
+	t.Get("setup-run-system-task", &setupID)
+	setupTask := st.Task(setupID)
+	if setupTask == nil {
+		return fmt.Errorf("internal error: missing setup-run-system-task")
+	}
+
+	keysForRoles := map[string]*install.EncryptionKeySet{}
+	if err := setupTask.Get("keys-for-roles", &keysForRoles); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: unable to access keys-for-roles key in setup-run-system task: %v", err)
+	}
+
+	// these keys might not be set
+	trackedAssets := boot.AssetsMap{}
+	if err := setupTask.Get("tracked-assets", &trackedAssets); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: unable to access tracked-assets key in setup-run-system task: %v", err)
+	}
+
+	trackedRecoveryAssets := boot.AssetsMap{}
+	if err := setupTask.Get("tracked-recovery-assets", &trackedRecoveryAssets); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: unable to access tracked-assets key in setup-run-system task: %v", err)
+	}
+
+	// setup the trustedInstallObserver
+	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	// get a nice nil interface by default
+	observerOpts := &boot.InstallObserverOptions{
+		UseEncryption:         useEncryption,
+		TrackedAssets:         trackedAssets,
+		TrackedRecoveryAssets: trackedRecoveryAssets,
+	}
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, observerOpts)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedInstallObserver = nil
+		}
+	}
+
+	if trustedInstallObserver != nil {
+		// sanity check
+		if keysForRoles == nil || keysForRoles[gadget.SystemData] == nil || keysForRoles[gadget.SystemSave] == nil {
+			return fmt.Errorf("internal error: system encryption keys are unset")
+		}
+		dataKeySet := keysForRoles[gadget.SystemData]
+		saveKeySet := keysForRoles[gadget.SystemSave]
+
+		// make note of the encryption keys
+		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
+
+		// keep track of recovery assets
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
+		if err := saveKeys(keysForRoles); err != nil {
+			return err
+		}
+		// write markers containing a secret to pair data and save
+		if err := writeMarkers(); err != nil {
+			return err
+		}
+	}
+
+	// make it bootable
+	logger.Noticef("make system bootable")
+	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
+	bootWith := &boot.BootableSet{
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
+	}
+	rootdir := dirs.GlobalRootDir
+	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
+		return fmt.Errorf("cannot make run system bootable: %v", err)
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	// request a restart as the last action after a successful install
+	logger.Noticef("request system restart")
+	st.RequestRestart(state.RestartSystemNow)
+
+	return nil
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -192,11 +331,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if err == nil {
 		installObserver = trustedInstallObserver
-		if !useEncryption {
-			// there will be no key sealing, so past the
-			// installation pass no other methods need to be called
-			trustedInstallObserver = nil
-		}
 	}
 
 	var installedSystem *install.InstalledSystemSideData
@@ -211,28 +345,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot install system: %v", err)
 	}
 
+	if installedSystem != nil && installedSystem.KeysForRoles != nil {
+		t.Set("keys-for-roles", installedSystem.KeysForRoles)
+	}
+
 	if trustedInstallObserver != nil {
-		// sanity check
-		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
-			return fmt.Errorf("internal error: system encryption keys are unset")
-		}
-		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
-		saveKeySet := installedSystem.KeysForRoles[gadget.SystemSave]
-
-		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
-
-		// keep track of recovery assets
-		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
-		}
-		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
-			return err
-		}
-		// write markers containing a secret to pair data and save
-		if err := writeMarkers(); err != nil {
-			return err
-		}
+		// save the tracked assets we got for the next task
+		t.Set("tracked-assets", trustedInstallObserver.CurrentTrustedBootAssetsMap())
+		t.Set("tracked-recovery-assets", trustedInstallObserver.CurrentTrustedRecoveryBootAssetsMap())
 	}
 
 	// keep track of the model we installed
@@ -252,35 +372,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}
-
-	// make it bootable
-	logger.Noticef("make system bootable")
-	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
-	bootWith := &boot.BootableSet{
-		Base:              bootBaseInfo,
-		BasePath:          bootBaseInfo.MountFile(),
-		Kernel:            kernelInfo,
-		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
-		UnpackedGadgetDir: gadgetDir,
-	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
-		return fmt.Errorf("cannot make run system bootable: %v", err)
-	}
-
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
