@@ -482,6 +482,7 @@ uc20_build_initramfs_kernel_snap() {
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        unpackeddir="$PWD"
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
@@ -529,6 +530,7 @@ uc20_build_initramfs_kernel_snap() {
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
                                   --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
                                   --output ../../repacked-initrd
         )
 
