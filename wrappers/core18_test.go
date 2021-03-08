@@ -237,6 +237,9 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
@@ -329,6 +332,10 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 		{filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"), "from-snapd"},
 		// extra unit not present in core snap
 		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
+		// D-Bus service activation files
+		{filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), "from-snapd"},
 	}
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", units)
