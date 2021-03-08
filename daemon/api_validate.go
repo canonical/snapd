@@ -358,9 +358,7 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 		"name":       name,
 		"sequence":   fmt.Sprintf("%d", sequence),
 	}
-	st.Lock()
 	db := assertstate.DB(st)
-	st.Unlock()
 	as, err := db.Find(asserts.ValidationSetType, headers)
 	if err != nil {
 		return nil, err
@@ -370,9 +368,7 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 }
 
 func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
-	st.Unlock()
 	as, err := validationSetAssertFromDb(st, accountID, name, sequence)
-	st.Lock()
 	if err != nil {
 		return nil, err
 	}
