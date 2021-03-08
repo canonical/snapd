@@ -459,7 +459,10 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt install ubuntu-core-initramfs -y
+    # TODO: install the linux-firmware as the current version of
+    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+    # to build the initrd
+    apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -525,7 +528,7 @@ uc20_build_initramfs_kernel_snap() {
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules" \
+                                  --kerneldir "lib/modules/$kver" \
                                   --output ../../repacked-initrd
         )
 
