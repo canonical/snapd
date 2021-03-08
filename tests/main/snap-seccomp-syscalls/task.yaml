@@ -13,17 +13,8 @@ systems: [ubuntu-18.04-64]
 # Start early as it takes a long time.
 priority: 100
 
-restore: |
-    rm -rf libseccomp
-    rm -f syscalls.*
-    apt remove -y gperf
-
 execute: |
-    # XXX: this should be part of our images
-    apt install gperf -y
-
-    # build a list of syscalls known to libseccomp by using the internal test
-    # tool arch-syscall-dump
+    echo "Build a list of syscalls known to libseccomp by using the internal test tool arch-syscall-dump"
     git clone https://github.com/seccomp/libseccomp
     pushd libseccomp
     ./autogen.sh
@@ -35,9 +26,8 @@ execute: |
     sort -u syscalls.list > ../../syscalls.uniq
     cd ../..
 
-    # grab the list snap-seccomp knows about
+    echo "Grab the list snap-seccomp knows about"
     go run listcalls.go > syscalls.known
 
-    # both lists should be identical, otherwise we need an update in
-    # snap-seccomp
+    echo "Check that both lists are identical, otherwise we need an update in snap-seccomp"
     diff -up syscalls.uniq syscalls.known

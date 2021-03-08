@@ -780,7 +780,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		{
 			// invalid recovery system label
 			recoverySystems: []string{"0"},
-			err:             `invalid system seed label: "0"`,
+			err:             `cannot read system "0" seed: invalid system seed`,
 		},
 	} {
 		rootdir := c.MkDir()
@@ -790,7 +790,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		// set recovery kernel
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 			if label != "20200825" && label != "20200831" {
-				return nil, nil, fmt.Errorf("invalid system seed label: %q", label)
+				return nil, nil, fmt.Errorf("invalid system seed")
 			}
 			kernelRev := 1
 			if label == "20200831" {
