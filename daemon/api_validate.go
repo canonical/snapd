@@ -307,7 +307,8 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 		userID = user.ID
 	}
 	pinned := sequence > 0
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID)
+	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
 	if err != nil {
 		return BadRequest("cannot get validation set assertion for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}

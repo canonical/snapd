@@ -174,7 +174,7 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		}
 	}
 
-	err := resolvePool(s, pool, userID, deviceCtx)
+	err := resolvePoolNoFallback(s, pool, userID, deviceCtx)
 	if err == nil {
 		return nil
 	}
@@ -190,11 +190,6 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		if len(rerr.errors) == 0 {
 			return nil
 		}
-	}
-
-	// no fallback for validation-sets, report inner error.
-	if ferr, ok := err.(*bulkAssertionFallbackError); ok {
-		err = ferr.err
 	}
 
 	return fmt.Errorf("cannot refresh validation set assertions: %v", err)
@@ -306,4 +301,15 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 	}
 
 	return nil
+}
+
+func resolvePoolNoFallback(s *state.State, pool *asserts.Pool, userID int, deviceCtx snapstate.DeviceContext) error {
+	err := resolvePool(s, pool, userID, deviceCtx)
+	if err != nil {
+		// no fallback, report inner error.
+		if ferr, ok := err.(*bulkAssertionFallbackError); ok {
+			err = ferr.err
+		}
+	}
+	return err
 }

@@ -2422,7 +2422,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorLocalFallbackForPin
 	vsetAs := s.validationSetAssert(c, "bar", "1", "1")
 	c.Assert(assertstate.Add(st, vsetAs), check.IsNil)
 
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0)
+	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
+	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, &opts)
 	c.Assert(err, IsNil)
 	c.Assert(vs, NotNil)
 	c.Assert(local, Equals, true)
@@ -2449,7 +2450,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorPinnedRefreshedFrom
 	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2")
 	c.Assert(s.storeSigning.Add(vsetAs2), check.IsNil)
 
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0)
+	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(local, Equals, false)
 	c.Check(vs.Revision(), Equals, 2)
@@ -2477,7 +2478,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedRefreshedFr
 	vsetAs2 := s.validationSetAssert(c, "bar", "3", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), check.IsNil)
 
-	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0)
+	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(local, Equals, false)
 	c.Check(vs.Revision(), Equals, 1)
@@ -2494,6 +2495,6 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 	storeAs := s.setupModelAndStore(c)
 	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
 
-	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0)
+	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
 	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }

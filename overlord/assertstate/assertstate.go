@@ -356,11 +356,19 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
 }
 
+// ResolveOptions carries extra options for ValidationSetAssertionForMonitor.
+type ResolveOptions struct {
+	AllowLocalFallback bool
+}
+
 // ValidationSetAssertionForMonitor tries to fetch or refresh the validation
 // set assertion with accountID/name/sequence (sequence is optional) using pool.
 // If pinned is true and the assertion cannot be updated but exists locally,
 // then the local one is returned
-func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int) (as *asserts.ValidationSet, local bool, err error) {
+func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *ResolveOptions) (as *asserts.ValidationSet, local bool, err error) {
+	if opts == nil {
+		opts = &ResolveOptions{}
+	}
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, false, err
@@ -418,9 +426,9 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		}
 	}
 
-	if err := resolvePool(st, pool, userID, deviceCtx); err != nil {
+	if err := resolvePoolNoFallback(st, pool, userID, deviceCtx); err != nil {
 		rerr, ok := err.(*resolvePoolError)
-		if ok && pinned && as != nil {
+		if ok && as != nil && opts.AllowLocalFallback {
 			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {
 				// fallback: support the scenario of local assertion (snap ack)
 				// not available in the store.
