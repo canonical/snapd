@@ -15,9 +15,11 @@ prepare: |
     snap pack "$TESTSLIB/snaps/basic18"
     snap download "--$CORE_CHANNEL" core
 
+    echo "Break the seed.yaml by not providing a model assertion"
     "$TESTSLIB/reset.sh" --keep-stopped
     mkdir -p "$SEED_DIR/snaps"
     mkdir -p "$SEED_DIR/assertions"
+
     # Break the seed by not providing a model assertion and using
     # a base18 snap that needs a core18 base but not providing one.
     # XXX: Another common failure is to not provide some assertions
@@ -31,8 +33,10 @@ prepare: |
         unasserted: true
         file: basic18.snap
     EOF
-    echo Copy the needed assertions to /var/lib/snapd/
+
+    echo "Copy the needed assertions to /var/lib/snapd/"
     cp core_*.assert "$SEED_DIR/assertions"
+
     echo "Copy the needed snaps to $SEED_DIR/snaps"
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./basic18_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
@@ -60,7 +64,7 @@ execute: |
     echo "Ensure we get a warning message"
     retry -n 30 sh -c 'snap warnings | MATCH "seeding failed "'
 
-    # the ubuntu postinst will fix broken seeds, see LP: 1868706
+    echo "Check the ubuntu postinst will fix broken seeds, see LP: 1868706"
     if os.query is-ubuntu; then
         # XXX: why is this needed?
         mkdir -p /var/lib/snapd/void
