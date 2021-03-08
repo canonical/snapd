@@ -444,7 +444,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
-	matchCounter := &strutil.MatchCounter{N: 1}
+	matchCounter := &strutil.MatchCounter{
+		// keep at most 5 matches
+		N: 5,
+		// keep the last lines only, those likely contain the reason for
+		// fatal errors
+		LastN: true,
+	}
 	cmd.Stderr = matchCounter
 	if isTesting {
 		matchCounter.N = -1
@@ -453,7 +459,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
-			return fmt.Errorf("cannot create archive: %s (and %d earlier)", matches[len(matches)-1], count-1)
+			note := ""
+			if count > 5 {
+				note = fmt.Sprintf(" (showing last 5 lines out of %d)", count)
+			}
+			// we have at most 5 matches here
+			errStr := strings.Join(matches, "\n")
+			return fmt.Errorf("cannot create archive%s:\n%s", note, errStr)
 		}
 		return fmt.Errorf("tar failed: %v", err)
 	}
@@ -654,6 +666,10 @@ type ImportFlags struct {
 
 // Import a snapshot from the export file format
 func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+		return nil, err
+	}
+
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
 	tr := newImportTransaction(id)

@@ -24,10 +24,17 @@ execute: |
     snap services test-snapd-service > test-snapd-service.out
     MATCH '^test-snapd-service.test-snapd-service\s+ enabled\s+ active\s+ -$' < test-snapd-service.out
 
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
+        snap services test-snapd-user-service > test-snapd-user-service.out
+        MATCH '^test-snapd-user-service.test-snapd-user-service\s+ enabled\s+ -\s+ user$' < test-snapd-user-service.out
+    fi
+
     if tests.session has-system-systemd-and-dbus; then
         # Only run this part of the test on systems supporting systemd
         # activation on the D-Bus system bus
         snap install --edge test-snapd-dbus-service
         snap services test-snapd-dbus-service > dbus-service.out
         MATCH '^test-snapd-dbus-service.system\s+ enabled\s+ (in)?active\s+ dbus-activated$' < dbus-service.out
+        MATCH '^test-snapd-dbus-service.session\s+ enabled\s+ -\s+ user,dbus-activated$' < dbus-service.out
     fi
