@@ -265,8 +265,8 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	var currentTrustedBootAssets AssetsMap
 	var currentTrustedRecoveryBootAssets AssetsMap
 	if sealer != nil {
-		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
-		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
+		currentTrustedBootAssets = sealer.CurrentTrustedBootAssetsMap()
+		currentTrustedRecoveryBootAssets = sealer.CurrentTrustedRecoveryBootAssetsMap()
 	}
 	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition

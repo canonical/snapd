@@ -49,6 +49,19 @@ type assetsSuite struct {
 
 var _ = Suite(&assetsSuite{})
 
+var installObserverUseEncryptionOpts = &boot.InstallObserverOptions{
+	UseEncryption: true,
+}
+
+var installObserverDoNotUseEncryptionOpts = &boot.InstallObserverOptions{
+	UseEncryption: false,
+}
+
+var installObserverEncryptionOptsVariants = []*boot.InstallObserverOptions{
+	installObserverUseEncryptionOpts,
+	installObserverDoNotUseEncryptionOpts,
+}
+
 func (s *assetsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
@@ -231,8 +244,8 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	d := c.MkDir()
 	// bootloader in gadget cannot be identified
 	uc20Model := boottest.MakeMockUC20Model()
-	for _, encryption := range []bool{true, false} {
-		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+	for _, encryptionOpts := range installObserverEncryptionOptsVariants {
+		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryptionOpts)
 		c.Assert(err, ErrorMatches, "cannot find bootloader: cannot determine bootloader")
 		c.Assert(obs, IsNil)
 	}
@@ -240,15 +253,15 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	// pretend grub is used
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "grub.conf"), nil, 0755), IsNil)
 
-	for _, encryption := range []bool{true, false} {
-		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+	for _, encryptionOpts := range installObserverEncryptionOptsVariants {
+		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryptionOpts)
 		c.Assert(err, IsNil)
 		c.Assert(obs, NotNil)
 	}
 
 	// but nil for non UC20
 	nonUC20Model := boottest.MakeMockModel()
-	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d, false)
+	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d, installObserverDoNotUseEncryptionOpts)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
 
@@ -257,7 +270,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 		"asset",
 	})
 	tab.TrustedAssetsErr = fmt.Errorf("fail")
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, ErrorMatches, `cannot list "trusted" bootloader trusted assets: fail`)
 	c.Assert(obs, IsNil)
 	// failed when listing run bootloader assets
@@ -265,7 +278,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 
 	// force an error
 	bootloader.ForceError(fmt.Errorf("fail bootloader"))
-	obs, err = boot.TrustedAssetsInstallObserverForModel(uc20Model, d, true)
+	obs, err = boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, ErrorMatches, `cannot find bootloader: fail bootloader`)
 	c.Assert(obs, IsNil)
 }
@@ -283,6 +296,86 @@ var (
 	}
 )
 
+func (s *assetsSuite) TestInstallObserverCurrentTrustedBootAssets(c *C) {
+	d := c.MkDir()
+	uc20Model := boottest.MakeMockUC20Model()
+
+	// pretend grub is used for all variants
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "grub.conf"), nil, 0755), IsNil)
+
+	writeChange := &gadget.ContentChange{
+		// file that contains the data of the installed file
+		After: filepath.Join(d, "realasset"),
+		// there is no original file in place
+		Before: "",
+	}
+
+	data := []byte("realasset")
+	// SHA3-384
+	dataHash := "467b6f75ec7de3f95dfa23b78873a3b4284a0f6ce905749df788323c81371d60628a2d0839c81b02ee2fccd645e16474"
+	err := ioutil.WriteFile(filepath.Join(d, "realasset"), data, 0644)
+	c.Assert(err, IsNil)
+
+	for _, useEncryption := range []bool{true, false} {
+		installObserverOpts := &boot.InstallObserverOptions{
+			UseEncryption: useEncryption,
+		}
+		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverOpts)
+		c.Assert(err, IsNil)
+
+		// no assets since we haven't observed anything and didn't get any from the
+		// setup opts
+		c.Assert(obs.CurrentTrustedBootAssetsMap(), HasLen, 0)
+		c.Assert(obs.CurrentTrustedRecoveryBootAssetsMap(), HasLen, 0)
+
+		// create an observer with some pre-defined assets
+		installObserverOpts.TrackedAssets = boot.AssetsMap{
+			"some-asset": []string{"foo", "bar"},
+		}
+		installObserverOpts.TrackedRecoveryAssets = boot.AssetsMap{
+			"recovery-some-asset": []string{"recovery-foo", "recovery-bar"},
+		}
+		obs2, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverOpts)
+		c.Assert(err, IsNil)
+		c.Assert(obs2.CurrentTrustedBootAssetsMap(), DeepEquals, installObserverOpts.TrackedAssets)
+		c.Assert(obs2.CurrentTrustedRecoveryBootAssetsMap(), DeepEquals, installObserverOpts.TrackedRecoveryAssets)
+
+		// now observe some assets with both observers and make sure the assets
+		// get added properly
+
+		_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+			"EFI/boot/grubx64.efi", writeChange)
+		c.Assert(err, IsNil)
+
+		if useEncryption {
+			c.Assert(obs.CurrentTrustedBootAssetsMap(), DeepEquals, boot.AssetsMap{
+				"grubx64.efi": []string{dataHash},
+			})
+		} else {
+			c.Assert(obs.CurrentTrustedBootAssetsMap(), HasLen, 0)
+		}
+
+		// we didn't get anything added to recovery though
+		c.Assert(obs.CurrentTrustedRecoveryBootAssetsMap(), HasLen, 0)
+
+		_, err = obs2.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+			"EFI/boot/grubx64.efi", writeChange)
+		c.Assert(err, IsNil)
+
+		if useEncryption {
+			c.Assert(obs2.CurrentTrustedBootAssetsMap(), DeepEquals, boot.AssetsMap{
+				"grubx64.efi": []string{dataHash},
+				"some-asset":  []string{"foo", "bar"},
+			})
+		} else {
+			c.Assert(obs2.CurrentTrustedBootAssetsMap(), DeepEquals, installObserverOpts.TrackedAssets)
+
+		}
+		// recovery boot assets didn't change though
+		c.Assert(obs2.CurrentTrustedRecoveryBootAssetsMap(), DeepEquals, installObserverOpts.TrackedRecoveryAssets)
+	}
+}
+
 func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	d := c.MkDir()
 
@@ -292,8 +385,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -376,8 +468,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	// the list of trusted assets was asked for run and recovery bootloaders
@@ -431,8 +522,16 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNoEncryption(c *
 	d := c.MkDir()
 	s.bootloaderWithTrustedAssets(c, []string{"asset"})
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := false
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverDoNotUseEncryptionOpts)
+	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
+	c.Assert(obs, IsNil)
+}
+
+func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNilOptsMeansNoEncryption(c *C) {
+	d := c.MkDir()
+	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	uc20Model := boottest.MakeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, nil)
 	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(obs, IsNil)
 }
@@ -442,8 +541,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
 	tab.ManagedAssetsList = []string{"managed"}
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := false
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverDoNotUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
@@ -472,8 +570,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
@@ -493,8 +590,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
@@ -512,8 +608,7 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	// the list of trusted assets was asked for run and recovery bootloaders
@@ -545,8 +640,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	// trusted assets for the run and recovery bootloaders were asked for
@@ -593,8 +687,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	})
 	// we get an observer for UC20
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	// got the list of trusted assets for run and recovery bootloaders
@@ -622,8 +715,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryButMissingErr(c 
 	})
 
 	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, installObserverUseEncryptionOpts)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)

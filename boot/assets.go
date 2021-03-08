@@ -166,6 +166,17 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 	return err
 }
 
+// InstallObserverOptions is a set of options for what kind of observer to
+// return from TrustedAssetsInstallObserverForModel, specifically configuring
+// whether or not to use encryption, and whether to pre-populate any tracked
+// assets for run and recover mode bootloaders that may have previously been
+// observed.
+type InstallObserverOptions struct {
+	UseEncryption         bool
+	TrackedAssets         AssetsMap
+	TrackedRecoveryAssets AssetsMap
+}
+
 // ErrObserverNotApplicable indicates that observer is not applicable for use
 // with the model.
 var ErrObserverNotApplicable = errors.New("observer not applicable")
@@ -174,7 +185,10 @@ var ErrObserverNotApplicable = errors.New("observer not applicable")
 // for use during installation of the run mode system to track trusted and
 // control managed assets, provided the device model indicates this might be
 // needed. Otherwise, nil and ErrObserverNotApplicable is returned.
-func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
+func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, opts *InstallObserverOptions) (*TrustedAssetsInstallObserver, error) {
+	if opts == nil {
+		opts = &InstallObserverOptions{}
+	}
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
@@ -200,7 +214,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if err != nil {
 		return nil, err
 	}
-	if !useEncryption {
+	if !opts.UseEncryption {
 		// we do not care about trusted assets when not encrypting data
 		// partition
 		runTrusted = nil
@@ -208,7 +222,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	}
 	hasManaged := len(runManaged) > 0
 	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
-	if !hasManaged && !hasTrusted && !useEncryption {
+	if !hasManaged && !hasTrusted && !opts.UseEncryption {
 		// no managed assets, and no trusted assets or we are not
 		// tracking them due to no encryption to data partition
 		return nil, ErrObserverNotApplicable
@@ -222,6 +236,9 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 		blName:        runBl.Name(),
 		managedAssets: runManaged,
 		trustedAssets: runTrusted,
+
+		trackedAssets:         opts.TrackedAssets,
+		trackedRecoveryAssets: opts.TrackedRecoveryAssets,
 
 		recoveryBlName:        seedBl.Name(),
 		trustedRecoveryAssets: seedTrusted,
@@ -331,11 +348,11 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() AssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() AssetsMap {
 	return o.trackedAssets
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() AssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() AssetsMap {
 	return o.trackedRecoveryAssets
 }
 

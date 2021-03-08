@@ -80,14 +80,6 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() AssetsMap {
-	return o.currentTrustedBootAssetsMap()
-}
-
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() AssetsMap {
-	return o.currentTrustedRecoveryBootAssetsMap()
-}
-
 func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() secboot.EncryptionKey {
 	return o.dataEncryptionKey
 }
