@@ -84,8 +84,9 @@ func clearTryRecoverySystem(dev Device, systemLabel string) error {
 }
 
 // SetTryRecoverySystem sets up the boot environment for trying out a recovery
-// system with given label. Once done, the caller should request switching to
-// the given recovery system.
+// system with given label and adds the new system to the list of current
+// recovery systems in the modeenv. Once done, the caller should request
+// switching to the given recovery system.
 func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
@@ -123,6 +124,9 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		}
 	}()
 
+	// even when we unexpectedly reboot after updating the bootenv here, we
+	// should not boot into the tried system, as the caller must explicitly
+	// request that by other means
 	vars := map[string]string{
 		"try_recovery_system":    systemLabel,
 		"recovery_system_status": "try",
@@ -131,6 +135,9 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		return err
 	}
 
+	// until the keys are resealed, even if we unexpectedly boot into the
+	// tried system, data will still be inaccessible and the system will be
+	// considered as nonoperational
 	const expectReseal = true
 	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
 }

@@ -666,6 +666,10 @@ type ImportFlags struct {
 
 // Import a snapshot from the export file format
 func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+		return nil, err
+	}
+
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
 	tr := newImportTransaction(id)
