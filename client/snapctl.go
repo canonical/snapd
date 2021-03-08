@@ -71,13 +71,13 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	//       the daemon eventually
 	var stdinData []byte
 	if stdin != nil {
-		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit}
+		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit + 1}
 		stdinData, err = ioutil.ReadAll(limitedStdin)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
 		}
 		if limitedStdin.N <= 0 {
-			return nil, nil, fmt.Errorf("cannot read more than %v bytes of data from stdin", stdinReadLimit-1)
+			return nil, nil, fmt.Errorf("cannot read more than %v bytes of data from stdin", stdinReadLimit)
 		}
 	}
 
