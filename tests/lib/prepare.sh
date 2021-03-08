@@ -526,11 +526,14 @@ uc20_build_initramfs_kernel_snap() {
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
             cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
                                   --kerneldir "lib/modules/$kver" \
                                   --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
                                   --output ../../repacked-initrd
         )
 
