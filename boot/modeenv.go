@@ -49,7 +49,7 @@ type Modeenv struct {
 	RecoverySystem string `key:"recovery_system"`
 	// CurrentRecoverySystems is a list of labels corresponding to recovery
 	// systems that have been tested or are in the process of being tried,
-	// thus only the run key is resealed for these sytems.
+	// thus only the run key is resealed for these systems.
 	CurrentRecoverySystems []string `key:"current_recovery_systems"`
 	// GoodRecoverySystems is a list of labels corresponding to recovery
 	// systems that were tested and are prepared to use for recovering.

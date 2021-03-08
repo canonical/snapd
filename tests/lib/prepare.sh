@@ -745,10 +745,8 @@ setup_reflash_magic() {
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
-    if os.query is-core16 || os.query is-core18; then
-        UNPACK_DIR="/tmp/$core_name-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
-    fi
+    UNPACK_DIR="/tmp/$core_name-snap"
+    unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -925,13 +923,19 @@ EOF
           /home/gopath /mnt/user-data/
     elif os.query is-core20; then
         # prepare passwd for run-mode-overlay-data
+
+        # use /etc/{group,passwd,shadow,gshadow} from the core20 snap, merged
+        # with some bits from our current system - we don't want to use the
+        # /etc/group from the current system as classic and core gids and uids
+        # don't match, but we still need the same test/ubuntu/root user info
+        # in core as we currently have in classic
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
+            grep -v "^root:" "$UNPACK_DIR/etc/$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference /etc/"$f" /root/test-etc/"$f"
+            chgrp --reference "$UNPACK_DIR/etc/$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
             grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
@@ -940,8 +944,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
-        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
-        # and merge it from the core snap this is done explicitly as a second step.
+        # Make sure systemd-journal group has the "test" user as a member. Due
+        # to the way we copy that from the host and merge it from the core snap
+        # this is done explicitly as a second step.
         sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \

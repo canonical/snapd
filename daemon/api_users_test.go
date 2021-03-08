@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
@@ -835,6 +836,49 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) 
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+
+	// disable automatic user creation
+	st := s.d.Overlord().State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	err := tr.Set("core", "users.create.automatic", false)
+	tr.Commit()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	defer daemon.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		// we should not reach here
+		panic("no user should be created")
+	})()
+	// make sure we report them as non-existing until created
+	defer daemon.MockUserLookup(func(username string) (*user.User, error) {
+		// this error would simply be interpreted as need to create
+		return nil, fmt.Errorf("not created yet")
+	})()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"automatic": true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	// empty result
+	expected := []daemon.UserResponseData{}
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure no user was added to the state
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 0)
 }
 
 func (s *userSuite) TestUsersEmpty(c *check.C) {

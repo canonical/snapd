@@ -344,6 +344,19 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a8), IsNil)
 	c.Assert(s.storeSigning.Add(a8), IsNil)
 
+	// add pi-kernel snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "pi-kernel",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a9, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a9), IsNil)
+	c.Assert(s.storeSigning.Add(a9), IsNil)
+
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
@@ -3917,13 +3930,14 @@ func validateDownloadCheckTasks(c *C, tasks []*state.Task, name, revno, channel 
 const (
 	noConfigure = 1 << iota
 	isGadget
+	isKernel
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
 	var i int
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
 	i++
-	if flags&isGadget != 0 {
+	if flags&isGadget != 0 || flags&isKernel != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget "%s" (%s)`, name, revno))
 		i++
 	}
@@ -3964,7 +3978,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make current revision for snap "%s" unavailable`, name))
 	i++
-	if flags&isGadget != 0 {
+	if flags&isGadget != 0 || flags&isKernel != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s)`, name, revno))
 		i++
 
@@ -4781,7 +4795,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2", 0)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2", isKernel)
 	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
 
 	// ensure that we only have the tasks we checked (plus the one
@@ -4863,7 +4877,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2", 0)
+	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2", isKernel)
 	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
 
 	// ensure that we only have the tasks we checked (plus the one
@@ -6176,6 +6190,8 @@ type: snapd`
 
 type gadgetUpdatesSuite struct {
 	baseMgrsSuite
+
+	bloader *boottest.Bootenv16
 }
 
 var _ = Suite(&gadgetUpdatesSuite{})
@@ -6186,6 +6202,12 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	ms.AddCleanup(func() { bootloader.Force(nil) })
+	bloader.BootVars = map[string]string{
+		"snap_core":   "core18_2.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+		"snap_mode":   boot.DefaultStatus,
+	}
+	ms.bloader = bloader
 
 	restore := release.MockOnClassic(false)
 	ms.AddCleanup(restore)
@@ -6200,6 +6222,7 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 	// setup model assertion
 	model := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"gadget": "pi",
+		"kernel": "pi-kernel",
 	})
 	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "can0nical",
@@ -6233,6 +6256,7 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// and mock the mount point
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0755)
 	c.Assert(err, IsNil)
+
 }
 
 // tsWithoutReRefresh removes the re-refresh task from the given taskset.
@@ -6344,4 +6368,230 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+}
+
+func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefKernelRefresh(c *C) {
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+    - dtbs/broadcom/
+    - dtbs/overlays/`
+
+	structureName := "ubuntu-seed"
+	gadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+	ms.makeMockedDev(c, structureName)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an installed gadget with kernel refs
+	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pi", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+	})
+	// we have an installed kernel with kernel.yaml
+	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+	})
+
+	// add new kernel snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pi-kernel",
+		"publisher-id": "can0nical",
+		"revision":     "2",
+	})
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, kernelSnapYaml, "2", [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
+		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
+		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2"},
+	})
+	ms.serveSnap(snapPath, "2")
+
+	ts, err := snapstate.Update(st, "pi-kernel", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// remove the re-refresh as it will prevent settle from converging
+	ts = tsWithoutReRefresh(c, ts)
+
+	chg := st.NewChange("upgrade-kernel", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// pretend we restarted
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+	// pretend we restarted
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
+
+	// settle again
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// check that files/dirs got updated and subdirs are correct
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+	// BUT the gadget content is ignored and not copied again
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileAbsent)
+}
+
+func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefGadgetRefresh(c *C) {
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+    - dtbs/broadcom/
+    - dtbs/overlays/`
+
+	structureName := "ubuntu-seed"
+	gadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+	newGadgetYaml := gadgetYaml + `
+            update:
+              edition: 2
+`
+	ms.makeMockedDev(c, structureName)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an installed gadget with kernel refs
+	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pi", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	// we have an installed kernel with kernel.yaml
+	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
+		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
+		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2"},
+	})
+
+	// add new gadget snap to fake store that has an "update: true"
+	// for the kernel ref structure
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pi",
+		"publisher-id": "can0nical",
+		"revision":     "2",
+	})
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev2"},
+	})
+	ms.serveSnap(snapPath, "2")
+
+	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// remove the re-refresh as it will prevent settle from converging
+	ts = tsWithoutReRefresh(c, ts)
+
+	chg := st.NewChange("upgrade-gadget", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// pretend we restarted
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+	// simulate successful restart happened after gadget update
+	state.MockRestarting(st, state.RestartUnset)
+
+	// settle again
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// check that files/dirs got updated and subdirs are correct
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev2")
 }
