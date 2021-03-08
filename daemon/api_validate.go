@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -88,22 +87,6 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 		Result: res,
 		Status: 404,
 	}
-}
-
-func validationSetAccountAndName(validationSet string) (accountID, name string, err error) {
-	parts := strings.Split(validationSet, "/")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid validation-set argument")
-	}
-	accountID = parts[0]
-	name = parts[1]
-	if !asserts.IsValidAccountID(accountID) {
-		return "", "", fmt.Errorf("invalid account ID %q", accountID)
-	}
-	if !asserts.IsValidValidationSetName(name) {
-		return "", "", fmt.Errorf("invalid validation set name %q", name)
-	}
-	return accountID, name, nil
 }
 
 func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -351,6 +334,18 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	return SyncResponse(nil, nil)
 }
 
+func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
+	as, err := validationSetAssertFromDb(st, accountID, name, sequence)
+	if err != nil {
+		return nil, err
+	}
+	sets := snapasserts.NewValidationSets()
+	if err := sets.Add(as); err != nil {
+		return nil, err
+	}
+	return sets, nil
+}
+
 func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (*asserts.ValidationSet, error) {
 	headers := map[string]string{
 		"series":     release.Series,
@@ -365,18 +360,6 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 	}
 	vset := as.(*asserts.ValidationSet)
 	return vset, nil
-}
-
-func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
-	as, err := validationSetAssertFromDb(st, accountID, name, sequence)
-	if err != nil {
-		return nil, err
-	}
-	sets := snapasserts.NewValidationSets()
-	if err := sets.Add(as); err != nil {
-		return nil, err
-	}
-	return sets, nil
 }
 
 func validateAgainstStore(st *state.State, accountID, name string, sequence int, user *auth.UserState) Response {
