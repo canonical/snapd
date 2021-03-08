@@ -525,7 +525,7 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 		perf := timings.New(nil)
 		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel}, perf)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot read system %q seed: %v", system, err)
 		}
 		if len(snaps) != 1 {
 			return nil, fmt.Errorf("cannot obtain recovery kernel snap")
@@ -610,6 +610,10 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 // hashes from modeenv plus it returns separately the last BootFile
 // which is for the kernel.
 func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
+	if len(bootFiles) == 0 {
+		// useful in testing, when mocking is insufficient
+		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: cannot build boot assets without boot files")
+	}
 	assets = make([]bootAsset, len(bootFiles)-1)
 
 	// the last element is the kernel which is not a boot asset
