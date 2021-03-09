@@ -44,6 +44,13 @@ prepare: |
         tests.session -u test prepare
     fi
 
+restore: |
+    # Remove the snaps to avoid timeout in next test
+    snap remove --purge "$CONSUMER_SNAP"
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test restore
+    fi
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -100,10 +107,3 @@ execute: |
             fi
         fi
     done
-
-restore: |
-    # Remove the snaps to avoid timeout in next test
-    snap remove --purge "$CONSUMER_SNAP"
-    if tests.session has-session-systemd-and-dbus; then
-        tests.session -u test restore
-    fi

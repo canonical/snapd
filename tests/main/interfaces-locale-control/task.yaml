@@ -60,7 +60,7 @@ execute: |
     snap connect locale-control-consumer:locale-control
 
     echo "Then the snap is able to read the locale configuration"
-    [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
+    test "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
@@ -79,7 +79,7 @@ execute: |
 
     echo "Then the snap is able to write the locale configuration"
     locale-control-consumer.set LANG mylang
-    grep -q "LANG=\"mylang\"" /etc/default/locale
+    MATCH 'LANG=\"mylang\"' < /etc/default/locale
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -93,4 +93,4 @@ execute: |
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" locale-write.error
+    MATCH "Permission denied" < locale-write.error
