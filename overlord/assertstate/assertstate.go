@@ -363,8 +363,8 @@ type ResolveOptions struct {
 
 // ValidationSetAssertionForMonitor tries to fetch or refresh the validation
 // set assertion with accountID/name/sequence (sequence is optional) using pool.
-// If pinned is true and the assertion cannot be updated but exists locally,
-// then the local one is returned
+// If assertion cannot be fetched but exists locally and opts.AllowLocalFallback
+// is set then the local one is returned
 func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *ResolveOptions) (as *asserts.ValidationSet, local bool, err error) {
 	if opts == nil {
 		opts = &ResolveOptions{}
