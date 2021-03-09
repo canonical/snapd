@@ -262,8 +262,8 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
 	}
 
-	var currentTrustedBootAssets bootAssetsMap
-	var currentTrustedRecoveryBootAssets bootAssetsMap
+	var currentTrustedBootAssets AssetsMap
+	var currentTrustedRecoveryBootAssets AssetsMap
 	if sealer != nil {
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()

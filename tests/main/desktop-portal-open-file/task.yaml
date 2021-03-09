@@ -1,5 +1,5 @@
 summary: the desktop portal allows confined apps to open local files
-description: |
+details: |
     The xdg-desktop-portal "Open URI" interface provides a way for
     confined applications to open local files using the associated
     application on the host system.

@@ -451,7 +451,7 @@ distro_install_build_snapd(){
             fi
         fi
 
-        if [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]]; then
+        if os.query is-opensuse-tumbleweed; then
             # Package installation applies vendor presets only, which leaves
             # snapd.apparmor disabled.
             systemctl enable --now snapd.apparmor.service
@@ -570,6 +570,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
+                gperf
                 evolution-data-server
                 fwupd
                 packagekit
@@ -703,6 +704,7 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        audit
         bash-completion
         clang
         curl

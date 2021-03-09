@@ -35,7 +35,7 @@ var (
 
 var (
 	// default positioning constraints that match ubuntu-image
-	defaultConstraints = LayoutConstraints{
+	DefaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
 )
@@ -178,13 +178,13 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// layout old partially, without going deep into the layout of structure
 	// content
-	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
+	pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// Layout new volume, delay resolving of filesystem content
-	constraints := defaultConstraints
+	constraints := DefaultConstraints
 	constraints.SkipResolveContent = true
 	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
 	if err != nil {
@@ -413,15 +413,17 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 
 func filterUpdates(updates []updatePair) {
 	for _, update := range updates {
-		if update.resolvedContentFilter != nil {
-			filteredResolvedContent := make([]ResolvedContent, 0, len(update.to.ResolvedContent))
-			for _, rn := range update.to.ResolvedContent {
-				if update.resolvedContentFilter(&rn) {
-					filteredResolvedContent = append(filteredResolvedContent, rn)
-				}
-			}
-			update.to.ResolvedContent = filteredResolvedContent
+		if update.resolvedContentFilter == nil {
+			// this content does not need to be filtered
+			continue
 		}
+		filteredResolvedContent := make([]ResolvedContent, 0, len(update.to.ResolvedContent))
+		for _, rn := range update.to.ResolvedContent {
+			if update.resolvedContentFilter(&rn) {
+				filteredResolvedContent = append(filteredResolvedContent, rn)
+			}
+		}
+		update.to.ResolvedContent = filteredResolvedContent
 	}
 }
 

@@ -540,6 +540,7 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
         # Switch to the main archive by commenting out metalink and uncommenting
@@ -554,6 +555,7 @@ prepare: |
         # enable audit daemon
         systemctl enable --now auditd.service
     fi
+
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
         # refresh metadatadata
         # Auto import gpg keys needed for could repository added to support google backend
@@ -565,6 +567,9 @@ prepare: |
     # added by spread tests
     download.max_silent_tries = 20
     EOF
+
+        # Make sure docs are installed with the packages
+        sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then

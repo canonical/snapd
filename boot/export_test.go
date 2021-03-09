@@ -67,7 +67,6 @@ var (
 	SealKeyModelParams              = sealKeyModelParams
 )
 
-type BootAssetsMap = bootAssetsMap
 type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
 
@@ -81,11 +80,11 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() AssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() AssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 

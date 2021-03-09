@@ -346,7 +346,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	for name, vol := range info.Volumes {
 		// At this point we don't know what kernel will be used
 		// with the gadget we we need to pass an empty kernel root
-		constraints := defaultConstraints
+		constraints := DefaultConstraints
 		constraints.SkipResolveContent = true
 		lv, err := LayoutVolume(gadgetSnapRootDir, "", vol, constraints)
 		if err != nil {

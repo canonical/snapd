@@ -1,6 +1,6 @@
 summary: verify that user environment settings are added
 
-description: |
+details: |
     User environment variables are added via /etc/profile.d/snapd.sh (bash/sh
     specific) or via /lib/environment.d/ helpers. Make sure that at least one of
     the mechanisms works and XDG_DATA_DIRS and PATH are updated accordingly
