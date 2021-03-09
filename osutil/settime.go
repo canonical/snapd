@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,24 @@
  *
  */
 
-package configstate
+package osutil
 
 import (
-	"sort"
-	"strings"
+	"syscall"
+	"time"
 )
 
-func sortPatchKeysByDepth(patch map[string]interface{}) []string {
-	if len(patch) == 0 {
-		return nil
-	}
-	depths := make(map[string]int, len(patch))
-	keys := make([]string, 0, len(patch))
-	for k := range patch {
-		depths[k] = strings.Count(k, ".")
-		keys = append(keys, k)
-	}
+// exposed for different 32-bit vs 64-bit definitions of syscall.Timeval
+var timeToTimeval func(time.Time) *syscall.Timeval
 
-	sort.Slice(keys, func(i, j int) bool {
-		return depths[keys[i]] < depths[keys[j]]
-	})
-	return keys
+// exposed for mocking, since we can't actually call this without being root
+// on system running tests
+var syscallSettimeofday = syscall.Settimeofday
+
+// SetTime sets the time of the system using settimeofday(). This syscall needs
+// to be performed as root or with CAP_SYS_TIME.
+func SetTime(t time.Time) error {
+	tv := timeToTimeval(t)
+
+	return syscallSettimeofday(tv)
 }

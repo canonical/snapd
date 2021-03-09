@@ -232,11 +232,11 @@ type trackedAsset struct {
 	blName, name, hash string
 }
 
-func isAssetAlreadyTracked(bam bootAssetsMap, newAsset *trackedAsset) bool {
+func isAssetAlreadyTracked(bam AssetsMap, newAsset *trackedAsset) bool {
 	return isAssetHashTrackedInMap(bam, newAsset.name, newAsset.hash)
 }
 
-func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) bool {
+func isAssetHashTrackedInMap(bam AssetsMap, assetName, assetHash string) bool {
 	if bam == nil {
 		return false
 	}
@@ -257,11 +257,11 @@ type TrustedAssetsInstallObserver struct {
 	blName        string
 	managedAssets []string
 	trustedAssets []string
-	trackedAssets bootAssetsMap
+	trackedAssets AssetsMap
 
 	recoveryBlName        string
 	trustedRecoveryAssets []string
-	trackedRecoveryAssets bootAssetsMap
+	trackedRecoveryAssets AssetsMap
 
 	dataEncryptionKey secboot.EncryptionKey
 	saveEncryptionKey secboot.EncryptionKey
@@ -296,7 +296,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	// structure content, so make sure we are not tracking it yet
 	if !isAssetAlreadyTracked(o.trackedAssets, ta) {
 		if o.trackedAssets == nil {
-			o.trackedAssets = bootAssetsMap{}
+			o.trackedAssets = AssetsMap{}
 		}
 		if len(o.trackedAssets[ta.name]) > 0 {
 			return gadget.ChangeAbort, fmt.Errorf("cannot reuse asset name %q", ta.name)
@@ -320,7 +320,7 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		}
 		if !isAssetAlreadyTracked(o.trackedRecoveryAssets, ta) {
 			if o.trackedRecoveryAssets == nil {
-				o.trackedRecoveryAssets = bootAssetsMap{}
+				o.trackedRecoveryAssets = AssetsMap{}
 			}
 			if len(o.trackedRecoveryAssets[ta.name]) > 0 {
 				return fmt.Errorf("cannot reuse recovery asset name %q", ta.name)
@@ -331,11 +331,11 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
+func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() AssetsMap {
 	return o.trackedAssets
 }
 
-func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
+func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() AssetsMap {
 	return o.trackedRecoveryAssets
 }
 
@@ -562,7 +562,7 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	*changedAssets = append(*changedAssets, ta)
 
 	if *trustedAssets == nil {
-		*trustedAssets = bootAssetsMap{}
+		*trustedAssets = AssetsMap{}
 	}
 
 	if taBefore != nil && !isAssetAlreadyTracked(*trustedAssets, taBefore) {
@@ -830,6 +830,11 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 // after a successful boot. Returns a modified modeenv reflecting a new state,
 // and a list of assets that can be dropped from the cache.
 func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	// TODO:UC20 only care about run mode for now
+	if m.Mode != "run" {
+		return m, nil, nil
+	}
+
 	newM, err = m.Copy()
 	if err != nil {
 		return nil, nil, err

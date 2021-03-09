@@ -86,6 +86,18 @@ func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
 	c.Assert(ioutil.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
 }
 
+// mockAssetsCache mocks the listed assets in the boot assets cache by creating
+// an empty file for each.
+func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets []string) {
+	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
+	err := os.MkdirAll(p, 0755)
+	c.Assert(err, IsNil)
+	for _, cachedAsset := range cachedAssets {
+		err = ioutil.WriteFile(filepath.Join(p, cachedAsset), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
 type bootenvSuite struct {
 	baseBootenvSuite
 
@@ -850,12 +862,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
@@ -874,7 +883,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
 	}
@@ -961,12 +970,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
@@ -986,7 +992,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
 	}
@@ -1072,12 +1078,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
 
@@ -1094,9 +1097,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 
 	r := setupUC20Bootenv(
@@ -1187,12 +1191,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
 
@@ -1209,9 +1210,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 
 	r := setupUC20Bootenv(
@@ -1856,12 +1858,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
@@ -1876,7 +1875,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
 	}
@@ -2057,16 +2056,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-recoveryshimhash",
 		"shim-" + shimHash,
 		"asset-assethash",
 		"asset-recoveryassethash",
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	shimBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)), bootloader.RoleRecovery)
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRecovery)
@@ -2103,10 +2099,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {"assethash", dataHash},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": {"recoveryassethash", dataHash},
 			"shim":  {"recoveryshimhash", shimHash},
 		},
@@ -2167,10 +2163,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	// update assets are in the list
-	c.Check(m2.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Check(m2.CurrentTrustedBootAssets, DeepEquals, boot.AssetsMap{
 		"asset": {dataHash},
 	})
-	c.Check(m2.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Check(m2.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.AssetsMap{
 		"asset": {dataHash},
 		"shim":  {shimHash},
 	})
@@ -2203,13 +2199,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-" + shimHash,
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
@@ -2244,14 +2237,15 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 			"shim":  {shimHash},
 		},
-		CurrentRecoverySystems: []string{"system"},
+		CurrentRecoverySystems:    []string{"system"},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -2365,13 +2359,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"shim-" + shimHash,
 		"asset-" + dataHash,
-	} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	})
 
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
 	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
@@ -2406,14 +2397,15 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": {dataHash},
 			"shim":  {shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
+		GoodRecoverySystems:       []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 	}
 	r := setupUC20Bootenv(
@@ -2520,21 +2512,21 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/asset"), data, 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/asset"), data, 0644), IsNil)
 	// mock some state in the cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{"asset-one", "asset-two"} {
-		c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644), IsNil)
-	}
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-one",
+		"asset-two",
+	})
 
 	// we were trying an update of boot assets
 	m := &boot.Modeenv{
 		Mode:           "run",
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			// hash will not match
 			"asset": {"one", "two"},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": {"one", "two"},
 		},
 	}
@@ -2571,17 +2563,18 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 
 func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, mode string, cmdlines boot.BootCommandLines) *boot.Modeenv {
 	// mock some state in the cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-one"), nil, 0644), IsNil)
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-one",
+	})
 	// a pending kernel command line change
 	m := &boot.Modeenv{
 		Mode:           mode,
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": {"one"},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": {"one"},
 		},
 		CurrentKernelCommandLines: cmdlines,
@@ -2772,6 +2765,79 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
 	})
 }
 
+func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
+	b := bootloadertest.Mock("mock", s.bootdir)
+	s.forceBootloader(b)
+
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   s.base1.Filename(),
+		CurrentKernels:         []string{s.kern1.Filename()},
+		CurrentRecoverySystems: []string{"1234"},
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		b,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// the list of good recovery systems has not been modified
+	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234"})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsPopulated(c *C) {
+	b := bootloadertest.Mock("mock", s.bootdir)
+	s.forceBootloader(b)
+
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   s.base1.Filename(),
+		CurrentKernels:         []string{s.kern1.Filename()},
+		CurrentRecoverySystems: []string{"1234", "9999"},
+		GoodRecoverySystems:    []string{"1234"},
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		b,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// good recovery systems has been populated
+	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234", "9999"})
+}
+
 type recoveryBootenv20Suite struct {
 	baseBootenvSuite
 
@@ -2840,4 +2906,244 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 		"snapd_recovery_system": "1234",
 		"snapd_recovery_mode":   "install",
 	})
+}
+
+type bootConfigSuite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockTrustedAssetsBootloader
+}
+
+var _ = Suite(&bootConfigSuite{})
+
+func (s *bootConfigSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
+	s.bootloader.StaticCommandLine = "this is mocked panic=-1"
+	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
+	s.forceBootloader(s.bootloader)
+
+	s.mockCmdline(c, "snapd_recovery_mode=run this is mocked panic=-1")
+}
+
+func (s *bootConfigSuite) mockCmdline(c *C, cmdline string) {
+	c.Assert(ioutil.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateHappyWithReseal(c *C) {
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-hash-1",
+	})
+
+	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.bootloader.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		recoveryKernelBf,
+	}
+	m := &boot.Modeenv{
+		Mode:           "run",
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+			"asset": []string{"hash-1"},
+		},
+		CurrentTrustedBootAssets: boot.AssetsMap{
+			"asset": []string{"hash-1"},
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		c.Assert(params, NotNil)
+		c.Assert(params.ModelParams, HasLen, 1)
+		c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			"snapd_recovery_mode=run mocked candidate panic=-1",
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		})
+		return nil
+	})
+	defer restore()
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 1)
+
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run this is mocked panic=-1",
+		"snapd_recovery_mode=run mocked candidate panic=-1",
+	})
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	s.bootloader.StaticCommandLine = "mocked unchanged panic=-1"
+	s.bootloader.CandidateStaticCommandLine = "mocked unchanged panic=-1"
+	s.mockCmdline(c, "snapd_recovery_mode=run mocked unchanged panic=-1")
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run mocked unchanged panic=-1",
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 0)
+
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernelCommandLines, HasLen, 1)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
+	nonUC20coreDev := boottest.MockDevice("pc-kernel")
+	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
+	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateBadModeErr(c *C) {
+	uc20Dev := boottest.MockUC20Device("recover", nil)
+	c.Assert(uc20Dev.HasModeenv(), Equals, true)
+	updated, err := boot.UpdateManagedBootConfigs(uc20Dev)
+	c.Assert(err, ErrorMatches, "internal error: boot config can only be updated in run mode")
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	s.bootloader.UpdateErr = errors.New("update fail")
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, ErrorMatches, "update fail")
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	s.mockCmdline(c, "snapd_recovery_mode=run unexpected cmdline")
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, ErrorMatches, `internal error: current kernel command lines is unset`)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	bl := bootloadertest.Mock("not-managed", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	bootloader.ForceError(errors.New("mocked find error"))
+	defer bootloader.ForceError(nil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	c.Assert(err, ErrorMatches, "internal error: cannot find trusted assets bootloader under .*: mocked find error")
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 }

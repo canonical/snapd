@@ -176,6 +176,37 @@ static void test_is_on_custom_base(void)
 	g_assert_cmpint(sc_classify_distro(), ==, SC_DISTRO_CORE_OTHER);
 }
 
+static const char *os_release_debian_like_valid = ""
+    "ID=my-fun-distro\n"
+	"ID_LIKE=debian\n";
+
+static const char *os_release_debian_like_quoted_valid = ""
+    "ID=my-fun-distro\n"
+	"ID_LIKE=\"debian\"\n";
+
+/* actual debian only sets ID=debian */
+static const char *os_release_actual_debian_valid = "ID=debian\n";
+
+static const char *os_release_invalid = "garbage\n";
+
+static void test_is_debian_like(void)
+{
+	mock_os_release(os_release_debian_like_valid);
+	g_assert_true(sc_is_debian_like());
+
+	mock_os_release(os_release_debian_like_quoted_valid);
+	g_assert_true(sc_is_debian_like());
+
+	mock_os_release(os_release_actual_debian_valid);
+	g_assert_true(sc_is_debian_like());
+
+	mock_os_release(os_release_fedora_ws);
+	g_assert_false(sc_is_debian_like());
+
+	mock_os_release(os_release_invalid);
+	g_assert_false(sc_is_debian_like());
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
@@ -187,4 +218,5 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/classic/on-fedora-base", test_is_on_fedora_base);
 	g_test_add_func("/classic/on-fedora-ws", test_is_on_fedora_ws);
 	g_test_add_func("/classic/on-custom-base", test_is_on_custom_base);
+	g_test_add_func("/classic/is-debian-like", test_is_debian_like);
 }

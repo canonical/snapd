@@ -57,6 +57,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"mode":                     true,
 		"recovery_system":          true,
 		"current_recovery_systems": true,
+		"good_recovery_systems":    true,
 		// keep this comment to make old go fmt happy
 		"base":            true,
 		"try_base":        true,
@@ -146,7 +147,7 @@ current_kernel_command_lines=["foo", "bar"]
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -224,6 +225,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
@@ -234,7 +236,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BrandID: "brand",
 		Grade:   "secured",
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -249,6 +251,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
@@ -259,7 +262,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BrandID: "brand",
 		Grade:   "secured",
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -304,6 +307,24 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 	// clear kernel command lines list
 	modeenv2.CurrentKernelCommandLines = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+
+	// make it identical again
+	modeenv2.CurrentKernelCommandLines = boot.BootCommandLines{
+		"foo",
+		"foo bar",
+	}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of current recovery systems
+	modeenv2.CurrentRecoverySystems = append(modeenv2.CurrentRecoverySystems, "1234")
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// make it identical again
+	modeenv2.CurrentRecoverySystems = []string{"1", "2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of good recovery systems
+	modeenv2.GoodRecoverySystems = append(modeenv2.GoodRecoverySystems, "999")
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
@@ -364,10 +385,10 @@ a_key=other
 		RecoverySystem: "20191126",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     boot.TryStatus,
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"grubx64.efi": []string{"hash1", "hash2"},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 			"grubx64.efi": []string{"recovery-hash1"},
 		},
@@ -572,15 +593,18 @@ func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
 
 	for _, t := range tt {
 		c.Logf("tc: %q", t.systemsString)
-		s.makeMockModeenvFile(c, `mode=recovery
+		s.makeMockModeenvFile(c, fmt.Sprintf(`mode=recovery
 recovery_system=20191126
-current_recovery_systems=`+t.systemsString+"\n")
+current_recovery_systems=%[1]s
+good_recovery_systems=%[1]s
+`, t.systemsString))
 
 		modeenv, err := boot.ReadModeenv(s.tmpdir)
 		c.Assert(err, IsNil)
 		c.Check(modeenv.Mode, Equals, "recovery")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, t.expectedSystems)
 	}
 }
 
@@ -669,10 +693,10 @@ func (s *modeenvSuite) TestMarshalCurrentTrustedBootAssets(c *C) {
 	modeenv := &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191128",
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"grubx64.efi": []string{"hash1", "hash2"},
 		},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"grubx64.efi": []string{"recovery-hash1"},
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 		},
@@ -688,10 +712,10 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"g
 
 	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
-	c.Assert(modeenvRead.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Assert(modeenvRead.CurrentTrustedBootAssets, DeepEquals, boot.AssetsMap{
 		"grubx64.efi": []string{"hash1", "hash2"},
 	})
-	c.Assert(modeenvRead.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Assert(modeenvRead.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.AssetsMap{
 		"grubx64.efi": []string{"recovery-hash1"},
 		"bootx64.efi": []string{"shimhash1", "shimhash2"},
 	})

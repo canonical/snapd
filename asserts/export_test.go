@@ -177,7 +177,7 @@ type TestOnlySeq struct {
 	seq int
 }
 
-func (seq *TestOnlyRev) N() string {
+func (seq *TestOnlySeq) N() string {
 	return seq.HeaderString("n")
 }
 

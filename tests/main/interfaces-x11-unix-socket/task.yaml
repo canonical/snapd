@@ -1,5 +1,5 @@
 summary: ensure that the x11 interface shares UNIX domain sockets
-description: |
+details: |
     In addition to the abstract "@/tmp/.X11-unix/X?" socket an X
     server listens on, it also listens on a regular UNIX domain socket
     in /tmp/.X11-unix.

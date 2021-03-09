@@ -262,8 +262,8 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
 	}
 
-	var currentTrustedBootAssets bootAssetsMap
-	var currentTrustedRecoveryBootAssets bootAssetsMap
+	var currentTrustedBootAssets AssetsMap
+	var currentTrustedRecoveryBootAssets AssetsMap
 	if sealer != nil {
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
@@ -274,7 +274,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Mode:           "run",
 		RecoverySystem: recoverySystemLabel,
 		// default to the system we were installed from
-		CurrentRecoverySystems:           []string{recoverySystemLabel},
+		CurrentRecoverySystems: []string{recoverySystemLabel},
+		// which is also considered to be good
+		GoodRecoverySystems:              []string{recoverySystemLabel},
 		CurrentTrustedBootAssets:         currentTrustedBootAssets,
 		CurrentTrustedRecoveryBootAssets: currentTrustedRecoveryBootAssets,
 		// kernel command lines are set later once a boot config is

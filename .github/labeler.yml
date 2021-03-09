@@ -1,0 +1,8 @@
+# 18.02.2021: temporarily disabled as labeler keeps removing the labels
+# possible related issues:
+# - https://github.com/actions/labeler/issues/112
+# - https://github.com/actions/labeler/issues/104
+
+# Add 'Run nested' label to either any change on nested lib or nested test
+Run nested:
+  - any: ["tests/lib/nested.sh", "tests/nested/**/*"]

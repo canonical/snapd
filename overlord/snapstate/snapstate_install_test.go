@@ -78,7 +78,11 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"auto-connect",
 		"set-auto-aliases",
-		"setup-aliases",
+		"setup-aliases")
+	if opts&updatesBootConfig != 0 {
+		expected = append(expected, "update-managed-boot-config")
+	}
+	expected = append(expected,
 		"run-hook[install]",
 		"start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -201,7 +205,7 @@ version: 1.0
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -210,6 +214,24 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, noConfigure|updatesBootConfig, 0, ts, s.state)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)

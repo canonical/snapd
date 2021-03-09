@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
