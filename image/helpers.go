@@ -412,10 +412,10 @@ var writeResolvedContent = writeResolvedContentImpl
 // writeResolvedContent takes gadget.Info and the unpacked
 // gadget/kernel snaps and outputs the resolved content from the
 // {gadget,kernel}.yaml into a filesystem tree with the structure:
-// <prepareImageDir>/resolved-content/<volume-name>/<structure-nr>/...
+// <prepareImageDir>/resolved-content/<volume-name>/part<structure-nr>/...
 //
 // E.g.
-// /tmp/prep-img/resolved-content/pi/part1/{config.txt,bootcode.bin,...}
+// /tmp/prep-img/resolved-content/pi/part0/{config.txt,bootcode.bin,...}
 func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpackDir, kernelUnpackDir string) error {
 	fullPrepareDir, err := filepath.Abs(prepareDir)
 	if err != nil {
