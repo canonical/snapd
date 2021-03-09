@@ -615,12 +615,12 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		CurrentRecoverySystems: []string{"20200825", "1234"},
 		// 20200825 has known to be good
 		GoodRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"grubx64.efi": []string{"grub-hash"},
 			"bootx64.efi": []string{"shim-hash"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"grubx64.efi": []string{"run-grub-hash"},
 		},
 
