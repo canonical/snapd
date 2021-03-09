@@ -196,14 +196,9 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	snapshot.Filename = filename(snapshot.SetID, cur)
 	task.Set("snapshot-setup", &snapshot)
 
-	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
+	cfg, err = unmarshalSnapConfig(st, snapshot.Snap)
 	if err != nil {
 		return nil, nil, nil, err
-	}
-	if rawCfg != nil {
-		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
-			return nil, nil, nil, err
-		}
 	}
 
 	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
@@ -247,17 +242,10 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
 	}
 
-	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
+	oldCfg, err = unmarshalSnapConfig(st, snapshot.Snap)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot obtain current snap config for snapshot restore: %v", err)
+		return nil, nil, nil, err
 	}
-
-	if rawCfg != nil {
-		if err := json.Unmarshal(*rawCfg, &oldCfg); err != nil {
-			return nil, nil, nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
-		}
-	}
-
 	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
@@ -281,6 +269,20 @@ func marshalSnapConfig(cfg map[string]interface{}) (*json.RawMessage, error) {
 	}
 	raw := (*json.RawMessage)(&buf)
 	return raw, err
+}
+
+func unmarshalSnapConfig(st *state.State, snapName string) (map[string]interface{}, error) {
+	rawCfg, err := configGetSnapConfig(st, snapName)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain current snap config: %v", err)
+	}
+	var cfg map[string]interface{}
+	if rawCfg != nil {
+		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
+			return nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
+		}
+	}
+	return cfg, nil
 }
 
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {

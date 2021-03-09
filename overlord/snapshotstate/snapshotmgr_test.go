@@ -398,7 +398,7 @@ func (snapshotSuite) TestDoSaveFailsConfigError(c *check.C) {
 	})
 	st.Unlock()
 	err := snapshotstate.DoSave(task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "bzzt")
+	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config: bzzt")
 }
 
 func (snapshotSuite) TestDoSaveFailsBadConfig(c *check.C) {
@@ -641,7 +641,7 @@ func (rs *readerSuite) TestDoRestoreFailsOnGetConfigError(c *check.C) {
 	})()
 
 	err := snapshotstate.DoRestore(rs.task, &tomb.Tomb{})
-	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config for snapshot restore: bzzt")
+	c.Assert(err, check.ErrorMatches, "internal error: cannot obtain current snap config: bzzt")
 	c.Check(rs.calls, check.DeepEquals, []string{"get config"})
 }
 
