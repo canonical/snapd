@@ -77,12 +77,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		modeenv := &boot.Modeenv{
 			RecoverySystem: "20200825",
-			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
 
-			CurrentTrustedBootAssets: boot.BootAssetsMap{
+			CurrentTrustedBootAssets: boot.AssetsMap{
 				"grubx64.efi": []string{"run-grub-hash-1"},
 			},
 
@@ -334,12 +334,12 @@ func (s *sealSuite) TestResealKeyToModeenv(c *C) {
 
 		modeenv := &boot.Modeenv{
 			CurrentRecoverySystems: []string{"20200825"},
-			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1", "shim-hash-2"},
 			},
 
-			CurrentTrustedBootAssets: boot.BootAssetsMap{
+			CurrentTrustedBootAssets: boot.AssetsMap{
 				"grubx64.efi": []string{"run-grub-hash-1", "run-grub-hash-2"},
 			},
 
@@ -601,11 +601,11 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 	modeenv := &boot.Modeenv{
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
@@ -731,7 +731,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 	for _, tc := range []struct {
-		assetsMap          boot.BootAssetsMap
+		assetsMap          boot.AssetsMap
 		recoverySystems    []string
 		undefinedKernel    bool
 		expectedAssets     []boot.BootAsset
@@ -741,7 +741,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		{
 			// transition sequences
 			recoverySystems: []string{"20200825"},
-			assetsMap: boot.BootAssetsMap{
+			assetsMap: boot.AssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
@@ -754,7 +754,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		{
 			// two systems
 			recoverySystems: []string{"20200825", "20200831"},
-			assetsMap: boot.BootAssetsMap{
+			assetsMap: boot.AssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
@@ -767,7 +767,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		{
 			// non-transition sequence
 			recoverySystems: []string{"20200825"},
-			assetsMap: boot.BootAssetsMap{
+			assetsMap: boot.AssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
