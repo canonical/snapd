@@ -1,6 +1,6 @@
 summary: Verify directories from the base snap are not mounted over symlinks in /etc
 
-description: |
+details: |
   The host's /etc is made available inside the snap's mount namespace. During
   setup, snap-confine attempts to preserve some entries from the base snap to
   present a uniform environment for the snaps. When the entries in host

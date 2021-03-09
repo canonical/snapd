@@ -541,9 +541,41 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	return sts, nil
 }
 
+func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error) {
+	// As there is one instance per user, the active state does
+	// not make sense.  We can determine the global "enabled"
+	// state of the services though.
+	cmd := append([]string{"is-enabled"}, unitNames...)
+	if s.rootDir != "" {
+		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	}
+	bs, err := s.systemctl(cmd...)
+	if err != nil {
+		// is-enabled returns non-zero if no units are
+		// enabled.  We still need to examine the output to
+		// track the other units.
+		sysdErr := err.(systemctlError)
+		bs = sysdErr.Msg()
+	}
+
+	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
+	if len(results) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
+	}
+
+	sts := make([]*UnitStatus, len(unitNames))
+	for i, line := range results {
+		sts[i] = &UnitStatus{
+			UnitName: unitNames[i],
+			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+		}
+	}
+	return sts, nil
+}
+
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
-		panic("cannot call status with GlobalUserMode")
+		return s.getGlobalUserStatus(unitNames...)
 	}
 	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
 

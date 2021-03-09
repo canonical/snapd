@@ -152,7 +152,7 @@ Loop:
 		case ev := <-evChan:
 			if ev.err != nil {
 				holdTimer.Stop()
-				ch <- keyEvent{Err: err, Dev: e}
+				ch <- keyEvent{Err: ev.err, Dev: e}
 				break Loop
 			}
 			kev := ev.kev

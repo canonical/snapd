@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type bootAssetsMap map[string][]string
+type AssetsMap map[string][]string
 
 // bootCommandLines is a list of kernel command lines. The command lines are
 // marshalled as JSON as a comma can be present in the module parameters.
@@ -49,7 +49,7 @@ type Modeenv struct {
 	RecoverySystem string `key:"recovery_system"`
 	// CurrentRecoverySystems is a list of labels corresponding to recovery
 	// systems that have been tested or are in the process of being tried,
-	// thus only the run key is resealed for these sytems.
+	// thus only the run key is resealed for these systems.
 	CurrentRecoverySystems []string `key:"current_recovery_systems"`
 	// GoodRecoverySystems is a list of labels corresponding to recovery
 	// systems that were tested and are prepared to use for recovering.
@@ -68,11 +68,11 @@ type Modeenv struct {
 	// expected to have booted with). The second entry, if present, is the
 	// hash of an entry added when an update of the asset was being applied
 	// and will become the sole entry after a successful boot.
-	CurrentTrustedBootAssets bootAssetsMap `key:"current_trusted_boot_assets"`
+	CurrentTrustedBootAssets AssetsMap `key:"current_trusted_boot_assets"`
 	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
-	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
+	CurrentTrustedRecoveryBootAssets AssetsMap `key:"current_trusted_recovery_boot_assets"`
 	// CurrentKernelCommandLines is a list of the expected kernel command
 	// lines when booting into run mode. It will typically only be one
 	// element for normal operations, but may contain two elements during
@@ -408,17 +408,17 @@ func (m *modeenvModel) UnmarshalModeenvValue(brandSlashModel string) error {
 	return nil
 }
 
-func (b bootAssetsMap) MarshalJSON() ([]byte, error) {
+func (b AssetsMap) MarshalJSON() ([]byte, error) {
 	asMap := map[string][]string(b)
 	return json.Marshal(asMap)
 }
 
-func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
+func (b *AssetsMap) UnmarshalJSON(data []byte) error {
 	var asMap map[string][]string
 	if err := json.Unmarshal(data, &asMap); err != nil {
 		return err
 	}
-	*b = bootAssetsMap(asMap)
+	*b = AssetsMap(asMap)
 	return nil
 }
 
