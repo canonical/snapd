@@ -1,5 +1,5 @@
 summary: the desktop portal file choosers provide access to files
-description: |
+details: |
     The xdg-desktop-portal file chooser interface provides a way for a
     confined application to request access to any file the user can
     read/write.

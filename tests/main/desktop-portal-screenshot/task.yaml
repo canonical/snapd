@@ -1,5 +1,5 @@
 summary: the desktop portal screenshot API works for snap applications
-description: |
+details: |
     The xdg-desktop-portal screenshot interface provides a way for
     confined applications to take screenshots with the consent of the
     user.
