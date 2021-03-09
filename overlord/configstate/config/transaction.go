@@ -286,10 +286,10 @@ func (t *Transaction) Commit() {
 
 	// Iterate through the write cache and save each item.
 	for instanceName, snapChanges := range t.changes {
-		config, ok := t.pristine[instanceName]
+		config := t.pristine[instanceName]
 		// due to LP #1917870 we might have a hook configure task in flight
 		// that tries to apply config over nil map, create it if nil.
-		if !ok || config == nil {
+		if config == nil {
 			config = make(map[string]*json.RawMessage)
 		}
 		applyChanges(config, snapChanges)
