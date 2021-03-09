@@ -1,5 +1,5 @@
 summary: Check that the document portal is activated when needed
-description: |
+details: |
     In order for xdg-document-portal to securely share files with a
     confined applications, it must be started prior to setting up the
     user mount namespace.  This is due to the daemon providing a FUSE

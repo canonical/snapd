@@ -1,6 +1,6 @@
 summary: Ensure that cloud-init integration works
 
-description: |
+details: |
     snapd picks up basic cloud information from the host and makes it available
     to the snaps. Run the test on a live backend which sets instance data
     properly.
