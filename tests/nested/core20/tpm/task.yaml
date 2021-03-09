@@ -1,6 +1,6 @@
 summary: Check that tpm works properly on UC20
 
-description: |
+details: |
     This test check UC20 can boot with secure boot successfully
 
 debug: |

@@ -1,6 +1,6 @@
 summary: Check that snaps with configure work with network control
 
-description: |
+details: |
     Test for https://forum.snapcraft.io/t/9452
 
 execute: |

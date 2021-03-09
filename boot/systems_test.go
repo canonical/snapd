@@ -109,11 +109,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -166,11 +166,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}), Equals, true)
@@ -277,11 +277,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -382,11 +382,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -499,11 +499,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
