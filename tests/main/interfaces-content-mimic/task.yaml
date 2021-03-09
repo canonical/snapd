@@ -45,7 +45,7 @@ execute: |
     test-snapd-content-mimic-plug.sh -c 'test ! -e $SNAP/content'
 
     echo "When we connect the interface"
-    snap connect "$PLUG" "$SLOT
+    snap connect "$PLUG" "$SLOT"
 
     echo "Check we see shared content inside the newly created directory"
     check_existing_files
