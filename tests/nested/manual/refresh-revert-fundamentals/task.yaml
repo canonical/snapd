@@ -1,6 +1,6 @@
 summary: Refresh and revert the fundamental snaps for uc20
 
-description: |
+details: |
     This test validates the fundamental snaps can be refreshed
     and reverted to the new snaps published to edge channel.
 

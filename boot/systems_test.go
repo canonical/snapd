@@ -109,11 +109,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -155,7 +155,10 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	})
 	// run and recovery keys
 	c.Check(resealCalls, Equals, 2)
-	c.Check(readSeedSeenLabels, DeepEquals, []string{"20200825", "1234"})
+	c.Check(readSeedSeenLabels, DeepEquals, []string{
+		"20200825", "1234", // current recovery systems for run key
+		"20200825", // good recovery systems for recovery keys
+	})
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -163,11 +166,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}), Equals, true)
@@ -274,11 +277,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -317,7 +320,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			cleanupTriggered = true
 			return nil, nil, fmt.Errorf("seed read essential fails")
 		case 3:
-			// (cleanup) called for the first system
+			// (cleanup) recovery boot chains for run key, called
+			// for the first system only
+			fallthrough
+		case 4:
+			// (cleanup) recovery boot chains for recovery keys
 			c.Assert(label, Equals, "20200825")
 			// boot variables already updated
 			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
@@ -342,7 +349,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	c.Assert(err, ErrorMatches, ".*: seed read essential fails")
 
 	// failed after the call to read the 'try' system seed
-	c.Check(readSeedCalls, Equals, 3)
+	c.Check(readSeedCalls, Equals, 4)
 	// called twice during cleanup for run and recovery keys
 	c.Check(resealCalls, Equals, 2)
 
@@ -375,11 +382,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -416,10 +423,20 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			// still good
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		case 3:
-			// (cleanup) called for the first system
+			// recovery boot chains for a good recovery system
+			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
+			fallthrough
+		case 4:
+			// (cleanup) recovery boot chains for run key, called
+			// for the first system only
+			fallthrough
+		case 5:
+			// (cleanup) recovery boot chains for recovery keys
 			c.Assert(label, Equals, "20200825")
 			// boot variables already updated
-			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
+			if readSeedCalls >= 4 {
+				c.Check(mtbl.SetBootVarsCalls, Equals, 2)
+			}
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
@@ -432,6 +449,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		resealCalls++
 		switch resealCalls {
 		case 1:
+			// attempt to reseal the run key
 			return fmt.Errorf("reseal fails")
 		case 2, 3:
 			// reseal of run and recovery keys
@@ -447,7 +465,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
 
 	// failed after the call to read the 'try' system seed
-	c.Check(readSeedCalls, Equals, 3)
+	c.Check(readSeedCalls, Equals, 5)
 	// called 3 times, once when mocked failure occurs, twice during cleanup
 	// for run and recovery keys
 	c.Check(resealCalls, Equals, 3)
@@ -481,11 +499,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.AssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -513,7 +531,14 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 			// still good
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		case 3:
-			// (cleanup) called for the first system only
+			// recovery boot chains for a good recovery system
+			fallthrough
+		case 4:
+			// (cleanup) recovery boot chains for run key, called
+			// for the first system only
+			fallthrough
+		case 5:
+			// (cleanup) recovery boot chains for recovery keys
 			c.Assert(label, Equals, "20200825")
 			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
 		default:
@@ -542,7 +567,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot reseal the encryption key: reseal fails \(cleanup failed: cannot reseal the encryption key: reseal in cleanup fails too\)`)
 
 	// failed after the call to read the 'try' system seed
-	c.Check(readSeedCalls, Equals, 3)
+	c.Check(readSeedCalls, Equals, 5)
 	// called twice, once when enabling the try system, once on cleanup
 	c.Check(resealCalls, Equals, 2)
 

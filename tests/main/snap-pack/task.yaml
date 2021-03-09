@@ -1,5 +1,5 @@
 summary: check that snap pack creates squashfs files
-description: |
+details: |
     Verify that snap pack creates squashfs files or fails in a predictable
     manner.
 

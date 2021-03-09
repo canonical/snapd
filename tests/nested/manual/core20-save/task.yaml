@@ -1,6 +1,6 @@
 summary: Check that ubuntu-save is set up in a UC20 device
 
-description: |
+details: |
     This test checks that ubuntu-save is preset and set up correctly in a UC20
     device or that a device can boot when ubuntu-save is not required
 

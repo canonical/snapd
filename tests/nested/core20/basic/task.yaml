@@ -1,6 +1,6 @@
 summary: Run a smoke test on UC20 with encryption enabled
 
-description: |
+details: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
 execute: |
