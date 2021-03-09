@@ -1,6 +1,6 @@
 summary: Ensure that classic snap with hooks and services works with SELinux
 
-description: |
+details: |
     On systems where SELinux is supported, make sure that classic snaps work
     should the user enable support. Focus on snaps with services and hooks as
     those are run under targeted policy.

@@ -1,5 +1,5 @@
 summary: the desktop portal allows confined apps to open URIs
-description: |
+details: |
     The xdg-desktop-portal "Open URI" interface provides a way for
     confined applications to open URIs using the host system's
     preferred browser.

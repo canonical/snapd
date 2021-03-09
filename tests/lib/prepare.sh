@@ -459,7 +459,10 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt install ubuntu-core-initramfs -y
+    # TODO: install the linux-firmware as the current version of
+    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+    # to build the initrd
+    apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -479,6 +482,7 @@ uc20_build_initramfs_kernel_snap() {
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        unpackeddir="$PWD"
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
@@ -522,10 +526,14 @@ uc20_build_initramfs_kernel_snap() {
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
             cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules" \
+                                  --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
                                   --output ../../repacked-initrd
         )
 
