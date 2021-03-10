@@ -360,11 +360,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 }
 
 // checkVolumeHasAllKernelRefs ensures that the given
-func checkVolumetHasAllKernelRefs(pNew *LaidOutVolume, kernelRootDir string) error {
-	kernelInfo, err := kernel.ReadInfo(kernelRootDir)
-	if err != nil {
-		return err
-	}
+func checkVolumetHasAllKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
 			continue

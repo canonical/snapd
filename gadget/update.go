@@ -190,10 +190,6 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
-	// ensure all required kernel assets are found in the gadget
-	if err := checkVolumetHasAllKernelRefs(pNew, new.KernelRootDir); err != nil {
-		return err
-	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {
 		return fmt.Errorf("cannot apply update to volume: %v", err)
@@ -203,10 +199,15 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		updatePolicy = defaultPolicy
 	}
 
+	// ensure all required kernel assets are found in the gadget
 	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
 	if err != nil {
 		return err
 	}
+	if err := checkVolumetHasAllKernelRefs(pNew, kernelInfo); err != nil {
+		return err
+	}
+
 	// now we know which structure is which, find which ones need an update
 	updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
 	if err != nil {
