@@ -988,6 +988,35 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}
 }
 
+func (s *backendSuite) TestCombineSnippetsSnapConfineExec(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	restoreClassicTemplate := apparmor.MockClassicTemplate("###SNAP_CONFINE_EXEC_RULES###")
+	defer restoreClassicTemplate()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, "", ifacetest.SambaYamlV1, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	expected := `
+# When executing applications, we want to transition to a matching apparmor
+# profile (via binary attachment) or inherit the current policy if there
+# isn't a matching profile. The exception is for snap-confine where we want
+# to transition to a tailored snap-confine profile that has workarounds for
+# file-inherit denials (LP: #1849753)
+/** pix,
+/usr/lib/snapd/snap-confine Px -> snap-confine-classic,
+`
+	c.Check(profile, testutil.FileEquals, expected)
+	stat, err := os.Stat(profile)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
+	s.RemoveSnap(c, snapInfo)
+}
+
 func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()

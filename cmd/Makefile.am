@@ -85,11 +85,13 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-confine/snap-confine-classic.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
 	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
+	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine-classic.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine-classic.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
+	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine-classic.apparmor; fi
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
@@ -358,15 +360,19 @@ endif
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
 	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' <$< >$@
 
+snap-confine/snap-confine-classic.apparmor: snap-confine/snap-confine.apparmor.in Makefile
+	sed -e 's,[@]LIBEXECDIR[@]/snap-confine (attach_disconnected),profile snap-confine-classic (attach_disconnected),g' -e 's,peer=[@]LIBEXECDIR[@]/snap-confine,peer=snap-confine-classic,g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' -e 's;^};\n    # file-inherit accesses for classic snaps (LP: #1849753, #1850552)\n    unix,\n    owner /** rw,\n    ptrace readby peer=unconfined,\n};' <$< >$@
+
 # Install the apparmor profile
 #
 # NOTE: the funky make functions here just convert /foo/bar/froz into
 # foo.bar.froz The inner subst replaces slashes with dots and the outer
 # patsubst strips the leading dot
-install-data-local:: snap-confine/snap-confine.apparmor
+install-data-local:: snap-confine/snap-confine.apparmor snap-confine/snap-confine-classic.apparmor
 if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	install -m 644 snap-confine/snap-confine-classic.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 endif
 	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 

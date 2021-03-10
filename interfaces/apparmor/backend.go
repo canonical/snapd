@@ -650,6 +650,19 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 				}
 			}
 			return "change_profile,"
+		case "###SNAP_CONFINE_EXEC_RULES###":
+			// TODO: choose based on snapConfineFromSnapProfile().
+			// Importantly, this path may not have globs in it
+			// otherwise there will be a 'conflicting x modifier'.
+			return `
+# When executing applications, we want to transition to a matching apparmor
+# profile (via binary attachment) or inherit the current policy if there
+# isn't a matching profile. The exception is for snap-confine where we want
+# to transition to a tailored snap-confine profile that has workarounds for
+# file-inherit denials (LP: #1849753)
+/** pix,
+/usr/lib/snapd/snap-confine Px -> snap-confine-classic,
+`
 		case "###SNIPPETS###":
 			var tagSnippets string
 			if opts.Classic && opts.JailMode {

@@ -818,7 +818,7 @@ var classicTemplate = `
   # already a profile for it (eg, snap-confine)
   / rwkl,
   /** rwlkm,
-  /** pix,
+  ###SNAP_CONFINE_EXEC_RULES###
 
   capability,
   ###CHANGEPROFILE_RULE###
