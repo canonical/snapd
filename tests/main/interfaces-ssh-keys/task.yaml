@@ -5,9 +5,9 @@ details: |
     make ssh connections.
 
 environment:
-    KEYSDIR: "/$HOME/.ssh"
+    KEYSDIR: "$HOME/.ssh"
     TESTKEY: "$HOME/.ssh/testkey"
-    CONFDIR: "/etc/ssh/ssh_config.d/"
+    CONFDIR: "/etc/ssh/ssh_config.d"
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
