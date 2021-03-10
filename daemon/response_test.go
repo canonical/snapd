@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"encoding/json"
@@ -29,6 +29,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/daemon"
 )
 
 type responseSuite struct{}
@@ -38,7 +40,7 @@ var _ = check.Suite(&responseSuite{})
 func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &resp{
+	rsp := &daemon.Resp{
 		Status: 202,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
@@ -53,7 +55,7 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &resp{
+	rsp := &daemon.Resp{
 		Status: 201,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
@@ -68,7 +70,7 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &resp{
+	rsp := &daemon.Resp{
 		Status: 418, // I'm a teapot
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
@@ -88,7 +90,7 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	rsp := fileResponse(path)
+	rsp := daemon.FileResponse(path)
 	req, err := http.NewRequest("GET", "", nil)
 	c.Check(err, check.IsNil)
 
@@ -102,14 +104,14 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 // Due to how the protocol was defined the result must be sent, even if it is
 // null. Older clients rely on this.
 func (s *responseSuite) TestRespJSONWithNullResult(c *check.C) {
-	rj := &respJSON{Result: nil}
+	rj := &daemon.RespJSON{Result: nil}
 	data, err := json.Marshal(rj)
 	c.Assert(err, check.IsNil)
 	c.Check(string(data), check.Equals, `{"type":"","status-code":0,"status":"","result":null}`)
 }
 
 func (responseSuite) TestErrorResponderPrintfsWithArgs(c *check.C) {
-	teapot := makeErrorResponder(418)
+	teapot := daemon.MakeErrorResponder(418)
 
 	rec := httptest.NewRecorder()
 	rsp := teapot("system memory below %d%%.", 1)
@@ -117,14 +119,14 @@ func (responseSuite) TestErrorResponderPrintfsWithArgs(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp.ServeHTTP(rec, req)
 
-	var v struct{ Result errorResult }
+	var v struct{ Result daemon.ErrorResult }
 	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
 
 	c.Check(v.Result.Message, check.Equals, "system memory below 1%.")
 }
 
 func (responseSuite) TestErrorResponderDoesNotPrintfAlways(c *check.C) {
-	teapot := makeErrorResponder(418)
+	teapot := daemon.MakeErrorResponder(418)
 
 	rec := httptest.NewRecorder()
 	rsp := teapot("system memory below 1%.")
@@ -132,7 +134,7 @@ func (responseSuite) TestErrorResponderDoesNotPrintfAlways(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp.ServeHTTP(rec, req)
 
-	var v struct{ Result errorResult }
+	var v struct{ Result daemon.ErrorResult }
 	c.Assert(json.NewDecoder(rec.Body).Decode(&v), check.IsNil)
 
 	c.Check(v.Result.Message, check.Equals, "system memory below 1%.")

@@ -23,7 +23,3 @@ var (
 	SnapFileCmd = snapFileCmd
 	GetSnapFile = getSnapFile
 )
-
-type (
-	FileResponse = fileResponse
-)

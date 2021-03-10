@@ -189,6 +189,8 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 
 type (
 	Resp            = resp
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
@@ -208,3 +210,7 @@ func (inst *snapInstruction) SetUserID(userID int) {
 func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
+
+var (
+	MakeErrorResponder = makeErrorResponder
+)
