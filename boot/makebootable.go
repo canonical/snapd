@@ -48,19 +48,20 @@ type BootableSet struct {
 	Recovery bool
 }
 
-// MakeBootable sets up the given bootable set and target filesystem
+// MakeBootableImage sets up the given bootable set and target filesystem
 // such that the system can be booted.
 //
-// rootdir points to an image filesystem (UC 16/18), image recovery
-// filesystem (UC20 at prepare-image time) or ephemeral system (UC20
-// install mode).
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+// rootdir points to an image filesystem (UC 16/18) or an image recovery
+// filesystem (UC20 at prepare-image time).
+// It should not point to an ephemeral system during UC20 install mode as
+// that functionality is implemented with MakeRunnableSystem.
+func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
-		return makeBootable20RunMode(model, rootdir, bootWith, sealer)
+		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
 	return makeBootable20(model, rootdir, bootWith)
 }
@@ -227,7 +228,13 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+// MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
+// be able to boot, but is unique in that it is intended to be called from UC20
+// install mode and makes the run system bootable (hence it is called "runnable")
+func MakeRunnableSystem(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return fmt.Errorf("internal error: cannot make non-uc20 system runnable")
+	}
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
@@ -379,22 +386,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
-	// LAST step: update recovery bootloader environment to indicate that we
-	// transition to run mode now
-	opts = &bootloader.Options{
-		// let the bootloader know we will be touching the recovery
-		// partition
-		Role: bootloader.RoleRecovery,
-	}
-	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find recovery system bootloader: %v", err)
-	}
-	blVars = map[string]string{
-		"snapd_recovery_mode": "run",
-	}
-	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set recovery environment: %v", err)
-	}
+	// Note that we do not update the recovery bootloader env to actually
+	// transition to run mode here, that is left to the caller via something
+	// like boot.EnsureNextBootToRunMode()
+
 	return nil
 }
