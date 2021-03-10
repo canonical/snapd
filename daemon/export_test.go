@@ -211,6 +211,11 @@ func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
 
+func (inst *snapInstruction) ErrToResponse(err error) Response {
+	return inst.errToResponse(err)
+}
+
 var (
 	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
 )
