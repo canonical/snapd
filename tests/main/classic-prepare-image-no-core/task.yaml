@@ -76,7 +76,7 @@ execute: |
     snap model --verbose|MATCH "model:\s* my-classic-w-gadget-18"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
 
     echo "Check we have a serial"
     snap model --serial --assertion|MATCH "authority-id: developer1"

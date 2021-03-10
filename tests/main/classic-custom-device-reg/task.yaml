@@ -68,12 +68,13 @@ execute: |
     systemctl start snapd.service snapd.socket
 
     echo "Wait for seeding to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize system state"'
+
     echo "We have a model assertion"
     snap model --verbose | MATCH "model:\s* my-classic-w-gadget"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
 
     echo "Check we have a serial"
     snap model --serial --assertion | MATCH "authority-id: developer1"

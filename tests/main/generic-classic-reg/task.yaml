@@ -8,20 +8,20 @@ systems: [-ubuntu-core-*]
 execute: |
     echo "Wait for device initialisation to have been done"
     # this was in fact triggered around when core was installed
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
 
     echo "We have a model assertion"
-    snap model --assertion|MATCH "series: 16"
+    snap model --assertion | MATCH "series: 16"
 
-    if ! snap model --verbose|grep "brand-id:\s* generic" ; then
+    if snap model --verbose | NOMATCH "brand-id:\s* generic" ; then
        echo "Not a generic model. Skipping."
        exit 0
     fi
 
     echo "Check we have a serial"
-    snap model --serial --assertion|MATCH "authority-id: generic"
-    snap model --serial --assertion|MATCH "brand-id: generic"
-    snap model --serial --assertion|MATCH "model: generic-classic"
+    snap model --serial --assertion | MATCH "authority-id: generic"
+    snap model --serial --assertion | MATCH "brand-id: generic"
+    snap model --serial --assertion | MATCH "model: generic-classic"
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc

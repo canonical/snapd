@@ -25,7 +25,7 @@ execute: |
     echo "Then the snap command is able to control snapd"
     test-snapd-control-consumer.list | not grep -q test-snapd-tools
     test-snapd-control-consumer.install test-snapd-tools
-    while ! test-snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done
+    retry -n 40 --wait 1 sh -c 'test-snapd-control-consumer.list | MATCH "test-snapd-tools"'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
