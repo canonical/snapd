@@ -81,7 +81,8 @@ execute: |
     not snap list "$SNAP"
 
     echo "Wait for first boot to be done"
-    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize system state"'
+    wait_for_first_boot_change
+
     echo "We have the right model assertion"
     snap debug model|MATCH "model: my-model"
 

@@ -98,3 +98,7 @@ get_test_snap_suffix(){
 wait_for_first_boot_change(){
     retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize system state"'
 }
+
+wait_for_device_initialized_change(){
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
+}

@@ -66,6 +66,9 @@ execute: |
         exit
     fi
 
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     # kick seeding
     systemctl start snapd.service snapd.socket
 
@@ -76,7 +79,7 @@ execute: |
     snap model --verbose|MATCH "model:\s* my-classic-w-gadget-18"
 
     echo "Wait for device initialisation to be done"
-    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
+    wait_for_device_initialized_change
 
     echo "Check we have a serial"
     snap model --serial --assertion|MATCH "authority-id: developer1"
