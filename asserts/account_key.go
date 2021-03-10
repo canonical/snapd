@@ -74,15 +74,19 @@ func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
 	return valid
 }
 
-// isKeyValidAbout returns whether the account key is possibly valid
-// if the current time is known to be within [earliest, latest].
+// isKeyValidAssumingCurTimeWithin returns whether the account key is
+// possibly valid if the current time is known to be within [earliest,
+// latest]. That means the interesction of possible current times and
+// validity is not empty.
 // If latest is zero, then current time is assumed to be >=earliest.
-func (ak *AccountKey) isKeyValidAbout(earliest, latest time.Time) bool {
+// If earliest == latest this is equivalent to isKeyValidAt().
+func (ak *AccountKey) isKeyValidAssumingCurTimeWithin(earliest, latest time.Time) bool {
 	if !latest.IsZero() {
+		// impossible input => false
 		if latest.Before(earliest) {
 			return false
 		}
-		if earliest.Before(ak.since) && latest.Before(ak.since) {
+		if latest.Before(ak.since) {
 			return false
 		}
 	}
