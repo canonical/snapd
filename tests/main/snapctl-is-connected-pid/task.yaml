@@ -65,7 +65,7 @@ execute: |
       svc2_label=$(sed 's/ (.*)$//' < "/proc/$svc2_pid/attr/current")
 
       echo "We can detect connected interfaces by AppArmor label too"
-      test-snap2.snapctl is-connected --apparmor-label "$svc_label" foo-slot
+      test-snap2.snapctl is-connected --apparmor-label "$svc1_label" foo-slot
       snap disconnect test-snap1:foo-plug test-snap2:foo-slot
       expect_status 1 test-snap2.snapctl is-connected --apparmor-label "$svc1_label" foo-slot
 
