@@ -53,6 +53,7 @@ type systemsSuite struct {
 
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile
+	seedKernelSnap   *seed.Snap
 }
 
 var _ = Suite(&systemsSuite{})
@@ -91,6 +92,14 @@ func (s *systemsSuite) SetUpTest(c *C) {
 	// seed (recovery) kernel
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 		"kernel.efi", bootloader.RoleRecovery)
+
+	s.seedKernelSnap = &seed.Snap{
+		Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
+		SideInfo: &snap.SideInfo{
+			RealName: "pc-kernel",
+			Revision: snap.Revision{N: 1},
+		},
+	}
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
@@ -109,11 +118,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -124,14 +133,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				RealName: "pc-kernel",
-				Revision: snap.Revision{N: 1},
-			},
-		}
-		return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 	})
 	defer restore()
 
@@ -166,11 +168,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}), Equals, true)
@@ -277,11 +279,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -292,20 +294,12 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSeedCalls++
 		// this is the reseal cleanup path
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				RealName: "pc-kernel",
-				Revision: snap.Revision{N: 1},
-			},
-		}
-
 		switch readSeedCalls {
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -328,7 +322,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			c.Assert(label, Equals, "20200825")
 			// boot variables already updated
 			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -382,11 +376,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -396,20 +390,13 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSeedCalls++
 		// this is the reseal cleanup path
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				RealName: "pc-kernel",
-				Revision: snap.Revision{N: 1},
-			},
-		}
 
 		switch readSeedCalls {
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -421,7 +408,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			})
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			// still good
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		case 3:
 			// recovery boot chains for a good recovery system
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
@@ -437,7 +424,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			if readSeedCalls >= 4 {
 				c.Check(mtbl.SetBootVarsCalls, Equals, 2)
 			}
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -499,11 +486,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -513,23 +500,16 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSeedCalls++
 		// this is the reseal cleanup path
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				RealName: "pc-kernel",
-				Revision: snap.Revision{N: 1},
-			},
-		}
 		switch readSeedCalls {
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
 			// still good
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		case 3:
 			// recovery boot chains for a good recovery system
 			fallthrough
@@ -540,7 +520,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		case 5:
 			// (cleanup) recovery boot chains for recovery keys
 			c.Assert(label, Equals, "20200825")
-			return s.uc20dev.Model(), []*seed.Snap{kernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}

@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.49
+Version:        2.49.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -942,6 +942,22 @@ fi
 
 
 %changelog
+* Mon Mar 08 2021 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.49.1
+ - tests: turn modules off explicitly in spread go unti test
+ - o/snapshotstate: create snapshots directory on import
+ - cmd/snap-bootstrap/triggerwatch: fix returning wrong errors
+ - interfaces: add allegro-vcu and media-control interfaces
+ - interfaces: opengl: add Xilinx zocl bits
+ - many: fix new ineffassign warnings
+ - interfaces/seccomp/template.go: allow copy_file_range
+ - interfaces: allow reading the Xauthority file KDE Plasma writes
+   for Wayland sessions
+ - data/selinux: allow system dbus to watch
+   /var/lib/snapd/dbus-1
+ - Remove apparmor downgrade feature
+ - Support tmp and log dirs on Yocto/Poky
+
 * Wed Feb 10 2021 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.49
  - many: add Delegate=true to generated systemd units for special
