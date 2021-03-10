@@ -394,8 +394,9 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		// told by the new policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
 
-			// always ensure content is resolved at this point
-			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct)
+			// ensure content is resolved and filtered at
+			// this point
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
 			if err != nil {
 				return nil, err
 			}
@@ -405,28 +406,10 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 			updates = append(updates, updatePair{
 				from: &oldVol.LaidOutStructure[j],
 				to:   &newVol.LaidOutStructure[j],
-
-				resolvedContentFilter: filter,
 			})
 		}
 	}
 	return updates, nil
-}
-
-func filterUpdates(updates []updatePair) {
-	for _, update := range updates {
-		if update.resolvedContentFilter == nil {
-			// this content does not need to be filtered
-			continue
-		}
-		filteredResolvedContent := make([]ResolvedContent, 0, len(update.to.ResolvedContent))
-		for _, rn := range update.to.ResolvedContent {
-			if update.resolvedContentFilter(&rn) {
-				filteredResolvedContent = append(filteredResolvedContent, rn)
-			}
-		}
-		update.to.ResolvedContent = filteredResolvedContent
-	}
 }
 
 type Updater interface {
@@ -442,14 +425,6 @@ type Updater interface {
 }
 
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
-	// XXX: we may need to revisit filterUpdates later and instead
-	// pass the ResolvedContentFilterFunc to the updaters. But for
-	// now using filterUpdates() is simpler.
-	//
-	// ResolvedContentFilterFunc from updatePair down to the
-	// MountedFileSystem instead?
-	filterUpdates(updates)
-
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
