@@ -39,7 +39,9 @@ const cupsBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+        - core
+    deny-connection:
+      on-classic: false
     deny-auto-connection: true
 `
 
@@ -55,7 +57,7 @@ func init() {
 		name:                  "cups",
 		summary:               cupsSummary,
 		implicitOnCore:        false,
-		implicitOnClassic:     false,
+		implicitOnClassic:     true,
 		baseDeclarationSlots:  cupsBaseDeclarationSlots,
 		connectedPlugAppArmor: cupsConnectedPlugAppArmor,
 	})

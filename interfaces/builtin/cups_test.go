@@ -34,6 +34,8 @@ type cupsSuite struct {
 	iface            interfaces.Interface
 	plugInfo         *snap.PlugInfo
 	plug             *interfaces.ConnectedPlug
+	coreSlotInfo     *snap.SlotInfo
+	coreSlot         *interfaces.ConnectedSlot
 	providerSlotInfo *snap.SlotInfo
 	providerSlot     *interfaces.ConnectedSlot
 }
@@ -47,6 +49,13 @@ apps:
   plugs: [cups]
 `
 
+const cupsCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  cups:
+`
+
 const cupsProviderYaml = `name: provider
 version: 0
 apps:
@@ -56,6 +65,7 @@ apps:
 
 func (s *cupsSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cupsConsumerYaml, nil, "cups")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, cupsCoreYaml, nil, "cups")
 	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsProviderYaml, nil, "cups")
 }
 
@@ -84,15 +94,31 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
 		restore()
 	}
+
+	// On classic systems, we can connect to the implicit slot
+	restore := release.MockOnClassic(true)
+	defer restore()
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
+
+	// No AppArmor rules are generated on the slot side
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *cupsSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
-	c.Assert(si.ImplicitOnClassic, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to the CUPS socket for printing`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "cups")
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-connection: true")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
