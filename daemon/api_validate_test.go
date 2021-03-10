@@ -134,6 +134,28 @@ func (s *apiValidationSetsSuite) mockAssert(c *check.C, name, sequence string) a
 	return as
 }
 
+func (s *apiValidationSetsSuite) mockAssertByDev1(c *check.C, name, sequence string) asserts.Assertion {
+	snaps := []interface{}{map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+		"name":     "snap-b",
+		"presence": "required",
+		"revision": "1",
+	}}
+	headers := map[string]interface{}{
+		"authority-id": s.dev1acct.AccountID(),
+		"account-id":   s.dev1acct.AccountID(),
+		"name":         "bar",
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	return vs
+}
+
 func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 	return s.mockSeqFormingAssertionFn(assertType, sequenceKey, sequence, user)
 }
@@ -542,6 +564,44 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 	})
 }
 
+func (s *apiValidationSetsSuite) TestGetValidationSetFromRemoteFallbackToLocalAssertion(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+		// not found in the store
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+		// nil indicates successful validation
+		return nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
+	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
+	// assertion available in the local db (from snap ack)
+	vs := s.mockAssertByDev1(c, "bar", "2")
+	c.Assert(assertstate.Add(st, vs), check.IsNil)
+	st.Unlock()
+
+	q := url.Values{}
+	q.Set("sequence", "2")
+	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s/bar?", s.dev1acct.AccountID())+q.Encode(), nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Sequence:  2,
+		Valid:     true,
+	})
+}
+
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
 	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		return nil, &asserts.NotFoundError{
@@ -595,28 +655,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnl
 	st.Lock()
 	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
 	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
-	st.Unlock()
-
-	snaps := []interface{}{map[string]interface{}{
-		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
-		"name":     "snap-b",
-		"presence": "required",
-		"revision": "1",
-	}}
-	headers := map[string]interface{}{
-		"authority-id": s.dev1acct.AccountID(),
-		"account-id":   s.dev1acct.AccountID(),
-		"name":         "bar",
-		"series":       "16",
-		"sequence":     "99",
-		"revision":     "5",
-		"timestamp":    "2030-11-06T09:16:26Z",
-		"snaps":        snaps,
-	}
-	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
-	c.Assert(err, check.IsNil)
-
-	st.Lock()
+	vs := s.mockAssertByDev1(c, "bar", "99")
 	// add validation set assertion to the local db
 	c.Assert(assertstate.Add(st, vs), check.IsNil)
 	st.Unlock()

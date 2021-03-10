@@ -364,10 +364,14 @@ func validationSetAssertFromDb(st *state.State, accountID, name string, sequence
 }
 
 func validateAgainstStore(st *state.State, accountID, name string, sequence int, user *auth.UserState) Response {
-	// not available locally, try to find in the store.
+	// get from the store
 	as, err := getSingleSeqFormingAssertion(st, accountID, name, sequence, user)
 	if _, ok := err.(*asserts.NotFoundError); ok {
-		return validationSetNotFound(accountID, name, sequence)
+		// not in the store - try to find in the database
+		as, err = validationSetAssertFromDb(st, accountID, name, sequence)
+		if _, ok := err.(*asserts.NotFoundError); ok {
+			return validationSetNotFound(accountID, name, sequence)
+		}
 	}
 	if err != nil {
 		return InternalError(err.Error())
