@@ -590,7 +590,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
 }
 
-func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilPunctual(c *C) {
+func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilPunctual(c *C) {
 	// With since and until, i.e. signing account-key expires.
 	// Key is valid over [since, until)
 	encoded := "type: account-key\n" +
@@ -622,11 +622,11 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilPunctual(c *C) {
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.timePt, t.timePt), Equals, t.valid)
+		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
 	}
 }
 
-func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilPunctual(c *C) {
+func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilPunctual(c *C) {
 	// With since and until, i.e. signing account-key expires.
 	// Key is valid for time >= since.
 	encoded := "type: account-key\n" +
@@ -657,11 +657,11 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilPunctual(c *C) {
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.timePt, t.timePt), Equals, t.valid)
+		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.timePt, t.timePt), Equals, t.valid)
 	}
 }
 
-func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilInterval(c *C) {
+func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilInterval(c *C) {
 	// With since and until, i.e. signing account-key expires.
 	// Key is valid over [since, until)
 	encoded := "type: account-key\n" +
@@ -705,12 +705,12 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAboutWithUntilInterval(c *C) {
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.earliest, t.latest), Equals, t.valid)
+		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
 	}
 
 }
 
-func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilInterval(c *C) {
+func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilInterval(c *C) {
 	// With since and until, i.e. signing account-key expires.
 	// Key is valid for time >= since.
 	encoded := "type: account-key\n" +
@@ -754,7 +754,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAboutNoUntilInterval(c *C) {
 	}
 
 	for _, t := range tests {
-		c.Check(asserts.AccountKeyIsKeyValidAbout(accKey, t.earliest, t.latest), Equals, t.valid)
+		c.Check(asserts.AccountKeyIsKeyValidAssumingCurTimeWithin(accKey, t.earliest, t.latest), Equals, t.valid)
 	}
 
 }

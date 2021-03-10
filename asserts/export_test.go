@@ -254,9 +254,9 @@ func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isKeyValidAt(when)
 }
 
-// AccountKeyIsKeyValidAt exposes isKeyValidAbout on AccountKey for tests
-func AccountKeyIsKeyValidAbout(ak *AccountKey, earliest, latest time.Time) bool {
-	return ak.isKeyValidAbout(earliest, latest)
+// AccountKeyIsKeyValidAssumingCurTimeWithin exposes isKeyValidAssumingCurTimeWithin on AccountKey for tests
+func AccountKeyIsKeyValidAssumingCurTimeWithin(ak *AccountKey, earliest, latest time.Time) bool {
+	return ak.isKeyValidAssumingCurTimeWithin(earliest, latest)
 }
 
 type GPGRunner func(input []byte, args ...string) ([]byte, error)
