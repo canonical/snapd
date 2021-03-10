@@ -31,6 +31,7 @@ import (
 const (
 	NotASnapCode    = notASnapCode
 	ClassicSnapCode = classicSnapCode
+	PeerIsSelfCode  = peerIsSelfCode
 )
 
 var AttributesTask = attributesTask

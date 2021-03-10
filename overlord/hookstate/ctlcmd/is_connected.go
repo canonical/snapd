@@ -36,6 +36,7 @@ var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 const (
 	classicSnapCode = 10
 	notASnapCode    = 11
+	peerIsSelfCode  = 12
 )
 
 type isConnectedCommand struct {
@@ -64,7 +65,8 @@ The --pid and --aparmor-label options can be used to determine whether
 a plug or slot is connected to the snap identified by the given
 process ID or AppArmor label.  In this mode, additional failure exit
 codes may be returned: 10 if the other snap is not connected but uses
-classic confinement, or 11 if the other process is not snap confined.
+classic confinement, 11 if the other process is not snap confined, or
+12 if the other process belongs to the same snap.
 
 The --pid and --apparmor-label options may only be used with slots of
 interface type "pulseaudio", "audio-record", or "cups-control".
@@ -171,6 +173,10 @@ func (c *isConnectedCommand) Execute(args []string) error {
 				return nil
 			}
 		}
+	}
+
+	if otherSnap != nil && otherSnap.InstanceName() == snapName {
+		return &UnsuccessfulError{ExitCode: peerIsSelfCode}
 	}
 
 	if otherSnap != nil && otherSnap.Confinement == snap.ClassicConfinement {

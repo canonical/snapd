@@ -105,6 +105,10 @@ var isConnectedTests = []struct {
 	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
 	exitCode: ctlcmd.ClassicSnapCode,
 }, {
+	// snap1:audio-record slot is not connected to snap1 (self)
+	args:     []string{"is-connected", "--pid", "1001", "audio-record"},
+	exitCode: ctlcmd.PeerIsSelfCode,
+}, {
 	// snap1:plug1 does not use an allowed interface
 	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
 	err:  `cannot use --apparmor-label check with snap1:plug1`,
@@ -132,6 +136,10 @@ var isConnectedTests = []struct {
 	// snap1:audio-record slot is not connected to classic snap5
 	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "audio-record"},
 	exitCode: ctlcmd.ClassicSnapCode,
+}, {
+	// snap1:audio-record slot is not connected to snap1 (self)
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap1.app", "audio-record"},
+	exitCode: ctlcmd.PeerIsSelfCode,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
