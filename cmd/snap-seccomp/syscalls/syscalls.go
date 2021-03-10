@@ -64,6 +64,7 @@ var SeccompSyscalls = []string{
 	"clone",
 	"clone3",
 	"close",
+	"close_range",
 	"connect",
 	"copy_file_range",
 	"creat",

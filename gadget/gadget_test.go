@@ -84,8 +84,6 @@ volumes:
 `)
 
 var mockMultiVolumeUC20GadgetYaml = []byte(`
-device-tree: frobinator-3000.dtb
-device-tree-origin: kernel
 volumes:
   frobinator-image:
     bootloader: u-boot
@@ -122,8 +120,6 @@ volumes:
 `)
 
 var mockMultiVolumeGadgetYaml = []byte(`
-device-tree: frobinator-3000.dtb
-device-tree-origin: kernel
 volumes:
   frobinator-image:
     bootloader: u-boot
@@ -297,7 +293,6 @@ volumes:
 `)
 
 var gadgetYamlRPi = []byte(`
-device-tree: bcm2709-rpi-2-b
 volumes:
   pi:
     schema: mbr
@@ -349,7 +344,6 @@ volumes:
 `)
 
 var gadgetYamlLkUC20 = []byte(`
-device-tree-origin: kernel
 volumes:
   dragonboard:
     schema: gpt
