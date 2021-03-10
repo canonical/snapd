@@ -64,7 +64,7 @@ execute: |
 
     remove_markers
 
-    echo "Make sure that when the interface is disconnected hooks are executed"
+    echo "Make sure that disconnect hooks are executed when disconnecting the interface"
     snap disconnect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
     snap change --last=disconnect | MATCH "Run hook disconnect-slot-producer of snap \"basic-iface-hooks-producer"
     snap change --last=disconnect | MATCH "Run hook disconnect-plug-consumer of snap \"basic-iface-hooks-consumer"
