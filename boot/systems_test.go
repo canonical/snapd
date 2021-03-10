@@ -666,6 +666,20 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBadLabel(c *C
 	c.Check(vars, DeepEquals, badVars)
 }
 
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentUnexpectedLabel(c *C) {
+	badVars := map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(badVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status ""`)
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, badVars)
+}
+
 type initramfsMarkTryRecoverySystemSuite struct {
 	baseSystemsSuite
 
