@@ -9,3 +9,6 @@ slots:
 apps:
   snapctl:
     command: bin/run-snapctl.sh
+  svc:
+    command: bin/service.sh
+    daemon: simple
