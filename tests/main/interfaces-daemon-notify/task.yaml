@@ -31,7 +31,7 @@ execute: |
             break
         fi
         sleep 1
-    done0
+    done
     test "$denials_before" = "$denials_after"
 
     if [ "$(snap debug confinement)" = partial ] ; then
