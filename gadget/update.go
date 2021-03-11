@@ -388,7 +388,7 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		newStruct := newVol.LaidOutStructure[j]
 		// update only when the policy says so; boot assets
 		// are assumed to be backwards compatible, once
-		// deployed are not rolled back or replaced unless
+		// deployed they are not rolled back or replaced unless
 		// told by the new policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
 			// Ensure content is resolved and filtered. Filtering

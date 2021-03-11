@@ -6712,7 +6712,7 @@ volumes:
 	chg := st.NewChange("upgrade-snaps", "...")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresheh, see tsWithoutReRefresh for details
+		// check-refresh, see tsWithoutReRefresh for details
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
 			continue
 		}
