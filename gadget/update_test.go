@@ -1811,7 +1811,6 @@ assets:
 
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		panic("should not get called")
-		return &mockUpdater{}, nil
 	})
 	defer restore()
 
