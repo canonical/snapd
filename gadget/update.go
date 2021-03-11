@@ -391,12 +391,15 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		// deployed are not rolled back or replaced unless
 		// told by the new policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
-
-			// ensure content is resolved and filtered at
-			// this point
+			// Ensure content is resolved and filtered. Filtering
+			// is required for e.g. KernelUpdatePolicy, see above.
 			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
 			if err != nil {
 				return nil, err
+			}
+			// Nothing to do after filtering
+			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+				continue
 			}
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
 
