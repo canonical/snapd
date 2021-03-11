@@ -39,4 +39,4 @@ execute: |
         echo "Expected error with plug disconnected"
         exit 1
     fi
-    grep -q "Permission denied" snapd.error
+    MATCH "Permission denied" < snapd.error

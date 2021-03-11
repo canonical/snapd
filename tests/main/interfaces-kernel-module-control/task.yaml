@@ -50,7 +50,7 @@ execute: |
     snap connect generic-consumer:kernel-module-control
 
     echo "Then the snap is able to list the existing modules"
-    [ "$(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l)" -gt 2 ]
+    test "$(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l)" -gt 2
 
     echo "And the snap is able to insert a module"
     if lsmod | MATCH "$MODULE"; then

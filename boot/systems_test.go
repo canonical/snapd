@@ -118,11 +118,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -168,11 +168,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}), Equals, true)
@@ -279,11 +279,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -376,11 +376,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -486,11 +486,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
-		CurrentTrustedRecoveryBootAssets: boot.AssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 
-		CurrentTrustedBootAssets: boot.AssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
 	}
@@ -661,6 +661,20 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBadLabel(c *C
 	err := mtbl.SetBootVars(badVars)
 	c.Assert(err, IsNil)
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `try recovery system is unset but status is "tried"`)
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, badVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentUnexpectedLabel(c *C) {
+	badVars := map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(badVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status ""`)
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, badVars)

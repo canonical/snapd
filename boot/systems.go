@@ -301,25 +301,24 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 	status := vars["recovery_system_status"]
 	trySystem := vars["try_recovery_system"]
 
-	if status == "" && trySystem == "" {
+	outcome = TryRecoverySystemOutcomeFailure
+	switch {
+	case status == "" && trySystem == "":
+		// simplest case, not trying a system
 		return TryRecoverySystemOutcomeNoneTried, "", nil
-	}
-
-	// we expect both variables to be set
-	if status != "try" && status != "tried" {
+	case status != "try" && status != "tried":
+		// system label is set, but the status is unexpected status
 		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
 			why: fmt.Sprintf("unexpected recovery system status %q", status),
 		}
-	}
-	if trySystem == "" {
+	case trySystem == "":
+		// no system set, but we have status
 		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
 			why: fmt.Sprintf("try recovery system is unset but status is %q", status),
 		}
-	}
-
-	outcome = TryRecoverySystemOutcomeFailure
-	if status == "tried" {
+	case status == "tried":
 		outcome = TryRecoverySystemOutcomeSuccess
 	}
+
 	return outcome, trySystem, nil
 }

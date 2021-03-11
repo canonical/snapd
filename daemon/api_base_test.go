@@ -86,9 +86,7 @@ type apiBaseSuite struct {
 	systemctlRestorer func()
 	SysctlBufs        [][]byte
 
-	connectivityResult     map[string]bool
-	loginUserStoreMacaroon string
-	loginUserDischarge     string
+	connectivityResult map[string]bool
 
 	restoreSanitize func()
 	restoreMuxVars  func()
@@ -158,12 +156,6 @@ func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
 	s.pokeStateLock()
 
 	return s.connectivityResult, s.err
-}
-
-func (s *apiBaseSuite) LoginUser(username, password, otp string) (string, string, error) {
-	s.pokeStateLock()
-
-	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
 }
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
