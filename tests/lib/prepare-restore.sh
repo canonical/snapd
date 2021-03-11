@@ -590,10 +590,7 @@ prepare_suite_each() {
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
+
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
@@ -669,6 +666,11 @@ restore_suite_each() {
         # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+    fi
+
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
     fi
 }
 
