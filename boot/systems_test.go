@@ -564,6 +564,122 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	})
 }
 
+func (s *systemsSuite) testInspectRecoverySystemOutcomeHappy(c *C, mtbl *bootloadertest.MockTrustedAssetsBootloader, expectedOutcome boot.TryRecoverySystemOutcome, expectedErr string) {
+	bootloader.Force(mtbl)
+	defer bootloader.Force(nil)
+
+	// system is encrypted
+	s.stampSealedKeys(c, s.rootdir)
+
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return nil, nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	outcome, label, err := boot.InspectTryRecoverySystemOutcome(s.uc20dev)
+	if expectedErr == "" {
+		c.Assert(err, IsNil)
+	} else {
+		c.Assert(err, ErrorMatches, expectedErr)
+	}
+	c.Check(outcome, Equals, expectedOutcome)
+	switch outcome {
+	case boot.TryRecoverySystemOutcomeSuccess, boot.TryRecoverySystemOutcomeFailure:
+		c.Check(label, Equals, "1234")
+	default:
+		c.Check(label, Equals, "")
+	}
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
+	triedVars := map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(triedVars)
+	c.Assert(err, IsNil)
+
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeSuccess, "")
+
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, triedVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappyFailure(c *C) {
+	tryVars := map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(tryVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeFailure, "")
+
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, tryVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeNotTried(c *C) {
+	notTriedVars := map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    "",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(notTriedVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeNoneTried, "")
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBogusStatus(c *C) {
+	badVars := map[string]string{
+		"recovery_system_status": "foo",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(badVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status "foo"`)
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, badVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentBadLabel(c *C) {
+	badVars := map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    "",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(badVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `try recovery system is unset but status is "tried"`)
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, badVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentUnexpectedLabel(c *C) {
+	badVars := map[string]string{
+		"recovery_system_status": "",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(badVars)
+	c.Assert(err, IsNil)
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeInconsistent, `unexpected recovery system status ""`)
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, badVars)
+}
+
 type initramfsMarkTryRecoverySystemSuite struct {
 	baseSystemsSuite
 
