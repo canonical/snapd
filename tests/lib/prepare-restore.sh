@@ -618,12 +618,6 @@ prepare_suite_each() {
             ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
-
-    # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
-    tests.invariant check
 }
 
 restore_suite_each() {
@@ -672,6 +666,12 @@ restore_suite_each() {
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
     fi
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite() {
