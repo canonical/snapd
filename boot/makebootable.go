@@ -49,12 +49,14 @@ type BootableSet struct {
 }
 
 // MakeBootableImage sets up the given bootable set and target filesystem
-// such that the system can be booted.
+// such that the image can be booted.
 //
 // rootdir points to an image filesystem (UC 16/18) or an image recovery
 // filesystem (UC20 at prepare-image time).
-// It should not point to an ephemeral system during UC20 install mode as
-// that functionality is implemented with MakeRunnableSystem.
+// On UC20, bootWith.Recovery must be true, as this function makes the recovery
+// system bootable. It does not make a run system bootable, for that
+// functionality see MakeRunnableSystem, which is meant to be used at runtime
+// from UC20 install mode.
 func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)
@@ -230,7 +232,13 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 
 // MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
 // be able to boot, but is unique in that it is intended to be called from UC20
-// install mode and makes the run system bootable (hence it is called "runnable")
+// install mode and makes the run system bootable (hence it is called
+// "runnable").
+// Note that this function does not update the recovery bootloader env to
+// actually transition to run mode here, that is left to the caller via
+// something like boot.EnsureNextBootToRunMode(). This is to enable separately
+// setting up a run system and actually transitioning to it, with hooks, etc.
+// running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make non-uc20 system runnable")
@@ -385,10 +393,6 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return err
 		}
 	}
-
-	// Note that we do not update the recovery bootloader env to actually
-	// transition to run mode here, that is left to the caller via something
-	// like boot.EnsureNextBootToRunMode()
 
 	return nil
 }
