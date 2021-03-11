@@ -205,7 +205,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if err != nil {
 		return err
 	}
-	if err := checkVolumetHasAllKernelRefs(pNew, kernelInfo); err != nil {
+	if err := canResolveAllVolumeKernelRefs(pNew, kernelInfo); err != nil {
 		return err
 	}
 
@@ -342,8 +342,6 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 type updatePair struct {
 	from *LaidOutStructure
 	to   *LaidOutStructure
-
-	resolvedContentFilter func(*ResolvedContent) bool
 }
 
 func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {

@@ -359,8 +359,10 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	return nil
 }
 
-// checkVolumeHasAllKernelRefs ensures that the given
-func checkVolumetHasAllKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
+// canResolveAllVolumeKernelRefs ensures that all `$kernel:ref` style
+// references in the LaidOutVolume are available for the given
+// kernelInfo.
+func canResolveAllVolumeKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
 			continue
