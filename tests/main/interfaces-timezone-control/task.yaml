@@ -35,11 +35,11 @@ execute: |
 
     # Set the timezone1 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone1"
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
+    test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1"
 
     # Set the timezone2 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone2"
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
+    test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
