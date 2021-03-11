@@ -27,7 +27,7 @@ import (
 )
 
 // A Grouping identifies opaquely a grouping of assertions.
-// Pool uses it to label the interesection between a set of groups.
+// Pool uses it to label the intersection between a set of groups.
 type Grouping string
 
 // A pool helps holding and tracking a set of assertions and their

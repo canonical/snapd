@@ -76,7 +76,7 @@ func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
 
 // isKeyValidAssumingCurTimeWithin returns whether the account key is
 // possibly valid if the current time is known to be within [earliest,
-// latest]. That means the interesction of possible current times and
+// latest]. That means the intersection of possible current times and
 // validity is not empty.
 // If latest is zero, then current time is assumed to be >=earliest.
 // If earliest == latest this is equivalent to isKeyValidAt().
