@@ -41,7 +41,7 @@ execute: |
 
     echo "When the plug is connected the snap is able to dump info about the upower devices"
     expected="/org/freedesktop/UPower/devices/DisplayDevice.*"
-    retry -n 20 --wait 1 sh -c 'test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"'
+    retry -n 20 --wait 1 sh -c "test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected""
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
