@@ -231,7 +231,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 // MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
 // be able to boot, but is unique in that it is intended to be called from UC20
 // install mode and makes the run system bootable (hence it is called "runnable")
-func MakeRunnableSystem(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make non-uc20 system runnable")
 	}

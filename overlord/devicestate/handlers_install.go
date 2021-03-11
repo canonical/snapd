@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -265,8 +264,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeRunnable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 

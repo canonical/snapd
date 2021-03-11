@@ -286,7 +286,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20MultipleRecoverySystemsErro
 func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	model := boottest.MakeMockModel()
 
-	err := boot.MakeRunnableSystem(model, s.rootdir, nil, nil)
+	err := boot.MakeRunnableSystem(model, nil, nil)
 	c.Assert(err, ErrorMatches, "internal error: cannot make non-uc20 system runnable")
 }
 
@@ -476,7 +476,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, s.rootdir, bootWith, obs)
+	err = boot.MakeRunnableSystem(model, bootWith, obs)
 	c.Assert(err, IsNil)
 
 	// also do the logical thing and make the next boot go to run mode
@@ -623,7 +623,7 @@ version: 5.0
 	}
 
 	// no grub marker in gadget directory raises an error
-	err = boot.MakeRunnableSystem(model, s.rootdir, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
 	c.Assert(err, ErrorMatches, "internal error: cannot identify run system bootloader: cannot determine bootloader")
 
 	// set up grub.cfg in gadget
@@ -634,7 +634,7 @@ version: 5.0
 	// no write access to destination directory
 	restore := assets.MockInternal("grub.cfg", nil)
 	defer restore()
-	err = boot.MakeRunnableSystem(model, s.rootdir, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
 	c.Assert(err, ErrorMatches, `cannot install managed bootloader assets: internal error: no boot asset for "grub.cfg"`)
 }
 
@@ -811,7 +811,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, s.rootdir, bootWith, obs)
+	err = boot.MakeRunnableSystem(model, bootWith, obs)
 	c.Assert(err, ErrorMatches, "cannot seal the encryption keys: seal error")
 }
 
@@ -994,7 +994,7 @@ version: 5.0
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
-	err = boot.MakeRunnableSystem(model, s.rootdir, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// also do the logical next thing which is to ensure that the system
