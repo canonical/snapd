@@ -28,6 +28,15 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newList []string, found bool) {
+	for idx, sys := range systemsList {
+		if sys == systemLabel {
+			return append(systemsList[:idx], systemsList[idx+1:]...), true
+		}
+	}
+	return systemsList, false
+}
+
 // ClearTryRecoverySystem removes a given candidate recovery system from the
 // modeenv state file, reseals and clears related bootloader variables. An empty
 // system label can be passed when the boot variables state is inconsistent.
@@ -49,18 +58,10 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 		return err
 	}
 
-	found := false
-	for idx, sys := range m.CurrentRecoverySystems {
-		if sys == systemLabel {
-			found = true
-			m.CurrentRecoverySystems = append(m.CurrentRecoverySystems[:idx],
-				m.CurrentRecoverySystems[idx+1:]...)
-			break
-		}
-	}
 	// we may be repeating the cleanup, in which case the system was already
 	// removed from the modeenv and we don't need to rewrite the modeenv
-	if found {
+	if updated, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
+		m.CurrentRecoverySystems = updated
 		if err := m.Write(); err != nil {
 			return err
 		}
@@ -341,4 +342,94 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 	}
 
 	return outcome, trySystem, nil
+}
+
+// MarkRecoverySystemGood marks the provided recovery system as a good one, and
+// promotes it to the list of good recovery systems in modeenv. If the system
+// uses encryption, the keys will updated state. If resealing fails, an attempt
+// to restore the previous state is made
+func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
+		return fmt.Errorf("internal error: recovery system %q not in current systems list", systemLabel)
+	}
+	if !strutil.ListContains(m.GoodRecoverySystems, systemLabel) {
+		m.GoodRecoverySystems = append(m.GoodRecoverySystems, systemLabel)
+	}
+	if err := m.Write(); err != nil {
+		return err
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		if cleanupErr := undoMarkGoodRecoverySystem(dev, systemLabel); cleanupErr != nil {
+			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
+		}
+	}()
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+
+}
+
+func undoMarkGoodRecoverySystem(dev Device, systemLabel string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if updated, found := dropFromRecoverySystemsList(m.GoodRecoverySystems, systemLabel); found {
+		m.GoodRecoverySystems = updated
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+}
+
+// DropRecoverySystem drops a provided system from the list of good and current
+// recovery systems, updates the modeenv and reseals the keys a needed. Note,
+// this call *DOES NOT* clear the boot environment variables.
+func DropRecoverySystem(dev Device, systemLabel string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	rewriteModeenv := false
+	if updatedGood, found := dropFromRecoverySystemsList(m.GoodRecoverySystems, systemLabel); found {
+		m.GoodRecoverySystems = updatedGood
+		rewriteModeenv = true
+	}
+	if updatedCurrent, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
+		m.CurrentRecoverySystems = updatedCurrent
+		rewriteModeenv = true
+	}
+	if rewriteModeenv {
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
 }
