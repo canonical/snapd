@@ -28,27 +28,10 @@ import (
 	"path/filepath"
 
 	"github.com/godbus/dbus"
-
 	. "gopkg.in/check.v1"
-)
 
-func dbusSessionBus() (*dbus.Conn, error) {
-	// the test suite *must* use a private connection to the bus to avoid
-	// breaking things for code that might use a shared connection
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
-}
+	"github.com/snapcore/snapd/dbusutil"
+)
 
 // DBusTest provides a separate dbus session bus for running tests
 type DBusTest struct {
@@ -107,7 +90,7 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", scanner.Text())
 
-	s.SessionBus, err = dbusSessionBus()
+	s.SessionBus, err = dbusutil.SessionBusPrivate()
 	c.Assert(err, IsNil)
 }
 

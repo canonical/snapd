@@ -1097,8 +1097,44 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.Stop("foo", 0) }, Panics, "cannot call stop with GlobalUserMode")
 	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
-	c.Check(func() { sysd.Status("foo") }, Panics, "cannot call status with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
+}
+
+func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
+	output := []byte("enabled\ndisabled\nstatic\n")
+	sysdErr := &Error{}
+	sysdErr.SetExitCode(1)
+	sysdErr.SetMsg(output)
+
+	s.outs = [][]byte{output, nil, output}
+	s.errors = []error{nil, sysdErr, nil}
+
+	rootDir := dirs.GlobalRootDir
+	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
+	sts, err := sysd.Status("foo", "bar", "baz")
+	c.Check(err, IsNil)
+	c.Check(sts, DeepEquals, []*UnitStatus{
+		{UnitName: "foo", Enabled: true},
+		{UnitName: "bar", Enabled: false},
+		{UnitName: "baz", Enabled: true},
+	})
+	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
+
+	// Output is collected if systemctl has a non-zero exit status
+	sts, err = sysd.Status("one", "two", "three")
+	c.Check(err, IsNil)
+	c.Check(sts, DeepEquals, []*UnitStatus{
+		{UnitName: "one", Enabled: true},
+		{UnitName: "two", Enabled: false},
+		{UnitName: "three", Enabled: true},
+	})
+	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
+
+	// An error is returned if the wrong number of statuses are returned
+	sts, err = sysd.Status("one")
+	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
+	c.Check(sts, IsNil)
+	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
 }
 
 const unitTemplate = `

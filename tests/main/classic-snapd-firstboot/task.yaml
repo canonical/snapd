@@ -31,13 +31,14 @@ prepare: |
         file: basic18.snap
     EOF
 
-    echo Copy the needed assertions to /var/lib/snapd/
+    echo "Copy the needed assertions to /var/lib/snapd/"
     cp snapd_*.assert "$SEED_DIR/assertions"
     cp core18_*.assert "$SEED_DIR/assertions"
     cp "$TESTSLIB/assertions/developer1.account" "$SEED_DIR/assertions"
     cp "$TESTSLIB/assertions/developer1.account-key" "$SEED_DIR/assertions"
     cp "$TESTSLIB/assertions/developer1-my-classic.model" "$SEED_DIR/assertions"
     cp "$TESTSLIB/assertions/testrootorg-store.account-key" "$SEED_DIR/assertions"
+
     echo "Copy the needed snaps to $SEED_DIR/snaps"
     cp ./snapd_*.snap "$SEED_DIR/snaps/snapd.snap"
     cp ./core18_*.snap "$SEED_DIR/snaps/core18.snap"
@@ -50,8 +51,6 @@ restore: |
     fi
 
     rm -rf "$SEED_DIR"
-    rm -f -- *.snap
-    rm -f -- *.assert
     systemctl start snapd.socket snapd.service
 
 execute: |

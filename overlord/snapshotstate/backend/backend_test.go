@@ -938,10 +938,10 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		// reset
 		err = os.RemoveAll(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
-		err := os.MkdirAll(dirs.SnapshotsDir, 0700)
-		c.Assert(err, check.IsNil, comm)
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
+			err := os.MkdirAll(dirs.SnapshotsDir, 0700)
+			c.Assert(err, check.IsNil, comm)
 			err = ioutil.WriteFile(importingFile, nil, 0644)
 			c.Assert(err, check.IsNil)
 		} else {

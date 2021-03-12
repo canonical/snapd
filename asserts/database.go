@@ -193,6 +193,19 @@ type RODatabase interface {
 	// (trusted or not) based on arbitrary headers.  It returns a
 	// NotFoundError if no assertion can be found.
 	FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+	// FindSequence finds an assertion for the given headers and after for
+	// a sequence-forming type.
+	// The provided headers must contain a sequence key, i.e. a prefix of
+	// the primary key for the assertion type except for the sequence
+	// number header.
+	// The assertion is the first in the sequence under the sequence key
+	// with sequence number > after.
+	// If after is -1 it returns instead the assertion with the largest
+	// sequence number.
+	// It will constraint itself to assertions with format <= maxFormat
+	// unless maxFormat is -1.
+	// It returns a NotFoundError if the assertion cannot be found.
+	FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
 }
@@ -682,6 +695,9 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
+		if assert.AuthorityID() != signingKey.AccountID() {
+			return fmt.Errorf("assertion authority %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
+		}
 	} else {
 		custom, ok := assert.(customSigner)
 		if !ok {
@@ -722,7 +738,8 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
 			}
-			return fmt.Errorf("%s assertion timestamp outside of signing key validity (key valid since %q%s)", assert.Type().Name, signingKey.Since(), until)
+			return fmt.Errorf("%s assertion timestamp %q outside of signing key validity (key valid since %q%s)",
+				assert.Type().Name, checkTime, signingKey.Since(), until)
 		}
 	}
 	return nil

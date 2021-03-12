@@ -184,20 +184,6 @@ type VolumeContent struct {
 	Size quantity.Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
-
-	// resolvedSource is the absolute path of the Source after resolving
-	// any references (e.g. to a "$kernel:" snap)
-	resolvedSource string
-	// TODO: provide resolvedImage too
-}
-
-func (vc VolumeContent) ResolvedSource() string {
-	// TODO: ensure that sources are always resolved and only return
-	//       vc.resolvedSource(). This will come in the next PR.
-	if vc.resolvedSource != "" {
-		return vc.resolvedSource
-	}
-	return vc.UnresolvedSource
 }
 
 func (vc VolumeContent) String() string {
@@ -806,8 +792,11 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
-		return fmt.Errorf("missing source or target")
+	if vc.UnresolvedSource == "" {
+		return fmt.Errorf("missing source")
+	}
+	if vc.Target == "" {
+		return fmt.Errorf("missing target")
 	}
 	return nil
 }
@@ -923,11 +912,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -943,7 +932,7 @@ func IsCompatible(current, new *Info) error {
 // already be flashed and managed separately at image build/flash time, while
 // the system-* roles can be manipulated on the returned volume during install
 // mode.
-func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
 	// model should never be nil here
 	if model == nil {
 		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
@@ -957,18 +946,15 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolu
 
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// TODO:UC20: make SectorSize dynamic, either through config in the
-		//            gadget or by dynamic detection
-		SectorSize: sectorSize,
 	}
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for _, vol := range info.Volumes {
 		for _, structure := range vol.Structure {
-			// use the system-boot role
+			// use the system-boot role to identify the system volume
 			if structure.Role == SystemBoot {
-				pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
+				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 				if err != nil {
 					return nil, err
 				}

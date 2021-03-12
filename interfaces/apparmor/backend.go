@@ -55,7 +55,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -611,23 +610,6 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 }
 
-func downgradeConfinement() bool {
-	kver := osutil.KernelVersion()
-	switch {
-	case release.DistroLike("opensuse-tumbleweed"):
-		if cmp, _ := strutil.VersionCompare(kver, "4.16"); cmp >= 0 {
-			// As a special exception, for openSUSE Tumbleweed which ships Linux
-			// 4.16, do not downgrade the confinement template.
-			return false
-		}
-	case release.DistroLike("arch", "archlinux"):
-		// The default kernel has AppArmor enabled since 4.18.8, the
-		// hardened one since 4.17.4
-		return false
-	}
-	return true
-}
-
 func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
@@ -646,22 +628,6 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 		ignoreSnippets = true
-	}
-	// When partial AppArmor is detected, use the classic template for now. We could
-	// use devmode, but that could generate confusing log entries for users running
-	// snaps on systems with partial AppArmor support.
-	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
-		// By default, downgrade confinement to the classic template when
-		// partial AppArmor support is detected. We don't want to use strict
-		// in general yet because older versions of the kernel did not
-		// provide backwards compatible interpretation of confinement
-		// so the meaning of the template would change across kernel
-		// versions and we have not validated that the current template
-		// is operational on older kernels.
-		if downgradeConfinement() {
-			policy = classicTemplate
-			ignoreSnippets = true
-		}
 	}
 	// If a snap is in devmode (or is using classic confinement) then make the
 	// profile non-enforcing where violations are logged but not denied.
@@ -774,10 +740,6 @@ func (b *Backend) SandboxFeatures() []string {
 	policy := "default"
 	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		level = "partial"
-
-		if downgradeConfinement() {
-			policy = "downgraded"
-		}
 	}
 	tags = append(tags, fmt.Sprintf("support-level:%s", level))
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))

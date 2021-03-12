@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"bytes"
@@ -25,36 +25,37 @@ import (
 	"sort"
 	"time"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"gopkg.in/check.v1"
-	. "gopkg.in/check.v1"
 )
 
 var _ = Suite(&consoleConfSuite{})
 
 type consoleConfSuite struct {
-	APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	t0 := time.Now()
 	d := s.daemonWithOverlordMock(c)
-	snapMgr, err := snapstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
-	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(snapMgr)
+	snapMgr, err := snapstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, IsNil)
+	d.Overlord().AddManager(snapMgr)
 
-	st := d.overlord.State()
+	st := d.Overlord().State()
 
 	body := bytes.NewBuffer(nil)
 	req, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
 	c.Assert(err, IsNil)
 
 	// no changes in state, no changes in response
-	rsp := consoleConfStartRoutine(routineConsoleConfStartCmd, req, nil).(*resp)
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, DeepEquals, &ConsoleConfStartRoutineResult{})
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, DeepEquals, &daemon.ConsoleConfStartRoutineResult{})
 
 	// we did set the refresh.hold time back 20 minutes though
 	st.Lock()
@@ -101,15 +102,15 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 
 	req2, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
 	c.Assert(err, IsNil)
-	rsp2 := consoleConfStartRoutine(routineConsoleConfStartCmd, req2, nil).(*resp)
-	c.Check(rsp2.Type, Equals, ResponseTypeSync)
-	c.Assert(rsp2.Result, FitsTypeOf, &ConsoleConfStartRoutineResult{})
-	res := rsp2.Result.(*ConsoleConfStartRoutineResult)
+	rsp2 := s.req(c, req2, nil).(*daemon.Resp)
+	c.Check(rsp2.Type, Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp2.Result, FitsTypeOf, &daemon.ConsoleConfStartRoutineResult{})
+	res := rsp2.Result.(*daemon.ConsoleConfStartRoutineResult)
 	sort.Strings(res.ActiveAutoRefreshChanges)
 	sort.Strings(res.ActiveAutoRefreshSnaps)
 	expChgs := []string{chg0.ID(), chg1.ID()}
 	sort.Strings(expChgs)
-	c.Assert(res, DeepEquals, &ConsoleConfStartRoutineResult{
+	c.Assert(res, DeepEquals, &daemon.ConsoleConfStartRoutineResult{
 		ActiveAutoRefreshChanges: expChgs,
 		ActiveAutoRefreshSnaps:   []string{"do-snap", "doing-snap"},
 	})

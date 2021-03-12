@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -638,26 +637,10 @@ const dockerSupportPrivilegedSecComp = `
 @unrestricted
 `
 
-type dockerSupportInterface struct{}
+const dockerSupportServiceSnippet = `Delegate=true`
 
-func (iface *dockerSupportInterface) Name() string {
-	return "docker-support"
-}
-
-func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              dockerSupportSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
-	}
-}
-
-func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.SetControlsDeviceCgroup()
-
-	return nil
+type dockerSupportInterface struct {
+	commonInterface
 }
 
 func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -712,5 +695,16 @@ func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 }
 
 func init() {
-	registerIface(&dockerSupportInterface{})
+	registerIface(&dockerSupportInterface{commonInterface{
+		name:                 "docker-support",
+		summary:              dockerSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: dockerSupportBaseDeclarationSlots,
+		controlsDeviceCgroup: true,
+		serviceSnippets:      []string{dockerSupportServiceSnippet},
+		// docker-support also uses ptrace(trace), but it already declares this in
+		// the AppArmorConnectedPlug method
+	}})
 }
