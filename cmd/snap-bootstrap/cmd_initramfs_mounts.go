@@ -815,7 +815,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// just entirely lost ubuntu-data-enc, and we could still have an
 		// encrypted device, so instead try to unlock ubuntu-save with the
 		// fallback key, the logic there can also handle an unencrypted ubuntu-save
-		return m.unlockMaybeEncryptedSaveFallbackKey, nil
+		return m.unlockMaybeEncryptedAloneSaveFallbackKey, nil
 	}
 
 	// otherwise successfully unlocked it (or just found it if it was unencrypted)
@@ -900,7 +900,11 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	return m.mountSave, nil
 }
 
-func (m *recoverModeStateMachine) unlockMaybeEncryptedSaveFallbackKey() (stateFunc, error) {
+func (m *recoverModeStateMachine) unlockMaybeEncryptedAloneSaveFallbackKey() (stateFunc, error) {
+	// we can only get here by not finding ubuntu-data at all, meaning the
+	// system can still be encrypted and have an encrypted ubuntu-save,
+	// which we will determine now
+
 	// first check whether there is an encrypted save
 	_, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save-enc")
 	if findErr == nil {
