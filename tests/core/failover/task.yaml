@@ -130,6 +130,8 @@ execute: |
 
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"
+    #shellcheck disable=SC2148
+    #shellcheck disable=SC2016
     retry -n 200 --wait 1 sh -c 'test -z "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)"'
 
     test "$("$TESTSTOOLS"/boot-state bootenv show snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
