@@ -132,6 +132,10 @@ type ResolvedContent struct {
 	// ResolvedSource is the absolute path of the Source after resolving
 	// any references (e.g. to a "$kernel:" snap).
 	ResolvedSource string
+
+	// KernelUpdate is true if this content comes from the kernel
+	// and has the "Update" property set
+	KernelUpdate bool
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -286,13 +290,14 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 
 	content := make([]ResolvedContent, len(ps.Content))
 	for idx := range ps.Content {
-		resolvedSource, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
+		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		content[idx] = ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
 			ResolvedSource: resolvedSource,
+			KernelUpdate:   kupdate,
 		}
 	}
 
@@ -302,17 +307,18 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 // resolveContentPathOrRef resolves the relative path from gadget
 // assets and any "$kernel:" references from "pathOrRef" using the
 // provided gadget/kernel directories and the kernel info. It returns
-// an absolute path or an error.
-func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+// an absolute path, a flag indicating whether the content is part of
+// a kernel update, or an error.
+func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (resolved string, kupdate bool, err error) {
 
 	// TODO: add kernelRootDir == "" error too once all the higher
 	//       layers in devicestate call gadget.Update() with a
 	//       kernel dir set
 	switch {
 	case gadgetRootDir == "":
-		return "", fmt.Errorf("internal error: gadget root dir cannot beempty")
+		return "", false, fmt.Errorf("internal error: gadget root dir cannot beempty")
 	case pathOrRef == "":
-		return "", fmt.Errorf("cannot use empty source")
+		return "", false, fmt.Errorf("cannot use empty source")
 	}
 
 	// content may refer to "$kernel:<name>/<content>"
@@ -320,16 +326,17 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
 		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
 		if err != nil {
-			return "", fmt.Errorf("cannot parse kernel ref: %v", err)
+			return "", false, fmt.Errorf("cannot parse kernel ref: %v", err)
 		}
 		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
 		if !ok {
-			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
+			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
 		}
 		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
-			return "", fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
+			return "", false, fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
 		}
 		resolvedSource = filepath.Join(kernelRootDir, wantedContent)
+		kupdate = kernelAsset.Update
 	} else {
 		resolvedSource = filepath.Join(gadgetRootDir, pathOrRef)
 	}
@@ -339,7 +346,7 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 		resolvedSource += "/"
 	}
 
-	return resolvedSource, nil
+	return resolvedSource, kupdate, nil
 }
 
 type byContentStartOffset []LaidOutContent

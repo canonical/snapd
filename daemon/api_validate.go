@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -88,22 +87,6 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 		Result: res,
 		Status: 404,
 	}
-}
-
-func validationSetAccountAndName(validationSet string) (accountID, name string, err error) {
-	parts := strings.Split(validationSet, "/")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid validation-set argument")
-	}
-	accountID = parts[0]
-	name = parts[1]
-	if !asserts.IsValidAccountID(accountID) {
-		return "", "", fmt.Errorf("invalid account ID %q", accountID)
-	}
-	if !asserts.IsValidValidationSetName(name) {
-		return "", "", fmt.Errorf("invalid validation set name %q", name)
-	}
-	return accountID, name, nil
 }
 
 func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -324,7 +307,8 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 		userID = user.ID
 	}
 	pinned := sequence > 0
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID)
+	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
 	if err != nil {
 		return BadRequest("cannot get validation set assertion for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}
@@ -351,28 +335,8 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	return SyncResponse(nil, nil)
 }
 
-func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (*asserts.ValidationSet, error) {
-	headers := map[string]string{
-		"series":     release.Series,
-		"account-id": accountID,
-		"name":       name,
-		"sequence":   fmt.Sprintf("%d", sequence),
-	}
-	st.Lock()
-	db := assertstate.DB(st)
-	st.Unlock()
-	as, err := db.Find(asserts.ValidationSetType, headers)
-	if err != nil {
-		return nil, err
-	}
-	vset := as.(*asserts.ValidationSet)
-	return vset, nil
-}
-
 func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
-	st.Unlock()
 	as, err := validationSetAssertFromDb(st, accountID, name, sequence)
-	st.Lock()
 	if err != nil {
 		return nil, err
 	}
@@ -383,11 +347,31 @@ func validationSetForAssert(st *state.State, accountID, name string, sequence in
 	return sets, nil
 }
 
+func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (*asserts.ValidationSet, error) {
+	headers := map[string]string{
+		"series":     release.Series,
+		"account-id": accountID,
+		"name":       name,
+		"sequence":   fmt.Sprintf("%d", sequence),
+	}
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ValidationSetType, headers)
+	if err != nil {
+		return nil, err
+	}
+	vset := as.(*asserts.ValidationSet)
+	return vset, nil
+}
+
 func validateAgainstStore(st *state.State, accountID, name string, sequence int, user *auth.UserState) Response {
-	// not available locally, try to find in the store.
+	// get from the store
 	as, err := getSingleSeqFormingAssertion(st, accountID, name, sequence, user)
 	if _, ok := err.(*asserts.NotFoundError); ok {
-		return validationSetNotFound(accountID, name, sequence)
+		// not in the store - try to find in the database
+		as, err = validationSetAssertFromDb(st, accountID, name, sequence)
+		if _, ok := err.(*asserts.NotFoundError); ok {
+			return validationSetNotFound(accountID, name, sequence)
+		}
 	}
 	if err != nil {
 		return InternalError(err.Error())
