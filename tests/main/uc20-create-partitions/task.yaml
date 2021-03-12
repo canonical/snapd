@@ -13,12 +13,23 @@ debug: |
     cat /proc/partitions
 
 restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+    # sanity check
+    mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
-        umount "${LOOP}p3"
-        umount "${LOOP}p4"
-        umount "${LOOP}p5"
+        losetup -l | NOMATCH "$LOOP"
     fi
 
 prepare: |
@@ -144,7 +155,6 @@ execute: |
     mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p6" | MATCH ext4
     file -s "${LOOP}p6" | MATCH 'volume name "other-ext4"'
-    umount /run/mnt/other-ext4
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
