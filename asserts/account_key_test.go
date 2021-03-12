@@ -627,7 +627,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilPu
 }
 
 func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilPunctual(c *C) {
-	// With since and until, i.e. signing account-key expires.
+	// With since but no until, i.e. signing account-key never expires.
 	// Key is valid for time >= since.
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
@@ -702,6 +702,12 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilIn
 		{aks.since.AddDate(0, -3, 0), z, true},
 		{aks.until, z, false},
 		{aks.until.AddDate(0, 1, 0), z, false},
+		// with earliest set to time.Time zero
+		{z, aks.since, true},
+		{z, aks.since.AddDate(0, 1, 0), true},
+		{z, aks.since.AddDate(0, -2, 0), false},
+		{z, aks.until.AddDate(0, 1, 0), true},
+		{z, z, true},
 	}
 
 	for _, t := range tests {
@@ -711,7 +717,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinWithUntilIn
 }
 
 func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilInterval(c *C) {
-	// With since and until, i.e. signing account-key expires.
+	// With since but no until, i.e. signing account-key never expires.
 	// Key is valid for time >= since.
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
@@ -751,6 +757,12 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAssumingCurTimeWithinNoUntilInte
 		{aks.since.AddDate(0, -3, 0), z, true},
 		{later, z, true},
 		{later.AddDate(0, 1, 0), z, true},
+		// with earliest set to time.Time zero
+		{z, aks.since, true},
+		{z, aks.since.AddDate(0, 1, 0), true},
+		{z, aks.since.AddDate(0, -2, 0), false},
+		{z, later.AddDate(0, 1, 0), true},
+		{z, z, true},
 	}
 
 	for _, t := range tests {
