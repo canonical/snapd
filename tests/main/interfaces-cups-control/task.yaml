@@ -55,7 +55,7 @@ execute: |
     echo "Then the snap command is able to print files"
     echo "Hello World" > "$TEST_FILE"
     test-snapd-cups-control-consumer.lpr "$TEST_FILE"
-    retry -n 30 --wait 1 sh -c "test \"$(find "$HOME"/PDF -name '*.pdf' | wc -l)\" -ge 1"
+    retry -n 120 --wait 1 sh -c "test \"$(find "$HOME"/PDF -name '*.pdf' | wc -l)\" -ge 1"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
