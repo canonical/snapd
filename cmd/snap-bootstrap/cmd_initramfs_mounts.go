@@ -906,7 +906,7 @@ func (m *recoverModeStateMachine) unlockMaybeEncryptedAloneSaveFallbackKey() (st
 	// which we will determine now
 
 	// first check whether there is an encrypted save
-	_, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save-enc")
+	_, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
 	if findErr == nil {
 		// well there is one, go try and unlock it
 		return m.unlockEncryptedSaveFallbackKey, nil
