@@ -13,13 +13,19 @@ debug: |
     cat /proc/partitions
 
 restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
     if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
     fi
-    umount ./ubuntu-seed || true
-    umount ./ubuntu-boot || true
-    umount ./ubuntu-save || true
-    umount ./ubuntu-data || true
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"

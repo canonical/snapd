@@ -13,20 +13,23 @@ debug: |
     cat /proc/partitions
 
 restore: |
-    if [[ -d ./mnt ]]; then
-        umount ./mnt || true
+    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$m"; then
+            umount "/run/mnt/$m"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
     fi
-    umount /run/mnt/ubuntu-seed || true
-    umount /dev/mapper/ubuntu-save || true
-    umount /dev/mapper/ubuntu-data || true
-    umount /dev/mapper/test-udata || true
 
     cryptsetup close /dev/mapper/ubuntu-save || true
     cryptsetup close /dev/mapper/ubuntu-data || true
     cryptsetup close /dev/mapper/test-udata || true
 
     if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
     fi
     apt autoremove -y cryptsetup
 
