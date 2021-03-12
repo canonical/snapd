@@ -50,5 +50,5 @@ execute: |
     if network-observe-consumer 2> net-query.output; then
         echo "Expected error caling command with disconnected plug"
     fi
-    grep -Pq "Permission denied" < net-query.output
+    MATCH "Permission denied" < net-query.output
 

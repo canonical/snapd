@@ -1,7 +1,7 @@
 summary: Ensure `snap validate` commands work.
 
-# XXX: this functionality doesn't rely on store yet and as such this test
-# doesn't do much. Extend once all the functionality is available.
+# XXX: enable and enhance once monitor mode for validation sets is fully implemented
+manual: true
 
 systems:
   # go-flags panics when showing --help for a hidden command on Fedora 32/33

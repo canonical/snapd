@@ -430,6 +430,21 @@ func (b *brokenType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (s *transactionSuite) TestCommitOverNilSnapConfig(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate invalid nil map created due to LP #1917870 by snap restore
+	s.state.Set("config", map[string]interface{}{"test-snap": nil})
+	t := config.NewTransaction(s.state)
+
+	c.Assert(t.Set("test-snap", "foo", "bar"), IsNil)
+	t.Commit()
+	var v string
+	t.Get("test-snap", "foo", &v)
+	c.Assert(v, Equals, "bar")
+}
+
 func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
