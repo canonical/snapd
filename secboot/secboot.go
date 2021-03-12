@@ -150,3 +150,9 @@ type UnlockResult struct {
 // FDEHasReveal is setup by devicestate/fde to support device-specific
 // full disk encryption implementations.
 var FDEHasRevealKey = func() bool { return false }
+
+// EncryptedPartitionName returns the name/label the encrypted partition
+// corresponding to a given name would use.
+func EncryptedPartitionName(name string) string {
+	return name + "-enc"
+}

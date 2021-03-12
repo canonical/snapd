@@ -258,7 +258,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name))
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
@@ -519,7 +519,7 @@ func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (Un
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(EncryptedPartitionName(name))
 	if err != nil {
 		return unlockRes, err
 	}
