@@ -6733,42 +6733,7 @@ volumes:
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	// this failure is expected, the auto-refresh will fail first
-	//
-	// XXX: error message is a bit misleading: gadget "pi-kernel" (pi-kernel is not a gadget)
-	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Update assets from gadget "pi-kernel" \(2\) \(cannot find required kernel asset "pidtbs" in gadget\).*`)
-
-	// run the auto-refresh again, now it will succeed
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
-	c.Assert(err, IsNil)
-	sort.Strings(affected)
-	c.Check(affected, DeepEquals, []string{"pi-kernel"})
-
-	chg = st.NewChange("upgrade-snaps", "...")
-	for _, ts := range tasksets {
-		// skip the taskset of UpdateMany that does the
-		// check-refresheh, see tsWithoutReRefresh for details
-		if ts.Tasks()[0].Kind() == "check-rerefresh" {
-			continue
-		}
-		chg.AddAll(ts)
-	}
-
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
-
-	// pretend we restarted
-	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
-
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// check that files/dirs got updated and subdirs are correct
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
