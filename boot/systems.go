@@ -221,6 +221,9 @@ const (
 	// recovery system state was incorrect and corresponding boot variables
 	// need to be cleared
 	TryRecoverySystemOutcomeInconsistent
+	// TryRecoverySystemOutcomeNoneTried indicates a state in which no
+	// recovery system has been tried
+	TryRecoverySystemOutcomeNoneTried
 )
 
 // EnsureNextBootToRunModeWithTryRecoverySystemOutcome, typically called while
@@ -274,4 +277,48 @@ func observeSuccessfulSystems(model *asserts.Model, m *Modeenv) (*Modeenv, error
 		return newM, nil
 	}
 	return m, nil
+}
+
+// InspectTryRecoverySystemOutcome obtains a tried recovery system status. When
+// no recovery system has been tried, the outcome will be
+// TryRecoverySystemOutcomeNoneTried. The caller is responsible for clearing the
+// bootenv once the status bas been properly acted on.
+func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutcome, label string, err error) {
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return TryRecoverySystemOutcomeFailure, "", err
+	}
+
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	if err != nil {
+		return TryRecoverySystemOutcomeFailure, "", err
+	}
+	status := vars["recovery_system_status"]
+	trySystem := vars["try_recovery_system"]
+
+	outcome = TryRecoverySystemOutcomeFailure
+	switch {
+	case status == "" && trySystem == "":
+		// simplest case, not trying a system
+		return TryRecoverySystemOutcomeNoneTried, "", nil
+	case status != "try" && status != "tried":
+		// system label is set, but the status is unexpected status
+		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
+			why: fmt.Sprintf("unexpected recovery system status %q", status),
+		}
+	case trySystem == "":
+		// no system set, but we have status
+		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
+			why: fmt.Sprintf("try recovery system is unset but status is %q", status),
+		}
+	case status == "tried":
+		outcome = TryRecoverySystemOutcomeSuccess
+	}
+
+	return outcome, trySystem, nil
 }

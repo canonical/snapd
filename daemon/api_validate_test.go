@@ -29,12 +29,15 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -44,6 +47,10 @@ var _ = check.Suite(&apiValidationSetsSuite{})
 type apiValidationSetsSuite struct {
 	apiBaseSuite
 
+	storeSigning              *assertstest.StoreStack
+	dev1Signing               *assertstest.SigningDB
+	dev1acct                  *asserts.Account
+	acct1Key                  *asserts.AccountKey
 	mockSeqFormingAssertionFn func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
 }
 
@@ -59,12 +66,28 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
 
+	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 1)
+	s.AddCleanup(restore)
+
 	s.mockSeqFormingAssertionFn = nil
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 
 	st := d.Overlord().State()
 	st.Lock()
 	snapstate.ReplaceStore(st, s)
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 	st.Unlock()
+
+	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	c.Assert(s.storeSigning.Add(s.dev1acct), check.IsNil)
+
+	// developer signing
+	dev1PrivKey, _ := assertstest.GenerateKey(752)
+	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
+
+	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
+	c.Assert(s.storeSigning.Add(s.acct1Key), check.IsNil)
 
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
@@ -72,21 +95,65 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 
 func mockValidationSetsTracking(st *state.State) {
 	st.Set("validation-sets", map[string]interface{}{
-		"foo/bar": map[string]interface{}{
-			"account-id": "foo",
-			"name":       "bar",
+		"can0nical/foo": map[string]interface{}{
+			"account-id": "can0nical",
+			"name":       "foo",
 			"mode":       assertstate.Enforce,
 			"pinned-at":  9,
-			"current":    12,
+			"current":    99,
 		},
-		"foo/baz": map[string]interface{}{
-			"account-id": "foo",
+		"can0nical/baz": map[string]interface{}{
+			"account-id": "can0nical",
 			"name":       "baz",
 			"mode":       assertstate.Monitor,
 			"pinned-at":  0,
 			"current":    2,
 		},
 	})
+}
+
+func (s *apiValidationSetsSuite) mockAssert(c *check.C, name, sequence string) asserts.Assertion {
+	snaps := []interface{}{map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+		"name":     "snap-b",
+		"presence": "required",
+		"revision": "1",
+	}}
+	headers := map[string]interface{}{
+		"authority-id": "can0nical",
+		"account-id":   "can0nical",
+		"name":         name,
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	as, err := s.storeSigning.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	return as
+}
+
+func (s *apiValidationSetsSuite) mockAssertByDev1(c *check.C, name, sequence string) asserts.Assertion {
+	snaps := []interface{}{map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+		"name":     "snap-b",
+		"presence": "required",
+		"revision": "1",
+	}}
+	headers := map[string]interface{}{
+		"authority-id": s.dev1acct.AccountID(),
+		"account-id":   s.dev1acct.AccountID(),
+		"name":         "bar",
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	return vs
 }
 
 func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
@@ -170,54 +237,73 @@ func (s *apiValidationSetsSuite) TestGetValidationSetsNone(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
-	c.Assert(err, check.IsNil)
-
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
+	as := s.mockAssert(c, "foo", "9")
+	err := assertstate.Add(st, as)
+	c.Check(err, check.IsNil)
+	as = s.mockAssert(c, "baz", "2")
+	err = assertstate.Add(st, as)
 	st.Unlock()
+	c.Assert(err, check.IsNil)
 
+	req, err := http.NewRequest("GET", "/v2/validation-sets", nil)
+	c.Assert(err, check.IsNil)
 	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
+	}
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.([]daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, []daemon.ValidationSetResult{
 		{
-			AccountID: "foo",
-			Name:      "bar",
-			PinnedAt:  9,
-			Mode:      "enforce",
-			Sequence:  12,
-			Valid:     false,
-		},
-		{
-			AccountID: "foo",
+			AccountID: "can0nical",
 			Name:      "baz",
 			Mode:      "monitor",
 			Sequence:  2,
+			Valid:     false,
+		},
+		{
+			AccountID: "can0nical",
+			Name:      "foo",
+			PinnedAt:  9,
+			Mode:      "enforce",
+			Sequence:  99,
 			Valid:     false,
 		},
 	})
 }
 
 func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar", nil)
-	c.Assert(err, check.IsNil)
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
 
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
+	as := s.mockAssert(c, "baz", "2")
+	err := assertstate.Add(st, as)
 	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/validation-sets/can0nical/baz", nil)
+	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
+	}
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
-		AccountID: "foo",
-		Name:      "bar",
-		PinnedAt:  9,
-		Mode:      "enforce",
-		Sequence:  12,
+		AccountID: "can0nical",
+		Name:      "baz",
+		Mode:      "monitor",
+		Sequence:  2,
 		Valid:     false,
 	})
 }
@@ -225,23 +311,29 @@ func (s *apiValidationSetsSuite) TestGetValidationSetOne(c *check.C) {
 func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	q := url.Values{}
 	q.Set("sequence", "9")
-	req, err := http.NewRequest("GET", "/v2/validation-sets/foo/bar?"+q.Encode(), nil)
+	req, err := http.NewRequest("GET", "/v2/validation-sets/can0nical/foo?"+q.Encode(), nil)
 	c.Assert(err, check.IsNil)
 
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockValidationSetsTracking(st)
+	as := s.mockAssert(c, "foo", "9")
+	err = assertstate.Add(st, as)
 	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
+	}
 	c.Assert(rsp.Status, check.Equals, 200)
 	res := rsp.Result.(daemon.ValidationSetResult)
 	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
-		AccountID: "foo",
-		Name:      "bar",
+		AccountID: "can0nical",
+		Name:      "foo",
 		PinnedAt:  9,
 		Mode:      "enforce",
-		Sequence:  12,
+		Sequence:  99,
 		Valid:     false,
 	})
 }
@@ -287,7 +379,7 @@ var validationSetAssertion = []byte("type: validation-set\n" +
 	"    presence: required\n" +
 	"    revision: 1\n" +
 	"timestamp: 2020-11-06T09:16:26Z\n" +
-	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+	"sign-key-sha3-384: 7bbncP0c4RcufwReeiylCe0S7IMCn-tHLNSCgeOVmV3K-7_MzpAHgJDYeOjldefE\n\n" +
 	"AXNpZw==")
 
 func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C) {
@@ -472,6 +564,44 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 	})
 }
 
+func (s *apiValidationSetsSuite) TestGetValidationSetFromRemoteFallbackToLocalAssertion(c *check.C) {
+	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+		// not found in the store
+		return nil, &asserts.NotFoundError{
+			Type: assertType,
+		}
+	}
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+		// nil indicates successful validation
+		return nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
+	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
+	// assertion available in the local db (from snap ack)
+	vs := s.mockAssertByDev1(c, "bar", "2")
+	c.Assert(assertstate.Add(st, vs), check.IsNil)
+	st.Unlock()
+
+	q := url.Values{}
+	q.Set("sequence", "2")
+	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s/bar?", s.dev1acct.AccountID())+q.Encode(), nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 200)
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Sequence:  2,
+		Valid:     true,
+	})
+}
+
 func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) {
 	s.mockSeqFormingAssertionFn = func(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
 		return nil, &asserts.NotFoundError{
@@ -501,59 +631,220 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	})
 }
 
-func (s *apiValidationSetsSuite) TestApplyValidationSet(c *check.C) {
+func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnly(c *check.C) {
+	restore := daemon.MockValidationSetAssertionForMonitor(func(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *assertstate.ResolveOptions) (*asserts.ValidationSet, bool, error) {
+		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
+		c.Assert(name, check.Equals, "bar")
+		c.Assert(sequence, check.Equals, 99)
+		c.Assert(pinned, check.Equals, true)
+		c.Assert(opts, check.NotNil)
+		c.Check(opts.AllowLocalFallback, check.Equals, true)
+
+		db := assertstate.DB(st)
+		headers, err := asserts.HeadersFromPrimaryKey(asserts.ValidationSetType, []string{release.Series, accountID, name, fmt.Sprintf("%d", sequence)})
+		c.Assert(err, check.IsNil)
+		// validation set assertion available locally
+		vs, err := db.Find(asserts.ValidationSetType, headers)
+		c.Assert(err, check.IsNil)
+		return vs.(*asserts.ValidationSet), true, nil
+	})
+	defer restore()
+
 	st := s.d.Overlord().State()
 
-	for _, tc := range []struct {
-		mode         string
-		sequence     int
-		expectedMode assertstate.ValidationSetMode
-	}{
-		{
-			mode:         "enforce",
-			sequence:     12,
-			expectedMode: assertstate.Enforce,
-		},
-		{
-			mode:         "monitor",
-			sequence:     99,
-			expectedMode: assertstate.Monitor,
-		},
-		{
-			mode:         "enforce",
-			expectedMode: assertstate.Enforce,
-		},
-		{
-			mode:         "monitor",
-			expectedMode: assertstate.Monitor,
-		},
-	} {
-		var body string
-		if tc.sequence != 0 {
-			body = fmt.Sprintf(`{"action":"apply","mode":"%s", "sequence":%d}`, tc.mode, tc.sequence)
-		} else {
-			body = fmt.Sprintf(`{"action":"apply","mode":"%s"}`, tc.mode)
-		}
+	st.Lock()
+	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
+	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
+	vs := s.mockAssertByDev1(c, "bar", "99")
+	// add validation set assertion to the local db
+	c.Assert(assertstate.Add(st, vs), check.IsNil)
+	st.Unlock()
 
-		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
-		c.Assert(err, check.IsNil)
+	body := `{"action":"apply","mode":"monitor", "sequence":99}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
 
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Assert(rsp.Status, check.Equals, 200)
-
-		var tr assertstate.ValidationSetTracking
-
-		st.Lock()
-		err = assertstate.GetValidationSet(st, "foo", "bar", &tr)
-		st.Unlock()
-		c.Assert(err, check.IsNil)
-		c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
-			AccountID: "foo",
-			Name:      "bar",
-			PinnedAt:  tc.sequence,
-			Mode:      tc.expectedMode,
-		})
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
 	}
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	var tr assertstate.ValidationSetTracking
+
+	// verify tracking information
+	st.Lock()
+	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
+		Mode:      assertstate.Monitor,
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		PinnedAt:  99,
+		Current:   99,
+		LocalOnly: true,
+	})
+}
+
+func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedUnresolved(c *check.C) {
+	restore := daemon.MockValidationSetAssertionForMonitor(func(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *assertstate.ResolveOptions) (*asserts.ValidationSet, bool, error) {
+		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
+		c.Assert(name, check.Equals, "bar")
+		c.Assert(sequence, check.Equals, 99)
+		c.Assert(pinned, check.Equals, true)
+
+		snaps := []interface{}{map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "snap-b",
+			"presence": "required",
+			"revision": "1",
+		}}
+		headers := map[string]interface{}{
+			"authority-id": s.dev1acct.AccountID(),
+			"account-id":   s.dev1acct.AccountID(),
+			"name":         "bar",
+			"series":       "16",
+			"sequence":     "99",
+			"revision":     "5",
+			"timestamp":    "2030-11-06T09:16:26Z",
+			"snaps":        snaps,
+		}
+		// validation set assertion coming from the store
+		vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+		c.Assert(err, check.IsNil)
+		return vs.(*asserts.ValidationSet), false, nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+
+	st.Lock()
+	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
+	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
+	st.Unlock()
+
+	body := `{"action":"apply","mode":"monitor", "sequence":99}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
+	}
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	var tr assertstate.ValidationSetTracking
+
+	// verify tracking information
+	st.Lock()
+	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
+		Mode:      assertstate.Monitor,
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		PinnedAt:  99,
+		Current:   99,
+	})
+}
+
+func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeUnpinnedRefreshed(c *check.C) {
+	snaps := []interface{}{map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+		"name":     "snap-b",
+		"presence": "required",
+		"revision": "1",
+	}}
+
+	restore := daemon.MockValidationSetAssertionForMonitor(func(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *assertstate.ResolveOptions) (*asserts.ValidationSet, bool, error) {
+		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
+		c.Assert(name, check.Equals, "bar")
+		c.Assert(sequence, check.Equals, 0)
+		c.Assert(pinned, check.Equals, false)
+
+		// new sequence
+		headers := map[string]interface{}{
+			"authority-id": s.dev1acct.AccountID(),
+			"account-id":   s.dev1acct.AccountID(),
+			"name":         "bar",
+			"series":       "16",
+			"sequence":     "2",
+			"revision":     "1",
+			"timestamp":    "2030-11-06T09:16:26Z",
+			"snaps":        snaps,
+		}
+		// updated validation set assertion coming from the store
+		vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+		c.Assert(err, check.IsNil)
+		return vs.(*asserts.ValidationSet), false, nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+
+	st.Lock()
+	c.Assert(assertstate.Add(st, s.dev1acct), check.IsNil)
+	c.Assert(assertstate.Add(st, s.acct1Key), check.IsNil)
+	st.Unlock()
+
+	headers := map[string]interface{}{
+		"authority-id": s.dev1acct.AccountID(),
+		"account-id":   s.dev1acct.AccountID(),
+		"name":         "bar",
+		"series":       "16",
+		"sequence":     "1",
+		"revision":     "1",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	st.Lock()
+	// add validation set assertion to the local db
+	c.Assert(assertstate.Add(st, vs), check.IsNil)
+	st.Unlock()
+
+	body := `{"action":"apply","mode":"monitor"}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	if rsp.Status != 200 {
+		fmt.Printf("%s\n", rsp.ErrorResult().Message)
+	}
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	var tr assertstate.ValidationSetTracking
+
+	// verify tracking information
+	st.Lock()
+	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
+		Mode:      assertstate.Monitor,
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Current:   2,
+	})
+}
+
+func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeError(c *check.C) {
+	restore := daemon.MockValidationSetAssertionForMonitor(func(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *assertstate.ResolveOptions) (*asserts.ValidationSet, bool, error) {
+		return nil, false, fmt.Errorf("boom")
+	})
+	defer restore()
+
+	body := `{"action":"apply","mode":"monitor"}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Equals, fmt.Sprintf(`cannot get validation set assertion for %s/bar: boom`, s.dev1acct.AccountID()))
 }
 
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
@@ -575,25 +866,25 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 
 		st.Lock()
 		// sanity, it exists before removing
-		err := assertstate.GetValidationSet(st, "foo", "bar", &tr)
+		err := assertstate.GetValidationSet(st, "can0nical", "foo", &tr)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(tr.AccountID, check.Equals, "foo")
-		c.Check(tr.Name, check.Equals, "bar")
+		c.Check(tr.AccountID, check.Equals, "can0nical")
+		c.Check(tr.Name, check.Equals, "foo")
 
-		req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
+		req, err := http.NewRequest("POST", "/v2/validation-sets/can0nical/foo", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 		rsp := s.req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 200, check.Commentf("case #%d", i))
 
 		// after forget it's removed
 		st.Lock()
-		err = assertstate.GetValidationSet(st, "foo", "bar", &tr)
+		err = assertstate.GetValidationSet(st, "can0nical", "foo", &tr)
 		st.Unlock()
 		c.Assert(err, check.Equals, state.ErrNoState)
 
 		// and forget again fails
-		req, err = http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
+		req, err = http.NewRequest("POST", "/v2/validation-sets/can0nical/foo", strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 		rsp = s.req(c, req, nil).(*daemon.Resp)
 		c.Assert(rsp.Status, check.Equals, 404, check.Commentf("case #%d", i))
@@ -642,6 +933,13 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 			validationSet: "foo/bar",
 			mode:          "bad",
 			message:       `invalid mode "bad"`,
+			status:        400,
+		},
+		// XXX: enable when enforcing is implemented.
+		{
+			validationSet: "foo/bar",
+			mode:          "enforce",
+			message:       `invalid mode "enforce"`,
 			status:        400,
 		},
 		{

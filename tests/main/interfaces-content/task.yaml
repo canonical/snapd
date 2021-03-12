@@ -32,6 +32,7 @@ prepare: |
 execute: |
     echo "When a snap declaring a content sharing plug is installed"
     snap install --edge test-snapd-content-plug
+
     echo "Then this pulls in the default provider"
     snap list | MATCH  test-snapd-content-slot
 

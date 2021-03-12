@@ -69,4 +69,4 @@ execute: |
         echo "Expected error with plug disconnected"
         exit 1
     fi
-    grep -q "scheduler not responding" print.error
+    MATCH "scheduler not responding" < print.error

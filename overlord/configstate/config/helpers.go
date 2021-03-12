@@ -145,7 +145,8 @@ func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) error {
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
-	isNil := snapcfg == nil || len(*snapcfg) == 0
+	// empty nil snapcfg should be an empty message, but deal with "null" as well.
+	isNil := snapcfg == nil || len(*snapcfg) == 0 || bytes.Compare(*snapcfg, []byte("null")) == 0
 	if err == state.ErrNoState {
 		if isNil {
 			// bail out early
