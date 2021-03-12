@@ -583,11 +583,6 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tests.backup prepare
 
-    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if os.query is-debian-sid; then
-        systemctl restart systemd-journald
-    fi
-
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 
