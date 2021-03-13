@@ -103,14 +103,4 @@ func MustUnmarshalSnapshotAction(c *check.C, jact string) *snapshotAction {
 	return &act
 }
 
-func (rsp *resp) ErrorResult() *errorResult {
-	return rsp.Result.(*errorResult)
-}
-
-var (
-	SnapshotMany      = snapshotMany
-	SnapshotCmd       = snapshotCmd
-	SnapshotExportCmd = snapshotExportCmd
-)
-
 type SnapshotExportResponse = snapshotExportResponse

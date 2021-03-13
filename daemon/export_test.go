@@ -195,6 +195,11 @@ type (
 	SnapInstruction = snapInstruction
 )
 
+// XXX this is not used very consistently
+func (rsp *resp) ErrorResult() *errorResult {
+	return rsp.Result.(*errorResult)
+}
+
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
