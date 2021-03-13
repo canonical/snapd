@@ -20,8 +20,6 @@
 package daemon
 
 var (
-	SnapDownloadCmd      = snapDownloadCmd
-	PostSnapDownload     = postSnapDownload
 	NewSnapStream        = newSnapStream
 	DownloadTokensSecret = downloadTokensSecret
 )

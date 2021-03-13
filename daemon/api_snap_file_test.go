@@ -33,7 +33,7 @@ import (
 
 var _ = check.Suite(&snapFileSuite{})
 
-type snapFileSuite struct{
+type snapFileSuite struct {
 	apiBaseSuite
 }
 
