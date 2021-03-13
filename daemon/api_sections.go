@@ -43,7 +43,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	theStore := getStore(c)
+	theStore := getStore(c.d)
 
 	// TODO: use a per-request context
 	sections, err := theStore.Sections(context.TODO(), user)

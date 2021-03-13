@@ -114,8 +114,8 @@ func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 var muxVars = mux.Vars
 
-func getStore(c *Command) snapstate.StoreService {
-	st := c.d.overlord.State()
+func getStore(d *Daemon) snapstate.StoreService {
+	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
