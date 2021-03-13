@@ -745,3 +745,18 @@ func (s *appsSuite) TestLogsSad(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 500)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
+
+func (s *appsSuite) TestLogsNoServices(c *check.C) {
+	// no installed snaps with services
+	st := s.d.Overlord().State()
+	st.Lock()
+	st.Set("snaps", nil)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/logs", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+	c.Assert(rsp.Status, check.Equals, 404)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+}

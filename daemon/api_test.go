@@ -23,12 +23,10 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"strings"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type apiSuite struct {
@@ -37,12 +35,9 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
-	for _, cmd := range api {
-		if strings.Contains(cmd.Path, "user") {
-			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
-		}
-	}
+func (s *apiSuite) SetUpTest(c *check.C) {
+	s.APIBaseSuite.SetUpTest(c)
+	s.Daemon(c)
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -134,22 +129,4 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 		form.Value = map[string][]string{"foo": {t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
-}
-
-func (s *apiSuite) TestLogsNoServices(c *check.C) {
-	// NOTE this is *apiSuite, not *appSuite, so there are no
-	// installed snaps with services
-
-	cmd := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
-	defer cmd.Restore()
-	s.daemon(c)
-	s.d.overlord.Loop()
-	defer s.d.overlord.Stop()
-
-	req, err := http.NewRequest("GET", "/v2/logs", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(logsCmd, req, nil).(*resp)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 }

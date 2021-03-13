@@ -32,6 +32,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func APICommands() []*Command {
+	return api
+}
+
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {
