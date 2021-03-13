@@ -225,6 +225,9 @@ func (inst *snapInstruction) ErrToResponse(err error) Response {
 }
 
 var (
+	UserFromRequest = userFromRequest
+	IsTrue          = isTrue
+
 	MakeErrorResponder = makeErrorResponder
 	ErrToResponse      = errToResponse
 )

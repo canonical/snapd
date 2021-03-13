@@ -79,9 +79,9 @@ var api = []*Command{
 	systemRecoveryKeysCmd,
 }
 
-// UserFromRequest extracts user information from request and return the respective user in state, if valid
+// userFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
-func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
+func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
 	if header == "" {
