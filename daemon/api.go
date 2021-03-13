@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -135,14 +134,6 @@ var (
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
-
-	snapshotList    = snapshotstate.List
-	snapshotCheck   = snapshotstate.Check
-	snapshotForget  = snapshotstate.Forget
-	snapshotRestore = snapshotstate.Restore
-	snapshotSave    = snapshotstate.Save
-	snapshotExport  = snapshotstate.Export
-	snapshotImport  = snapshotstate.Import
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
