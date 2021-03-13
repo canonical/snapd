@@ -21,7 +21,9 @@ package daemon
 
 import (
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -160,4 +162,17 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 		chg.Set("snap-names", snapNames)
 	}
 	return chg
+}
+
+func isTrue(form *multipart.Form, key string) bool {
+	value := form.Value[key]
+	if len(value) == 0 {
+		return false
+	}
+	b, err := strconv.ParseBool(value[0])
+	if err != nil {
+		return false
+	}
+
+	return b
 }
